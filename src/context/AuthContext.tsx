@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { mockUsers } from '../utils/mockData';
+// import { mockUsers } from '../utils/mockData';
+import api from '../utils/api';
+import { API_END_POINTS } from '../utils/constants';
 
 export type UserRole = 'admin' | 'attorney' | 'paralegal' | 'client';
 
@@ -25,6 +27,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,26 +40,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
+  // const login = async (email: string, password: string): Promise<void> => {
+  //   setIsLoading(true);
+    
+  //   // Simulating API call with timeout
+  //   return new Promise((resolve, reject) => {
+  //     setTimeout(() => {
+
+  //       const foundUser: any = mockUsers.find(user => user.email === email);
+        
+  //       if (foundUser && password === 'password') { // In a real app, use proper password verification
+  //         setUser(foundUser);
+  //         localStorage.setItem('user', JSON.stringify(foundUser));
+  //         setIsLoading(false);
+  //         resolve();
+  //       } else {
+  //         setIsLoading(false);
+  //         reject(new Error('Invalid email or password'));
+  //       }
+  //     }, 1000);
+  //   });
+  // };
+  
   const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
-    
-    // Simulating API call with timeout
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
+    try {
 
-        const foundUser: any = mockUsers.find(user => user.email === email);
-        
-        if (foundUser && password === 'password') { // In a real app, use proper password verification
-          setUser(foundUser);
-          localStorage.setItem('user', JSON.stringify(foundUser));
-          setIsLoading(false);
-          resolve();
-        } else {
-          setIsLoading(false);
-          reject(new Error('Invalid email or password'));
-        }
-      }, 1000);
-    });
+      const response = await api.post(API_END_POINTS.LOGIN, { email, password });
+  
+      const user = response.data;
+  
+      // Simulating API call with timeout
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          
+          if (user && user.token) { // In a real app, use proper password verification
+            setUser(user);
+            localStorage.setItem('user', JSON.stringify(user));
+            localStorage.setItem('token', user.token);
+            setIsLoading(false);
+            resolve();
+          } else {
+            setIsLoading(false);
+            reject(new Error('Invalid email or password'));
+          }
+        }, 1000);
+      });
+  
+    } catch (error: any) {
+      throw new Error(error?.response?.data?.message || 'Login failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const logout = () => {

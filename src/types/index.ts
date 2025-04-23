@@ -58,3 +58,22 @@ export interface ApiResponse {
   data?: any;
   error?: string;
 }
+
+
+export interface RegisterParams {
+  username: string;
+  email: string;
+  password: string;
+  // Add other fields as required
+}
+
+export interface AuthState {
+  token: string | null;
+  login_result: any;
+  error: string | null;
+}
+
+export interface AuthAction {
+  type: 'LOGIN_SUCCESS' | 'LOGIN_FAILURE' | 'LOGOUT';
+  payload?: any;
+}
