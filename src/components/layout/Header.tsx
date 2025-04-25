@@ -1,5 +1,5 @@
 import { Bell, Menu, Search, User, LogIn } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../controllers/AuthControllers';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -92,7 +92,7 @@ const Header: React.FC<HeaderProps> = ({ onSidebarOpen, onNotificationsOpen }) =
                       </div>
                     )}
                   </button>
-                  
+
                   {userMenuOpen && (
                     <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
                       <div className="py-1 rounded-md bg-white shadow-xs">

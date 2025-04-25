@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { 
-  Bell, 
-  Lock, 
-  User, 
-  Building, 
-  Mail, 
-  Globe, 
+import {
+  Bell,
+  Lock,
+  User,
+  Building,
+  Mail,
+  Globe,
   CreditCard,
   Save,
   ChevronRight,
@@ -31,7 +31,7 @@ import {
   Cloud,
   AlertTriangle
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../controllers/AuthControllers';
 
 const SettingsPage = () => {
   const { isAdmin, isAttorney } = useAuth();
@@ -100,22 +100,19 @@ const SettingsPage = () => {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center w-full px-3 py-2 text-sm font-medium rounded-md ${
-                  activeTab === item.id
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
+                className={`flex items-center w-full px-3 py-2 text-sm font-medium rounded-md ${activeTab === item.id
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+                  }`}
               >
                 <item.icon
-                  className={`mr-3 h-5 w-5 ${
-                    activeTab === item.id ? 'text-primary-500' : 'text-gray-400'
-                  }`}
+                  className={`mr-3 h-5 w-5 ${activeTab === item.id ? 'text-primary-500' : 'text-gray-400'
+                    }`}
                 />
                 <span>{item.name}</span>
                 <ChevronRight
-                  className={`ml-auto h-5 w-5 ${
-                    activeTab === item.id ? 'text-primary-500' : 'text-gray-400'
-                  }`}
+                  className={`ml-auto h-5 w-5 ${activeTab === item.id ? 'text-primary-500' : 'text-gray-400'
+                    }`}
                 />
               </button>
             ))}
@@ -128,7 +125,7 @@ const SettingsPage = () => {
             {activeTab === 'database' && isAdmin && (
               <div className="p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-6">Database Settings</h2>
-                
+
                 <div className="space-y-6">
                   {/* Connection Settings */}
                   <div className="bg-gray-50 p-4 rounded-lg">
@@ -261,7 +258,7 @@ const SettingsPage = () => {
             {activeTab === 'api' && isAdmin && (
               <div className="p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-6">API Settings</h2>
-                
+
                 <div className="space-y-6">
                   {/* API Keys */}
                   <div className="bg-gray-50 p-4 rounded-lg">
@@ -402,7 +399,7 @@ const SettingsPage = () => {
             {activeTab === 'performance' && isAdmin && (
               <div className="p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-6">Performance Monitoring</h2>
-                
+
                 <div className="space-y-6">
                   {/* System Resources */}
                   <div className="bg-gray-50 p-4 rounded-lg">

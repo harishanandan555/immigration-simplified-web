@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { createCase } from '../../controllers/Casecontrollers';
 
 interface CaseFormData {
   title: string;
   caseNumber: string;
-  caseType: string;
+  type: string;
   status: string;
   clientId: string;
   assignedTo: string;
@@ -19,7 +20,7 @@ interface CaseFormData {
 const initialFormData: CaseFormData = {
   title: '',
   caseNumber: '',
-  caseType: '',
+  type: '',
   status: 'Active',
   clientId: '',
   assignedTo: '',
@@ -46,7 +47,7 @@ const CaseFormPage = () => {
         setFormData({
           title: 'Johnson v. Smith',
           caseNumber: 'CV-2023-12345',
-          caseType: 'Civil Litigation',
+          type: 'Civil Litigation',
           status: 'Active',
           clientId: '1',
           assignedTo: 'Sarah Reynolds',
@@ -65,22 +66,50 @@ const CaseFormPage = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   setSaving(true);
+  //   setError(null);
+
+  //   try {
+  //     // Simulate API call
+  //     await new Promise(resolve => setTimeout(resolve, 1000));
+      
+  //     // Navigate back to cases list on success
+  //     navigate('/cases');
+  //   } catch (err) {
+  //     setError('Failed to save case. Please try again.');
+  //     setSaving(false);
+  //   }
+  // };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (isEditing) {
+        // Update existing case
+        // await updateCase(id!, formData);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      } else {
+        // Create new case
+        const response: any = await createCase(formData);
+        
+        if (response.status === 201) {
+          console.log('Case created successfully:', response.data);
+        }
+
+      }
       
-      // Navigate back to cases list on success
       navigate('/cases');
     } catch (err) {
-      setError('Failed to save case. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to save case. Please try again.');
       setSaving(false);
     }
   };
+
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this case? This action cannot be undone.')) {
@@ -131,6 +160,7 @@ const CaseFormPage = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
@@ -170,9 +200,9 @@ const CaseFormPage = () => {
               </label>
               <select
                 id="caseType"
-                name="caseType"
+                name="type"
                 required
-                value={formData.caseType}
+                value={formData.type}
                 onChange={handleInputChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
@@ -184,6 +214,7 @@ const CaseFormPage = () => {
                 <option value="Corporate">Corporate</option>
                 <option value="Real Estate">Real Estate</option>
                 <option value="Estate Planning">Estate Planning</option>
+                <option value="Other">Other</option>
               </select>
             </div>
 
@@ -219,9 +250,9 @@ const CaseFormPage = () => {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select client</option>
-                <option value="1">John Smith</option>
-                <option value="2">Jane Doe</option>
-                <option value="3">Robert Johnson</option>
+                <option value="680b5175ecbc650c02d32a22">John Smith</option>
+                <option value="680b5175ecbc650c02d32a22">Jane Doe</option>
+                <option value="680b5175ecbc650c02d32a22">Robert Johnson</option>
               </select>
             </div>
 
@@ -238,9 +269,9 @@ const CaseFormPage = () => {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select attorney</option>
-                <option value="Sarah Reynolds">Sarah Reynolds</option>
-                <option value="Michael Chen">Michael Chen</option>
-                <option value="Emily Wilson">Emily Wilson</option>
+                <option value="680b5175ecbc650c02d32a22">Sarah Reynolds</option>
+                <option value="680b5175ecbc650c02d32a22">Michael Chen</option>
+                <option value="680b5175ecbc650c02d32a22">Emily Wilson</option>
               </select>
             </div>
 
@@ -321,6 +352,7 @@ const CaseFormPage = () => {
               {saving ? 'Saving...' : 'Save Case'}
             </button>
           </div>
+
         </form>
       </div>
     </div>

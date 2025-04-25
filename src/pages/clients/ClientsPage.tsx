@@ -1,12 +1,51 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Search, Filter, ArrowUpDown, Mail, Phone } from 'lucide-react';
+
 import { mockClients } from '../../utils/mockData';
+import { getClients } from '../../controllers/ClientControllers';
+
+type Client = {
+  _id: string;
+  id: string;
+  createdAt: string;
+  email: string;
+  name: string;
+  phone: string;
+  status: string;
+  alienNumber: string;
+  address: string;
+  nationality: string;
+};
 
 const ClientsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const filteredClients = mockClients.filter(
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchCases = async () => {
+      try {
+
+        setLoading(true);
+        const clientData: any = await getClients();
+
+        if (clientData && clientData.clients && clientData.clients.length > 0) {
+          setClients(clientData.clients);
+        } else {
+          setClients([]);
+        }
+      } catch (error) {
+        console.error('Error fetching cases:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCases();
+  }, []);
+
+  const filteredClients = clients.filter(
     (client) =>
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,8 +126,8 @@ const ClientsPage = () => {
                           {client.name.charAt(0)}
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{client.name}</div>
-                          <div className="text-sm text-gray-500">{client.address}</div>
+                          <div className="text-sm font-medium text-gray-900">{client.name || 'N/A'}</div>
+                          <div className="text-sm text-gray-500">{client.address || 'N/A'}</div>
                         </div>
                       </Link>
                     </td>
@@ -97,34 +136,33 @@ const ClientsPage = () => {
                         <div className="flex items-center gap-1">
                           <Mail size={14} />
                           <a href={`mailto:${client.email}`} className="hover:text-primary-600">
-                            {client.email}
+                            {client.email || 'N/A'}
                           </a>
                         </div>
                         <div className="flex items-center gap-1 mt-1">
                           <Phone size={14} />
                           <a href={`tel:${client.phone}`} className="hover:text-primary-600">
-                            {client.phone}
+                            {client.phone || 'N/A'}
                           </a>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {client.alienNumber}
+                      {client.alienNumber || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {client.nationality}
+                      {client.nationality || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        client.status === 'Active' 
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {client.status}
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${client.status === 'Active'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-800'
+                        }`}>
+                        {client.status || 'N/A'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(client.createdAt).toLocaleDateString()}
+                      {new Date(client.createdAt).toLocaleDateString() || 'N/A'}
                     </td>
                   </tr>
                 ))
@@ -138,7 +176,7 @@ const ClientsPage = () => {
             </tbody>
           </table>
         </div>
-        
+
         {filteredClients.length > 0 && (
           <div className="flex justify-between items-center mt-4 py-3">
             <div className="text-sm text-gray-500">

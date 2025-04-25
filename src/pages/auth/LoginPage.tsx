@@ -1,10 +1,12 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../controllers/AuthControllers';
 import Logo from '../../components/layout/Logo';
 import { Eye, EyeOff, Shield, Clock, CheckSquare, FileText, AlertCircle, Users, ArrowRight } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -37,7 +39,7 @@ const LoginPage: React.FC = () => {
               <Shield className="mr-3 h-8 w-8 text-primary-600" />
               Why Choose Immigration-Simplified?
             </h2>
-            
+
             <div className="space-y-6">
               <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
                 <h3 className="flex items-center text-xl font-semibold mb-4 text-gray-900">
@@ -184,9 +186,8 @@ const LoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
-                  isLoading ? 'opacity-75 cursor-not-allowed' : ''
-                }`}
+                className={`w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${isLoading ? 'opacity-75 cursor-not-allowed' : ''
+                  }`}
               >
                 {isLoading ? (
                   'Signing in...'
@@ -260,6 +261,7 @@ const LoginPage: React.FC = () => {
       </div>
     </div>
   );
+
 };
 
 export default LoginPage;

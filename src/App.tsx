@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import LoadingSpinner from './components/ui/LoadingSpinner';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from './controllers/AuthControllers';
 import LoginPage from './pages/auth/LoginPage';
 
 // Lazy-loaded components
@@ -34,7 +34,7 @@ const App = () => {
   return (
     <Routes>
       <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" replace />} />
-      
+
       {/* Protected routes */}
       {user ? (
         <Route element={<Layout />}>
@@ -43,7 +43,7 @@ const App = () => {
               <Dashboard />
             </Suspense>
           } />
-          
+
           <Route path="/cases" element={
             <Suspense fallback={<LoadingSpinner />}>
               <CasesPage />
@@ -57,85 +57,85 @@ const App = () => {
           } />
 
           <Route path="/case/:caseNumber" element={<CaseTrackerPage />} />
-          
+
           <Route path="/cases/new" element={
             <Suspense fallback={<LoadingSpinner />}>
               <CaseFormPage />
             </Suspense>
           } />
-          
+
           <Route path="/cases/:id" element={
             <Suspense fallback={<LoadingSpinner />}>
               <CaseDetailsPage />
             </Suspense>
           } />
-          
+
           <Route path="/cases/:id/edit" element={
             <Suspense fallback={<LoadingSpinner />}>
               <CaseFormPage />
             </Suspense>
           } />
-          
+
           <Route path="/clients" element={
             <Suspense fallback={<LoadingSpinner />}>
               <ClientsPage />
             </Suspense>
           } />
-          
+
           <Route path="/clients/new" element={
             <Suspense fallback={<LoadingSpinner />}>
               <ClientFormPage />
             </Suspense>
           } />
-          
+
           <Route path="/clients/:id" element={
             <Suspense fallback={<LoadingSpinner />}>
               <ClientDetailsPage />
             </Suspense>
           } />
-          
+
           <Route path="/clients/:id/edit" element={
             <Suspense fallback={<LoadingSpinner />}>
               <ClientFormPage />
             </Suspense>
           } />
-          
+
           <Route path="/forms" element={
             <Suspense fallback={<LoadingSpinner />}>
               <FormsLibraryPage />
             </Suspense>
           } />
-          
+
           <Route path="/forms/:id" element={
             <Suspense fallback={<LoadingSpinner />}>
               <FormFillPage />
             </Suspense>
           } />
-          
+
           <Route path="/documents" element={
             <Suspense fallback={<LoadingSpinner />}>
               <DocumentsPage />
             </Suspense>
           } />
-          
+
           <Route path="/tasks" element={
             <Suspense fallback={<LoadingSpinner />}>
               <TasksPage />
             </Suspense>
           } />
-          
+
           <Route path="/calendar" element={
             <Suspense fallback={<LoadingSpinner />}>
               <CalendarPage />
             </Suspense>
           } />
-          
+
           <Route path="/settings" element={
             <Suspense fallback={<LoadingSpinner />}>
               <SettingsPage />
             </Suspense>
           } />
-          
+
           <Route path="*" element={
             <Suspense fallback={<LoadingSpinner />}>
               <NotFoundPage />

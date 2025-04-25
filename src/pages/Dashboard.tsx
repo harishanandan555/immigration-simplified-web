@@ -1,25 +1,25 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Clock, 
+import {
+  Clock,
   FileText,
   Briefcase,
-  CheckCircle, 
-  AlertCircle, 
-  Users, 
+  CheckCircle,
+  AlertCircle,
+  Users,
   FileCheck,
   CalendarDays
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../controllers/AuthControllers';
 import { mockCases, mockTasks, mockClients } from '../utils/mockData';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -31,40 +31,42 @@ const Dashboard = () => {
   const [timeframe, setTimeframe] = useState<'week' | 'month' | 'quarter'>('month');
 
   // Filter cases if user is a client
-  const filteredCases = isClient 
+  const filteredCases = isClient
     ? mockCases.filter(c => c.clientId === user?.id)
     : mockCases;
 
   // Filter upcoming tasks
   const upcomingDeadlines = mockTasks
-    .filter(task => 
-      task.dueDate && new Date(task.dueDate) > new Date() && 
+    .filter(task =>
+      task.dueDate && new Date(task.dueDate) > new Date() &&
       (!isClient || task.assignedTo === user?.id)
     )
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
     .slice(0, 5);
-  
+
   // Status counts for charts
   const statusCounts = filteredCases.reduce((acc, c) => {
     acc[c.status] = (acc[c.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  
+
   const statusData = Object.keys(statusCounts).map(status => ({
     name: status,
     value: statusCounts[status]
   }));
-  
+
   const typeData = [
     { name: 'Family', cases: filteredCases.filter(c => c.type === 'Family-Based').length },
     { name: 'Employment', cases: filteredCases.filter(c => c.type === 'Employment-Based').length },
     { name: 'Humanitarian', cases: filteredCases.filter(c => c.type === 'Humanitarian').length },
     { name: 'Naturalization', cases: filteredCases.filter(c => c.type === 'Naturalization').length },
-    { name: 'Other', cases: filteredCases.filter(c => 
-      !['Family-Based', 'Employment-Based', 'Humanitarian', 'Naturalization'].includes(c.type)
-    ).length }
+    {
+      name: 'Other', cases: filteredCases.filter(c =>
+        !['Family-Based', 'Employment-Based', 'Humanitarian', 'Naturalization'].includes(c.type)
+      ).length
+    }
   ];
-  
+
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
   return (
@@ -73,7 +75,7 @@ const Dashboard = () => {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-500">Welcome back, {user?.name}</p>
       </div>
-      
+
       {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="card">
@@ -92,7 +94,7 @@ const Dashboard = () => {
             </Link>
           </div>
         </div>
-        
+
         <div className="card">
           <div className="flex items-start justify-between">
             <div>
@@ -111,7 +113,7 @@ const Dashboard = () => {
             </Link>
           </div>
         </div>
-        
+
         <div className="card">
           <div className="flex items-start justify-between">
             <div>
@@ -128,7 +130,7 @@ const Dashboard = () => {
             </Link>
           </div>
         </div>
-        
+
         {!isClient && (
           <div className="card">
             <div className="flex items-start justify-between">
@@ -147,7 +149,7 @@ const Dashboard = () => {
             </div>
           </div>
         )}
-        
+
         {isClient && (
           <div className="card">
             <div className="flex items-start justify-between">
@@ -169,7 +171,7 @@ const Dashboard = () => {
           </div>
         )}
       </div>
-      
+
       {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left column - Case charts */}
@@ -179,39 +181,36 @@ const Dashboard = () => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-medium">Cases by Type</h2>
               <div className="flex space-x-2">
-                <button 
+                <button
                   onClick={() => setTimeframe('week')}
-                  className={`px-3 py-1 text-xs rounded-md ${
-                    timeframe === 'week' 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
+                  className={`px-3 py-1 text-xs rounded-md ${timeframe === 'week'
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
                 >
                   Week
                 </button>
-                <button 
+                <button
                   onClick={() => setTimeframe('month')}
-                  className={`px-3 py-1 text-xs rounded-md ${
-                    timeframe === 'month' 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
+                  className={`px-3 py-1 text-xs rounded-md ${timeframe === 'month'
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
                 >
                   Month
                 </button>
-                <button 
+                <button
                   onClick={() => setTimeframe('quarter')}
-                  className={`px-3 py-1 text-xs rounded-md ${
-                    timeframe === 'quarter' 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
+                  className={`px-3 py-1 text-xs rounded-md ${timeframe === 'quarter'
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
                 >
                   Quarter
                 </button>
               </div>
             </div>
-            
+
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={typeData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -225,7 +224,7 @@ const Dashboard = () => {
               </ResponsiveContainer>
             </div>
           </div>
-          
+
           {/* Recent Cases */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
@@ -234,7 +233,7 @@ const Dashboard = () => {
                 View all
               </Link>
             </div>
-            
+
             <div className="overflow-hidden rounded-lg border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -271,13 +270,13 @@ const Dashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            ${caseItem.status === 'In Progress' ? 'bg-blue-100 text-blue-800' : 
+                            ${caseItem.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
                               caseItem.status === 'Document Collection' ? 'bg-yellow-100 text-yellow-800' :
-                              caseItem.status === 'Waiting on USCIS' ? 'bg-purple-100 text-purple-800' :
-                              caseItem.status === 'RFE Received' ? 'bg-orange-100 text-orange-800' :
-                              caseItem.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                              caseItem.status === 'Closed' ? 'bg-gray-100 text-gray-800' :
-                              'bg-gray-100 text-gray-800'
+                                caseItem.status === 'Waiting on USCIS' ? 'bg-purple-100 text-purple-800' :
+                                  caseItem.status === 'RFE Received' ? 'bg-orange-100 text-orange-800' :
+                                    caseItem.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                                      caseItem.status === 'Closed' ? 'bg-gray-100 text-gray-800' :
+                                        'bg-gray-100 text-gray-800'
                             }`}
                           >
                             {caseItem.status}
@@ -291,7 +290,7 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Right column - Case status & tasks */}
         <div className="space-y-8">
           {/* Case Status Chart */}
@@ -319,7 +318,7 @@ const Dashboard = () => {
               </ResponsiveContainer>
             </div>
           </div>
-          
+
           {/* Upcoming Deadlines */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
@@ -328,7 +327,7 @@ const Dashboard = () => {
                 View all
               </Link>
             </div>
-            
+
             <div className="space-y-4">
               {upcomingDeadlines.length > 0 ? (
                 upcomingDeadlines.map((task) => {
@@ -337,15 +336,14 @@ const Dashboard = () => {
                     (new Date(task.dueDate!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
                   );
                   const isUrgent = daysLeft <= 3;
-                  
+
                   return (
-                    <div 
-                      key={task.id} 
-                      className={`p-3 rounded-lg border ${
-                        isUrgent 
-                          ? 'border-error-200 bg-error-50' 
-                          : 'border-gray-200 bg-white'
-                      }`}
+                    <div
+                      key={task.id}
+                      className={`p-3 rounded-lg border ${isUrgent
+                        ? 'border-error-200 bg-error-50'
+                        : 'border-gray-200 bg-white'
+                        }`}
                     >
                       <div className="flex items-start">
                         <div className={`flex-shrink-0 ${isUrgent ? 'text-error-500' : 'text-gray-400'}`}>
@@ -356,9 +354,8 @@ const Dashboard = () => {
                             <p className={`text-sm font-medium ${isUrgent ? 'text-error-600' : 'text-gray-900'}`}>
                               {task.title}
                             </p>
-                            <p className={`text-xs font-medium ${
-                              isUrgent ? 'text-error-600' : 'text-gray-500'
-                            }`}>
+                            <p className={`text-xs font-medium ${isUrgent ? 'text-error-600' : 'text-gray-500'
+                              }`}>
                               {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
                             </p>
                           </div>
@@ -371,9 +368,9 @@ const Dashboard = () => {
                             </p>
                             <div>
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                                ${task.status === 'Completed' ? 'bg-green-100 text-green-800' : 
+                                ${task.status === 'Completed' ? 'bg-green-100 text-green-800' :
                                   task.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-gray-100 text-gray-800'
+                                    'bg-gray-100 text-gray-800'
                                 }`}
                               >
                                 {task.status}
@@ -393,7 +390,7 @@ const Dashboard = () => {
               )}
             </div>
           </div>
-          
+
           {/* Quick Actions */}
           <div className="card">
             <h2 className="text-lg font-medium mb-4">Quick Actions</h2>
@@ -404,14 +401,14 @@ const Dashboard = () => {
               >
                 Create New Case
               </Link>
-              
+
               <Link
                 to="/forms"
                 className="block w-full btn btn-secondary text-center"
               >
                 Fill Out Form
               </Link>
-              
+
               <Link
                 to="/documents"
                 className="block w-full btn btn-outline text-center"
