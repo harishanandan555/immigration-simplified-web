@@ -1,7 +1,7 @@
 
 export const APPCONSTANTS = {
     API_BASE_URL: window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? "http://localhost:5005" : "https://efile-legal.onrender.com"
+        ? "https://immigration-simplified-api.onrender.com" : "https://efile-legal.onrender.com"
 };
 
 export const AUTH_END_POINTS = {
