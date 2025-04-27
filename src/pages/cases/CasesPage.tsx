@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
 
-import { getCases } from '../../controllers/Casecontrollers';
+import { getCases } from '../../controllers/CaseControllers';
 
 type Case = {
   _id: string;

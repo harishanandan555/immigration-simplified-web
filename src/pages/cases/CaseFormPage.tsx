@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { createCase } from '../../controllers/Casecontrollers';
+import { createCase } from "../../controllers/CaseControllers";
 
 interface CaseFormData {
   title: string;
