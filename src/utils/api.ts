@@ -1,5 +1,5 @@
 import axios, { AxiosResponse, AxiosError } from 'axios';
-import { APPCONSTANTS } from './constants';
+import { APPCONSTANTS, AUTH_END_POINTS } from './constants';
 
 // Create an Axios instance
 const api = axios.create({
@@ -12,10 +12,13 @@ const api = axios.create({
 // Intercept requests to attach token if needed
 api.interceptors.request.use(
   (config: any): any => {
-    if (config.url && !config.url.includes('/register') && !config.url.includes('/login')) {
+    // Skip token for auth endpoints
+    if (config.url && 
+        !config.url.includes(AUTH_END_POINTS.REGISTER) && 
+        !config.url.includes(AUTH_END_POINTS.LOGIN)) {
       const token = localStorage.getItem('token');
       if (token && config.headers) {
-        config.headers.authorization = `Bearer ${token}`;
+        config.headers.Authorization = `Bearer ${token}`;
       }
     }
     return config;
@@ -23,18 +26,19 @@ api.interceptors.request.use(
   (error: AxiosError) => Promise.reject(error)
 );
 
-// Intercept responses to handle token updates
+// Intercept responses to handle token updates and errors
 api.interceptors.response.use(
   (response: AxiosResponse): AxiosResponse => {
     const { data } = response;
 
-    if (response.config.url === '/api/users/login') {
-      localStorage.setItem('authData', JSON.stringify(data));
-      localStorage.setItem('UserId', data.id);
-    }
-
-    if (data?.token) {
-      localStorage.setItem('token', data.token);
+    // Handle successful login
+    if (response.config.url?.includes(AUTH_END_POINTS.LOGIN)) {
+      if (data?.token) {
+        localStorage.setItem('token', data.token);
+      }
+      if (data?.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
     }
 
     return response;
@@ -44,32 +48,39 @@ api.interceptors.response.use(
       const status = error.response.status;
       const message = (error.response.data as any)?.message || error.response.data;
 
-      if (!error.response.data && error.code === 'ERR_BAD_REQUEST') {
-        alert('The server is currently unavailable. Please try again later.');
+      // Handle specific error cases
+      switch (status) {
+        case 401:
+          // Unauthorized - token expired or invalid
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+          break;
+        case 403:
+          // Forbidden - user doesn't have permission
+          alert('You do not have permission to perform this action.');
+          break;
+        case 404:
+          // Not Found
+          console.error('Resource not found:', error.config?.url);
+          break;
+        case 500:
+          // Server Error
+          console.error('Server error:', message);
+          break;
+        default:
+          console.error('API Error:', message);
       }
 
-      if ([400, 401, 500].includes(status)) {
-        if (message) {
-          alert(`Error Message: ${message}`);
-        } else {
-          console.error('Unauthorized, possibly due to expired token. Redirecting to login...');
-        }
-
-        // Optional: clear session and redirect
-        // localStorage.clear();
-        // window.location.href = "/login";
-      } else {
-        console.error('Internal Server Error. Please try again later.');
-      }
-
-      return error.response;
+      return Promise.reject(error);
     } else if (error.request) {
-      console.error('No response from the server. API may not be running.');
-      alert('The server is currently unavailable. Please try again later.');
-      return error.request;
+      // Network error - no response received
+      console.error('No response from server:', error.request);
+      alert('Unable to connect to the server. Please check your internet connection.');
+      return Promise.reject(error);
     } else {
-      console.error('Error in API request:', error.message);
-      return error.message;
+      // Request setup error
+      console.error('Request error:', error.message);
+      return Promise.reject(error);
     }
   }
 );

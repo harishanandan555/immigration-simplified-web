@@ -1,7 +1,7 @@
-
 export const APPCONSTANTS = {
     API_BASE_URL: window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? "https://immigration-simplified-api.onrender.com" : "https://efile-legal.onrender.com"
+        ? "http://localhost:5005"
+        : "https://immigration-simplified-api.onrender.com"
 };
 
 export const AUTH_END_POINTS = {
@@ -26,5 +26,11 @@ export const CLIENT_END_POINTS = {
     GETCLIENTBYID: "/api/v1/clients/:id",
     UPDATECLIENT: "/api/v1/clients/:id",
     ADDCLIENTDOCUMENT: "/api/v1/clients/:id/documents",
+};
+
+export const FOIA_CASE_END_POINTS = {
+    CREATECASE: "/api/v1/foia-cases",
+    GETCASES: "/api/v1/foia-cases",
+    GETCASEBYID: "/api/v1/foia-cases/:id",
 };
 

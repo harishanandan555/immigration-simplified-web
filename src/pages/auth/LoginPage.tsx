@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../controllers/AuthControllers';
@@ -32,7 +31,7 @@ const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white flex">
       {/* Left side - Features */}
-      <div className="hidden lg:flex lg:flex-1 p-12 items-center border-r border-gray-100">
+      <div className="hidden lg:flex lg:flex-1 p-12 items-start border-r border-gray-100 overflow-y-auto h-screen [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         <div className="max-w-2xl mx-auto">
           <div className="bg-gray-50 rounded-2xl p-8 shadow-lg">
             <h2 className="text-3xl font-bold mb-8 flex items-center text-gray-900">
@@ -96,7 +95,7 @@ const LoginPage: React.FC = () => {
       </div>
 
       {/* Right side - Login form */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-8 sticky top-0 h-screen">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
             <div className="text-center mb-8">
@@ -199,63 +198,7 @@ const LoginPage: React.FC = () => {
                 )}
               </button>
             </form>
-
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Demo Accounts</span>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <p className="text-xs text-gray-500 mb-3 text-center">Quick access demo accounts:</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@caseflo.io');
-                      setPassword('password');
-                    }}
-                    className="flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                  >
-                    Administrator
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('attorney@caseflo.io');
-                      setPassword('password');
-                    }}
-                    className="flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                  >
-                    Attorney
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('paralegal@caseflo.io');
-                      setPassword('password');
-                    }}
-                    className="flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                  >
-                    Paralegal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('client@example.com');
-                      setPassword('password');
-                    }}
-                    className="flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                  >
-                    Client
-                  </button>
-                </div>
-              </div>
-            </div>
+            
           </div>
         </div>
       </div>

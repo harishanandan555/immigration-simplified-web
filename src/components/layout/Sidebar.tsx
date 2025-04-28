@@ -9,7 +9,8 @@ import {
   Calendar,
   Settings,
   X,
-  BarChart
+  BarChart,
+  FileSearch
 } from 'lucide-react';
 import { useAuth } from '../../controllers/AuthControllers';
 import Logo from './Logo';
@@ -22,12 +23,13 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
   const location = useLocation();
-  const { isClient, isParalegal, isAttorney, isAdmin } = useAuth();
+  const { isClient, isAttorney, isAdmin } = useAuth();
 
   const navigationItems = [
     { name: 'Dashboard', href: '/', icon: Home, visible: true },
     { name: 'Cases', href: '/cases', icon: Briefcase, visible: !isClient },
     { name: 'Cases Tracker', href: '/cases/tracker', icon: Briefcase, visible: !isClient },
+    { name: 'FOIA Cases', href: '/foia-cases', icon: FileSearch, visible: !isClient },
     { name: 'Clients', href: '/clients', icon: Users, visible: !isClient },
     { name: 'Forms', href: '/forms', icon: FileText, visible: true },
     { name: 'Documents', href: '/documents', icon: Folder, visible: true },
