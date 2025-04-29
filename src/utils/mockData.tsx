@@ -42,6 +42,7 @@ export const mockUsers = [
 // Mock Clients
 export const mockClients = [
   {
+    _id: 'client-1',
     id: 'client-1',
     name: 'Maria Garcia',
     email: 'client@example.com',
@@ -55,6 +56,7 @@ export const mockClients = [
     userId: 'client-1'
   },
   {
+    _id: 'client-2',
     id: 'client-2',
     name: 'John Smith',
     email: 'john.smith@example.com',
@@ -67,6 +69,7 @@ export const mockClients = [
     createdAt: '2023-02-10'
   },
   {
+    _id: 'client-3',
     id: 'client-3',
     name: 'Wei Zhang',
     email: 'wei.zhang@example.com',
@@ -79,6 +82,7 @@ export const mockClients = [
     createdAt: '2023-03-05'
   },
   {
+    _id: 'client-4',
     id: 'client-4',
     name: 'Priya Patel',
     email: 'priya.patel@example.com',
@@ -91,6 +95,7 @@ export const mockClients = [
     createdAt: '2023-04-20'
   },
   {
+    _id: 'client-5',
     id: 'client-5',
     name: 'Ahmed Hassan',
     email: 'ahmed.hassan@example.com',

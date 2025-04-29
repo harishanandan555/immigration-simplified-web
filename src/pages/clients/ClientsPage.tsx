@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Search, Filter, ArrowUpDown, Mail, Phone } from 'lucide-react';
 
@@ -117,11 +117,17 @@ const ClientsPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredClients.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    Loading clients...
+                  </td>
+                </tr>
+              ) : filteredClients.length > 0 ? (
                 filteredClients.map((client) => (
                   <tr key={client.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Link to={`/clients/${client.id}`} className="flex items-center">
+                      <Link to={`/clients/${client._id}`} className="flex items-center">
                         <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-medium">
                           {client.name.charAt(0)}
                         </div>

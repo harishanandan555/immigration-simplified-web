@@ -1,25 +1,32 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, FileText, Briefcase } from 'lucide-react';
-import { mockClients, mockCases } from '../../utils/mockData';
+import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, FileText, Briefcase, PlusCircle } from 'lucide-react';
+import { mockCases } from '../../utils/mockData';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { getClientById } from '../../controllers/ClientControllers';
 
 const ClientDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [clientCases, setClientCases] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API call to fetch client data
-    const fetchClientData = () => {
-      setTimeout(() => {
-        const foundClient = mockClients.find(c => c.id === id);
+    const fetchClientData = async () => {
+      try {
+        if (!id) {
+          throw new Error('Client ID is required');
+        }
+        const clientData = await getClientById(id);
         const relatedCases = mockCases.filter(c => c.clientId === id);
-        setClient(foundClient);
+        setClient(clientData);
         setClientCases(relatedCases);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch client data');
+      } finally {
         setLoading(false);
-      }, 500);
+      }
     };
 
     fetchClientData();
@@ -27,6 +34,18 @@ const ClientDetailsPage = () => {
 
   if (loading) {
     return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold mb-4">Error</h1>
+        <p className="text-red-600">{error}</p>
+        <Link to="/clients" className="text-blue-600 hover:text-blue-800 mt-4 inline-block">
+          &larr; Back to Clients
+        </Link>
+      </div>
+    );
   }
 
   if (!client) {
@@ -97,7 +116,9 @@ const ClientDetailsPage = () => {
                   <p className="text-sm text-gray-500">Address</p>
                   <div className="flex items-center mt-1">
                     <MapPin size={16} className="text-gray-400 mr-2" />
-                    <span>{client.address}</span>
+                    <span>
+                      {client.address.street}, {client.address.city}, {client.address.state} {client.address.zipCode}, {client.address.country}
+                    </span>
                   </div>
                 </div>
                 <div>
@@ -125,7 +146,29 @@ const ClientDetailsPage = () => {
                   <p className="text-sm text-gray-500">Nationality</p>
                   <p className="font-medium mt-1">{client.nationality}</p>
                 </div>
+                <div>
+                  <p className="text-sm text-gray-500">Passport Number</p>
+                  <p className="font-medium mt-1">{client.passportNumber}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Entry Date</p>
+                  <p className="font-medium mt-1">{new Date(client.entryDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Visa Category</p>
+                  <p className="font-medium mt-1">{client.visaCategory}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <p className="font-medium mt-1">{client.status}</p>
+                </div>
               </div>
+              {client.notes && (
+                <div>
+                  <p className="text-sm text-gray-500">Notes</p>
+                  <p className="font-medium mt-1">{client.notes}</p>
+                </div>
+              )}
             </div>
           </div>
 

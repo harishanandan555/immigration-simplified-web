@@ -1,55 +1,87 @@
 import api from '../utils/api';
 import { CLIENT_END_POINTS } from '../utils/constants';
+import { AxiosResponse } from 'axios';
 
-interface Case {
-    id?: string; // Optional for creation
-    title: string;
-    description: string;
-    status?: string; // Optional with default value on backend
-    // Add other case properties as needed
+export interface Address {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
 }
 
-// Define the response type from your API
-interface ApiResponse<T> {
+export interface Client {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    dateOfBirth: string;
+    address: Address;
+    nationality: string;
+    alienNumber: string;
+    passportNumber: string;
+    entryDate: string;
+    visaCategory: string;
+    notes: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ApiResponse<T> {
     data: T;
     status: number;
     statusText: string;
-    // Add other standard axios response fields if needed
+    headers: Record<string, string>;
 }
 
-// Example in a React component or custom hook
-export const getClients = async () => {
+export const getClients = async (): Promise<Client[]> => {
     try {
-        const response = await api.get(CLIENT_END_POINTS.GETCLIENTS);
-        // Handle the response data
-        console.log(response.data);
+        const response: AxiosResponse<Client[]> = await api.get(CLIENT_END_POINTS.GETCLIENTS);
         return response.data;
     } catch (error) {
-        // Handle errors
-        console.error('Error fetching cases:', error);
-        throw error;
+        if (error instanceof Error) {
+            console.error('Error fetching clients:', error.message);
+            throw new Error(`Failed to fetch clients: ${error.message}`);
+        }
+        throw new Error('Failed to fetch clients due to an unknown error');
     }
 };
 
-export const createClient = async (caseData: Omit<Case, 'id'>): Promise<ApiResponse<Case>> => {
+export const getClientById = async (id: string): Promise<Client> => {
     try {
-        const response = await api.post<Case>(
+        const response: AxiosResponse<Client> = await api.get(
+            CLIENT_END_POINTS.GETCLIENTBYID.replace(':id', id)
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error fetching client:', error.message);
+            throw new Error(`Failed to fetch client: ${error.message}`);
+        }
+        throw new Error('Failed to fetch client due to an unknown error');
+    }
+};
+
+export const createClient = async (clientData: Omit<Client, 'id'>): Promise<ApiResponse<Client>> => {
+    try {
+        const response: AxiosResponse<Client> = await api.post<Client>(
             CLIENT_END_POINTS.CREATECLIENT,
-            caseData
+            clientData
         );
 
         return {
             data: response.data,
             status: response.status,
-            statusText: response.statusText
+            statusText: response.statusText,
+            headers: response.headers as Record<string, string>
         };
 
     } catch (error) {
-        // Handle different error types if needed
         if (error instanceof Error) {
-            console.error('Error creating case:', error.message);
-            throw new Error(`Failed to create case: ${error.message}`);
+            console.error('Error creating client:', error.message);
+            throw new Error(`Failed to create client: ${error.message}`);
         }
-        throw new Error('Failed to create case due to an unknown error');
+        throw new Error('Failed to create client due to an unknown error');
     }
 }

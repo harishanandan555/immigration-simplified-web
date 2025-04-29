@@ -15,31 +15,8 @@ const FoiaCasesPage = () => {
   useEffect(() => {
     const fetchCases = async () => {
       try {
-        // TODO: Replace with actual API call
         const response = await getFoiaCases();
         setCases(response.data);
-        
-        // Mock data for now
-        setCases([
-          {
-            _id: '1',
-            subject: {
-              firstName: 'John',
-              lastName: 'Doe'
-            },
-            requester: {
-              firstName: 'Jane',
-              lastName: 'Smith',
-              emailAddress: 'jane.smith@example.com'
-            },
-            recordsRequested: [{
-              requestedDocumentType: 'Immigration Records'
-            }],
-            status: 'Pending',
-            createdAt: '2023-01-01T00:00:00Z',
-            updatedAt: '2023-01-01T00:00:00Z'
-          }
-        ]);
       } catch (err) {
         setError('Failed to load FOIA cases');
         console.error(err);
