@@ -208,13 +208,21 @@ const FoiaCaseFormPage = () => {
     }));
   };
 
-  const handleDocumentInputChange = (index: number, field: string, value: string) => {
+  const handleDocumentInputChange = (index: number, field: string, value: string | File) => {
     setFormData(prev => {
       const newDocuments = [...prev.documents];
-      newDocuments[index] = {
-        ...newDocuments[index],
-        [field]: value
-      };
+      if (field === 'file' && value instanceof File) {
+        newDocuments[index] = {
+          ...newDocuments[index],
+          fileName: value.name,
+          content: '' // You might want to read the file content here
+        };
+      } else {
+        newDocuments[index] = {
+          ...newDocuments[index],
+          [field]: value
+        };
+      }
       return {
         ...prev,
         documents: newDocuments
@@ -1056,13 +1064,27 @@ const FoiaCaseFormPage = () => {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">File Name</label>
+                  <label className="block text-sm font-medium text-gray-700">File</label>
                   <input
-                    type="text"
-                    value={doc.fileName}
-                    onChange={(e) => handleDocumentInputChange(index, 'fileName', e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleDocumentInputChange(index, 'file', file);
+                      }
+                    }}
+                    className="mt-1 block w-full text-sm text-gray-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-md file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100"
                   />
+                  {doc.fileName && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      Selected file: {doc.fileName}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Content</label>
