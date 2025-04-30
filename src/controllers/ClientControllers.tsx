@@ -37,8 +37,8 @@ export interface ApiResponse<T> {
 
 export const getClients = async (): Promise<Client[]> => {
     try {
-        const response: AxiosResponse<Client[]> = await api.get(CLIENT_END_POINTS.GETCLIENTS);
-        return response.data;
+        const response: AxiosResponse<{ clients: Client[] }> = await api.get(CLIENT_END_POINTS.GETCLIENTS);
+        return response.data.clients;
     } catch (error) {
         if (error instanceof Error) {
             console.error('Error fetching clients:', error.message);
@@ -85,3 +85,18 @@ export const createClient = async (clientData: Omit<Client, 'id'>): Promise<ApiR
         throw new Error('Failed to create client due to an unknown error');
     }
 }
+
+export const getClientCases = async (clientId: string): Promise<any[]> => {
+    try {
+        const response: AxiosResponse<{ cases: any[] }> = await api.get(
+            CLIENT_END_POINTS.GETCLIENTCASES.replace(':id', clientId)
+        );
+        return response.data.cases;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error fetching client cases:', error.message);
+            throw new Error(`Failed to fetch client cases: ${error.message}`);
+        }
+        throw new Error('Failed to fetch client cases due to an unknown error');
+    }
+};

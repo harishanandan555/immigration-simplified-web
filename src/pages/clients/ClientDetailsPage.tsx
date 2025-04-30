@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, FileText, Briefcase, PlusCircle } from 'lucide-react';
-import { mockCases } from '../../utils/mockData';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { getClientById } from '../../controllers/ClientControllers';
+import { getClientById, getClientCases } from '../../controllers/ClientControllers';
 
 const ClientDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,10 +17,12 @@ const ClientDetailsPage = () => {
         if (!id) {
           throw new Error('Client ID is required');
         }
-        const clientData = await getClientById(id);
-        const relatedCases = mockCases.filter(c => c.clientId === id);
+        const [clientData, casesData] = await Promise.all([
+          getClientById(id),
+          getClientCases(id)
+        ]);
         setClient(clientData);
-        setClientCases(relatedCases);
+        setClientCases(casesData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch client data');
       } finally {

@@ -7,6 +7,7 @@ import { useAuth } from './controllers/AuthControllers';
 import LoginPage from './pages/auth/LoginPage';
 import FoiaCasesPage from './pages/foia/FoiaCasesPage';
 import FoiaCaseFormPage from './pages/foia/FoiaCaseFormPage';
+import FoiaCasesDetailsPage from './pages/foia/FoiaCasesDetailsPage';
 
 // Lazy-loaded components
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -143,6 +144,7 @@ const App = () => {
 
             <Route path="/foia-cases" element={<FoiaCasesPage />} />
             <Route path="/foia-cases/new" element={<FoiaCaseFormPage />} />
+            <Route path="/foia-cases/:caseId" element={<FoiaCasesDetailsPage />} />
 
             <Route path="*" element={
               <Suspense fallback={<LoadingSpinner />}>

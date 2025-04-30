@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { createCase } from "../../controllers/CaseControllers";
+import { getClients } from "../../controllers/ClientControllers";
 
 interface CaseFormData {
   title: string;
@@ -39,49 +40,49 @@ const CaseFormPage = () => {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clients, setClients] = useState<any[]>([]);
 
   useEffect(() => {
-    if (isEditing) {
-      // Simulate API call to fetch case data
-      setTimeout(() => {
-        setFormData({
-          title: 'Johnson v. Smith',
-          caseNumber: 'CV-2023-12345',
-          type: 'Civil Litigation',
-          status: 'Active',
-          clientId: '1',
-          assignedTo: 'Sarah Reynolds',
-          courtLocation: 'Central District Court',
-          judge: 'Hon. Marcus Williams',
-          description: 'Personal injury case resulting from automobile accident.',
-          openDate: '2023-08-15'
-        });
+    const fetchData = async () => {
+      try {
+        if (isEditing) {
+          // TODO: Replace with actual API call to fetch case data
+          setLoading(true);
+          // Simulate API call to fetch case data
+          setTimeout(() => {
+            setFormData({
+              title: 'Johnson v. Smith',
+              caseNumber: 'CV-2023-12345',
+              type: 'Civil Litigation',
+              status: 'Active',
+              clientId: '1',
+              assignedTo: 'Sarah Reynolds',
+              courtLocation: 'Central District Court',
+              judge: 'Hon. Marcus Williams',
+              description: 'Personal injury case resulting from automobile accident.',
+              openDate: '2023-08-15'
+            });
+            setLoading(false);
+          }, 500);
+        }
+
+        // Fetch clients
+        const clientData = await getClients();
+        setClients(clientData);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError('Failed to load data. Please try again.');
         setLoading(false);
-      }, 500);
-    }
+      }
+    };
+
+    fetchData();
   }, [isEditing]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   setSaving(true);
-  //   setError(null);
-
-  //   try {
-  //     // Simulate API call
-  //     await new Promise(resolve => setTimeout(resolve, 1000));
-      
-  //     // Navigate back to cases list on success
-  //     navigate('/cases');
-  //   } catch (err) {
-  //     setError('Failed to save case. Please try again.');
-  //     setSaving(false);
-  //   }
-  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,9 +251,11 @@ const CaseFormPage = () => {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select client</option>
-                <option value="680b5175ecbc650c02d32a22">John Smith</option>
-                <option value="680b5175ecbc650c02d32a22">Jane Doe</option>
-                <option value="680b5175ecbc650c02d32a22">Robert Johnson</option>
+                {clients.map((client) => (
+                  <option key={client._id} value={client._id}>
+                    {client.name}
+                  </option>
+                ))}
               </select>
             </div>
 

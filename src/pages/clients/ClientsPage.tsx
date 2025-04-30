@@ -30,8 +30,8 @@ const ClientsPage = () => {
         setLoading(true);
         const clientData: any = await getClients();
 
-        if (clientData && clientData.clients && clientData.clients.length > 0) {
-          setClients(clientData.clients);
+        if (clientData && clientData.length > 0) {
+          setClients(clientData);
         } else {
           setClients([]);
         }

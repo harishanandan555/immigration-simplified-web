@@ -120,9 +120,8 @@ export interface FoiaCaseForm {
 }
 
 interface ApiResponse<T> {
+  success: boolean;
   data: T;
-  status: number;
-  statusText: string;
 }
 
 export const createFoiaCase = async (caseData: FoiaCaseForm): Promise<ApiResponse<FoiaCase>> => {
@@ -134,8 +133,7 @@ export const createFoiaCase = async (caseData: FoiaCaseForm): Promise<ApiRespons
 
     return {
       data: response.data,
-      status: response.status,
-      statusText: response.statusText
+      success: true
     };
 
   } catch (error) {
@@ -149,14 +147,13 @@ export const createFoiaCase = async (caseData: FoiaCaseForm): Promise<ApiRespons
 
 export const getFoiaCase = async (caseId: string): Promise<ApiResponse<FoiaCase>> => {
   try {
-    const response = await api.get<FoiaCase>(
+    const response = await api.get<ApiResponse<FoiaCase>>(
       FOIA_CASE_END_POINTS.GETCASEBYID.replace(':id', caseId)
     );
 
     return {
-      data: response.data,
-      status: response.status,
-      statusText: response.statusText
+      success: response.data.success,
+      data: response.data.data
     };
 
   } catch (error) {

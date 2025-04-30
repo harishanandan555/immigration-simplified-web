@@ -22,8 +22,10 @@ export const getCases = async () => {
   try {
     const response = await api.get(CASE_END_POINTS.GETCASES);
     // Handle the response data
-    console.log(response.data);
-    return response.data;
+    return {
+      data: response.data.cases,
+      pagination: response.data.pagination
+    };
   } catch (error) {
     // Handle errors
     console.error('Error fetching cases:', error);
@@ -37,13 +39,13 @@ export const createCase = async (caseData: Omit<Case, 'id'>): Promise<ApiRespons
       CASE_END_POINTS.CREATECASE,
       caseData
     );
-    
+
     return {
       data: response.data,
       status: response.status,
       statusText: response.statusText
     };
-    
+
   } catch (error) {
     // Handle different error types if needed
     if (error instanceof Error) {

@@ -26,6 +26,7 @@ export const CLIENT_END_POINTS = {
     GETCLIENTBYID: "/api/v1/clients/:id",
     UPDATECLIENT: "/api/v1/clients/:id",
     ADDCLIENTDOCUMENT: "/api/v1/clients/:id/documents",
+    GETCLIENTCASES: "/api/v1/clients/:id/cases",
 };
 
 export const FOIA_CASE_END_POINTS = {

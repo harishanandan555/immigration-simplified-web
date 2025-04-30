@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getFoiaCases, FoiaCaseList } from '../../controllers/FoiaCaseControllers';
@@ -11,6 +11,7 @@ const FoiaCasesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('createdAt');
   const [sortDirection, setSortDirection] = useState('desc');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchCases = async () => {
@@ -35,6 +36,10 @@ const FoiaCasesPage = () => {
       setSortField(field);
       setSortDirection('asc');
     }
+  };
+
+  const handleRowClick = (caseId: string) => {
+    navigate(`/foia-cases/${caseId}`);
   };
 
   const filteredCases = cases.filter(caseItem => {
@@ -163,7 +168,11 @@ const FoiaCasesPage = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedCases.map((caseItem) => (
-                <tr key={caseItem._id} className="hover:bg-gray-50">
+                <tr 
+                  key={caseItem._id} 
+                  className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
+                  onClick={() => handleRowClick(caseItem._id)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       {caseItem.subject.firstName} {caseItem.subject.lastName}

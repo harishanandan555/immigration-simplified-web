@@ -4,12 +4,18 @@ import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
 
 import { getCases } from '../../controllers/CaseControllers';
 
+type Client = {
+  _id: string;
+  name: string;
+  email: string;
+};
+
 type Case = {
   _id: string;
   caseNumber: string;
   type: string;
   status: string;
-  clientId: string | null;
+  clientId: Client | null;
   assignedTo: string | null;
   description: string;
   timeline: Array<{
@@ -26,37 +32,75 @@ type Case = {
   __v: number;
 };
 
+type SortField = 'caseNumber' | 'description' | 'clientId' | 'createdAt';
+type SortDirection = 'asc' | 'desc';
+
 const CasesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     const fetchCases = async () => {
       try {
         setLoading(true);
-        const casesData: any = await getCases();
+        setError(null);
+        const casesData = await getCases();
 
-        if (casesData && casesData.cases && casesData.cases.length > 0) {
-          setCases(casesData.cases);
+        if (casesData?.data) {
+          setCases(casesData.data);
         } else {
           setCases([]);
         }
       } catch (error) {
         console.error('Error fetching cases:', error);
+        setError('Failed to fetch cases. Please try again later.');
       } finally {
         setLoading(false);
       }
     };
     
     fetchCases();
-  }, []); // Removed getCases from dependencies as it's not needed
-  
+  }, []);
+
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
   const filteredCases = cases.filter(
     (caseItem) =>
       caseItem.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       caseItem.caseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (caseItem.clientId && caseItem.clientId.toLowerCase().includes(searchTerm.toLowerCase()))
+      (caseItem.clientId && (
+        caseItem.clientId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        caseItem.clientId.email.toLowerCase().includes(searchTerm.toLowerCase())
+      ))
+  );
+
+  const sortedCases = [...filteredCases].sort((a, b) => {
+    const aValue = a[sortField] ?? '';
+    const bValue = b[sortField] ?? '';
+    
+    if (sortDirection === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    }
+    return aValue < bValue ? 1 : -1;
+  });
+
+  const totalPages = Math.ceil(sortedCases.length / itemsPerPage);
+  const paginatedCases = sortedCases.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   return (
@@ -71,6 +115,12 @@ const CasesPage: React.FC = () => {
           <span>New Case</span>
         </Link>
       </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -95,19 +145,28 @@ const CasesPage: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1 cursor-pointer">
+                  <div 
+                    className="flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleSort('caseNumber')}
+                  >
                     <span>Case Number</span>
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1 cursor-pointer">
+                  <div 
+                    className="flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleSort('description')}
+                  >
                     <span>Description</span>
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1 cursor-pointer">
+                  <div 
+                    className="flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleSort('clientId')}
+                  >
                     <span>Client ID</span>
                     <ArrowUpDown size={14} />
                   </div>
@@ -115,7 +174,10 @@ const CasesPage: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1 cursor-pointer">
+                  <div 
+                    className="flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleSort('createdAt')}
+                  >
                     <span>Date Created</span>
                     <ArrowUpDown size={14} />
                   </div>
@@ -123,8 +185,14 @@ const CasesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCases.length > 0 ? (
-                filteredCases.map((caseItem) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    Loading cases...
+                  </td>
+                </tr>
+              ) : paginatedCases.length > 0 ? (
+                paginatedCases.map((caseItem) => (
                   <tr key={caseItem._id} className="hover:bg-gray-50 cursor-pointer">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">
                       <Link to={`/cases/${caseItem._id}`}>{caseItem.caseNumber}</Link>
@@ -132,7 +200,14 @@ const CasesPage: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <Link to={`/cases/${caseItem._id}`}>{caseItem.description}</Link>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{caseItem.clientId || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {caseItem.clientId ? (
+                        <div>
+                          <div className="font-medium">{caseItem.clientId.name}</div>
+                          <div className="text-xs text-gray-400">{caseItem.clientId.email}</div>
+                        </div>
+                      ) : 'N/A'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         caseItem.status === 'New' 
@@ -153,7 +228,7 @@ const CasesPage: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                    {loading ? 'Loading cases...' : 'No cases found matching your search criteria.'}
+                    No cases found matching your search criteria.
                   </td>
                 </tr>
               )}
@@ -164,17 +239,26 @@ const CasesPage: React.FC = () => {
         {filteredCases.length > 0 && (
           <div className="flex justify-between items-center mt-4 py-3">
             <div className="text-sm text-gray-500">
-              Showing <span className="font-medium">{filteredCases.length}</span> of{" "}
-              <span className="font-medium">{cases.length}</span> cases
+              Showing <span className="font-medium">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
+              <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredCases.length)}</span> of{" "}
+              <span className="font-medium">{filteredCases.length}</span> cases
             </div>
             <div className="flex space-x-2">
-              <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50">
+              <button 
+                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
                 Previous
               </button>
               <button className="px-3 py-1 border border-gray-300 rounded text-sm bg-gray-50">
-                1
+                {currentPage}
               </button>
-              <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50">
+              <button 
+                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
                 Next
               </button>
             </div>
