@@ -15,6 +15,7 @@ export const CASE_END_POINTS = {
     GETCASES: "/api/v1/cases",
     CREATECASE: "/api/v1/cases",
     GETCASEBYID: "/api/v1/cases/:id",
+    GETCASEBYNUMBER: "/api/v1/cases/number/:caseNumber",
     UPDATECASE: "/api/v1/cases/:id",
     ADDCASETASK: "/api/v1/cases/:id/tasks",
     UPDATECASETASK: "/api/v1/cases/:id/tasks/:taskId",

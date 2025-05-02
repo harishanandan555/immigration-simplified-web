@@ -7,7 +7,7 @@ import Button from '../../components/common/Button';
 import Alert from '../../components/common/Alert';
 import DebugView from '../../components/common/DebugView';
 
-import { getCaseByNumber } from '../../controllers/CaseControllers';
+import { apiRequest } from '../../utils/mockApi';
 import { CaseStatus } from '../../types';
 
 const CaseStatusPage: React.FC = () => {
@@ -40,29 +40,17 @@ const CaseStatusPage: React.FC = () => {
     setError(null);
 
     try {
-      const response = await getCaseByNumber(caseNumber);
+      const response = await apiRequest(`/cases/${caseNumber}`, 'GET');
 
-      if (response.data) {
-        // Transform Case type to CaseStatus type
-        const caseStatus: CaseStatus = {
-          caseNumber: response.data.caseNumber || caseNumber,
-          status: response.data.status || 'Unknown',
-          lastUpdated: response.data.updatedAt || new Date().toISOString(),
-          history: response.data.timeline?.map(item => ({
-            date: item.date,
-            status: item.action,
-            description: item.notes
-          })) || []
-        };
-
-        setCaseStatus(caseStatus);
+      if (response.success && response.data) {
+        setCaseStatus(response.data);
 
         // Update URL with case number
         if (caseNumber !== urlCaseNumber) {
           navigate(`/case/${caseNumber}`, { replace: true });
         }
       } else {
-        setError('Failed to retrieve case status. Please check the case number and try again.');
+        setError(response.error || 'Failed to retrieve case status. Please check the case number and try again.');
         setCaseStatus(null);
       }
     } catch (error) {
