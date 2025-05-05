@@ -23,7 +23,7 @@ const DocumentsPage = lazy(() => import('../pages/documents/DocumentsPage'));
 const TasksPage = lazy(() => import('../pages/tasks/TasksPage'));
 const CalendarPage = lazy(() => import('../pages/tasks/CalendarPage'));
 const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'));
-const ImmigrationProcess = lazy(() => import('../pages/ImmigrationProcess'));
+const ImmigrationProcess = lazy(() => import('../pages/immigrationSteps/ImmigrationProcess'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const AppRoutes = () => {

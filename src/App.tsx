@@ -8,7 +8,7 @@ import LoginPage from './pages/auth/LoginPage';
 import FoiaCasesPage from './pages/foia/FoiaCasesPage';
 import FoiaCaseFormPage from './pages/foia/FoiaCaseFormPage';
 import FoiaCasesDetailsPage from './pages/foia/FoiaCasesDetailsPage';
-import ImmigrationProcess from './pages/ImmigrationProcess';
+import ImmigrationProcess from './pages/immigrationSteps/ImmigrationProcess';
 
 // Lazy-loaded components
 const Dashboard = lazy(() => import('./pages/Dashboard'));
