@@ -36,3 +36,14 @@ export const FOIA_CASE_END_POINTS = {
     GETCASEBYID: "/api/v1/foia-cases/:id",
 };
 
+export const IMMIGRATION_END_POINTS = {
+    BASE: "/api/v1/immigration/process",
+    GET_FORMS: "/api/v1/immigration/process/forms",
+    START_PROCESS: "/api/v1/api/immigration/process/start",
+    GET_PROCESS: "/api/v1/immigration/process/:processId",
+    UPDATE_STEP: "/api/v1/immigration/process/:processId/step",
+    ADD_DOCUMENT: "/api/v1/immigration/process/:processId/document",
+    UPDATE_DOCUMENT: "/api/v1/immigration/process/:processId/document/:documentId",
+    VALIDATE_FORM: "/api/v1/immigration/process/:processId/validate",
+};
+

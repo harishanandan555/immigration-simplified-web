@@ -23,6 +23,7 @@ const DocumentsPage = lazy(() => import('../pages/documents/DocumentsPage'));
 const TasksPage = lazy(() => import('../pages/tasks/TasksPage'));
 const CalendarPage = lazy(() => import('../pages/tasks/CalendarPage'));
 const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'));
+const ImmigrationProcess = lazy(() => import('../pages/ImmigrationProcess'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const AppRoutes = () => {
@@ -42,6 +43,12 @@ const AppRoutes = () => {
           <Route path="/" element={
             <Suspense fallback={<LoadingSpinner />}>
               <Dashboard />
+            </Suspense>
+          } />
+
+          <Route path="/immigration-process" element={
+            <Suspense fallback={<LoadingSpinner />}>
+              <ImmigrationProcess />
             </Suspense>
           } />
 
