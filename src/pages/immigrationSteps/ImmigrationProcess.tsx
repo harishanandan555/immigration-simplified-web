@@ -1135,16 +1135,221 @@ const ImmigrationProcess: React.FC = () => {
               <p className="mt-2 text-lg text-gray-500">Enter your personal details</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-6">
-              {/* Client information form will go here */}
-              <div className="text-center py-12">
-                <div className="mx-auto h-12 w-12 text-gray-400">
-                  <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
+              <form className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter client's full name"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter email address"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700 mb-1">
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      id="dateOfBirth"
+                      name="dateOfBirth"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Address</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="address.street" className="block text-sm font-medium text-gray-700 mb-1">
+                          Street
+                        </label>
+                        <input
+                          type="text"
+                          id="address.street"
+                          name="address.street"
+                          required
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          placeholder="Enter street address"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="address.city" className="block text-sm font-medium text-gray-700 mb-1">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          id="address.city"
+                          name="address.city"
+                          required
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          placeholder="Enter city"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="address.state" className="block text-sm font-medium text-gray-700 mb-1">
+                          State
+                        </label>
+                        <input
+                          type="text"
+                          id="address.state"
+                          name="address.state"
+                          required
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          placeholder="Enter state"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="address.zipCode" className="block text-sm font-medium text-gray-700 mb-1">
+                          ZIP Code
+                        </label>
+                        <input
+                          type="text"
+                          id="address.zipCode"
+                          name="address.zipCode"
+                          required
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          placeholder="Enter ZIP code"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="address.country" className="block text-sm font-medium text-gray-700 mb-1">
+                          Country
+                        </label>
+                        <input
+                          type="text"
+                          id="address.country"
+                          name="address.country"
+                          required
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          placeholder="Enter country"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="nationality" className="block text-sm font-medium text-gray-700 mb-1">
+                      Nationality
+                    </label>
+                    <input
+                      type="text"
+                      id="nationality"
+                      name="nationality"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter nationality"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="alienNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                      Alien Number
+                    </label>
+                    <input
+                      type="text"
+                      id="alienNumber"
+                      name="alienNumber"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter A-Number"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="passportNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                      Passport Number
+                    </label>
+                    <input
+                      type="text"
+                      id="passportNumber"
+                      name="passportNumber"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter passport number"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="entryDate" className="block text-sm font-medium text-gray-700 mb-1">
+                      Entry Date
+                    </label>
+                    <input
+                      type="date"
+                      id="entryDate"
+                      name="entryDate"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="visaCategory" className="block text-sm font-medium text-gray-700 mb-1">
+                      Visa Category
+                    </label>
+                    <input
+                      type="text"
+                      id="visaCategory"
+                      name="visaCategory"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter visa category"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+                      Notes
+                    </label>
+                    <textarea
+                      id="notes"
+                      name="notes"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter any additional notes"
+                      rows={4}
+                    />
+                  </div>
                 </div>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Client Information Form</h3>
-                <p className="mt-1 text-sm text-gray-500">Enter your personal details to proceed</p>
-              </div>
+              </form>
             </div>
             <div className="flex justify-between mt-6">
               <button
@@ -1171,16 +1376,222 @@ const ImmigrationProcess: React.FC = () => {
               <p className="mt-2 text-lg text-gray-500">Provide information about your case</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-6">
-              {/* Case details form will go here */}
-              <div className="text-center py-12">
-                <div className="mx-auto h-12 w-12 text-gray-400">
-                  <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+              <form className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="caseType" className="block text-sm font-medium text-gray-700 mb-1">
+                      Case Type
+                    </label>
+                    <select
+                      id="caseType"
+                      name="caseType"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="">Select case type</option>
+                      <option value="family">Family-Based Immigration</option>
+                      <option value="employment">Employment-Based Immigration</option>
+                      <option value="humanitarian">Humanitarian Relief</option>
+                      <option value="citizenship">Citizenship & Naturalization</option>
+                      <option value="temporary">Temporary Visas</option>
+                      <option value="business">Business Immigration</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="priorityDate" className="block text-sm font-medium text-gray-700 mb-1">
+                      Priority Date
+                    </label>
+                    <input
+                      type="date"
+                      id="priorityDate"
+                      name="priorityDate"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                      Receipt Number
+                    </label>
+                    <input
+                      type="text"
+                      id="receiptNumber"
+                      name="receiptNumber"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter USCIS receipt number"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="filingLocation" className="block text-sm font-medium text-gray-700 mb-1">
+                      Filing Location
+                    </label>
+                    <input
+                      type="text"
+                      id="filingLocation"
+                      name="filingLocation"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter USCIS office location"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="currentStatus" className="block text-sm font-medium text-gray-700 mb-1">
+                      Current Status
+                    </label>
+                    <select
+                      id="currentStatus"
+                      name="currentStatus"
+                      required
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="">Select current status</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="denied">Denied</option>
+                      <option value="rfed">Request for Evidence</option>
+                      <option value="interview">Interview Scheduled</option>
+                      <option value="appeal">Appeal Filed</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="nextActionDate" className="block text-sm font-medium text-gray-700 mb-1">
+                      Next Action Date
+                    </label>
+                    <input
+                      type="date"
+                      id="nextActionDate"
+                      name="nextActionDate"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label htmlFor="caseNotes" className="block text-sm font-medium text-gray-700 mb-1">
+                      Case Notes
+                    </label>
+                    <textarea
+                      id="caseNotes"
+                      name="caseNotes"
+                      rows={4}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Enter any important case notes or updates"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Important Dates</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="filingDate" className="block text-sm font-medium text-gray-700 mb-1">
+                          Filing Date
+                        </label>
+                        <input
+                          type="date"
+                          id="filingDate"
+                          name="filingDate"
+                          required
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="biometricsDate" className="block text-sm font-medium text-gray-700 mb-1">
+                          Biometrics Date
+                        </label>
+                        <input
+                          type="date"
+                          id="biometricsDate"
+                          name="biometricsDate"
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="interviewDate" className="block text-sm font-medium text-gray-700 mb-1">
+                          Interview Date
+                        </label>
+                        <input
+                          type="date"
+                          id="interviewDate"
+                          name="interviewDate"
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="decisionDate" className="block text-sm font-medium text-gray-700 mb-1">
+                          Decision Date
+                        </label>
+                        <input
+                          type="date"
+                          id="decisionDate"
+                          name="decisionDate"
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Case Requirements</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="biometricsCompleted"
+                          name="biometricsCompleted"
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="biometricsCompleted" className="ml-2 block text-sm text-gray-700">
+                          Biometrics Completed
+                        </label>
+                      </div>
+
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="medicalExamCompleted"
+                          name="medicalExamCompleted"
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="medicalExamCompleted" className="ml-2 block text-sm text-gray-700">
+                          Medical Exam Completed
+                        </label>
+                      </div>
+
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="backgroundCheckCompleted"
+                          name="backgroundCheckCompleted"
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="backgroundCheckCompleted" className="ml-2 block text-sm text-gray-700">
+                          Background Check Completed
+                        </label>
+                      </div>
+
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="affidavitOfSupportSubmitted"
+                          name="affidavitOfSupportSubmitted"
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="affidavitOfSupportSubmitted" className="ml-2 block text-sm text-gray-700">
+                          Affidavit of Support Submitted
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Case Information Form</h3>
-                <p className="mt-1 text-sm text-gray-500">Enter details about your immigration case</p>
-              </div>
+              </form>
             </div>
             <div className="flex justify-between mt-6">
               <button
