@@ -4,6 +4,8 @@ import api from '../../utils/api';
 import { IMMIGRATION_END_POINTS } from '../../utils/constants';
 import { FileCheck, AlertCircle, Users, Briefcase, Heart, Shield, Plane, Building, HelpCircle, CheckCircle, Upload, X, ChevronRight, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { mockForms } from '../../utils/mockData';
 
 interface SubCategory {
   id: string;
@@ -12,6 +14,21 @@ interface SubCategory {
   forms: string[];
   documents: string[];
 }
+
+interface Step {
+  id: number;
+  name: string;
+}
+
+const progressSteps: Step[] = [
+  { id: 1, name: 'Select Category' },
+  { id: 2, name: 'Upload Documents' },
+  { id: 3, name: 'Client Information' },
+  { id: 4, name: 'Case Details' },
+  { id: 5, name: 'Forms Validation' },
+  { id: 6, name: 'Auto Apply' },
+  { id: 7, name: 'Download Forms' },
+];
 
 interface MainCategory {
   id: string;
@@ -452,6 +469,7 @@ const getDocumentDescription = (docName: string): string => {
 };
 
 const ImmigrationProcess: React.FC = () => {
+  
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -467,45 +485,65 @@ const ImmigrationProcess: React.FC = () => {
   const [selectedMainCategory, setSelectedMainCategory] = useState<MainCategory | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const isParalegal = true;
-
-  const progressSteps: QuestionnaireStep[] = [
-    { 
-      id: '1',
-      title: 'Category Selection',
-      description: 'Choose your immigration category',
-      options: []
+  const [formData, setFormData] = useState({
+    i130: {
+      petitioner: '',
+      beneficiary: ''
     },
-    { 
-      id: '2',
-      title: 'Documents',
-      description: 'Upload required documents',
-      options: []
+    i485: {
+      currentStatus: '',
+      entryDate: ''
     },
-    { 
-      id: '3',
-      title: 'Client Information',
-      description: 'Enter client details',
-      options: []
-    },
-    { 
-      id: '4',
-      title: 'Case Details',
-      description: 'Provide case information',
-      options: []
-    },
-    { 
-      id: '5',
-      title: 'Forms',
-      description: 'Complete immigration forms',
-      options: []
-    },
-    { 
-      id: '6',
-      title: 'Review',
-      description: 'Review and submit your application',
-      options: []
+    i765: {
+      category: '',
+      previousEAD: '',
+      ssn: '',
+      i94Number: '',
+      lastEntryDate: '',
+      passportNumber: ''
     }
-  ];
+  });
+  const [formCompletion, setFormCompletion] = useState(0);
+
+  const formTemplates = {
+    i130: {
+      id: 'i130',
+      name: 'I-130 Petition for Alien Relative',
+      description: 'Form to establish a relationship between a U.S. citizen and an alien relative'
+    },
+    i485: {
+      id: 'i485',
+      name: 'I-485 Application to Register Permanent Residence',
+      description: 'Form to apply for a green card while in the United States'
+    },
+    i864: {
+      id: 'i864',
+      name: 'I-864 Affidavit of Support',
+      description: 'Form to demonstrate financial support for the immigrant'
+    },
+    i765: {
+      id: 'i765',
+      name: 'I-765 Application for Employment Authorization',
+      description: 'Form to request work authorization'
+    },
+    i131: {
+      id: 'i131',
+      name: 'I-131 Application for Travel Document',
+      description: 'Form to request permission to travel outside the U.S.'
+    },
+    i693: {
+      id: 'i693',
+      name: 'I-693 Report of Medical Examination',
+      description: 'Form for medical examination results'
+    }
+  };
+
+  const handleDownloadForm = (formId: string) => {
+    // Here you would typically make an API call to get the form
+    console.log(`Downloading form: ${formId}`);
+    // For now, we'll just show an alert
+    alert(`Downloading ${formTemplates[formId as keyof typeof formTemplates].name}`);
+  };
 
   useEffect(() => {
     const fetchForms = async () => {
@@ -720,6 +758,28 @@ const ImmigrationProcess: React.FC = () => {
     ));
   };
 
+  const handleFormDataChange = (form: string, field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [form]: {
+        ...prev[form as keyof typeof prev],
+        [field]: value
+      }
+    }));
+
+    // Calculate form completion percentage
+    const totalFields = Object.keys(formData).reduce((acc, formKey) => {
+      return acc + Object.keys(formData[formKey as keyof typeof formData]).length;
+    }, 0);
+    
+    const filledFields = Object.keys(formData).reduce((acc, formKey) => {
+      const form = formData[formKey as keyof typeof formData];
+      return acc + Object.values(form).filter(value => value !== '').length;
+    }, 0);
+
+    setFormCompletion(Math.round((filledFields / totalFields) * 100));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -750,45 +810,39 @@ const ImmigrationProcess: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+    
       {/* Progress Steps */}
       <div className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex justify-between items-center">
-            {progressSteps.map((step, index) => (
-              <div
-                key={step.id}
-                className={`flex items-center ${
-                  index < progressSteps.length - 1 ? 'flex-1' : ''
-                }`}
-              >
-                <div
-                  className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                    currentStep >= index
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-400'
-                  }`}
-                >
-                  {step.id}
-                </div>
-                <div className="ml-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              {progressSteps.map((step, index) => (
+                <div key={step.id} className="flex items-center">
                   <div
-                    className={`text-sm font-medium ${
-                      currentStep >= index ? 'text-primary-600' : 'text-gray-400'
+                    className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                      currentStep >= step.id - 1
+                        ? 'bg-blue-600 text-white ring-2 ring-blue-100'
+                        : 'bg-gray-200 text-gray-600'
                     }`}
                   >
-                    {step.title}
+                    {step.id}
                   </div>
-                  <div className="text-xs text-gray-400">{step.description}</div>
+                  <div className="ml-2">
+                    <div className="text-xs font-medium text-gray-900">{step.name}</div>
+                    <div className="text-xs text-gray-500">Step {step.id}</div>
+                  </div>
+                  {index < progressSteps.length - 1 && (
+                    <div className="w-16 h-0.5 bg-gray-200 mx-2 relative">
+                      <div
+                        className={`absolute top-0 left-0 h-full bg-blue-600 transition-all duration-300 ${
+                          currentStep > step.id - 1 ? 'w-full' : 'w-0'
+                        }`}
+                      />
+                    </div>
+                  )}
                 </div>
-                {index < progressSteps.length - 1 && (
-                  <div
-                    className={`flex-1 h-0.5 mx-4 ${
-                      currentStep > index ? 'bg-primary-600' : 'bg-gray-100'
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -1051,7 +1105,7 @@ const ImmigrationProcess: React.FC = () => {
                           htmlFor="file-upload"
                           className="relative cursor-pointer bg-white rounded-md font-medium text-primary-600 hover:text-primary-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500"
                         >
-                          <span>Upload files</span>
+                          <span>{uploading ? 'Uploading...' : 'Upload files'}</span>
                           <input
                             id="file-upload"
                             name="file-upload"
@@ -1060,6 +1114,7 @@ const ImmigrationProcess: React.FC = () => {
                             multiple
                             onChange={handleFileUpload}
                             accept=".pdf,.jpg,.jpeg,.png"
+                            disabled={uploading}
                           />
                         </label>
                         <p className="pl-1">or drag and drop</p>
@@ -1067,6 +1122,9 @@ const ImmigrationProcess: React.FC = () => {
                       <p className="text-xs text-gray-500">
                         PDF, PNG, JPG up to 10MB each
                       </p>
+                      {uploadError && (
+                        <p className="text-sm text-red-600 mt-2">{uploadError}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1614,21 +1672,224 @@ const ImmigrationProcess: React.FC = () => {
         {currentStep === 4 && (
           <div className="space-y-8">
             <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900">Complete Forms</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Forms Validation</h1>
               <p className="mt-2 text-lg text-gray-500">Fill out all required immigration forms</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              {/* Forms will go here */}
-              <div className="text-center py-12">
-                <div className="mx-auto h-12 w-12 text-gray-400">
-                  <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+
+            <div className="bg-white shadow rounded-lg p-6">
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                  <span className="text-sm font-medium text-gray-700">{formCompletion}%</span>
                 </div>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Immigration Forms</h3>
-                <p className="mt-1 text-sm text-gray-500">Complete all required forms for your application</p>
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <motion.div
+                    className="bg-blue-600 h-2.5 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${formCompletion}%` }}
+                    transition={{ duration: 0.5 }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {selectedMainCategory?.subCategories
+                  .find(sub => sub.id === selectedSubCategory)
+                  ?.forms.map((form) => (
+                    <div key={form} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold">{form}</h3>
+                        <button
+                          onClick={() => {
+                            const formId = mockForms.find(f => f.name.toLowerCase().includes(form.toLowerCase()))?.id;
+                            if (formId) {
+                              navigate(`/forms/${formId}`);
+                            }
+                          }}
+                          className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                          Edit Form
+                        </button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {form === 'I-130' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Petitioner</label>
+                              <input
+                                type="text"
+                                value={formData.i130.petitioner}
+                                onChange={(e) => handleFormDataChange('i130', 'petitioner', e.target.value)}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter petitioner's name"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Beneficiary</label>
+                              <input
+                                type="text"
+                                value={formData.i130.beneficiary}
+                                onChange={(e) => handleFormDataChange('i130', 'beneficiary', e.target.value)}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter beneficiary's name"
+                              />
+                            </div>
+                          </>
+                        )}
+                        
+                        {form === 'I-485' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Current Status</label>
+                              <input
+                                type="text"
+                                value={formData.i485.currentStatus}
+                                onChange={(e) => handleFormDataChange('i485', 'currentStatus', e.target.value)}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter current status"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Entry Date</label>
+                              <input
+                                type="date"
+                                value={formData.i485.entryDate}
+                                onChange={(e) => handleFormDataChange('i485', 'entryDate', e.target.value)}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* Add more form fields based on form type */}
+                        {form === 'I-864' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Sponsor's Income</label>
+                              <input
+                                type="number"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter annual income"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Tax Year</label>
+                              <input
+                                type="number"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter tax year"
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {form === 'I-693' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Medical Exam Date</label>
+                              <input
+                                type="date"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Civil Surgeon</label>
+                              <input
+                                type="text"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter civil surgeon's name"
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {form === 'I-765' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Employment Authorization Category</label>
+                              <select
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.i765?.category || ''}
+                                onChange={(e) => handleFormDataChange('i765', 'category', e.target.value)}
+                              >
+                                <option value="">Select category</option>
+                                <option value="c8">(c)(8) - Pending asylum application</option>
+                                <option value="c9">(c)(9) - Pending adjustment of status</option>
+                                <option value="a3">(a)(3) - Refugee</option>
+                                <option value="a5">(a)(5) - Asylee</option>
+                                <option value="a10">(a)(10) - Withholding of removal</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Previous EAD Information</label>
+                              <input
+                                type="text"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Previous EAD number (if any)"
+                                value={formData.i765?.previousEAD || ''}
+                                onChange={(e) => handleFormDataChange('i765', 'previousEAD', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">SSN (if any)</label>
+                              <input
+                                type="text"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter SSN"
+                                value={formData.i765?.ssn || ''}
+                                onChange={(e) => handleFormDataChange('i765', 'ssn', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">I-94 Number</label>
+                              <input
+                                type="text"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter I-94 number"
+                                value={formData.i765?.i94Number || ''}
+                                onChange={(e) => handleFormDataChange('i765', 'i94Number', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Last Entry Date</label>
+                              <input
+                                type="date"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.i765?.lastEntryDate || ''}
+                                onChange={(e) => handleFormDataChange('i765', 'lastEntryDate', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Passport Number</label>
+                              <input
+                                type="text"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter passport number"
+                                value={formData.i765?.passportNumber || ''}
+                                onChange={(e) => handleFormDataChange('i765', 'passportNumber', e.target.value)}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                          onClick={() => {/* Handle form preview */}}
+                        >
+                          Preview Form
+                        </button>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
+
             <div className="flex justify-between mt-6">
               <button
                 onClick={() => setCurrentStep(3)}
@@ -1650,82 +1911,48 @@ const ImmigrationProcess: React.FC = () => {
         {currentStep === 5 && (
           <div className="space-y-8">
             <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900">Review Application</h1>
-              <p className="mt-2 text-lg text-gray-500">Review your application before final submission</p>
+              <h1 className="text-3xl font-bold text-gray-900">Auto Apply Process</h1>
+              <p className="mt-2 text-lg text-gray-500">Process your application</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-6">
-              {/* Review sections */}
-              <div className="space-y-6">
-                {/* Category Review */}
-                <div className="border-b pb-4">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Selected Category</h2>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">{selectedCategory}</p>
-                    <p className="text-sm text-gray-500 mt-1">{selectedSubCategory}</p>
-                  </div>
+              <div className="bg-white shadow rounded-lg p-6">
+                <div className="flex items-center justify-center space-x-4">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                  <p className="text-lg text-gray-700">Processing your application...</p>
                 </div>
-
-                {/* Documents Review */}
-                <div className="border-b pb-4">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Uploaded Documents</h2>
-                  <div className="space-y-2">
-                    {documents.map((doc) => (
-                      <div key={doc.name} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                        <div className="flex items-center">
-                          <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-600">{doc.name}</span>
-                        </div>
-                        <button
-                          onClick={() => setCurrentStep(1)}
-                          className="text-sm text-primary-600 hover:text-primary-700"
-                        >
-                          View
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Client Information Review */}
-                <div className="border-b pb-4">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Client Information</h2>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-500">Client details will be displayed here</p>
-                  </div>
-                  <button
-                    onClick={() => setCurrentStep(2)}
-                    className="mt-2 text-sm text-primary-600 hover:text-primary-700"
+                <div className="mt-6 space-y-4">
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center"
                   >
-                    Edit Client Information
-                  </button>
-                </div>
-
-                {/* Case Details Review */}
-                <div className="border-b pb-4">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Case Details</h2>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-500">Case information will be displayed here</p>
-                  </div>
-                  <button
-                    onClick={() => setCurrentStep(3)}
-                    className="mt-2 text-sm text-primary-600 hover:text-primary-700"
+                    <svg className="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Validating documents</span>
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="flex items-center"
                   >
-                    Edit Case Details
-                  </button>
-                </div>
-
-                {/* Forms Review */}
-                <div>
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Completed Forms</h2>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-500">Form information will be displayed here</p>
-                  </div>
-                  <button
-                    onClick={() => setCurrentStep(4)}
-                    className="mt-2 text-sm text-primary-600 hover:text-primary-700"
+                    <svg className="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Filling forms automatically</span>
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="flex items-center"
                   >
-                    Edit Forms
-                  </button>
+                    <svg className="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Submitting application</span>
+                  </motion.div>
                 </div>
               </div>
             </div>
@@ -1737,6 +1964,57 @@ const ImmigrationProcess: React.FC = () => {
                 className="text-gray-600 hover:text-gray-900"
               >
                 Back to Forms
+              </button>
+              <button
+                onClick={() => setCurrentStep(6)}
+                className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+              >
+                Continue to Review
+                <ChevronRight className="ml-2 h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 6 && (
+          <div className="space-y-8">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-900">Download USCIS Forms</h1>
+              <p className="mt-2 text-lg text-gray-500">Download the required forms for your application</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="bg-white shadow rounded-lg p-6">
+                <div className="space-y-4">
+                  {Object.values(formTemplates).map((template) => (
+                    <motion.div
+                      key={template.id}
+                      whileHover={{ scale: 1.02 }}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer"
+                      onClick={() => handleDownloadForm(template.id)}
+                    >
+                      <div className="flex items-center">
+                        <svg className="h-6 w-6 text-blue-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <div>
+                          <h3 className="font-medium">{template.name}</h3>
+                          <p className="text-sm text-gray-500">{template.description}</p>
+                        </div>
+                      </div>
+                      <span className="text-blue-600">Download</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex justify-between mt-6">
+              <button
+                onClick={() => setCurrentStep(5)}
+                className="text-gray-600 hover:text-gray-900"
+              >
+                Back to Auto Apply
               </button>
               <button
                 onClick={() => {/* Handle final submission */}}
