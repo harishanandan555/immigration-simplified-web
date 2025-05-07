@@ -45,7 +45,8 @@ const Header: React.FC<HeaderProps> = ({ onSidebarOpen, onNotificationsOpen }) =
             </button>
           </div>
 
-          <div className="flex-1 flex justify-end px-2 lg:ml-6">
+          <div className="flex-1 flex justify-end items-center px-2 lg:ml-6">
+
             <div className="max-w-lg w-full lg:max-w-xs mr-4">
               <label htmlFor="search" className="sr-only">Search</label>
               <div className="relative">
@@ -133,7 +134,9 @@ const Header: React.FC<HeaderProps> = ({ onSidebarOpen, onNotificationsOpen }) =
                 Login
               </button>
             )}
+            
           </div>
+
         </div>
       </div>
     </header>

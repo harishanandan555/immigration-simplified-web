@@ -10,7 +10,8 @@ import {
   Settings,
   X,
   BarChart,
-  FileSearch
+  FileSearch,
+  ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../../controllers/AuthControllers';
 import Logo from './Logo';
@@ -27,6 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
 
   const navigationItems = [
     { name: 'Dashboard', href: '/', icon: Home, visible: true },
+    { name: 'Immigration Process', href: '/immigration-process', icon: ClipboardList, visible: true },
     { name: 'Cases', href: '/cases', icon: Briefcase, visible: !isClient },
     { name: 'Cases Tracker', href: '/cases/tracker', icon: Briefcase, visible: !isClient },
     { name: 'FOIA Cases', href: '/foia-cases', icon: FileSearch, visible: !isClient },

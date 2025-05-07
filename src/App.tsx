@@ -8,6 +8,7 @@ import LoginPage from './pages/auth/LoginPage';
 import FoiaCasesPage from './pages/foia/FoiaCasesPage';
 import FoiaCaseFormPage from './pages/foia/FoiaCaseFormPage';
 import FoiaCasesDetailsPage from './pages/foia/FoiaCasesDetailsPage';
+import ImmigrationProcess from './pages/immigrationSteps/ImmigrationProcess';
 
 // Lazy-loaded components
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -39,7 +40,7 @@ const App = () => {
     <>
       <Toaster position="top-right" />
       <Routes>
-        <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" replace />} />
+        <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/immigration-process" replace />} />
 
         {/* Protected routes */}
         {user ? (
@@ -47,6 +48,12 @@ const App = () => {
             <Route path="/" element={
               <Suspense fallback={<LoadingSpinner />}>
                 <Dashboard />
+              </Suspense>
+            } />
+
+            <Route path="/immigration-process" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <ImmigrationProcess />
               </Suspense>
             } />
 
