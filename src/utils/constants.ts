@@ -63,6 +63,7 @@ export const SETTINGS_END_POINTS = {
     // Security
     SECURITY_GET: "/api/v1/settings/security",
     SECURITY_UPDATE: "/api/v1/settings/security",
+    SECURITY_SIGNOUT_ALL: "/api/v1/settings/security/signout-all",
     
     // Email
     EMAIL_GET: "/api/v1/settings/email",

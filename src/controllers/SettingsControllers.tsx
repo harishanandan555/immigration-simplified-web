@@ -124,6 +124,20 @@ export const updateSecurity = async (userId: string, securityData: any): Promise
   }
 };
 
+export const signOutAllDevices = async (userId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.SECURITY_SIGNOUT_ALL}/${userId}`);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error signing out all devices:', error);
+    throw error;
+  }
+};
+
 // Email Settings
 export const getEmailSettings = async (userId: string): Promise<ApiResponse<any>> => {
   try {

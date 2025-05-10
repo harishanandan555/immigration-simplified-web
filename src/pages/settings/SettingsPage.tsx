@@ -36,6 +36,7 @@ import {
   updateNotifications,
   getSecurity,
   updateSecurity,
+  signOutAllDevices,
   getEmailSettings,
   updateEmailSettings,
   getIntegrations,
@@ -103,6 +104,9 @@ interface SecurityData {
   newPassword: string;
   confirmPassword: string;
   twoFactorEnabled: boolean;
+  lastModifiedBy: string;
+  lastPasswordChange: string;
+  updatedAt: string;
 }
 
 interface EmailData {
@@ -132,12 +136,42 @@ interface SystemData {
   dateFormat: string;
 }
 
+interface CaseSettingsData {
+  categories: {
+    id: string;
+    name: string;
+    description: string;
+    color: string;
+  }[];
+  statuses: {
+    id: string;
+    name: string;
+    description: string;
+    color: string;
+    order: number;
+  }[];
+  defaultSettings: {
+    autoAssign: boolean;
+    notifyOnStatusChange: boolean;
+    requireDocumentUpload: boolean;
+    defaultPriority: 'low' | 'medium' | 'high';
+  };
+  customFields: {
+    id: string;
+    name: string;
+    type: 'text' | 'number' | 'date' | 'select';
+    required: boolean;
+    options?: string[];
+  }[];
+}
+
 const SettingsPage = () => {
 
   const { isAdmin, isAttorney, user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [showSignOutConfirmation, setShowSignOutConfirmation] = useState(false);
 
   // Profile form state
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -169,7 +203,10 @@ const SettingsPage = () => {
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
-    twoFactorEnabled: false
+    twoFactorEnabled: false,
+    lastModifiedBy: '',
+    lastPasswordChange: '',
+    updatedAt: ''
   });
 
   // Email form state
@@ -205,7 +242,17 @@ const SettingsPage = () => {
 
   // Add these state variables after the existing state declarations
   const [usersData, setUsersData] = useState<any>({});
-  const [caseSettingsData, setCaseSettingsData] = useState<any>({});
+  const [caseSettingsData, setCaseSettingsData] = useState<CaseSettingsData>({
+    categories: [],
+    statuses: [],
+    defaultSettings: {
+      autoAssign: false,
+      notifyOnStatusChange: true,
+      requireDocumentUpload: true,
+      defaultPriority: 'medium'
+    },
+    customFields: []
+  });
   const [formTemplatesData, setFormTemplatesData] = useState<any>({});
   const [reportSettingsData, setReportSettingsData] = useState<any>({});
   const [rolesData, setRolesData] = useState<any>({});
@@ -213,6 +260,32 @@ const SettingsPage = () => {
   const [backupSettingsData, setBackupSettingsData] = useState<any>({});
   const [apiSettingsData, setApiSettingsData] = useState<any>({});
   const [performanceSettingsData, setPerformanceSettingsData] = useState<any>({});
+
+  // Add these state variables for modals
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [showAddStatus, setShowAddStatus] = useState(false);
+  const [showAddField, setShowAddField] = useState(false);
+
+  // Add these state variables for form data
+  const [newCategory, setNewCategory] = useState({
+    name: '',
+    description: '',
+    color: '#3B82F6' // Default blue color
+  });
+
+  const [newStatus, setNewStatus] = useState({
+    name: '',
+    description: '',
+    color: '#3B82F6', // Default blue color
+    order: 0
+  });
+
+  const [newField, setNewField] = useState({
+    name: '',
+    type: 'text' as 'text' | 'number' | 'date' | 'select',
+    required: false,
+    options: [] as string[]
+  });
 
   // Load initial data
   useEffect(() => {
@@ -591,6 +664,23 @@ const SettingsPage = () => {
     setShowDeleteConfirmation(false);
   };
 
+  const handleSignOutAllDevices = async () => {
+    if (!user?._id) return;
+    
+    try {
+      setLoading(true);
+      await signOutAllDevices(user._id);
+      // You might want to redirect to login page or show a success message
+      window.location.href = '/login'; // Redirect to login page after signing out
+    } catch (error) {
+      console.error('Error signing out all devices:', error);
+      // Handle error (show error message to user)
+    } finally {
+      setLoading(false);
+      setShowSignOutConfirmation(false);
+    }
+  };
+
   const navigationItems = [
     { id: 'profile', name: 'Profile', icon: User, adminOnly: false },
     { id: 'organization', name: 'Organization', icon: Building, adminOnly: false },
@@ -611,6 +701,150 @@ const SettingsPage = () => {
     { id: 'api', name: 'API Settings', icon: Key, adminOnly: true },
     { id: 'performance', name: 'Performance', icon: Zap, adminOnly: true }
   ];
+
+  const renderSecuritySection = () => (
+    <div className="space-y-6">
+      <div className="bg-white shadow rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Security Settings</h3>
+        <form onSubmit={(e) => { e.preventDefault(); handleSecuritySubmit(); }}>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
+                Current Password
+              </label>
+              <input
+                type="password"
+                id="currentPassword"
+                name="currentPassword"
+                value={securityData.currentPassword}
+                onChange={handleSecurityChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
+                New Password
+              </label>
+              <input
+                type="password"
+                id="newPassword"
+                name="newPassword"
+                value={securityData.newPassword}
+                onChange={handleSecurityChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                Confirm New Password
+              </label>
+              <input
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                value={securityData.confirmPassword}
+                onChange={handleSecurityChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="twoFactorEnabled"
+                name="twoFactorEnabled"
+                checked={securityData.twoFactorEnabled}
+                onChange={handleSecurityChange}
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <label htmlFor="twoFactorEnabled" className="ml-2 block text-sm text-gray-900">
+                Enable Two-Factor Authentication
+              </label>
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              type="submit"
+              className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              Update Security Settings
+            </button>
+          </div>
+        </form>
+
+        {/* Security Information */}
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <h4 className="text-sm font-medium text-gray-900 mb-4">Security Information</h4>
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Last Password Change</dt>
+              <dd className="mt-1 text-sm text-gray-900">
+                {new Date(securityData.lastPasswordChange).toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Last Modified By</dt>
+              <dd className="mt-1 text-sm text-gray-900">
+                {securityData.lastModifiedBy}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Last Updated</dt>
+              <dd className="mt-1 text-sm text-gray-900">
+                {new Date(securityData.updatedAt).toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Two-Factor Status</dt>
+              <dd className="mt-1 text-sm text-gray-900">
+                {securityData.twoFactorEnabled ? 'Enabled' : 'Disabled'}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      {/* Sign Out All Devices Section */}
+      <div className="bg-white shadow rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Active Sessions</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Sign out from all other devices where you're currently logged in. This will invalidate all active sessions except your current one.
+        </p>
+        <button
+          onClick={() => setShowSignOutConfirmation(true)}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+        >
+          Sign Out All Other Devices
+        </button>
+      </div>
+
+      {/* Sign Out Confirmation Modal */}
+      {showSignOutConfirmation && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Sign Out</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Are you sure you want to sign out from all other devices? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowSignOutConfirmation(false)}
+                className="inline-flex justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSignOutAllDevices}
+                disabled={loading}
+                className="inline-flex justify-center rounded-md border border-transparent bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                {loading ? 'Signing Out...' : 'Sign Out All Devices'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -940,99 +1174,7 @@ const SettingsPage = () => {
             )}
 
             {/* Security Settings */}
-            {activeTab === 'security' && (
-              <>
-                <div className="p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">Security Settings</h2>
-                  <div className="space-y-6">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Password</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Current Password</label>
-                          <input 
-                            type="password" 
-                            name="currentPassword"
-                            value={securityData.currentPassword}
-                            onChange={handleSecurityChange}
-                            className="mt-1 form-input" 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">New Password</label>
-                          <input 
-                            type="password" 
-                            name="newPassword"
-                            value={securityData.newPassword}
-                            onChange={handleSecurityChange}
-                            className="mt-1 form-input" 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Confirm New Password</label>
-                          <input 
-                            type="password" 
-                            name="confirmPassword"
-                            value={securityData.confirmPassword}
-                            onChange={handleSecurityChange}
-                            className="mt-1 form-input" 
-                          />
-                        </div>
-                        <button className="btn btn-outline">Update Password</button>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Two-Factor Authentication</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">Enable 2FA</p>
-                            <p className="text-xs text-gray-500">Add an extra layer of security to your account</p>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              name="twoFactorEnabled"
-                              checked={securityData.twoFactorEnabled}
-                              onChange={handleSecurityChange}
-                              className="sr-only peer" 
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Active Sessions</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">Current Session</p>
-                            <p className="text-xs text-gray-500">Windows 10 • Chrome • New York, USA</p>
-                          </div>
-                          <span className="text-xs text-green-600">Active Now</span>
-                        </div>
-                        <button className="btn btn-outline text-red-600">Sign Out All Other Devices</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Save Button */}
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                  <button
-                    type="button"
-                    className="btn btn-primary flex items-center"
-                    onClick={handleSecuritySubmit}
-                    disabled={loading}
-                  >
-                    <Save size={18} className="mr-2" />
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </>
-            )}
+            {activeTab === 'security' && renderSecuritySection()}
 
             {/* Email Settings */}
             {activeTab === 'email' && (
@@ -1315,43 +1457,201 @@ const SettingsPage = () => {
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Case Settings</h2>
                   <div className="space-y-6">
+                    {/* Categories Section */}
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Case Categories</h3>
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-medium text-gray-900">Case Categories</h3>
+                        <button 
+                          className="btn btn-outline text-xs py-1"
+                          onClick={() => setShowAddCategory(true)}
+                        >
+                          Add Category
+                        </button>
+                      </div>
+                      <div className="space-y-4">
+                        {caseSettingsData.categories.map((category) => (
+                          <div key={category.id} className="flex items-center justify-between bg-white p-3 rounded-md">
+                            <div className="flex items-center space-x-3">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: category.color }}
+                              />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{category.name}</p>
+                                <p className="text-xs text-gray-500">{category.description}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button className="text-gray-400 hover:text-gray-500">
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button className="text-gray-400 hover:text-gray-500">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Statuses Section */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-medium text-gray-900">Case Statuses</h3>
+                        <button 
+                          className="btn btn-outline text-xs py-1"
+                          onClick={() => setShowAddStatus(true)}
+                        >
+                          Add Status
+                        </button>
+                      </div>
+                      <div className="space-y-4">
+                        {caseSettingsData.statuses.map((status) => (
+                          <div key={status.id} className="flex items-center justify-between bg-white p-3 rounded-md">
+                            <div className="flex items-center space-x-3">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: status.color }}
+                              />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{status.name}</p>
+                                <p className="text-xs text-gray-500">{status.description}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button className="text-gray-400 hover:text-gray-500">
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button className="text-gray-400 hover:text-gray-500">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Default Settings Section */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-900 mb-4">Default Settings</h3>
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-medium text-gray-900">Family-Based</p>
-                            <p className="text-xs text-gray-500">Family-based immigration cases</p>
+                            <p className="text-sm font-medium text-gray-900">Auto-assign Cases</p>
+                            <p className="text-xs text-gray-500">Automatically assign new cases to available attorneys</p>
                           </div>
-                          <button className="btn btn-outline text-xs py-1">Edit</button>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={caseSettingsData.defaultSettings.autoAssign}
+                              onChange={(e) => setCaseSettingsData(prev => ({
+                                ...prev,
+                                defaultSettings: {
+                                  ...prev.defaultSettings,
+                                  autoAssign: e.target.checked
+                                }
+                              }))}
+                              className="sr-only peer" 
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                          </label>
                         </div>
+
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-medium text-gray-900">Employment-Based</p>
-                            <p className="text-xs text-gray-500">Employment-based immigration cases</p>
+                            <p className="text-sm font-medium text-gray-900">Notify on Status Change</p>
+                            <p className="text-xs text-gray-500">Send notifications when case status changes</p>
                           </div>
-                          <button className="btn btn-outline text-xs py-1">Edit</button>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={caseSettingsData.defaultSettings.notifyOnStatusChange}
+                              onChange={(e) => setCaseSettingsData(prev => ({
+                                ...prev,
+                                defaultSettings: {
+                                  ...prev.defaultSettings,
+                                  notifyOnStatusChange: e.target.checked
+                                }
+                              }))}
+                              className="sr-only peer" 
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Require Document Upload</p>
+                            <p className="text-xs text-gray-500">Require document upload for new cases</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={caseSettingsData.defaultSettings.requireDocumentUpload}
+                              onChange={(e) => setCaseSettingsData(prev => ({
+                                ...prev,
+                                defaultSettings: {
+                                  ...prev.defaultSettings,
+                                  requireDocumentUpload: e.target.checked
+                                }
+                              }))}
+                              className="sr-only peer" 
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                          </label>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Default Priority</label>
+                          <select
+                            value={caseSettingsData.defaultSettings.defaultPriority}
+                            onChange={(e) => setCaseSettingsData(prev => ({
+                              ...prev,
+                              defaultSettings: {
+                                ...prev.defaultSettings,
+                                defaultPriority: e.target.value as 'low' | 'medium' | 'high'
+                              }
+                            }))}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                          >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
                         </div>
                       </div>
                     </div>
 
+                    {/* Custom Fields Section */}
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Case Statuses</h3>
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-medium text-gray-900">Custom Fields</h3>
+                        <button 
+                          className="btn btn-outline text-xs py-1"
+                          onClick={() => setShowAddField(true)}
+                        >
+                          Add Field
+                        </button>
+                      </div>
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">Active</p>
-                            <p className="text-xs text-gray-500">Currently active cases</p>
+                        {caseSettingsData.customFields.map((field) => (
+                          <div key={field.id} className="flex items-center justify-between bg-white p-3 rounded-md">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{field.name}</p>
+                              <p className="text-xs text-gray-500">
+                                Type: {field.type} • Required: {field.required ? 'Yes' : 'No'}
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button className="text-gray-400 hover:text-gray-500">
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button className="text-gray-400 hover:text-gray-500">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
-                          <button className="btn btn-outline text-xs py-1">Edit</button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">Pending</p>
-                            <p className="text-xs text-gray-500">Cases awaiting action</p>
-                          </div>
-                          <button className="btn btn-outline text-xs py-1">Edit</button>
-                        </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1369,6 +1669,270 @@ const SettingsPage = () => {
                   </button>
                 </div>
               </>
+            )}
+
+            {/* Add Category Modal */}
+            {showAddCategory && (
+              <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Add Category</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Name</label>
+                      <input
+                        type="text"
+                        value={newCategory.name}
+                        onChange={(e) => setNewCategory(prev => ({ ...prev, name: e.target.value }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                        placeholder="Enter category name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Description</label>
+                      <textarea
+                        value={newCategory.description}
+                        onChange={(e) => setNewCategory(prev => ({ ...prev, description: e.target.value }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                        rows={3}
+                        placeholder="Enter category description"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Color</label>
+                      <div className="mt-1 flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={newCategory.color}
+                          onChange={(e) => setNewCategory(prev => ({ ...prev, color: e.target.value }))}
+                          className="h-8 w-8 rounded-md border border-gray-300"
+                        />
+                        <input
+                          type="text"
+                          value={newCategory.color}
+                          onChange={(e) => setNewCategory(prev => ({ ...prev, color: e.target.value }))}
+                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => setShowAddCategory(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        setCaseSettingsData(prev => ({
+                          ...prev,
+                          categories: [...prev.categories, { ...newCategory, id: Date.now().toString() }]
+                        }));
+                        setNewCategory({ name: '', description: '', color: '#3B82F6' });
+                        setShowAddCategory(false);
+                      }}
+                    >
+                      Add Category
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Add Status Modal */}
+            {showAddStatus && (
+              <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Add Status</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Name</label>
+                      <input
+                        type="text"
+                        value={newStatus.name}
+                        onChange={(e) => setNewStatus(prev => ({ ...prev, name: e.target.value }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                        placeholder="Enter status name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Description</label>
+                      <textarea
+                        value={newStatus.description}
+                        onChange={(e) => setNewStatus(prev => ({ ...prev, description: e.target.value }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                        rows={3}
+                        placeholder="Enter status description"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Color</label>
+                      <div className="mt-1 flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={newStatus.color}
+                          onChange={(e) => setNewStatus(prev => ({ ...prev, color: e.target.value }))}
+                          className="h-8 w-8 rounded-md border border-gray-300"
+                        />
+                        <input
+                          type="text"
+                          value={newStatus.color}
+                          onChange={(e) => setNewStatus(prev => ({ ...prev, color: e.target.value }))}
+                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Order</label>
+                      <input
+                        type="number"
+                        value={newStatus.order}
+                        onChange={(e) => setNewStatus(prev => ({ ...prev, order: parseInt(e.target.value) }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-6 flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => setShowAddStatus(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        setCaseSettingsData(prev => ({
+                          ...prev,
+                          statuses: [...prev.statuses, { ...newStatus, id: Date.now().toString() }]
+                        }));
+                        setNewStatus({ name: '', description: '', color: '#3B82F6', order: 0 });
+                        setShowAddStatus(false);
+                      }}
+                    >
+                      Add Status
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Add Field Modal */}
+            {showAddField && (
+              <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Add Custom Field</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Field Name</label>
+                      <input
+                        type="text"
+                        value={newField.name}
+                        onChange={(e) => setNewField(prev => ({ ...prev, name: e.target.value }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                        placeholder="Enter field name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Field Type</label>
+                      <select
+                        value={newField.type}
+                        onChange={(e) => setNewField(prev => ({ 
+                          ...prev, 
+                          type: e.target.value as 'text' | 'number' | 'date' | 'select',
+                          options: e.target.value === 'select' ? prev.options : []
+                        }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                      >
+                        <option value="text">Text</option>
+                        <option value="number">Number</option>
+                        <option value="date">Date</option>
+                        <option value="select">Select</option>
+                      </select>
+                    </div>
+                    {newField.type === 'select' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Options</label>
+                        <div className="space-y-2">
+                          {newField.options.map((option, index) => (
+                            <div key={index} className="flex items-center space-x-2">
+                              <input
+                                type="text"
+                                value={option}
+                                onChange={(e) => {
+                                  const newOptions = [...newField.options];
+                                  newOptions[index] = e.target.value;
+                                  setNewField(prev => ({ ...prev, options: newOptions }));
+                                }}
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                                placeholder="Enter option"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newOptions = newField.options.filter((_, i) => i !== index);
+                                  setNewField(prev => ({ ...prev, options: newOptions }));
+                                }}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setNewField(prev => ({ ...prev, options: [...prev.options, ''] }))}
+                            className="btn btn-outline text-xs py-1"
+                          >
+                            Add Option
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="required"
+                        checked={newField.required}
+                        onChange={(e) => setNewField(prev => ({ ...prev, required: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <label htmlFor="required" className="ml-2 block text-sm text-gray-700">
+                        Required field
+                      </label>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => setShowAddField(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        setCaseSettingsData(prev => ({
+                          ...prev,
+                          customFields: [...prev.customFields, { ...newField, id: Date.now().toString() }]
+                        }));
+                        setNewField({ name: '', type: 'text', required: false, options: [] });
+                        setShowAddField(false);
+                      }}
+                    >
+                      Add Field
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Form Templates */}
