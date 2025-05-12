@@ -167,7 +167,7 @@ interface CaseSettingsData {
 
 const SettingsPage = () => {
 
-  const { isAdmin, isAttorney, user } = useAuth();
+  const { isAttorney, isSuperAdmin, user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -858,7 +858,7 @@ const SettingsPage = () => {
         <nav className="space-y-1">
           {navigationItems
             .filter(item => {
-              if (isAdmin) return true;
+              if (isSuperAdmin) return true;
               if (isAttorney) return !item.adminOnly || item.attorneyAllowed;
               return !item.adminOnly && !item.attorneyAllowed;
             })
@@ -1393,7 +1393,7 @@ const SettingsPage = () => {
             )}
 
             {/* User Management */}
-            {activeTab === 'users' && (isAdmin || isAttorney) && (
+            {activeTab === 'users' && (isSuperAdmin || isAttorney) && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">User Management</h2>
@@ -1452,7 +1452,7 @@ const SettingsPage = () => {
             )}
 
             {/* Case Settings */}
-            {activeTab === 'cases' && (isAdmin || isAttorney) && (
+            {activeTab === 'cases' && (isSuperAdmin || isAttorney) && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Case Settings</h2>
@@ -1936,7 +1936,7 @@ const SettingsPage = () => {
             )}
 
             {/* Form Templates */}
-            {activeTab === 'forms' && (isAdmin || isAttorney) && (
+            {activeTab === 'forms' && (isSuperAdmin || isAttorney) && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Form Templates</h2>
@@ -1995,7 +1995,7 @@ const SettingsPage = () => {
             )}
 
             {/* Report Settings */}
-            {activeTab === 'reports' && (isAdmin || isAttorney) && (
+            {activeTab === 'reports' && (isSuperAdmin || isAttorney) && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Report Settings</h2>
@@ -2050,7 +2050,7 @@ const SettingsPage = () => {
             )}
 
             {/* Roles & Permissions */}
-            {activeTab === 'roles' && isAdmin && (
+            {activeTab === 'roles' && isSuperAdmin && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Roles & Permissions</h2>
@@ -2109,7 +2109,7 @@ const SettingsPage = () => {
             )}
 
             {/* System Settings */}
-            {activeTab === 'system' && isAdmin && (
+            {activeTab === 'system' && isSuperAdmin && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">System Settings</h2>
@@ -2187,7 +2187,7 @@ const SettingsPage = () => {
             )}
 
             {/* Audit Logs */}
-            {activeTab === 'audit' && isAdmin && (
+            {activeTab === 'audit' && isSuperAdmin && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Audit Logs</h2>
@@ -2243,7 +2243,7 @@ const SettingsPage = () => {
             )}
 
             {/* Backup & Recovery */}
-            {activeTab === 'backup' && isAdmin && (
+            {activeTab === 'backup' && isSuperAdmin && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Backup & Recovery</h2>
@@ -2318,7 +2318,7 @@ const SettingsPage = () => {
             )}
 
             {/* Database Settings */}
-            {activeTab === 'database' && isAdmin && (
+            {activeTab === 'database' && isSuperAdmin && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Database Settings</h2>
@@ -2464,7 +2464,7 @@ const SettingsPage = () => {
             )}
 
             {/* API Settings */}
-            {activeTab === 'api' && isAdmin && (
+            {activeTab === 'api' && isSuperAdmin && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">API Settings</h2>
@@ -2618,7 +2618,7 @@ const SettingsPage = () => {
             )}
 
             {/* Performance Monitoring */}
-            {activeTab === 'performance' && isAdmin && (
+            {activeTab === 'performance' && isSuperAdmin && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Performance Monitoring</h2>

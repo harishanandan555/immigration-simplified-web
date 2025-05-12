@@ -24,21 +24,21 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
   const location = useLocation();
-  const { isClient, isAttorney, isAdmin } = useAuth();
+  const { isClient, isAttorney, isParalegal, isSuperAdmin } = useAuth();
 
   const navigationItems = [
     { name: 'Dashboard', href: '/', icon: Home, visible: true },
     { name: 'Immigration Process', href: '/immigration-process', icon: ClipboardList, visible: true },
-    { name: 'Cases', href: '/cases', icon: Briefcase, visible: !isClient },
-    { name: 'Cases Tracker', href: '/cases/tracker', icon: Briefcase, visible: !isClient },
-    { name: 'FOIA Cases', href: '/foia-cases', icon: FileSearch, visible: !isClient },
-    { name: 'Clients', href: '/clients', icon: Users, visible: !isClient },
+    { name: 'Cases', href: '/cases', icon: Briefcase, visible: !isClient || isSuperAdmin },
+    { name: 'Cases Tracker', href: '/cases/tracker', icon: Briefcase, visible: !isClient || isSuperAdmin },
+    { name: 'FOIA Cases', href: '/foia-cases', icon: FileSearch, visible: !isClient || isSuperAdmin },
+    { name: 'Clients', href: '/clients', icon: Users, visible: !isClient || isSuperAdmin },
     { name: 'Forms', href: '/forms', icon: FileText, visible: true },
     { name: 'Documents', href: '/documents', icon: Folder, visible: true },
-    { name: 'Tasks', href: '/tasks', icon: CheckSquare, visible: !isClient },
+    { name: 'Tasks', href: '/tasks', icon: CheckSquare, visible: !isClient || isSuperAdmin },
     { name: 'Calendar', href: '/calendar', icon: Calendar, visible: true },
-    { name: 'Reports', href: '/reports', icon: BarChart, visible: isAttorney || isAdmin },
-    { name: 'Settings', href: '/settings', icon: Settings, visible: isAttorney || isAdmin }
+    { name: 'Reports', href: '/reports', icon: BarChart, visible: isAttorney || isParalegal || isSuperAdmin },
+    { name: 'Settings', href: '/settings', icon: Settings, visible: isAttorney || isParalegal || isSuperAdmin }
   ];
 
   const isActive = (path: string): boolean => {

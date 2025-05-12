@@ -3,13 +3,15 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../utils/api';
 import { AUTH_END_POINTS } from '../utils/constants';
 
-export type UserRole = 'admin' | 'attorney' | 'paralegal' | 'client';
+export type UserRole = 'admin' | 'attorney' | 'paralegal' | 'client' | 'superadmin';
 
 export interface User {
   _id: string;
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
+  password: string;
   role: UserRole;
   avatar?: string;
   token?: string;
@@ -23,10 +25,10 @@ interface AuthContextType {
   getUserProfile: (email: string, password: string) => Promise<void>;
   updateUserProfile: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  isAdmin: boolean;
   isAttorney: boolean;
   isParalegal: boolean;
   isClient: boolean;
+  isSuperAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -103,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getUserProfile = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      const response = await api.get(AUTH_END_POINTS.PROFILE_GET);
+      const response = await api.get(AUTH_END_POINTS.PROFILE_GET, { params: { email, password } });
       if (response.data.success) {
         setUser(response.data.data);
         localStorage.setItem('user', JSON.stringify(response.data.data));
@@ -140,9 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('token');
   };
 
-  const isAdmin = user?.role === 'admin';
-  const isAttorney = user?.role === 'attorney' || isAdmin;
-  const isParalegal = user?.role === 'paralegal' || isAttorney;
+  const isSuperAdmin = user?.role === 'superadmin';
+  const isAttorney = user?.role === 'attorney';
+  const isParalegal = user?.role === 'paralegal';
   const isClient = user?.role === 'client';
 
   return (
@@ -154,10 +156,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       getUserProfile,
       updateUserProfile,
       logout,
-      isAdmin,
       isAttorney,
       isParalegal,
-      isClient
+      isClient,
+      isSuperAdmin
     }}>
       {children}
     </AuthContext.Provider>

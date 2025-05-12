@@ -88,10 +88,10 @@ export const createClient = async (clientData: Omit<Client, 'id'>): Promise<ApiR
 
 export const getClientCases = async (clientId: string): Promise<any[]> => {
     try {
-        const response: AxiosResponse<{ cases: any[] }> = await api.get(
+        const response: AxiosResponse<any[]> = await api.get(
             CLIENT_END_POINTS.GETCLIENTCASES.replace(':id', clientId)
         );
-        return response.data.cases;
+        return response.data;
     } catch (error) {
         if (error instanceof Error) {
             console.error('Error fetching client cases:', error.message);

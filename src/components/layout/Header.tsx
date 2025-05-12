@@ -85,11 +85,11 @@ const Header: React.FC<HeaderProps> = ({ onSidebarOpen, onNotificationsOpen }) =
                       <img
                         className="h-8 w-8 rounded-full"
                         src={user.avatar}
-                        alt={user.name}
+                        alt={`${user.firstName} ${user.lastName}`}
                       />
                     ) : (
                       <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-800 font-medium">
-                        {user?.name?.charAt(0).toUpperCase() || <User className="h-5 w-5" />}
+                        {user?.firstName?.charAt(0).toUpperCase() || <User className="h-5 w-5" />}
                       </div>
                     )}
                   </button>
@@ -98,7 +98,7 @@ const Header: React.FC<HeaderProps> = ({ onSidebarOpen, onNotificationsOpen }) =
                     <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
                       <div className="py-1 rounded-md bg-white shadow-xs">
                         <div className="block px-4 py-2 text-sm text-gray-700">
-                          <p className="font-medium">{user?.name}</p>
+                          <p className="font-medium">{user?.firstName} {user?.lastName}</p>
                           <p className="text-gray-500">{user?.email}</p>
                         </div>
                         <div className="border-t border-gray-100"></div>
@@ -143,4 +143,4 @@ const Header: React.FC<HeaderProps> = ({ onSidebarOpen, onNotificationsOpen }) =
   );
 };
 
-export default Header;
+export { Header as default };

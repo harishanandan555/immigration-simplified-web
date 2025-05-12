@@ -145,16 +145,13 @@ export const createFoiaCase = async (caseData: FoiaCaseForm): Promise<ApiRespons
   }
 };
 
-export const getFoiaCase = async (caseId: string): Promise<ApiResponse<FoiaCase>> => {
+export const getFoiaCaseByCaseId = async (caseId: string): Promise<ApiResponse<FoiaCase>> => {
   try {
     const response = await api.get<ApiResponse<FoiaCase>>(
       FOIA_CASE_END_POINTS.GETCASEBYID.replace(':id', caseId)
     );
 
-    return {
-      success: response.data.success,
-      data: response.data.data
-    };
+    return response.data;
 
   } catch (error) {
     if (error instanceof Error) {
@@ -165,10 +162,13 @@ export const getFoiaCase = async (caseId: string): Promise<ApiResponse<FoiaCase>
   }
 };
 
-export const getFoiaCases = async (): Promise<{ data: FoiaCaseList[] }> => {
+export const getFoiaCases = async (): Promise<{ data: FoiaCaseList[]; pagination: any }> => {
   try {
     const response = await api.get(FOIA_CASE_END_POINTS.GETCASES);
-    return response.data;
+    return {
+      data: response.data.cases,
+      pagination: response.data.pagination,
+    };
   } catch (error) {
     console.error('Error fetching FOIA cases:', error);
     throw error;
