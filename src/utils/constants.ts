@@ -47,3 +47,78 @@ export const IMMIGRATION_END_POINTS = {
     VALIDATE_FORM: "/api/v1/immigration/process/:processId/validate",
 };
 
+export const SETTINGS_END_POINTS = {
+    // Profile
+    PROFILE_GET: "/api/v1/settings/profile",
+    PROFILE_UPDATE: "/api/v1/settings/profile",
+    
+    // Organization
+    ORGANIZATION_GET: "/api/v1/settings/organization",
+    ORGANIZATION_UPDATE: "/api/v1/settings/organization",
+    
+    // Notifications
+    NOTIFICATIONS_GET: "/api/v1/settings/notifications",
+    NOTIFICATIONS_UPDATE: "/api/v1/settings/notifications",
+    
+    // Security
+    SECURITY_GET: "/api/v1/settings/security",
+    SECURITY_UPDATE: "/api/v1/settings/security",
+    SECURITY_SIGNOUT_ALL: "/api/v1/settings/security/signout-all",
+    
+    // Email
+    EMAIL_GET: "/api/v1/settings/email",
+    EMAIL_UPDATE: "/api/v1/settings/email",
+    
+    // Integrations
+    INTEGRATIONS_GET: "/api/v1/settings/integrations",
+    INTEGRATIONS_UPDATE: "/api/v1/settings/integrations",
+    
+    // Billing
+    BILLING_GET: "/api/v1/settings/billing",
+    BILLING_UPDATE: "/api/v1/settings/billing",
+    
+    // User Management
+    USERS_GET: "/api/v1/settings/users",
+    USERS_UPDATE: "/api/v1/settings/users",
+    
+    // Case Settings
+    CASE_SETTINGS_GET: "/api/v1/settings/cases",
+    CASE_SETTINGS_UPDATE: "/api/v1/settings/cases",
+    
+    // Form Templates
+    FORM_TEMPLATES_GET: "/api/v1/settings/forms",
+    FORM_TEMPLATES_UPDATE: "/api/v1/settings/forms",
+    
+    // Report Settings
+    REPORT_SETTINGS_GET: "/api/v1/settings/reports",
+    REPORT_SETTINGS_UPDATE: "/api/v1/settings/reports",
+    
+    // Roles & Permissions
+    ROLES_GET: "/api/v1/settings/roles",
+    ROLES_UPDATE: "/api/v1/settings/roles",
+    
+    // Database Settings
+    DATABASE_GET: "/api/v1/settings/database",
+    DATABASE_UPDATE: "/api/v1/settings/database",
+    
+    // System Settings
+    SYSTEM_GET: "/api/v1/settings/system",
+    SYSTEM_UPDATE: "/api/v1/settings/system",
+    
+    // Audit Logs
+    AUDIT_LOGS_GET: "/api/v1/settings/audit-logs",
+    
+    // Backup & Recovery
+    BACKUP_GET: "/api/v1/settings/backup",
+    BACKUP_UPDATE: "/api/v1/settings/backup",
+    
+    // API Settings
+    API_SETTINGS_GET: "/api/v1/settings/api",
+    API_SETTINGS_UPDATE: "/api/v1/settings/api",
+    
+    // Performance
+    PERFORMANCE_GET: "/api/v1/settings/performance",
+    PERFORMANCE_UPDATE: "/api/v1/settings/performance"
+};
+
+

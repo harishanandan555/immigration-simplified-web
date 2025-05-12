@@ -6,11 +6,13 @@ import { AUTH_END_POINTS } from '../utils/constants';
 export type UserRole = 'admin' | 'attorney' | 'paralegal' | 'client';
 
 export interface User {
+  _id: string;
   id: string;
   name: string;
   email: string;
   role: UserRole;
   avatar?: string;
+  token?: string;
 }
 
 interface AuthContextType {
