@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { getFoiaCase, FoiaCase } from '../../controllers/FoiaCaseControllers';
+import { getFoiaCaseByCaseId, FoiaCase } from '../../controllers/FoiaCaseControllers';
 
 const FoiaCasesDetailsPage = () => {
   const { caseId } = useParams();
@@ -14,8 +14,8 @@ const FoiaCasesDetailsPage = () => {
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
-        const response = await getFoiaCase(caseId!);
-        setCaseData(response.data);
+        const response: any = await getFoiaCaseByCaseId(caseId!);
+        setCaseData(response);
       } catch (err) {
         setError('Failed to load FOIA case details');
         console.error(err);
