@@ -671,7 +671,7 @@ const SettingsPage = () => {
       setLoading(true);
       await signOutAllDevices(user._id);
       // You might want to redirect to login page or show a success message
-      window.location.href = '/login'; // Redirect to login page after signing out
+      window.location.href = '/'; // Redirect to login page after signing out
     } catch (error) {
       console.error('Error signing out all devices:', error);
       // Handle error (show error message to user)

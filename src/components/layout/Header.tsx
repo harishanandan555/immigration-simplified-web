@@ -27,7 +27,7 @@ const Header: React.FC<HeaderProps> = ({ onSidebarOpen, onNotificationsOpen }) =
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   return (
@@ -127,7 +127,7 @@ const Header: React.FC<HeaderProps> = ({ onSidebarOpen, onNotificationsOpen }) =
               </div>
             ) : (
               <button
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/')}
                 className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
               >
                 <LogIn className="h-5 w-5 mr-2" />

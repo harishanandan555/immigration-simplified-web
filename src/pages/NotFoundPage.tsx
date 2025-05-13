@@ -16,7 +16,7 @@ const NotFoundPage = () => {
       
       <div className="mt-10">
         <Link
-          to="/"
+          to="/dashboard"
           className="btn btn-primary"
         >
           Go back to dashboard

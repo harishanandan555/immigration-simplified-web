@@ -53,7 +53,7 @@ api.interceptors.response.use(
         case 401:
           // Unauthorized - token expired or invalid
           localStorage.removeItem('token');
-          window.location.href = '/login';
+          window.location.href = '/';
           break;
         case 403:
           // Forbidden - user doesn't have permission
