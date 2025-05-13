@@ -27,7 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
   const { isClient, isAttorney, isParalegal, isSuperAdmin } = useAuth();
 
   const navigationItems = [
-    { name: 'Dashboard', href: '/', icon: Home, visible: true },
+    { name: 'Dashboard', href: '/dashboard', icon: Home, visible: true },
     { name: 'Immigration Process', href: '/immigration-process', icon: ClipboardList, visible: true },
     { name: 'Cases', href: '/cases', icon: Briefcase, visible: !isClient || isSuperAdmin },
     { name: 'Cases Tracker', href: '/cases/tracker', icon: Briefcase, visible: !isClient || isSuperAdmin },
