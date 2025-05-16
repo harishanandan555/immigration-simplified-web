@@ -85,7 +85,7 @@ interface ProfileData {
 }
 
 interface OrganizationData {
-  name: string;
+  organizationName: string;
   legalName: string;
   taxId: string;
   website: string;
@@ -165,6 +165,23 @@ interface CaseSettingsData {
   }[];
 }
 
+interface UserData {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: 'superadmin' | 'attorney' | 'paralegal' | 'client';
+  active: boolean;
+  lastLogin: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface DisplayUserData extends UserData {
+  name: string;
+  status: 'active' | 'inactive';
+}
+
 const SettingsPage = () => {
 
   const { isAttorney, isSuperAdmin, user } = useAuth();
@@ -184,7 +201,7 @@ const SettingsPage = () => {
 
   // Organization form state
   const [organizationData, setOrganizationData] = useState<OrganizationData>({
-    name: '',
+    organizationName: '',
     legalName: '',
     taxId: '',
     website: '',
@@ -241,7 +258,15 @@ const SettingsPage = () => {
   });
 
   // Add these state variables after the existing state declarations
-  const [usersData, setUsersData] = useState<any>({});
+  const [usersData, setUsersData] = useState<{
+    users: DisplayUserData[];
+    totalUsers: number;
+    activeUsers: number;
+  }>({
+    users: [],
+    totalUsers: 0,
+    activeUsers: 0
+  });
   const [caseSettingsData, setCaseSettingsData] = useState<CaseSettingsData>({
     categories: [],
     statuses: [],
@@ -287,6 +312,12 @@ const SettingsPage = () => {
     options: [] as string[]
   });
 
+  // Add these state variables for user management
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [showEditUser, setShowEditUser] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<DisplayUserData | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+
   // Load initial data
   useEffect(() => {
     const loadSettings = async () => {
@@ -317,7 +348,7 @@ const SettingsPage = () => {
             break;
           case 'integrations':
             data = await getIntegrations(user._id);
-            setIntegrationData(data.data);
+            setIntegrationData(data.data.value);
             break;
           case 'billing':
             data = await getBilling(user._id);
@@ -325,11 +356,20 @@ const SettingsPage = () => {
             break;
           case 'users':
             data = await getUsers(user._id);
-            setUsersData(data.data.value);
+            const users = data.data.users.map((user: any) => ({
+              ...user,
+              name: `${user.firstName} ${user.lastName}`,
+              status: user.active ? 'active' : 'inactive'
+            }));
+            setUsersData({
+              users,
+              totalUsers: users.length,
+              activeUsers: users.filter((u: DisplayUserData) => u.active).length
+            });
             break;
           case 'cases':
             data = await getCaseSettings(user._id);
-            setCaseSettingsData(data.data);
+            setCaseSettingsData(data.data.value);
             break;
           case 'forms':
             data = await getFormTemplates(user._id);
@@ -337,19 +377,19 @@ const SettingsPage = () => {
             break;
           case 'reports':
             data = await getReportSettings(user._id);
-            setReportSettingsData(data.data);
+            setReportSettingsData(data.data.value);
             break;
           case 'roles':
             data = await getRoles(user._id);
-            setRolesData(data.data);
+            setRolesData(data.data.value);
             break;
           case 'database':
             data = await getDatabaseSettings(user._id);
-            setDatabaseSettingsData(data.data);
+            setDatabaseSettingsData(data.data.value);
             break;
           case 'system':
             data = await getSystemSettings(user._id);
-            setSystemData(data.data);
+            setSystemData(data.data.value);
             break;
           case 'audit':
             data = await getAuditLogs(user._id);
@@ -357,15 +397,15 @@ const SettingsPage = () => {
             break;
           case 'backup':
             data = await getBackupSettings(user._id);
-            setBackupSettingsData(data.data);
+            setBackupSettingsData(data.data.value);
             break;
           case 'api':
             data = await getApiSettings(user._id);
-            setApiSettingsData(data.data);
+            setApiSettingsData(data.data.value);
             break;
           case 'performance':
             data = await getPerformanceSettings(user._id);
-            setPerformanceSettingsData(data.data);
+            setPerformanceSettingsData(data.data.value);
             break;
         }
       } catch (error) {
@@ -1025,8 +1065,8 @@ const SettingsPage = () => {
                         <label className="block text-sm font-medium text-gray-700">Organization Name</label>
                         <input
                           type="text"
-                          name="name"
-                          value={organizationData.name}
+                          name="organizationName"
+                          value={organizationData.organizationName}
                           onChange={handleOrganizationChange}
                           className="mt-1 form-input"
                         />
@@ -1398,56 +1438,259 @@ const SettingsPage = () => {
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">User Management</h2>
                   <div className="space-y-6">
+                    {/* Search and Add User */}
                     <div className="flex justify-between items-center">
                       <div className="flex-1 max-w-sm">
                         <input
                           type="text"
                           placeholder="Search users..."
+                          value={userSearchQuery}
+                          onChange={(e) => setUserSearchQuery(e.target.value)}
                           className="form-input w-full"
                         />
                       </div>
-                      <button className="btn btn-primary">Add User</button>
+                      {isSuperAdmin && (
+                        <button 
+                          className="btn btn-primary"
+                          onClick={() => setShowAddUser(true)}
+                        >
+                          Add User
+                        </button>
+                      )}
                     </div>
 
-                    <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                      <ul className="divide-y divide-gray-200">
-                        <li>
-                          <div className="px-4 py-4 flex items-center sm:px-6">
-                            <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
-                              <div>
-                                <div className="flex text-sm">
-                                  <p className="font-medium text-primary-600 truncate">John Doe</p>
-                                  <p className="ml-1 flex-shrink-0 font-normal text-gray-500">Admin</p>
-                                </div>
-                                <div className="mt-2 flex">
-                                  <div className="flex items-center text-sm text-gray-500">
-                                    <Mail className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                                    <p>john@example.com</p>
+                    {/* User Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white p-4 rounded-lg shadow">
+                        <p className="text-sm text-gray-500">Total Users</p>
+                        <p className="text-2xl font-semibold">{usersData.totalUsers}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg shadow">
+                        <p className="text-sm text-gray-500">Active Users</p>
+                        <p className="text-2xl font-semibold">{usersData.activeUsers}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg shadow">
+                        <p className="text-sm text-gray-500">Inactive Users</p>
+                        <p className="text-2xl font-semibold">{usersData.totalUsers - usersData.activeUsers}</p>
+                      </div>
+                    </div>
+
+                    {/* Users List */}
+                    <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {usersData.users
+                            .filter(user => 
+                              user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                              user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
+                            )
+                            .map((user) => (
+                              <tr key={user._id}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <div className="flex-shrink-0 h-10 w-10">
+                                      <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                        <User className="h-6 w-6 text-gray-400" />
+                                      </div>
+                                    </div>
+                                    <div className="ml-4">
+                                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                      <div className="text-sm text-gray-500">{user.email}</div>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="ml-5 flex-shrink-0">
-                              <button className="btn btn-outline text-xs py-1">Edit</button>
-                            </div>
-                          </div>
-                        </li>
-                      </ul>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    ${user.role === 'superadmin' ? 'bg-purple-100 text-purple-800' : ''}
+                                    ${user.role === 'attorney' ? 'bg-blue-100 text-blue-800' : ''}
+                                    ${user.role === 'paralegal' ? 'bg-green-100 text-green-800' : ''}
+                                    ${user.role === 'client' ? 'bg-gray-100 text-gray-800' : ''}
+                                  `}>
+                                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                    user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                  {(isSuperAdmin || (isAttorney && user.role !== 'superadmin' && user.role !== 'attorney')) && (
+                                    <div className="flex justify-end space-x-2">
+                                      <button
+                                        onClick={() => {
+                                          setSelectedUser(user);
+                                          setShowEditUser(true);
+                                        }}
+                                        className="text-indigo-600 hover:text-indigo-900"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedUser(user);
+                                          setShowDeleteConfirmation(true);
+                                        }}
+                                        className="text-red-600 hover:text-red-900"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
-                {/* Save Button */}
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                  <button
-                    type="button"
-                    className="btn btn-primary flex items-center"
-                    onClick={handleSave}
-                    disabled={loading}
-                  >
-                    <Save size={18} className="mr-2" />
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
+
+                {/* Add User Modal */}
+                {showAddUser && (
+                  <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        // Handle form submission
+                        setShowAddUser(false);
+                      }}>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Name</label>
+                            <input
+                              type="text"
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Email</label>
+                            <input
+                              type="email"
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Role</label>
+                            <select
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              required
+                            >
+                              {isSuperAdmin && <option value="attorney">Attorney</option>}
+                              <option value="paralegal">Paralegal</option>
+                              <option value="client">Client</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="mt-6 flex justify-end space-x-3">
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => setShowAddUser(false)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="btn btn-primary"
+                          >
+                            Add User
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit User Modal */}
+                {showEditUser && selectedUser && (
+                  <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Edit User</h3>
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        // Handle form submission
+                        setShowEditUser(false);
+                      }}>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Name</label>
+                            <input
+                              type="text"
+                              defaultValue={`${selectedUser.firstName} ${selectedUser.lastName}`}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Email</label>
+                            <input
+                              type="email"
+                              defaultValue={selectedUser.email}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Role</label>
+                            <select
+                              defaultValue={selectedUser.role}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              required
+                            >
+                              {isSuperAdmin && <option value="attorney">Attorney</option>}
+                              <option value="paralegal">Paralegal</option>
+                              <option value="client">Client</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Status</label>
+                            <select
+                              defaultValue={selectedUser.active ? 'active' : 'inactive'}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              required
+                            >
+                              <option value="active">Active</option>
+                              <option value="inactive">Inactive</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="mt-6 flex justify-end space-x-3">
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => setShowEditUser(false)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="btn btn-primary"
+                          >
+                            Save Changes
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
