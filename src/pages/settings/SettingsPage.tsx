@@ -27,6 +27,10 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../../controllers/AuthControllers';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import api from '../../utils/api';
+import { SETTINGS_END_POINTS } from '../../utils/constants';
 import {
   getProfile,
   updateProfile,
@@ -134,6 +138,10 @@ interface SystemData {
   systemName: string;
   timeZone: string;
   dateFormat: string;
+  maintenance: {
+    lastCacheClear: string;
+    lastDatabaseOptimization: string;
+  };
 }
 
 interface CaseSettingsData {
@@ -180,6 +188,25 @@ interface UserData {
 interface DisplayUserData extends UserData {
   name: string;
   status: 'active' | 'inactive';
+}
+
+interface DatabaseSettingsData {
+  connection: {
+    host: string;
+    port: number;
+    database: string;
+    schema: string;
+  };
+  backup: {
+    schedule: 'daily' | 'weekly' | 'monthly';
+    retentionDays: number;
+    compression: boolean;
+  };
+  performance: {
+    poolSize: number;
+    queryTimeout: number;
+    queryCacheEnabled: boolean;
+  };
 }
 
 const SettingsPage = () => {
@@ -253,8 +280,12 @@ const SettingsPage = () => {
   // System form state
   const [systemData, setSystemData] = useState<SystemData>({
     systemName: '',
-    timeZone: '',
-    dateFormat: ''
+    timeZone: 'UTC',
+    dateFormat: 'MM/DD/YYYY',
+    maintenance: {
+      lastCacheClear: '',
+      lastDatabaseOptimization: ''
+    }
   });
 
   // Add these state variables after the existing state declarations
@@ -281,7 +312,24 @@ const SettingsPage = () => {
   const [formTemplatesData, setFormTemplatesData] = useState<any>({});
   const [reportSettingsData, setReportSettingsData] = useState<any>({});
   const [rolesData, setRolesData] = useState<any>({});
-  const [databaseSettingsData, setDatabaseSettingsData] = useState<any>({});
+  const [databaseSettingsData, setDatabaseSettingsData] = useState<DatabaseSettingsData>({
+    connection: {
+      host: '',
+      port: 5432,
+      database: '',
+      schema: 'public'
+    },
+    backup: {
+      schedule: 'daily',
+      retentionDays: 30,
+      compression: true
+    },
+    performance: {
+      poolSize: 10,
+      queryTimeout: 30,
+      queryCacheEnabled: true
+    }
+  });
   const [backupSettingsData, setBackupSettingsData] = useState<any>({});
   const [apiSettingsData, setApiSettingsData] = useState<any>({});
   const [performanceSettingsData, setPerformanceSettingsData] = useState<any>({});
@@ -330,68 +378,96 @@ const SettingsPage = () => {
         switch (activeTab) {
           case 'profile':
             data = await getProfile(user._id);
-            setProfileData(data.data.value);
+            if (data?.data) {
+              setProfileData(data.data.value);
+            }
             break;
           case 'organization':
             data = await getOrganization(user._id);
-            setOrganizationData(data.data.value);
+            if (data?.data) {
+              setOrganizationData(data.data.value);
+            }
             break;
           case 'notifications':
             data = await getNotifications(user._id);
-            setNotificationData(data.data.value);
+            if (data?.data) {
+              setNotificationData(data.data.value);
+            }
             break;
           case 'security':
             data = await getSecurity(user._id);
-            setSecurityData(data.data.value);
+            if (data?.data) {
+              setSecurityData(data.data.value);
+            }
             break;
           case 'email':
             data = await getEmailSettings(user._id);
-            setEmailData(data.data.value);
+            if (data?.data) {
+              setEmailData(data.data.value);
+            }
             break;
           case 'integrations':
             data = await getIntegrations(user._id);
-            setIntegrationData(data.data.value);
+            if (data?.data) {
+              setIntegrationData(data.data.value);
+            }
             break;
           case 'billing':
             data = await getBilling(user._id);
-            setBillingData(data.data.value);
+            if (data?.data) {
+              setBillingData(data.data.value);
+            }
             break;
           case 'users':
             data = await getUsers(user._id);
-            const users = data.data.users.map((user: any) => ({
-              ...user,
-              name: `${user.firstName} ${user.lastName}`,
-              status: user.active ? 'active' : 'inactive'
-            }));
-            setUsersData({
-              users,
-              totalUsers: users.length,
-              activeUsers: users.filter((u: DisplayUserData) => u.active).length
-            });
+            if (data?.data?.users) {
+              const users = data.data.users.map((user: any) => ({
+                ...user,
+                name: `${user.firstName} ${user.lastName}`,
+                status: user.active ? 'active' : 'inactive'
+              }));
+              setUsersData({
+                users,
+                totalUsers: users.length,
+                activeUsers: users.filter((u: DisplayUserData) => u.active).length
+              });
+            }
             break;
           case 'cases':
             data = await getCaseSettings(user._id);
-            setCaseSettingsData(data.data.value);
+            if (data?.data) {
+              setCaseSettingsData(data.data.value);
+            }
             break;
           case 'forms':
             data = await getFormTemplates(user._id);
-            setFormTemplatesData(data.data.value);
+            if (data?.data) {
+              setFormTemplatesData(data.data.value);
+            }
             break;
           case 'reports':
             data = await getReportSettings(user._id);
-            setReportSettingsData(data.data.value);
+            if (data?.data) {
+              setReportSettingsData(data.data.value);
+            }
             break;
           case 'roles':
             data = await getRoles(user._id);
-            setRolesData(data.data.value);
+            if (data?.data) {
+              setRolesData(data.data.value);
+            }
             break;
           case 'database':
             data = await getDatabaseSettings(user._id);
-            setDatabaseSettingsData(data.data.value);
+            if (data?.data) {
+              setDatabaseSettingsData(data.data.value);
+            }
             break;
           case 'system':
             data = await getSystemSettings(user._id);
-            setSystemData(data.data.value);
+            if (data?.data) {
+              setSystemData(data.data.value);
+            }
             break;
           case 'audit':
             data = await getAuditLogs(user._id);
@@ -399,19 +475,26 @@ const SettingsPage = () => {
             break;
           case 'backup':
             data = await getBackupSettings(user._id);
-            setBackupSettingsData(data.data.value);
+            if (data?.data) {
+              setBackupSettingsData(data.data.value);
+            }
             break;
           case 'api':
             data = await getApiSettings(user._id);
-            setApiSettingsData(data.data.value);
+            if (data?.data) {
+              setApiSettingsData(data.data.value);
+            }
             break;
           case 'performance':
             data = await getPerformanceSettings(user._id);
-            setPerformanceSettingsData(data.data.value);
+            if (data?.data) {
+              setPerformanceSettingsData(data.data.value);
+            }
             break;
         }
       } catch (error) {
         console.error('Error loading settings:', error);
+        toast.error('Failed to load settings. Please try again.');
       }
     };
 
@@ -625,10 +708,38 @@ const SettingsPage = () => {
     setLoading(true);
     try {
       await updateSystemSettings(user._id, systemData);
-      // Show success message
+      toast.success('System settings updated successfully');
     } catch (error) {
       console.error('Error updating system:', error);
-      // Show error message
+      toast.error('Failed to update system settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMaintenance = async (operation: 'cache' | 'database') => {
+    if (!user?._id) return;
+    setLoading(true);
+    try {
+      const endpoint = operation === 'cache' 
+        ? SETTINGS_END_POINTS.CLEAR_CACHE 
+        : SETTINGS_END_POINTS.OPTIMIZE_DATABASE;
+      
+      await api.post(`${endpoint}/${user._id}`);
+      
+      // Update the last maintenance timestamp
+      setSystemData(prev => ({
+        ...prev,
+        maintenance: {
+          ...prev.maintenance,
+          [`last${operation === 'cache' ? 'CacheClear' : 'DatabaseOptimization'}`]: new Date().toISOString()
+        }
+      }));
+      
+      toast.success(`${operation === 'cache' ? 'Cache cleared' : 'Database optimized'} successfully`);
+    } catch (error) {
+      console.error(`Error performing ${operation} maintenance:`, error);
+      toast.error(`Failed to ${operation === 'cache' ? 'clear cache' : 'optimize database'}`);
     } finally {
       setLoading(false);
     }
@@ -888,6 +999,56 @@ const SettingsPage = () => {
     </div>
   );
 
+  const handleDatabaseChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    const [section, field] = name.split('.');
+    
+    setDatabaseSettingsData(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section as keyof DatabaseSettingsData],
+        [field]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : 
+                 type === 'number' ? Number(value) : value
+      }
+    }));
+  };
+
+  const handleDatabaseMaintenance = async (operation: 'vacuum' | 'analyze' | 'export') => {
+    if (!user?._id) return;
+    setLoading(true);
+    try {
+      switch (operation) {
+        case 'vacuum':
+          await api.post(`${SETTINGS_END_POINTS.DATABASE_MAINTENANCE}/vacuum`, { userId: user._id });
+          toast.success('Database vacuum completed successfully');
+          break;
+        case 'analyze':
+          await api.post(`${SETTINGS_END_POINTS.DATABASE_MAINTENANCE}/analyze`, { userId: user._id });
+          toast.success('Table analysis completed successfully');
+          break;
+        case 'export':
+          const response = await api.post(`${SETTINGS_END_POINTS.DATABASE_MAINTENANCE}/export`, { userId: user._id });
+          // Create a download link for the schema file
+          const blob = new Blob([response.data], { type: 'application/sql' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'database_schema.sql';
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          toast.success('Schema exported successfully');
+          break;
+      }
+    } catch (error) {
+      console.error(`Error performing database ${operation}:`, error);
+      toast.error(`Failed to perform database ${operation}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -1142,7 +1303,7 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-sm font-medium text-gray-900 mb-4">Email Notifications</h3>
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div key="case-updates" className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-gray-900">Case Updates</p>
                             <p className="text-xs text-gray-500">Get notified when cases are updated</p>
@@ -1158,7 +1319,7 @@ const SettingsPage = () => {
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div key="document-alerts" className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-gray-900">Document Alerts</p>
                             <p className="text-xs text-gray-500">Get notified about new documents</p>
@@ -1180,7 +1341,7 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-sm font-medium text-gray-900 mb-4">In-App Notifications</h3>
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div key="task-reminders" className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-gray-900">Task Reminders</p>
                             <p className="text-xs text-gray-500">Get reminded about upcoming tasks</p>
@@ -1287,7 +1448,7 @@ const SettingsPage = () => {
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Integrations</h2>
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-gray-50 p-4 rounded-lg">
+                      <div key="google-calendar" className="bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
                             <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -1311,7 +1472,7 @@ const SettingsPage = () => {
                         </div>
                       </div>
 
-                      <div className="bg-gray-50 p-4 rounded-lg">
+                      <div key="gmail" className="bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
                             <div className="h-10 w-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -2810,7 +2971,8 @@ const SettingsPage = () => {
                             name="systemName"
                             value={systemData.systemName}
                             onChange={handleSystemChange}
-                            className="mt-1 form-input" 
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
+                            placeholder="Enter system name"
                           />
                         </div>
                         <div>
@@ -2819,11 +2981,13 @@ const SettingsPage = () => {
                             name="timeZone"
                             value={systemData.timeZone}
                             onChange={handleSystemChange}
-                            className="mt-1 form-select"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           >
-                            <option>UTC</option>
-                            <option>America/New_York</option>
-                            <option>America/Los_Angeles</option>
+                            <option value="UTC">UTC</option>
+                            <option value="America/New_York">America/New_York</option>
+                            <option value="America/Los_Angeles">America/Los_Angeles</option>
+                            <option value="Europe/London">Europe/London</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo</option>
                           </select>
                         </div>
                         <div>
@@ -2832,11 +2996,11 @@ const SettingsPage = () => {
                             name="dateFormat"
                             value={systemData.dateFormat}
                             onChange={handleSystemChange}
-                            className="mt-1 form-select"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           >
-                            <option>MM/DD/YYYY</option>
-                            <option>DD/MM/YYYY</option>
-                            <option>YYYY-MM-DD</option>
+                            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
                           </select>
                         </div>
                       </div>
@@ -2845,14 +3009,38 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-sm font-medium text-gray-900 mb-4">Maintenance</h3>
                       <div className="space-y-4">
-                        <button className="btn btn-outline flex items-center">
-                          <Server className="h-4 w-4 mr-2" />
-                          Clear Cache
-                        </button>
-                        <button className="btn btn-outline flex items-center">
-                          <Database className="h-4 w-4 mr-2" />
-                          Optimize Database
-                        </button>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <button 
+                              className="btn btn-outline flex items-center"
+                              onClick={() => handleMaintenance('cache')}
+                              disabled={loading}
+                            >
+                              <Server className="h-4 w-4 mr-2" />
+                              Clear Cache
+                            </button>
+                            {systemData.maintenance.lastCacheClear && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Last cleared: {new Date(systemData.maintenance.lastCacheClear).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <button 
+                              className="btn btn-outline flex items-center"
+                              onClick={() => handleMaintenance('database')}
+                              disabled={loading}
+                            >
+                              <Database className="h-4 w-4 mr-2" />
+                              Optimize Database
+                            </button>
+                            {systemData.maintenance.lastDatabaseOptimization && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Last optimized: {new Date(systemData.maintenance.lastDatabaseOptimization).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3017,6 +3205,9 @@ const SettingsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">Host</label>
                           <input
                             type="text"
+                            name="connection.host"
+                            value={databaseSettingsData.connection.host}
+                            onChange={handleDatabaseChange}
                             className="mt-1 form-input"
                             placeholder="localhost"
                           />
@@ -3025,6 +3216,9 @@ const SettingsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">Port</label>
                           <input
                             type="number"
+                            name="connection.port"
+                            value={databaseSettingsData.connection.port}
+                            onChange={handleDatabaseChange}
                             className="mt-1 form-input"
                             placeholder="5432"
                           />
@@ -3033,6 +3227,9 @@ const SettingsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">Database Name</label>
                           <input
                             type="text"
+                            name="connection.database"
+                            value={databaseSettingsData.connection.database}
+                            onChange={handleDatabaseChange}
                             className="mt-1 form-input"
                             placeholder="immigration_db"
                           />
@@ -3041,6 +3238,9 @@ const SettingsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">Schema</label>
                           <input
                             type="text"
+                            name="connection.schema"
+                            value={databaseSettingsData.connection.schema}
+                            onChange={handleDatabaseChange}
                             className="mt-1 form-input"
                             placeholder="public"
                           />
@@ -3054,16 +3254,24 @@ const SettingsPage = () => {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Backup Schedule</label>
-                          <select className="mt-1 form-select">
-                            <option>Daily</option>
-                            <option>Weekly</option>
-                            <option>Monthly</option>
+                          <select 
+                            name="backup.schedule"
+                            value={databaseSettingsData.backup.schedule}
+                            onChange={handleDatabaseChange}
+                            className="mt-1 form-select"
+                          >
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
                           </select>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Retention Period (days)</label>
                           <input
                             type="number"
+                            name="backup.retentionDays"
+                            value={databaseSettingsData.backup.retentionDays}
+                            onChange={handleDatabaseChange}
                             className="mt-1 form-input"
                             placeholder="30"
                           />
@@ -3071,6 +3279,9 @@ const SettingsPage = () => {
                         <div className="flex items-center">
                           <input
                             type="checkbox"
+                            name="backup.compression"
+                            checked={databaseSettingsData.backup.compression}
+                            onChange={handleDatabaseChange}
                             className="form-checkbox"
                             id="compression"
                           />
@@ -3089,6 +3300,9 @@ const SettingsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">Connection Pool Size</label>
                           <input
                             type="number"
+                            name="performance.poolSize"
+                            value={databaseSettingsData.performance.poolSize}
+                            onChange={handleDatabaseChange}
                             className="mt-1 form-input"
                             placeholder="10"
                           />
@@ -3097,6 +3311,9 @@ const SettingsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">Query Timeout (seconds)</label>
                           <input
                             type="number"
+                            name="performance.queryTimeout"
+                            value={databaseSettingsData.performance.queryTimeout}
+                            onChange={handleDatabaseChange}
                             className="mt-1 form-input"
                             placeholder="30"
                           />
@@ -3104,6 +3321,9 @@ const SettingsPage = () => {
                         <div className="flex items-center">
                           <input
                             type="checkbox"
+                            name="performance.queryCacheEnabled"
+                            checked={databaseSettingsData.performance.queryCacheEnabled}
+                            onChange={handleDatabaseChange}
                             className="form-checkbox"
                             id="queryCache"
                           />
@@ -3118,15 +3338,24 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-sm font-medium text-gray-900 mb-4">Maintenance</h3>
                       <div className="space-y-4">
-                        <button className="btn btn-outline flex items-center">
+                        <button 
+                          className="btn btn-outline flex items-center"
+                          onClick={() => handleDatabaseMaintenance('vacuum')}
+                        >
                           <Server className="h-4 w-4 mr-2" />
                           Run Database Vacuum
                         </button>
-                        <button className="btn btn-outline flex items-center">
+                        <button 
+                          className="btn btn-outline flex items-center"
+                          onClick={() => handleDatabaseMaintenance('analyze')}
+                        >
                           <Activity className="h-4 w-4 mr-2" />
                           Analyze Tables
                         </button>
-                        <button className="btn btn-outline flex items-center">
+                        <button 
+                          className="btn btn-outline flex items-center"
+                          onClick={() => handleDatabaseMaintenance('export')}
+                        >
                           <Cloud className="h-4 w-4 mr-2" />
                           Export Schema
                         </button>
@@ -3497,6 +3726,7 @@ const SettingsPage = () => {
           </div>
         </div>
       )}
+      
     </div>
   );
 };
