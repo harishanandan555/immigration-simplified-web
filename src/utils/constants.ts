@@ -100,10 +100,13 @@ export const SETTINGS_END_POINTS = {
     // Database Settings
     DATABASE_GET: "/api/v1/settings/database",
     DATABASE_UPDATE: "/api/v1/settings/database",
+    DATABASE_MAINTENANCE: "/api/v1/settings/database/maintenance",
     
     // System Settings
     SYSTEM_GET: "/api/v1/settings/system",
     SYSTEM_UPDATE: "/api/v1/settings/system",
+    CLEAR_CACHE: "/api/v1/settings/system/cache/clear",
+    OPTIMIZE_DATABASE: "/api/v1/settings/system/database/optimize",
     
     // Audit Logs
     AUDIT_LOGS_GET: "/api/v1/settings/audit-logs",

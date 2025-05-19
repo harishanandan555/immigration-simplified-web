@@ -8,8 +8,37 @@ interface ApiResponse<T> {
   statusText: string;
 }
 
+// Set to false to skip the method
+const IS_PROFILE_ENABLED = true;
+const IS_ORGANIZATION_ENABLED = true;
+const IS_NOTIFICATIONS_ENABLED = true;
+const IS_SECURITY_ENABLED = true;
+const IS_EMAIL_ENABLED = true;
+const IS_INTEGRATIONS_ENABLED = true;
+const IS_BILLING_ENABLED = false;
+const IS_USERS_ENABLED = true;
+const IS_CASE_SETTINGS_ENABLED = true;
+const IS_FORM_TEMPLATES_ENABLED = false;
+const IS_REPORT_SETTINGS_ENABLED = false;
+const IS_ROLES_ENABLED = false;
+const IS_DATABASE_ENABLED = false;
+const IS_SYSTEM_ENABLED = false;
+const IS_AUDIT_LOGS_ENABLED = false;
+const IS_BACKUP_ENABLED = false;
+const IS_API_SETTINGS_ENABLED = false;
+const IS_PERFORMANCE_ENABLED = false;
+
 // Profile Settings
 export const getProfile = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_PROFILE_ENABLED) {
+    console.log('getProfile method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.PROFILE_GET}/${userId}`);
     return {
@@ -39,6 +68,15 @@ export const updateProfile = async (userId: string, profileData: any): Promise<A
 
 // Organization Settings
 export const getOrganization = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_ORGANIZATION_ENABLED) {
+    console.log('getOrganization method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.ORGANIZATION_GET}/${userId}`);
     return {
@@ -68,6 +106,15 @@ export const updateOrganization = async (userId: string, orgData: any): Promise<
 
 // Notification Settings
 export const getNotifications = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_NOTIFICATIONS_ENABLED) {
+    console.log('getNotifications method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.NOTIFICATIONS_GET}/${userId}`);
     return {
@@ -97,6 +144,15 @@ export const updateNotifications = async (userId: string, notificationData: any)
 
 // Security Settings
 export const getSecurity = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_SECURITY_ENABLED) {
+    console.log('getSecurity method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.SECURITY_GET}/${userId}`);
     return {
@@ -140,6 +196,15 @@ export const signOutAllDevices = async (userId: string): Promise<ApiResponse<any
 
 // Email Settings
 export const getEmailSettings = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_EMAIL_ENABLED) {
+    console.log('getEmailSettings method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.EMAIL_GET}/${userId}`);
     return {
@@ -169,6 +234,15 @@ export const updateEmailSettings = async (userId: string, emailData: any): Promi
 
 // Integration Settings
 export const getIntegrations = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_INTEGRATIONS_ENABLED) {
+    console.log('getIntegrations method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.INTEGRATIONS_GET}/${userId}`);
     return {
@@ -198,6 +272,15 @@ export const updateIntegrations = async (userId: string, integrationData: any): 
 
 // Billing Settings
 export const getBilling = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_BILLING_ENABLED) {
+    console.log('getBilling method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.BILLING_GET}/${userId}`);
     return {
@@ -210,6 +293,7 @@ export const getBilling = async (userId: string): Promise<ApiResponse<any>> => {
     throw error;
   }
 };
+
 
 export const updateBilling = async (userId: string, billingData: any): Promise<ApiResponse<any>> => {
   try {
@@ -227,6 +311,15 @@ export const updateBilling = async (userId: string, billingData: any): Promise<A
 
 // User Management
 export const getUsers = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_USERS_ENABLED) {
+    console.log('getUsers method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.USERS_GET}/${userId}`);
     return {
@@ -256,6 +349,15 @@ export const updateUsers = async (userId: string, usersData: any): Promise<ApiRe
 
 // Case Settings
 export const getCaseSettings = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_CASE_SETTINGS_ENABLED) {
+    console.log('getCaseSettings method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.CASE_SETTINGS_GET}/${userId}`);
     return {
@@ -285,6 +387,15 @@ export const updateCaseSettings = async (userId: string, caseSettingsData: any):
 
 // Form Templates
 export const getFormTemplates = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_FORM_TEMPLATES_ENABLED) {
+    console.log('getFormTemplates method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.FORM_TEMPLATES_GET}/${userId}`);
     return {
@@ -314,6 +425,15 @@ export const updateFormTemplates = async (userId: string, formTemplatesData: any
 
 // Report Settings
 export const getReportSettings = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_REPORT_SETTINGS_ENABLED) {
+    console.log('getReportSettings method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.REPORT_SETTINGS_GET}/${userId}`);
     return {
@@ -343,6 +463,15 @@ export const updateReportSettings = async (userId: string, reportSettingsData: a
 
 // Roles & Permissions
 export const getRoles = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_ROLES_ENABLED) {
+    console.log('getRoles method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.ROLES_GET}/${userId}`);
     return {
@@ -372,6 +501,15 @@ export const updateRoles = async (userId: string, rolesData: any): Promise<ApiRe
 
 // Database Settings
 export const getDatabaseSettings = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_DATABASE_ENABLED) {
+    console.log('getDatabaseSettings method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.DATABASE_GET}/${userId}`);
     return {
@@ -401,6 +539,15 @@ export const updateDatabaseSettings = async (userId: string, databaseData: any):
 
 // System Settings
 export const getSystemSettings = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_SYSTEM_ENABLED) {
+    console.log('getSystemSettings method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.SYSTEM_GET}/${userId}`);
     return {
@@ -430,6 +577,15 @@ export const updateSystemSettings = async (userId: string, systemData: any): Pro
 
 // Audit Logs
 export const getAuditLogs = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_AUDIT_LOGS_ENABLED) {
+    console.log('getAuditLogs method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.AUDIT_LOGS_GET}/${userId}`);
     return {
@@ -445,6 +601,15 @@ export const getAuditLogs = async (userId: string): Promise<ApiResponse<any>> =>
 
 // Backup & Recovery
 export const getBackupSettings = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_BACKUP_ENABLED) {
+    console.log('getBackupSettings method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.BACKUP_GET}/${userId}`);
     return {
@@ -474,6 +639,15 @@ export const updateBackupSettings = async (userId: string, backupData: any): Pro
 
 // API Settings
 export const getApiSettings = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_API_SETTINGS_ENABLED) {
+    console.log('getApiSettings method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.API_SETTINGS_GET}/${userId}`);
     return {
@@ -503,6 +677,15 @@ export const updateApiSettings = async (userId: string, apiSettingsData: any): P
 
 // Performance Settings
 export const getPerformanceSettings = async (userId: string): Promise<ApiResponse<any>> => {
+  if (!IS_PERFORMANCE_ENABLED) {
+    console.log('getPerformanceSettings method is skipped.');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
     const response = await api.get(`${SETTINGS_END_POINTS.PERFORMANCE_GET}/${userId}`);
     return {
