@@ -38,13 +38,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing user session
+  // Check for existing user session and token expiration
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
     setIsLoading(false);
+
+    // Set up token expiration check
+    const checkTokenExpiration = () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          // Decode the JWT token
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+
+          const { exp } = JSON.parse(jsonPayload);
+          const currentTime = Math.floor(Date.now() / 1000);
+
+          if (exp < currentTime) {
+            // Token has expired, logout user
+            logout();
+            window.location.href = '/';
+          }
+        } catch (error) {
+          console.error('Error checking token expiration:', error);
+          // If there's an error decoding the token, logout for security
+          logout();
+          window.location.href = '/';
+        }
+      }
+    };
+
+    // Check token expiration every second
+    const intervalId = setInterval(checkTokenExpiration, 1000);
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   const registerUser = async (email: string, password: string): Promise<void> => {
