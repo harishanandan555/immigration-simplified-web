@@ -375,7 +375,9 @@ const SettingsPage = () => {
     email: '',
     role: 'client' as 'attorney' | 'paralegal' | 'client',
     active: true,
-    companyId: '' // Add companyId field
+    companyId: '',
+    password: '',
+    confirmPassword: ''
   });
 
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -1092,15 +1094,39 @@ const SettingsPage = () => {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const { firstName, lastName, email, role, companyId, password, confirmPassword } = newUser;
+
+      // Validate required fields
+      if (!firstName || !lastName || !email || !role || !companyId) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast.error('Please enter a valid email address');
+        return;
+      }
+
+      // Validate password
+      if (!password || password.length < 8) {
+        toast.error('Password must be at least 8 characters long');
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        toast.error('Passwords do not match');
+        return;
+      }
+
       let response;
-      const { firstName, lastName, email, role, companyId } = newUser;
-      
       if (role === 'attorney') {
         response = await registerAttorney(
           firstName,
           lastName,
           email,
-          'defaultPassword123', // You might want to generate this or require it in the form
+          password,
           user?._id || '', // superadminId
           companyId
         );
@@ -1109,7 +1135,7 @@ const SettingsPage = () => {
           firstName,
           lastName,
           email,
-          'defaultPassword123', // You might want to generate this or require it in the form
+          password,
           role,
           user?._id || '', // superadminId
           user?._id || '', // attorneyId
@@ -1126,7 +1152,9 @@ const SettingsPage = () => {
           email: '',
           role: 'client',
           active: true,
-          companyId: ''
+          companyId: '',
+          password: '',
+          confirmPassword: ''
         });
         // Refresh users list
         const data = await getUsers(user?._id || '');
@@ -1143,9 +1171,9 @@ const SettingsPage = () => {
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding user:', error);
-      toast.error('Failed to add user');
+      toast.error(error.response?.data?.message || 'Failed to add user');
     }
   };
 
@@ -2065,6 +2093,30 @@ const SettingsPage = () => {
                               <option value="attorney">Attorney</option>
                               <option value="paralegal">Paralegal</option>
                             </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Password</label>
+                            <input
+                              type="password"
+                              name="password"
+                              value={newUser.password}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              required
+                              minLength={8}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                            <input
+                              type="password"
+                              name="confirmPassword"
+                              value={newUser.confirmPassword}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              required
+                              minLength={8}
+                            />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Company</label>

@@ -32,8 +32,6 @@ api.interceptors.request.use(
     // Skip token for auth endpoints
     if (config.url && 
         !config.url.includes(AUTH_END_POINTS.REGISTER_SUPERADMIN) && 
-        !config.url.includes(AUTH_END_POINTS.REGISTER_ATTORNEY) && 
-        !config.url.includes(AUTH_END_POINTS.REGISTER_USER) && 
         !config.url.includes(AUTH_END_POINTS.LOGIN)) {
       const token = localStorage.getItem('token');
       if (token) {
