@@ -5,10 +5,14 @@ export const APPCONSTANTS = {
 };
 
 export const AUTH_END_POINTS = {
-    REGISTER: "/api/v1/auth/register",
+    REGISTER_SUPERADMIN: "/api/v1/auth/register/superadmin",
+    REGISTER_ATTORNEY: "/api/v1/auth/register/attorney",
+    REGISTER_USER: "/api/v1/auth/register/user",
     LOGIN: "/api/v1/auth/login",
     PROFILE_GET: "/api/v1/auth/profile",
     PROFILE_PUT: "/api/v1/auth/profile",
+    USER_UPDATE: "/api/v1/auth/users/:id",
+    USER_DELETE: "/api/v1/auth/users/:id"
 };
 
 export const CASE_END_POINTS = {
@@ -28,6 +32,15 @@ export const CLIENT_END_POINTS = {
     UPDATECLIENT: "/api/v1/clients/:id",
     ADDCLIENTDOCUMENT: "/api/v1/clients/:id/documents",
     GETCLIENTCASES: "/api/v1/clients/:id/cases",
+};
+
+export const COMPANY_END_POINTS = {
+    GETCOMPANIES: "/api/v1/companies",
+    CREATECOMPANY: "/api/v1/companies",
+    GETCOMPANYBYID: "/api/v1/companies/:id",
+    UPDATECOMPANY: "/api/v1/companies/:id",
+    DELETECOMPANY: "/api/v1/companies/:id",
+    GETCOMPANYUSERS: "/api/v1/companies/:id/users"
 };
 
 export const FOIA_CASE_END_POINTS = {
@@ -80,6 +93,7 @@ export const SETTINGS_END_POINTS = {
     // User Management
     USERS_GET: "/api/v1/settings/users",
     USERS_UPDATE: "/api/v1/settings/users",
+    USERS_CREATE: "/api/v1/settings/users",
     
     // Case Settings
     CASE_SETTINGS_GET: "/api/v1/settings/cases",

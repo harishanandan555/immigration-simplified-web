@@ -9,6 +9,23 @@ const api = axios.create({
   },
 });
 
+// Function to check if token is expired
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+
+    const { exp } = JSON.parse(jsonPayload);
+    return exp * 1000 < Date.now();
+  } catch (error) {
+    console.error('Error checking token expiration:', error);
+    return true; // If there's an error parsing the token, consider it expired
+  }
+};
+
 // Intercept requests to attach token if needed
 api.interceptors.request.use(
   (config: any): any => {
@@ -17,8 +34,18 @@ api.interceptors.request.use(
         !config.url.includes(AUTH_END_POINTS.REGISTER) && 
         !config.url.includes(AUTH_END_POINTS.LOGIN)) {
       const token = localStorage.getItem('token');
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
+      if (token) {
+        // Check if token is expired
+        if (isTokenExpired(token)) {
+          // Clear expired token
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/';
+          return Promise.reject('Token expired');
+        }
+        if (config.headers) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
       }
     }
     return config;
