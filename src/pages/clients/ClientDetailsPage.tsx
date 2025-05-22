@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, FileText, Briefcase, PlusCircle } from 'lucide-react';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getClientById, getClientCases } from '../../controllers/ClientControllers';
 
 const ClientDetailsPage = () => {
@@ -34,7 +33,7 @@ const ClientDetailsPage = () => {
   }, [id]);
 
   if (loading) {
-    return <LoadingSpinner />;
+    return null;
   }
 
   if (error) {

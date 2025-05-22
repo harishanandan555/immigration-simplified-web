@@ -1,5 +1,4 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
 
 interface ButtonProps {
   children: React.ReactNode;
@@ -51,7 +50,6 @@ const Button: React.FC<ButtonProps> = ({
       disabled={disabled || isLoading}
       onClick={onClick}
     >
-      {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
       {children}
     </button>
   );

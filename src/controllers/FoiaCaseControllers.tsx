@@ -122,6 +122,7 @@ export interface FoiaCaseForm {
 interface ApiResponse<T> {
   success: boolean;
   data: T;
+  status: number;
 }
 
 export const createFoiaCase = async (caseData: FoiaCaseForm): Promise<ApiResponse<FoiaCase>> => {
@@ -133,7 +134,8 @@ export const createFoiaCase = async (caseData: FoiaCaseForm): Promise<ApiRespons
 
     return {
       data: response.data,
-      success: true
+      success: true,
+      status: response.status
     };
 
   } catch (error) {

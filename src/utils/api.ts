@@ -31,7 +31,9 @@ api.interceptors.request.use(
   (config: any): any => {
     // Skip token for auth endpoints
     if (config.url && 
-        !config.url.includes(AUTH_END_POINTS.REGISTER) && 
+        !config.url.includes(AUTH_END_POINTS.REGISTER_SUPERADMIN) && 
+        !config.url.includes(AUTH_END_POINTS.REGISTER_ATTORNEY) && 
+        !config.url.includes(AUTH_END_POINTS.REGISTER_USER) && 
         !config.url.includes(AUTH_END_POINTS.LOGIN)) {
       const token = localStorage.getItem('token');
       if (token) {
@@ -40,7 +42,7 @@ api.interceptors.request.use(
           // Clear expired token
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          window.location.href = '/';
+          // Instead of window.location.href, we'll let the component handle navigation
           return Promise.reject('Token expired');
         }
         if (config.headers) {
@@ -80,7 +82,8 @@ api.interceptors.response.use(
         case 401:
           // Unauthorized - token expired or invalid
           localStorage.removeItem('token');
-          window.location.href = '/';
+          localStorage.removeItem('user');
+          // Instead of window.location.href, we'll let the component handle navigation
           break;
         case 403:
           // Forbidden - user doesn't have permission

@@ -1,8 +1,25 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+// import { useAuth, login } from '../../controllers/AuthControllers';
 import { useAuth } from '../../controllers/AuthControllers';
 import Logo from '../../components/layout/Logo';
-import { Eye, EyeOff, Shield, Clock, CheckSquare, FileText, AlertCircle, Users, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Shield, Clock, CheckSquare, FileText, AlertCircle, Users, ArrowRight, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+// interface LoginResponse {
+//   status: number;
+//   data?: {
+//     token?: string;
+//     user?: {
+//       id: string;
+//       email: string;
+//       firstName: string;
+//       lastName: string;
+//       role: string;
+//     };
+//   };
+//   message?: string;
+// }
 
 const LoginPage: React.FC = () => {
 
@@ -10,21 +27,48 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-
+        
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setLoading(true);
 
     try {
       await login(email, password);
       navigate('/dashboard');
+
+      // const response = await login(email, password) as LoginResponse;
+      
+      // if (response.status === 200 && response.data?.token) {
+      //   // Store both token and user data
+      //   localStorage.setItem('token', response.data.token);
+      //   localStorage.setItem('user', JSON.stringify(response.data));        
+      //   // Navigate to dashboard
+      //   navigate('/dashboard');
+
+      // } else {
+      //   throw new Error(response.message || 'Login failed');
+      // }
+
     } catch (err) {
-      setError('Invalid email or password');
-      setIsLoading(false);
+      // const errorMessage = err instanceof Error ? err.message : 'Invalid email or password';
+      const errorMessage = 'Invalid email or password';
+      setError(errorMessage);
+      toast.error(errorMessage, {
+        duration: 4000,
+        position: 'top-right',
+        style: {
+          background: '#FEE2E2',
+          color: '#991B1B',
+          padding: '16px',
+          borderRadius: '8px',
+        },
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -184,12 +228,14 @@ const LoginPage: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className={`w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${isLoading ? 'opacity-75 cursor-not-allowed' : ''
-                  }`}
+                disabled={loading}
+                className={`w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
-                {isLoading ? (
-                  'Signing in...'
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                    Signing in...
+                  </>
                 ) : (
                   <>
                     Sign in

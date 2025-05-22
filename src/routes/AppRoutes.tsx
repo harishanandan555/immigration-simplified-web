@@ -1,7 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
-import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { useAuth } from '../controllers/AuthControllers';
 import LoginPage from '../pages/auth/LoginPage';
 import FoiaCasesPage from '../pages/foia/FoiaCasesPage';
@@ -27,10 +26,11 @@ const ImmigrationProcess = lazy(() => import('../pages/immigrationSteps/Immigrat
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const AppRoutes = () => {
+  
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return <LoadingSpinner fullScreen />;
+    return null;
   }
 
   return (
@@ -41,105 +41,105 @@ const AppRoutes = () => {
       {user ? (
         <Route element={<Layout />}>
           <Route path="/dashboard" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <Dashboard />
             </Suspense>
           } />
 
           <Route path="/immigration-process" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <ImmigrationProcess />
             </Suspense>
           } />
 
           {/* Cases routes */}
           <Route path="/cases" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <CasesPage />
             </Suspense>
           } />
           <Route path="/cases/tracker" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <CaseTrackerPage />
             </Suspense>
           } />
           <Route path="/case/:caseNumber" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <CaseTrackerPage />
             </Suspense>
           } />
           <Route path="/cases/new" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <CaseFormPage />
             </Suspense>
           } />
           <Route path="/cases/:id" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <CaseDetailsPage />
             </Suspense>
           } />
           <Route path="/cases/:id/edit" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <CaseFormPage />
             </Suspense>
           } />
 
           {/* Clients routes */}
           <Route path="/clients" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <ClientsPage />
             </Suspense>
           } />
           <Route path="/clients/new" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <ClientFormPage />
             </Suspense>
           } />
           <Route path="/clients/:id" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <ClientDetailsPage />
             </Suspense>
           } />
           <Route path="/clients/:id/edit" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <ClientFormPage />
             </Suspense>
           } />
 
           {/* Forms routes */}
           <Route path="/forms" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <FormsLibraryPage />
             </Suspense>
           } />
           <Route path="/forms/:id" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <FormFillPage />
             </Suspense>
           } />
 
           {/* Documents route */}
           <Route path="/documents" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <DocumentsPage />
             </Suspense>
           } />
 
           {/* Tasks and Calendar routes */}
           <Route path="/tasks" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <TasksPage />
             </Suspense>
           } />
           <Route path="/calendar" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <CalendarPage />
             </Suspense>
           } />
 
           {/* Settings route */}
           <Route path="/settings" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <SettingsPage />
             </Suspense>
           } />
@@ -151,7 +151,7 @@ const AppRoutes = () => {
 
           {/* Catch-all route */}
           <Route path="*" element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={null}>
               <NotFoundPage />
             </Suspense>
           } />
