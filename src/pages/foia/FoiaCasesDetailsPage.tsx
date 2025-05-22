@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getFoiaCaseByCaseId, FoiaCase } from '../../controllers/FoiaCaseControllers';
 
 const FoiaCasesDetailsPage = () => {
@@ -28,7 +27,7 @@ const FoiaCasesDetailsPage = () => {
   }, [caseId]);
 
   if (loading) {
-    return <LoadingSpinner />;
+    return null;
   }
 
   if (error) {

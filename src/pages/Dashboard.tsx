@@ -73,7 +73,7 @@ const Dashboard = () => {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Welcome back, {user?.name}</p>
+        <p className="text-gray-500">Welcome back, {user?.firstName} {user?.lastName}</p>
       </div>
 
       {/* Stats Overview */}
@@ -309,7 +309,7 @@ const Dashboard = () => {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {statusData.map((entry, index) => (
+                    {statusData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>

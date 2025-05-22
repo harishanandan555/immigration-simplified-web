@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getFoiaCases, FoiaCaseList } from '../../controllers/FoiaCaseControllers';
 
 const FoiaCasesPage = () => {
   const [cases, setCases] = useState<FoiaCaseList[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('createdAt');
@@ -21,8 +19,6 @@ const FoiaCasesPage = () => {
       } catch (err) {
         setError('Failed to load FOIA cases');
         console.error(err);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -64,10 +60,6 @@ const FoiaCasesPage = () => {
     }
     return 0;
   });
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

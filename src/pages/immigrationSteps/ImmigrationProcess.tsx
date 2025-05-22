@@ -1917,7 +1917,6 @@ const ImmigrationProcess: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="bg-white shadow rounded-lg p-6">
                 <div className="flex items-center justify-center space-x-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                   <p className="text-lg text-gray-700">Processing your application...</p>
                 </div>
                 <div className="mt-6 space-y-4">
@@ -1942,36 +1941,8 @@ const ImmigrationProcess: React.FC = () => {
                     </svg>
                     <span>Filling forms automatically</span>
                   </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="flex items-center"
-                  >
-                    <svg className="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Submitting application</span>
-                  </motion.div>
                 </div>
               </div>
-            </div>
-
-            {/* Navigation */}
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={() => setCurrentStep(4)}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Back to Forms
-              </button>
-              <button
-                onClick={() => setCurrentStep(6)}
-                className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-              >
-                Continue to Review
-                <ChevronRight className="ml-2 h-5 w-5" />
-              </button>
             </div>
           </div>
         )}

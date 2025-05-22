@@ -162,15 +162,16 @@ export const login = async (email: string, password: string): Promise<ApiRespons
   try {
     const response = await api.post(AUTH_END_POINTS.LOGIN, { email, password });
     
-    if (!response.data || !response.data._id) {
+    if (!response.data) {
       throw new Error('Invalid response format from server');
     }
 
     return {
-      data: response.data as User,
+      data: response.data,
       status: response.status,
       statusText: response.statusText
     };
+    
   } catch (error) {
     console.error('Error during login:', error);
     throw error;

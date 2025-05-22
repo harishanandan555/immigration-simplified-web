@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, FileText, Clock, Users, Calendar, CheckSquare } from 'lucide-react';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { ArrowLeft, Edit, FileText, CheckSquare } from 'lucide-react';
 
 // This would normally come from an API
 const mockCaseData = {
@@ -55,7 +54,7 @@ const CaseDetailsPage = () => {
   }, [id]);
 
   if (loading) {
-    return <LoadingSpinner />;
+    return null;
   }
 
   if (!caseData) {
