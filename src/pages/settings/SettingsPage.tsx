@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Bell,
   Lock,
@@ -23,12 +23,12 @@ import {
   Server,
   Zap,
   HardDrive,
-  Cloud,
-  AlertTriangle
+  Cloud
 } from 'lucide-react';
-import { useAuth } from '../../controllers/AuthControllers';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
+import { useAuth, updateUser, deleteUser, registerAttorney, registerUser } from '../../controllers/AuthControllers';
 import api from '../../utils/api';
 import { SETTINGS_END_POINTS } from '../../utils/constants';
 import {
@@ -69,6 +69,7 @@ import {
   getPerformanceSettings,
   updatePerformanceSettings
 } from '../../controllers/SettingsControllers';
+import { getCompanies, getCompanyUsers, Company } from '../../controllers/CompanyControllers';
 
 interface User {
   _id: string;
@@ -183,6 +184,7 @@ interface UserData {
   lastLogin: string | null;
   createdAt: string;
   updatedAt: string;
+  companyId?: string; // Add companyId field
 }
 
 interface DisplayUserData extends UserData {
@@ -298,6 +300,8 @@ const SettingsPage = () => {
     totalUsers: 0,
     activeUsers: 0
   });
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [filteredUsers, setFilteredUsers] = useState<DisplayUserData[]>([]);
   const [caseSettingsData, setCaseSettingsData] = useState<CaseSettingsData>({
     categories: [],
     statuses: [],
@@ -364,9 +368,23 @@ const SettingsPage = () => {
 
   // Add these state variables for user management
   const [showAddUser, setShowAddUser] = useState(false);
-  const [showEditUser, setShowEditUser] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<DisplayUserData | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [newUser, setNewUser] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    role: 'client' as 'attorney' | 'paralegal' | 'client',
+    active: true,
+    companyId: '' // Add companyId field
+  });
+
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companySearchTerm, setCompanySearchTerm] = useState('');
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const companyDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -431,6 +449,12 @@ const SettingsPage = () => {
                 totalUsers: users.length,
                 activeUsers: users.filter((u: DisplayUserData) => u.active).length
               });
+              setFilteredUsers(users); // Initialize filtered users with all users
+            }
+            // Load companies for the dropdown
+            const companiesData = await getCompanies(user._id);
+            if (companiesData?.data) {
+              setCompanies(companiesData.data);
             }
             break;
           case 'cases':
@@ -500,6 +524,19 @@ const SettingsPage = () => {
 
     loadSettings();
   }, [activeTab, user?._id]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (companyDropdownRef.current && !companyDropdownRef.current.contains(event.target as Node)) {
+        setShowCompanyDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -812,11 +849,6 @@ const SettingsPage = () => {
     }
   };
 
-  const handleDelete = async () => {
-    // Implement delete logic
-    setShowDeleteConfirmation(false);
-  };
-
   const handleSignOutAllDevices = async () => {
     if (!user?._id) return;
     
@@ -1044,6 +1076,194 @@ const SettingsPage = () => {
     } catch (error) {
       console.error(`Error performing database ${operation}:`, error);
       toast.error(`Failed to perform database ${operation}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setNewUser(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      let response;
+      const { firstName, lastName, email, role, companyId } = newUser;
+      
+      if (role === 'attorney') {
+        response = await registerAttorney(
+          firstName,
+          lastName,
+          email,
+          'defaultPassword123', // You might want to generate this or require it in the form
+          user?._id || '', // superadminId
+          companyId
+        );
+      } else {
+        response = await registerUser(
+          firstName,
+          lastName,
+          email,
+          'defaultPassword123', // You might want to generate this or require it in the form
+          role,
+          user?._id || '', // superadminId
+          user?._id || '', // attorneyId
+          companyId
+        );
+      }
+
+      if (response?.data) {
+        toast.success('User added successfully');
+        setShowAddUser(false);
+        setNewUser({
+          firstName: '',
+          lastName: '',
+          email: '',
+          role: 'client',
+          active: true,
+          companyId: ''
+        });
+        // Refresh users list
+        const data = await getUsers(user?._id || '');
+        if (data?.data?.users) {
+          const users = data.data.users.map((user: any) => ({
+            ...user,
+            name: `${user.firstName} ${user.lastName}`,
+            status: user.active ? 'active' : 'inactive'
+          }));
+          setUsersData({
+            users,
+            totalUsers: users.length,
+            activeUsers: users.filter((u: DisplayUserData) => u.active).length
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast.error('Failed to add user');
+    }
+  };
+
+  // Add company search filter
+  const filteredCompanies = companies.filter(company =>
+    company.name.toLowerCase().includes(companySearchTerm.toLowerCase())
+  );
+
+  // Add this function after the other handlers
+  const handleCompanySelect = async (companyId: string, companyName: string) => {
+    setSelectedCompanyId(companyId);
+    setCompanySearchTerm(companyName);
+    setShowCompanyDropdown(false);
+    setNewUser(prev => ({
+      ...prev,
+      companyId
+    }));
+    
+    try {
+      if (companyId) {
+        const response = await getCompanyUsers(companyId);
+        if (response?.data?.users) {
+          const users = response.data.users.map((user: any) => ({
+            ...user,
+            name: `${user.firstName} ${user.lastName}`,
+            status: user.active ? 'active' : 'inactive'
+          }));
+          setFilteredUsers(users);
+          setUsersData(prev => ({
+            ...prev,
+            totalUsers: users.length,
+            activeUsers: users.filter((u: DisplayUserData) => u.active).length
+          }));
+        }
+      } else {
+        // If no company selected, show all users
+        const data = await getUsers(user?._id || '');
+        if (data?.data?.users) {
+          const users = data.data.users.map((user: any) => ({
+            ...user,
+            name: `${user.firstName} ${user.lastName}`,
+            status: user.active ? 'active' : 'inactive'
+          }));
+          setFilteredUsers(users);
+          setUsersData({
+            users,
+            totalUsers: users.length,
+            activeUsers: users.filter((u: DisplayUserData) => u.active).length
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching company users:', error);
+      toast.error('Failed to fetch company users');
+    }
+  };
+
+  const handleEditUser = (user: UserData) => {
+    setEditingUser(user);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    const user = usersData.users.find(u => u._id === userId);
+    if (user) {
+      setUserToDelete(userId);
+      setShowDeleteConfirmation(true);
+    }
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    try {
+      setLoading(true);
+      const response = await updateUser(editingUser._id, editingUser);
+      if (response.data) {
+        // Update the users list
+        const updatedUsers = usersData.users.map(user => 
+          user._id === editingUser._id ? { ...user, ...editingUser } : user
+        );
+        setUsersData(prev => ({
+          ...prev,
+          users: updatedUsers
+        }));
+        setFilteredUsers(updatedUsers);
+        setEditingUser(null);
+        toast.success('User updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error('Failed to update user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+
+    try {
+      setLoading(true);
+      await deleteUser(userToDelete);
+      // Remove the deleted user from the lists
+      const updatedUsers = usersData.users.filter(user => user._id !== userToDelete);
+      setUsersData(prev => ({
+        ...prev,
+        users: updatedUsers,
+        totalUsers: prev.totalUsers - 1,
+        activeUsers: updatedUsers.filter(u => u.active).length
+      }));
+      setFilteredUsers(updatedUsers);
+      setShowDeleteConfirmation(false);
+      setUserToDelete(null);
+      toast.success('User deleted successfully');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
     } finally {
       setLoading(false);
     }
@@ -1623,7 +1843,7 @@ const SettingsPage = () => {
                     </div>
 
                     {/* User Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="bg-white p-4 rounded-lg shadow">
                         <p className="text-sm text-gray-500">Total Users</p>
                         <p className="text-2xl font-semibold">{usersData.totalUsers}</p>
@@ -1635,6 +1855,81 @@ const SettingsPage = () => {
                       <div className="bg-white p-4 rounded-lg shadow">
                         <p className="text-sm text-gray-500">Inactive Users</p>
                         <p className="text-2xl font-semibold">{usersData.totalUsers - usersData.activeUsers}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg shadow">
+                        <p className="text-sm text-gray-500">Selected Company</p>
+                        <div className="relative" ref={companyDropdownRef}>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Select company..."
+                              value={companySearchTerm}
+                              onChange={(e) => {
+                                setCompanySearchTerm(e.target.value);
+                                setShowCompanyDropdown(true);
+                              }}
+                              onFocus={() => setShowCompanyDropdown(true)}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                              {selectedCompanyId && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedCompanyId('');
+                                    setCompanySearchTerm('');
+                                    setFilteredUsers(usersData.users);
+                                  }}
+                                  className="text-gray-400 hover:text-gray-600 mr-2"
+                                >
+                                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              )}
+                              <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
+                            </div>
+                          </div>
+                          
+                          {showCompanyDropdown && (
+                            <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
+                              <div
+                                onClick={() => {
+                                  setSelectedCompanyId('');
+                                  setCompanySearchTerm('');
+                                  setFilteredUsers(usersData.users);
+                                  setShowCompanyDropdown(false);
+                                }}
+                                className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                              >
+                                <div className="flex items-center">
+                                  <span className="ml-3 block truncate">All Companies</span>
+                                </div>
+                              </div>
+                              {filteredCompanies.length === 0 ? (
+                                <div className="px-4 py-2 text-gray-500">No companies found</div>
+                              ) : (
+                                filteredCompanies.map((company) => (
+                                  <div
+                                    key={company._id}
+                                    onClick={() => handleCompanySelect(company._id, company.name)}
+                                    className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                                  >
+                                    <div className="flex items-center">
+                                      <span className="ml-3 block truncate">{company.name}</span>
+                                    </div>
+                                    {selectedCompanyId === company._id && (
+                                      <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      </span>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -1651,7 +1946,7 @@ const SettingsPage = () => {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {usersData.users
+                          {filteredUsers
                             .filter(user => 
                               user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
                               user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
@@ -1695,22 +1990,16 @@ const SettingsPage = () => {
                                   {(isSuperAdmin || (isAttorney && user.role !== 'superadmin' && user.role !== 'attorney')) && (
                                     <div className="flex justify-end space-x-2">
                                       <button
-                                        onClick={() => {
-                                          setSelectedUser(user);
-                                          setShowEditUser(true);
-                                        }}
-                                        className="text-indigo-600 hover:text-indigo-900"
+                                        onClick={() => handleEditUser(user)}
+                                        className="text-blue-600 hover:text-blue-900 mr-4"
                                       >
-                                        Edit
+                                        <Edit className="h-5 w-5" />
                                       </button>
                                       <button
-                                        onClick={() => {
-                                          setSelectedUser(user);
-                                          setShowDeleteConfirmation(true);
-                                        }}
+                                        onClick={() => handleDeleteUser(user._id)}
                                         className="text-red-600 hover:text-red-900"
                                       >
-                                        Delete
+                                        <Trash2 className="h-5 w-5" />
                                       </button>
                                     </div>
                                   )}
@@ -1728,17 +2017,27 @@ const SettingsPage = () => {
                   <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
-                      <form onSubmit={(e) => {
-                        e.preventDefault();
-                        // Handle form submission
-                        setShowAddUser(false);
-                      }}>
+                      <form onSubmit={handleAddUser}>
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Name</label>
+                            <label className="block text-sm font-medium text-gray-700">First Name</label>
                             <input
                               type="text"
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              name="firstName"
+                              value={newUser.firstName}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                            <input
+                              type="text"
+                              name="lastName"
+                              value={newUser.lastName}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                               required
                             />
                           </div>
@@ -1746,36 +2045,117 @@ const SettingsPage = () => {
                             <label className="block text-sm font-medium text-gray-700">Email</label>
                             <input
                               type="email"
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              name="email"
+                              value={newUser.email}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                               required
                             />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Role</label>
                             <select
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              name="role"
+                              value={newUser.role}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                               required
                             >
-                              {isSuperAdmin && <option value="attorney">Attorney</option>}
-                              <option value="paralegal">Paralegal</option>
                               <option value="client">Client</option>
+                              <option value="attorney">Attorney</option>
+                              <option value="paralegal">Paralegal</option>
                             </select>
                           </div>
-                        </div>
-                        <div className="mt-6 flex justify-end space-x-3">
-                          <button
-                            type="button"
-                            className="btn btn-outline"
-                            onClick={() => setShowAddUser(false)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            className="btn btn-primary"
-                          >
-                            Add User
-                          </button>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Company</label>
+                            <div className="relative" ref={companyDropdownRef}>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  placeholder="Search companies..."
+                                  value={companySearchTerm}
+                                  onChange={(e) => {
+                                    setCompanySearchTerm(e.target.value);
+                                    setShowCompanyDropdown(true);
+                                  }}
+                                  onFocus={() => setShowCompanyDropdown(true)}
+                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                />
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                  {selectedCompanyId && (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedCompanyId('');
+                                        setCompanySearchTerm('');
+                                        setFilteredUsers(usersData.users);
+                                      }}
+                                      className="text-gray-400 hover:text-gray-600 mr-2"
+                                    >
+                                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                  <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
+                                </div>
+                              </div>
+                              
+                              {showCompanyDropdown && (
+                                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
+                                  <div
+                                    onClick={() => {
+                                      setSelectedCompanyId('');
+                                      setCompanySearchTerm('');
+                                      setFilteredUsers(usersData.users);
+                                      setShowCompanyDropdown(false);
+                                    }}
+                                    className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                                  >
+                                    <div className="flex items-center">
+                                      <span className="ml-3 block truncate">All Companies</span>
+                                    </div>
+                                  </div>
+                                  {filteredCompanies.length === 0 ? (
+                                    <div className="px-4 py-2 text-gray-500">No companies found</div>
+                                  ) : (
+                                    filteredCompanies.map((company) => (
+                                      <div
+                                        key={company._id}
+                                        onClick={() => handleCompanySelect(company._id, company.name)}
+                                        className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                                      >
+                                        <div className="flex items-center">
+                                          <span className="ml-3 block truncate">{company.name}</span>
+                                        </div>
+                                        {selectedCompanyId === company._id && (
+                                          <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex justify-end space-x-3">
+                            <button
+                              type="button"
+                              onClick={() => setShowAddUser(false)}
+                              className="btn btn-secondary"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="btn btn-primary"
+                            >
+                              Add User
+                            </button>
+                          </div>
                         </div>
                       </form>
                     </div>
@@ -1783,74 +2163,119 @@ const SettingsPage = () => {
                 )}
 
                 {/* Edit User Modal */}
-                {showEditUser && selectedUser && (
-                  <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Edit User</h3>
-                      <form onSubmit={(e) => {
-                        e.preventDefault();
-                        // Handle form submission
-                        setShowEditUser(false);
-                      }}>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Name</label>
-                            <input
-                              type="text"
-                              defaultValue={`${selectedUser.firstName} ${selectedUser.lastName}`}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              required
-                            />
+                {editingUser && (
+                  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+                    <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                      <div className="mt-3">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">Edit User</h3>
+                        <form onSubmit={handleUpdateUser}>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">First Name</label>
+                              <input
+                                type="text"
+                                value={editingUser.firstName}
+                                onChange={(e) => setEditingUser(prev => ({ ...prev!, firstName: e.target.value }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                              <input
+                                type="text"
+                                value={editingUser.lastName}
+                                onChange={(e) => setEditingUser(prev => ({ ...prev!, lastName: e.target.value }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Email</label>
+                              <input
+                                type="email"
+                                value={editingUser.email}
+                                onChange={(e) => setEditingUser(prev => ({ ...prev!, email: e.target.value }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Role</label>
+                              <select
+                                value={editingUser.role}
+                                onChange={(e) => setEditingUser(prev => ({ ...prev!, role: e.target.value as any }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                              >
+                                <option value="client">Client</option>
+                                <option value="attorney">Attorney</option>
+                                <option value="paralegal">Paralegal</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Status</label>
+                              <select
+                                value={editingUser.active ? 'active' : 'inactive'}
+                                onChange={(e) => setEditingUser(prev => ({ ...prev!, active: e.target.value === 'active' }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                              >
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                              </select>
+                            </div>
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Email</label>
-                            <input
-                              type="email"
-                              defaultValue={selectedUser.email}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Role</label>
-                            <select
-                              defaultValue={selectedUser.role}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              required
+                          <div className="mt-5 flex justify-end space-x-3">
+                            <button
+                              type="button"
+                              onClick={() => setEditingUser(null)}
+                              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
                             >
-                              {isSuperAdmin && <option value="attorney">Attorney</option>}
-                              <option value="paralegal">Paralegal</option>
-                              <option value="client">Client</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Status</label>
-                            <select
-                              defaultValue={selectedUser.active ? 'active' : 'inactive'}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              required
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                              disabled={loading}
                             >
-                              <option value="active">Active</option>
-                              <option value="inactive">Inactive</option>
-                            </select>
+                              {loading ? 'Saving...' : 'Save Changes'}
+                            </button>
                           </div>
-                        </div>
-                        <div className="mt-6 flex justify-end space-x-3">
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Add this for delete confirmation */}
+                {showDeleteConfirmation && userToDelete && (
+                  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                    <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                      <div className="mt-3">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Delete</h3>
+                        <p className="text-gray-500">
+                          Are you sure you want to delete {usersData.users.find(u => u._id === userToDelete)?.name}? This action cannot be undone.
+                        </p>
+                        <div className="mt-5 flex justify-end space-x-3">
                           <button
-                            type="button"
-                            className="btn btn-outline"
-                            onClick={() => setShowEditUser(false)}
+                            onClick={() => {
+                              setShowDeleteConfirmation(false);
+                              setUserToDelete(null);
+                            }}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
                           >
                             Cancel
                           </button>
                           <button
-                            type="submit"
-                            className="btn btn-primary"
+                            onClick={handleConfirmDelete}
+                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                            disabled={loading}
                           >
-                            Save Changes
+                            {loading ? 'Deleting...' : 'Delete'}
                           </button>
                         </div>
-                      </form>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3681,45 +4106,30 @@ const SettingsPage = () => {
       </div>
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirmation && (
-        <div className="fixed inset-0 overflow-y-auto z-50">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
-
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <AlertTriangle className="h-6 w-6 text-red-600" />
-                  </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      Confirm Delete
-                    </h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Are you sure you want to delete this item? This action cannot be undone.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+      {showDeleteConfirmation && userToDelete && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Delete</h3>
+              <p className="text-gray-500">
+                Are you sure you want to delete {usersData.users.find(u => u._id === userToDelete)?.name}? This action cannot be undone.
+              </p>
+              <div className="mt-5 flex justify-end space-x-3">
                 <button
-                  type="button"
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={handleDelete}
-                >
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => setShowDeleteConfirmation(false)}
+                  onClick={() => {
+                    setShowDeleteConfirmation(false);
+                    setUserToDelete(null);
+                  }}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
                 >
                   Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  disabled={loading}
+                >
+                  {loading ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>
