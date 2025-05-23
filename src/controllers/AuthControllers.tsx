@@ -100,6 +100,7 @@ export const registerAttorney = async (
       status: response.status,
       statusText: response.statusText
     };
+    
   } catch (error) {
     console.error('Error registering attorney:', error);
     throw error;
