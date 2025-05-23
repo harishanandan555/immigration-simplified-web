@@ -300,7 +300,7 @@ export const mockTasks = [
 export const mockForms = [
   // Family-Based Immigration Forms
   {
-    id: 'form-1',
+    id: 'form1',
     name: 'I-130, Petition for Alien Relative',
     category: 'Family-Based',
     description: 'Used to establish relationship to a qualifying relative who intends to immigrate to the United States.',
@@ -312,7 +312,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-2',
+    id: 'form2',
     name: 'I-485, Application to Register Permanent Residence',
     category: 'Family-Based',
     description: 'Used to apply for lawful permanent resident status (Green Card) while in the United States.',
@@ -324,7 +324,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-3',
+    id: 'form3',
     name: 'I-751, Petition to Remove Conditions on Residence',
     category: 'Family-Based',
     description: 'Used to remove conditions on permanent resident status obtained through marriage.',
@@ -336,7 +336,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-4',
+    id: 'form4',
     name: 'I-129F, Petition for Alien Fiancé(e)',
     category: 'Family-Based',
     description: 'Used to bring a foreign-citizen fiancé(e) to the United States for marriage.',
@@ -350,7 +350,7 @@ export const mockForms = [
 
   // Employment-Based Immigration Forms
   {
-    id: 'form-5',
+    id: 'form5',
     name: 'I-140, Immigrant Petition for Alien Worker',
     category: 'Employment-Based',
     description: 'Used by employers to petition for eligible foreign nationals to become permanent residents based on employment.',
@@ -362,7 +362,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-6',
+    id: 'form6',
     name: 'I-765, Application for Employment Authorization',
     category: 'Employment-Based',
     description: 'Used to request an Employment Authorization Document (work permit).',
@@ -374,7 +374,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-7',
+    id: 'form7',
     name: 'I-907, Request for Premium Processing',
     category: 'Employment-Based',
     description: 'Used to request faster processing of certain employment-based petitions and applications.',
@@ -388,7 +388,7 @@ export const mockForms = [
 
   // Citizenship and Naturalization Forms
   {
-    id: 'form-8',
+    id: 'form8',
     name: 'N-400, Application for Naturalization',
     category: 'Citizenship',
     description: 'Used to apply for U.S. citizenship through naturalization.',
@@ -400,7 +400,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-9',
+    id: 'form9',
     name: 'N-600, Application for Certificate of Citizenship',
     category: 'Citizenship',
     description: 'Used to obtain proof of U.S. citizenship for individuals who derived or acquired citizenship through parents.',
@@ -414,7 +414,7 @@ export const mockForms = [
 
   // Humanitarian Forms
   {
-    id: 'form-10',
+    id: 'form10',
     name: 'I-589, Application for Asylum',
     category: 'Humanitarian',
     description: 'Used to apply for asylum in the United States and for withholding of removal.',
@@ -426,7 +426,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-11',
+    id: 'form11',
     name: 'I-918, Petition for U Nonimmigrant Status',
     category: 'Humanitarian',
     description: 'Used by victims of certain crimes who have suffered mental or physical abuse.',
@@ -438,7 +438,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-12',
+    id: 'form12',
     name: 'I-914, Application for T Nonimmigrant Status',
     category: 'Humanitarian',
     description: 'Used by victims of human trafficking and their immediate family members.',
@@ -452,7 +452,7 @@ export const mockForms = [
 
   // Travel and Status Documents
   {
-    id: 'form-13',
+    id: 'form13',
     name: 'I-131, Application for Travel Document',
     category: 'Travel',
     description: 'Used to apply for travel documents, re-entry permits, or advance parole.',
@@ -464,7 +464,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-14',
+    id: 'form14',
     name: 'I-90, Application to Replace Permanent Resident Card',
     category: 'Status Documents',
     description: 'Used to replace or renew a Green Card.',
@@ -478,7 +478,7 @@ export const mockForms = [
 
   // Business and Investment Forms
   {
-    id: 'form-15',
+    id: 'form15',
     name: 'I-526, Immigrant Petition by Standalone Investor',
     category: 'Business',
     description: 'Used by investors to petition for permanent residence through qualifying investments.',
@@ -490,7 +490,7 @@ export const mockForms = [
     icon: <FileText className="h-10 w-10" />
   },
   {
-    id: 'form-16',
+    id: 'form16',
     name: 'I-829, Petition to Remove Conditions on Residence for Entrepreneurs',
     category: 'Business',
     description: 'Used by EB-5 investors to remove conditions on their permanent resident status.',
