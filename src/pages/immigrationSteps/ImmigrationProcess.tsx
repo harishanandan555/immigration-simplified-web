@@ -1703,7 +1703,7 @@ const ImmigrationProcess: React.FC = () => {
                           onClick={() => {
                             const formId = mockForms.find(f => f.name.toLowerCase().includes(form.toLowerCase()))?.id;
                             if (formId) {
-                              navigate(`/forms/${formId}`);
+                              navigate(`/formfill/${formId}`);
                             }
                           }}
                           className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center"

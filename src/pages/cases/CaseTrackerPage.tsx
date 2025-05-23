@@ -277,7 +277,6 @@ const CaseStatusPage: React.FC = () => {
   React.useEffect(() => {
     if (urlCaseNumber && !caseStatus) {
       setCaseNumber(urlCaseNumber);
-      const form = document.createElement('form');
       handleCaseLookup({ preventDefault: () => { } } as any);
     }
   }, [urlCaseNumber]);

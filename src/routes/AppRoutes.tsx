@@ -112,7 +112,7 @@ const AppRoutes = () => {
               <FormsLibraryPage />
             </Suspense>
           } />
-          <Route path="/forms/:id" element={
+          <Route path="/formfill/:id" element={
             <Suspense fallback={null}>
               <FormFillPage />
             </Suspense>
