@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  Search, 
-  Filter, 
+  Search,
   Plus,
   Calendar,
   Clock,
   CheckCircle,
   AlertCircle,
   MoreVertical,
-  ChevronDown,
   ArrowUpDown
 } from 'lucide-react';
 import { mockTasks, mockCases } from '../../utils/mockData';

@@ -96,7 +96,13 @@ const CaseFormPage = () => {
         await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
       } else {
         // Create new case
-        const response: any = await createCase(formData);
+        const caseData = {
+          ...formData,
+          timeline: [],
+          updatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        };
+        const response: any = await createCase(caseData);
         
         if (response.status === 201) {
           console.log('Case created successfully:', response.data);

@@ -90,7 +90,7 @@ const FormsLibraryPage = () => {
                 </button>
                 <button
                   className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm"
-                  onClick={() => window.location.href = `/forms/${form.id}`}
+                  onClick={() => window.location.href = `/formfill/${form.id}`}
                 >
                   Fill Online
                 </button>
