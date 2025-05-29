@@ -16,7 +16,6 @@ const IS_SECURITY_ENABLED = true;
 const IS_EMAIL_ENABLED = true;
 const IS_INTEGRATIONS_ENABLED = true;
 const IS_BILLING_ENABLED = false;
-const IS_USERS_ENABLED = true;
 const IS_CASE_SETTINGS_ENABLED = true;
 const IS_FORM_TEMPLATES_ENABLED = false;
 const IS_REPORT_SETTINGS_ENABLED = false;
@@ -305,30 +304,6 @@ export const updateBilling = async (userId: string, billingData: any): Promise<A
     };
   } catch (error) {
     console.error('Error updating billing:', error);
-    throw error;
-  }
-};
-
-// User Management
-export const getUsers = async (userId: string): Promise<ApiResponse<any>> => {
-  if (!IS_USERS_ENABLED) {
-    console.log('getUsers method is skipped.');
-    return {
-      data: null,
-      status: 0,
-      statusText: 'Method skipped'
-    };
-  }
-
-  try {
-    const response = await api.get(`${SETTINGS_END_POINTS.USERS_GET}/${userId}`);
-    return {
-      data: response.data.data,
-      status: response.status,
-      statusText: response.statusText
-    };
-  } catch (error) {
-    console.error('Error fetching users:', error);
     throw error;
   }
 };

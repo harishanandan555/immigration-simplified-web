@@ -27,7 +27,7 @@ import {
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-import { useAuth, updateUser, deleteUser, registerAttorney, registerUser } from '../../controllers/AuthControllers';
+import { useAuth, updateUser, deleteUser, registerAttorney, registerUser, getUserById } from '../../controllers/AuthControllers';
 import api from '../../utils/api';
 import { SETTINGS_END_POINTS } from '../../utils/constants';
 import {
@@ -46,7 +46,6 @@ import {
   updateIntegrations,
   getBilling,
   updateBilling,
-  getUsers,
   updateUsers,
   getCaseSettings,
   updateCaseSettings,
@@ -69,6 +68,7 @@ import {
   updatePerformanceSettings
 } from '../../controllers/SettingsControllers';
 import { getCompanies, getCompanyUsers, Company } from '../../controllers/CompanyControllers';
+// import { getSubscriptionPlans, getSubscriptionPlanById, subscribeToPlan, cancelSubscription, getCompanySubscription } from '../../controllers/BillingControllers';
 
 interface User {
   _id: string;
@@ -398,6 +398,9 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [showSignOutConfirmation, setShowSignOutConfirmation] = useState(false);
+  const [updateTrigger, setUpdateTrigger] = useState(0);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const POLLING_INTERVAL = 30000; // 30 seconds
 
   // Profile form state
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -713,15 +716,15 @@ const SettingsPage = () => {
     firstName: '',
     lastName: '',
     email: '',
-    role: 'client' as 'attorney' | 'paralegal' | 'client',
+    role: '' as '' | 'attorney' | 'paralegal' | 'client',
     active: true,
-    companyId: '',
+    companyId: user?.companyId || '', // Set initial companyId from current user
     password: '',
     confirmPassword: ''
   });
 
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [companySearchTerm, setCompanySearchTerm] = useState('');
+  const [companySearchTerm, setCompanySearchTerm] = useState<string>('All Companies');
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const companyDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -732,7 +735,7 @@ const SettingsPage = () => {
   useEffect(() => {
     const loadSettings = async () => {
       if (!user?._id) return;
-      
+
       try {
         let data;
         switch (activeTab) {
@@ -779,9 +782,9 @@ const SettingsPage = () => {
             }
             break;
           case 'users':
-            data = await getUsers(user._id);
-            if (data?.data?.users) {
-              const users = data.data.users.map((user: any) => ({
+            data = await getUserById(user._id);
+            if (data?.data) {
+              const users = data.data.map((user: any) => ({
                 ...user,
                 name: `${user.firstName} ${user.lastName}`,
                 status: user.active ? 'active' : 'inactive'
@@ -791,7 +794,7 @@ const SettingsPage = () => {
                 totalUsers: users.length,
                 activeUsers: users.filter((u: DisplayUserData) => u.active).length
               });
-              setFilteredUsers(users); // Initialize filtered users with all users
+              setFilteredUsers(users);
             }
             // Load companies for the dropdown
             const companiesData = await getCompanies(user._id);
@@ -867,7 +870,7 @@ const SettingsPage = () => {
     };
 
     loadSettings();
-  }, [activeTab, user?._id]);
+  }, [activeTab, user?._id, updateTrigger]); // Add updateTrigger to dependencies
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1079,33 +1082,33 @@ const SettingsPage = () => {
   const handleSystemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const [section, field, subfield] = name.split('.');
-    
+
     setSystemData(prev => {
       const newData = { ...prev };
-      
+
       if (subfield) {
         // Handle nested fields like maintenance.scheduledMaintenance.startTime
-        (newData[section as keyof SystemData] as any)[field][subfield] = type === 'checkbox' 
-          ? (e.target as HTMLInputElement).checked 
-          : type === 'number' 
-            ? Number(value) 
+        (newData[section as keyof SystemData] as any)[field][subfield] = type === 'checkbox'
+          ? (e.target as HTMLInputElement).checked
+          : type === 'number'
+            ? Number(value)
             : value;
       } else if (field) {
         // Handle nested fields like maintenance.maintenanceMode
-        (newData[section as keyof SystemData] as any)[field] = type === 'checkbox' 
-          ? (e.target as HTMLInputElement).checked 
-          : type === 'number' 
-            ? Number(value) 
+        (newData[section as keyof SystemData] as any)[field] = type === 'checkbox'
+          ? (e.target as HTMLInputElement).checked
+          : type === 'number'
+            ? Number(value)
             : value;
       } else {
         // Handle top-level fields
-        (newData[name as keyof SystemData] as any) = type === 'checkbox' 
-          ? (e.target as HTMLInputElement).checked 
-          : type === 'number' 
-            ? Number(value) 
+        (newData[name as keyof SystemData] as any) = type === 'checkbox'
+          ? (e.target as HTMLInputElement).checked
+          : type === 'number'
+            ? Number(value)
             : value;
       }
-      
+
       return newData;
     });
   };
@@ -1128,12 +1131,12 @@ const SettingsPage = () => {
     if (!user?._id) return;
     setLoading(true);
     try {
-      const endpoint = operation === 'cache' 
-        ? SETTINGS_END_POINTS.CLEAR_CACHE 
+      const endpoint = operation === 'cache'
+        ? SETTINGS_END_POINTS.CLEAR_CACHE
         : SETTINGS_END_POINTS.OPTIMIZE_DATABASE;
-      
+
       await api.post(`${endpoint}/${user._id}`);
-      
+
       // Update the last maintenance timestamp
       setSystemData(prev => ({
         ...prev,
@@ -1142,7 +1145,7 @@ const SettingsPage = () => {
           [`last${operation === 'cache' ? 'CacheClear' : 'DatabaseOptimization'}`]: new Date().toISOString()
         }
       }));
-      
+
       toast.success(`${operation === 'cache' ? 'Cache cleared' : 'Database optimized'} successfully`);
     } catch (error) {
       console.error(`Error performing ${operation} maintenance:`, error);
@@ -1152,12 +1155,154 @@ const SettingsPage = () => {
     }
   };
 
+  // Add continuous polling effect
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      if (!user?._id) return;
+
+      try {
+        const currentTime = Date.now();
+        const timeSinceLastUpdate = currentTime - lastUpdateTime;
+
+        // Only poll if it's been at least POLLING_INTERVAL since last update
+        if (timeSinceLastUpdate >= POLLING_INTERVAL) {
+          let data;
+          switch (activeTab) {
+            case 'profile':
+              data = await getProfile(user._id);
+              if (data?.data) {
+                setProfileData(data.data.value);
+              }
+              break;
+            case 'organization':
+              data = await getOrganization(user._id);
+              if (data?.data) {
+                setOrganizationData(data.data.value);
+              }
+              break;
+            case 'notifications':
+              data = await getNotifications(user._id);
+              if (data?.data) {
+                setNotificationData(data.data.value);
+              }
+              break;
+            case 'security':
+              data = await getSecurity(user._id);
+              if (data?.data) {
+                setSecurityData(data.data.value);
+              }
+              break;
+            case 'email':
+              data = await getEmailSettings(user._id);
+              if (data?.data) {
+                setEmailData(data.data.value);
+              }
+              break;
+            case 'integrations':
+              data = await getIntegrations(user._id);
+              if (data?.data) {
+                setIntegrationData(data.data.value);
+              }
+              break;
+            case 'billing':
+              data = await getBilling(user._id);
+              if (data?.data) {
+                setBillingData(data.data.value);
+              }
+              break;
+            case 'users':
+              data = await getUserById(user._id);
+              if (data?.data) {
+                const users = data.data.map((user: any) => ({
+                  ...user,
+                  name: `${user.firstName} ${user.lastName}`,
+                  status: user.active ? 'active' : 'inactive'
+                }));
+                setUsersData({
+                  users,
+                  totalUsers: users.length,
+                  activeUsers: users.filter((u: DisplayUserData) => u.active).length
+                });
+                setFilteredUsers(users);
+              }
+              break;
+            case 'cases':
+              data = await getCaseSettings(user._id);
+              if (data?.data) {
+                setCaseSettingsData(data.data.value);
+              }
+              break;
+            case 'forms':
+              data = await getFormTemplates(user._id);
+              if (data?.data) {
+                setFormTemplatesData(data.data.value);
+              }
+              break;
+            case 'reports':
+              data = await getReportSettings(user._id);
+              if (data?.data) {
+                setReportSettingsData(data.data.value);
+              }
+              break;
+            case 'roles':
+              data = await getRoles(user._id);
+              if (data?.data) {
+                setRolesData(data.data.value);
+              }
+              break;
+            case 'database':
+              data = await getDatabaseSettings(user._id);
+              if (data?.data) {
+                setDatabaseSettingsData(data.data.value);
+              }
+              break;
+            case 'system':
+              data = await getSystemSettings(user._id);
+              if (data?.data) {
+                setSystemData(data.data.value);
+              }
+              break;
+            case 'audit':
+              data = await getAuditLogs(user._id);
+              if (data?.data) {
+                setAuditLogsData(data.data.value);
+              }
+              break;
+            case 'backup':
+              data = await getBackupSettings(user._id);
+              if (data?.data) {
+                setBackupSettingsData(data.data.value);
+              }
+              break;
+            case 'api':
+              data = await getApiSettings(user._id);
+              if (data?.data) {
+                setApiSettingsData(data.data.value);
+              }
+              break;
+            case 'performance':
+              data = await getPerformanceSettings(user._id);
+              if (data?.data) {
+                setPerformanceSettingsData(data.data.value);
+              }
+              break;
+          }
+          setLastUpdateTime(currentTime);
+        }
+      } catch (error) {
+        console.error('Error polling settings:', error);
+      }
+    }, POLLING_INTERVAL);
+
+    return () => clearInterval(pollInterval);
+  }, [activeTab, user?._id, lastUpdateTime]);
+
+  // Update handleSave to set lastUpdateTime
   const handleSave = async () => {
     if (!user?._id) return;
-    
+
     try {
       setLoading(true);
-      let response;
 
       switch (activeTab) {
         case 'profile':
@@ -1211,18 +1356,13 @@ const SettingsPage = () => {
         case 'performance':
           await updatePerformanceSettings(user._id, performanceSettingsData);
           break;
-        case 'audit':
-          response = await api.put(`${SETTINGS_END_POINTS.AUDIT_LOGS_GET}/${user._id}`, {
-            value: auditLogsData
-          });
-          if (response.data.success) {
-            toast.success('Audit logs settings updated successfully');
-          }
-          break;
       }
+      toast.success('Settings updated successfully');
+      setUpdateTrigger(prev => prev + 1);
+      setLastUpdateTime(Date.now());
     } catch (error) {
-      console.error('Error saving settings:', error);
-      toast.error('Failed to save settings');
+      console.error('Error updating settings:', error);
+      toast.error('Failed to update settings');
     } finally {
       setLoading(false);
     }
@@ -1230,7 +1370,7 @@ const SettingsPage = () => {
 
   const handleSignOutAllDevices = async () => {
     if (!user?._id) return;
-    
+
     try {
       setLoading(true);
       await signOutAllDevices(user._id);
@@ -1417,8 +1557,8 @@ const SettingsPage = () => {
       ...prev,
       [section]: {
         ...(prev[section as keyof DatabaseSettingsData] as Record<string, any>),
-        [field]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : 
-                 type === 'number' ? Number(value) : value
+        [field]: type === 'checkbox' ? (e.target as HTMLInputElement).checked :
+          type === 'number' ? Number(value) : value
       }
     }));
   };
@@ -1426,26 +1566,26 @@ const SettingsPage = () => {
   const handlePerformanceChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const [section, field, subfield] = name.split('.');
-    
+
     setPerformanceSettingsData(prev => {
       const newData = { ...prev };
-      
+
       if (subfield) {
         // Handle nested fields like monitoring.alertThresholds.cpu
-        (newData[section as keyof PerformanceSettingsData] as any)[field][subfield] = type === 'checkbox' 
-          ? (e.target as HTMLInputElement).checked 
-          : type === 'number' 
-            ? Number(value) 
+        (newData[section as keyof PerformanceSettingsData] as any)[field][subfield] = type === 'checkbox'
+          ? (e.target as HTMLInputElement).checked
+          : type === 'number'
+            ? Number(value)
             : value;
       } else {
         // Handle top-level fields
-        (newData[section as keyof PerformanceSettingsData] as any)[field] = type === 'checkbox' 
-          ? (e.target as HTMLInputElement).checked 
-          : type === 'number' 
-            ? Number(value) 
+        (newData[section as keyof PerformanceSettingsData] as any)[field] = type === 'checkbox'
+          ? (e.target as HTMLInputElement).checked
+          : type === 'number'
+            ? Number(value)
             : value;
       }
-      
+
       return newData;
     });
   };
@@ -1527,8 +1667,15 @@ const SettingsPage = () => {
       const { firstName, lastName, email, role, companyId, password, confirmPassword } = newUser;
 
       // Validate required fields
-      if (!firstName || !lastName || !email || !role || !companyId) {
+      if (!firstName || !lastName || !email || !role) {
         toast.error('Please fill in all required fields');
+        return;
+      }
+
+      // For attorneys, use their company ID
+      const finalCompanyId = isAttorney ? user?.companyId : companyId;
+      if (!finalCompanyId) {
+        toast.error('Company ID is required');
         return;
       }
 
@@ -1550,6 +1697,17 @@ const SettingsPage = () => {
         return;
       }
 
+      // Validate role-based permissions
+      if (isSuperAdmin && role !== 'attorney') {
+        toast.error('Superadmins can only add attorneys');
+        return;
+      }
+
+      if (isAttorney && !['paralegal', 'client'].includes(role)) {
+        toast.error('Attorneys can only add paralegals and clients');
+        return;
+      }
+
       let response;
       if (role === 'attorney') {
         response = await registerAttorney(
@@ -1558,7 +1716,7 @@ const SettingsPage = () => {
           email,
           password,
           user?._id || '', // superadminId
-          companyId
+          finalCompanyId
         );
       } else {
         response = await registerUser(
@@ -1569,7 +1727,7 @@ const SettingsPage = () => {
           role,
           user?._id || '', // superadminId
           user?._id || '', // attorneyId
-          companyId
+          finalCompanyId
         );
       }
 
@@ -1580,16 +1738,16 @@ const SettingsPage = () => {
           firstName: '',
           lastName: '',
           email: '',
-          role: 'client',
+          role: '',
           active: true,
           companyId: '',
           password: '',
           confirmPassword: ''
         });
         // Refresh users list
-        const data = await getUsers(user?._id || '');
-        if (data?.data?.users) {
-          const users = data.data.users.map((user: any) => ({
+        const data = await getUserById(user?._id || '');
+        if (data?.data) {
+          const users = data.data.map((user: any) => ({
             ...user,
             name: `${user.firstName} ${user.lastName}`,
             status: user.active ? 'active' : 'inactive'
@@ -1609,7 +1767,7 @@ const SettingsPage = () => {
 
   // Add company search filter
   const filteredCompanies = companies.filter(company =>
-    company.name.toLowerCase().includes(companySearchTerm.toLowerCase())
+    company.name.toLowerCase().includes(companySearchTerm.toLowerCase()) || companySearchTerm === 'All Companies'
   );
 
   // Add this function after the other handlers
@@ -1621,12 +1779,12 @@ const SettingsPage = () => {
       ...prev,
       companyId
     }));
-    
+
     try {
       if (companyId) {
         const response = await getCompanyUsers(companyId);
-        if (response?.data?.users) {
-          const users = response.data.users.map((user: any) => ({
+        if (response?.data) {
+          const users = response.data.map((user: any) => ({
             ...user,
             name: `${user.firstName} ${user.lastName}`,
             status: user.active ? 'active' : 'inactive'
@@ -1640,9 +1798,9 @@ const SettingsPage = () => {
         }
       } else {
         // If no company selected, show all users
-        const data = await getUsers(user?._id || '');
-        if (data?.data?.users) {
-          const users = data.data.users.map((user: any) => ({
+        const data = await getUserById(user?._id || '');
+        if (data?.data) {
+          const users = data.data.map((user: any) => ({
             ...user,
             name: `${user.firstName} ${user.lastName}`,
             status: user.active ? 'active' : 'inactive'
@@ -1682,7 +1840,7 @@ const SettingsPage = () => {
       const response = await updateUser(editingUser._id, editingUser);
       if (response.data) {
         // Update the users list
-        const updatedUsers = usersData.users.map(user => 
+        const updatedUsers = usersData.users.map(user =>
           user._id === editingUser._id ? { ...user, ...editingUser } : user
         );
         setUsersData(prev => ({
@@ -1779,7 +1937,7 @@ const SettingsPage = () => {
   const handleBackupSettingsChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const [section, field, subfield] = name.split('.');
-    
+
     setBackupSettingsData(prev => {
       const sectionData = prev[section as keyof BackupSettingsData];
       if (!sectionData) return prev;
@@ -1791,12 +1949,12 @@ const SettingsPage = () => {
           ...(subfield ? {
             [field]: {
               ...(sectionData as any)[field],
-              [subfield]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : 
-                         type === 'number' ? Number(value) : value
+              [subfield]: type === 'checkbox' ? (e.target as HTMLInputElement).checked :
+                type === 'number' ? Number(value) : value
             }
           } : {
-            [field]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : 
-                     type === 'number' ? Number(value) : value
+            [field]: type === 'checkbox' ? (e.target as HTMLInputElement).checked :
+              type === 'number' ? Number(value) : value
           })
         }
       };
@@ -2291,12 +2449,12 @@ const SettingsPage = () => {
                             <p className="text-xs text-gray-500">Get notified when cases are updated</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               name="caseUpdates"
                               checked={notificationData.caseUpdates}
                               onChange={handleNotificationChange}
-                              className="sr-only peer" 
+                              className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
@@ -2307,12 +2465,12 @@ const SettingsPage = () => {
                             <p className="text-xs text-gray-500">Get notified about new documents</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               name="documentAlerts"
                               checked={notificationData.documentAlerts}
                               onChange={handleNotificationChange}
-                              className="sr-only peer" 
+                              className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
@@ -2329,12 +2487,12 @@ const SettingsPage = () => {
                             <p className="text-xs text-gray-500">Get reminded about upcoming tasks</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               name="taskReminders"
                               checked={notificationData.taskReminders}
                               onChange={handleNotificationChange}
-                              className="sr-only peer" 
+                              className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
@@ -2442,12 +2600,12 @@ const SettingsPage = () => {
                             </div>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               name="googleCalendar"
                               checked={integrationData.googleCalendar}
                               onChange={handleIntegrationChange}
-                              className="sr-only peer" 
+                              className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
@@ -2466,12 +2624,12 @@ const SettingsPage = () => {
                             </div>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               name="gmail"
                               checked={integrationData.gmail}
                               onChange={handleIntegrationChange}
-                              className="sr-only peer" 
+                              className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
@@ -2594,8 +2752,8 @@ const SettingsPage = () => {
                           className="form-input w-full"
                         />
                       </div>
-                      {isSuperAdmin && (
-                        <button 
+                      {(isSuperAdmin || isAttorney) && (
+                        <button
                           className="btn btn-primary"
                           onClick={() => setShowAddUser(true)}
                         >
@@ -2624,7 +2782,7 @@ const SettingsPage = () => {
                           <div className="relative">
                             <input
                               type="text"
-                              placeholder="Select company..."
+                              placeholder="Search companies..."
                               value={companySearchTerm}
                               onChange={(e) => {
                                 setCompanySearchTerm(e.target.value);
@@ -2638,7 +2796,7 @@ const SettingsPage = () => {
                                 <button
                                   onClick={() => {
                                     setSelectedCompanyId('');
-                                    setCompanySearchTerm('');
+                                    setCompanySearchTerm('All Companies');
                                     setFilteredUsers(usersData.users);
                                   }}
                                   className="text-gray-400 hover:text-gray-600 mr-2"
@@ -2651,21 +2809,28 @@ const SettingsPage = () => {
                               <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
                             </div>
                           </div>
-                          
+
                           {showCompanyDropdown && (
                             <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
                               <div
                                 onClick={() => {
                                   setSelectedCompanyId('');
-                                  setCompanySearchTerm('');
+                                  setCompanySearchTerm('All Companies');
                                   setFilteredUsers(usersData.users);
                                   setShowCompanyDropdown(false);
                                 }}
-                                className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                                className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${!selectedCompanyId ? 'bg-blue-50' : ''}`}
                               >
                                 <div className="flex items-center">
                                   <span className="ml-3 block truncate">All Companies</span>
                                 </div>
+                                {!selectedCompanyId && (
+                                  <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </span>
+                                )}
                               </div>
                               {filteredCompanies.length === 0 ? (
                                 <div className="px-4 py-2 text-gray-500">No companies found</div>
@@ -2674,7 +2839,7 @@ const SettingsPage = () => {
                                   <div
                                     key={company._id}
                                     onClick={() => handleCompanySelect(company._id, company.name)}
-                                    className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                                    className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${selectedCompanyId === company._id ? 'bg-blue-50' : ''}`}
                                   >
                                     <div className="flex items-center">
                                       <span className="ml-3 block truncate">{company.name}</span>
@@ -2709,10 +2874,17 @@ const SettingsPage = () => {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {filteredUsers
-                            .filter(user => 
-                              user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-                              user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
-                            )
+                            .filter(user => {
+                              // First apply the search filter
+                              const matchesSearch =
+                                user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                                user.email.toLowerCase().includes(userSearchQuery.toLowerCase());
+
+                              // Then apply role filter for superadmin
+                              const matchesRole = isSuperAdmin ? user.role === 'attorney' : true;
+
+                              return matchesSearch && matchesRole;
+                            })
                             .map((user) => (
                               <tr key={user._id}>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -2739,9 +2911,8 @@ const SettingsPage = () => {
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                    user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                  }`}>
+                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`}>
                                     {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                                   </span>
                                 </td>
@@ -2778,9 +2949,13 @@ const SettingsPage = () => {
                 {showAddUser && (
                   <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full">
+
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
+
                       <form onSubmit={handleAddUser}>
+
                         <div className="space-y-4">
+
                           <div>
                             <label className="block text-sm font-medium text-gray-700">First Name</label>
                             <input
@@ -2792,6 +2967,7 @@ const SettingsPage = () => {
                               required
                             />
                           </div>
+
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Last Name</label>
                             <input
@@ -2803,6 +2979,7 @@ const SettingsPage = () => {
                               required
                             />
                           </div>
+
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Email</label>
                             <input
@@ -2814,44 +2991,7 @@ const SettingsPage = () => {
                               required
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Role</label>
-                            <select
-                              name="role"
-                              value={newUser.role}
-                              onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                              required
-                            >
-                              <option value="client">Client</option>
-                              <option value="attorney">Attorney</option>
-                              <option value="paralegal">Paralegal</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Password</label>
-                            <input
-                              type="password"
-                              name="password"
-                              value={newUser.password}
-                              onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                              required
-                              minLength={8}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
-                            <input
-                              type="password"
-                              name="confirmPassword"
-                              value={newUser.confirmPassword}
-                              onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                              required
-                              minLength={8}
-                            />
-                          </div>
+
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Company</label>
                             <div className="relative" ref={companyDropdownRef}>
@@ -2872,7 +3012,7 @@ const SettingsPage = () => {
                                     <button
                                       onClick={() => {
                                         setSelectedCompanyId('');
-                                        setCompanySearchTerm('');
+                                        setCompanySearchTerm('All Companies');
                                         setFilteredUsers(usersData.users);
                                       }}
                                       className="text-gray-400 hover:text-gray-600 mr-2"
@@ -2885,21 +3025,25 @@ const SettingsPage = () => {
                                   <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
                                 </div>
                               </div>
-                              
+
                               {showCompanyDropdown && (
                                 <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
                                   <div
                                     onClick={() => {
                                       setSelectedCompanyId('');
-                                      setCompanySearchTerm('');
+                                      setCompanySearchTerm('All Companies');
                                       setFilteredUsers(usersData.users);
                                       setShowCompanyDropdown(false);
                                     }}
-                                    className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                                    className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${!selectedCompanyId ? 'bg-blue-50' : ''}`}
                                   >
-                                    <div className="flex items-center">
-                                      <span className="ml-3 block truncate">All Companies</span>
-                                    </div>
+                                    {!selectedCompanyId && (
+                                      <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      </span>
+                                    )}
                                   </div>
                                   {filteredCompanies.length === 0 ? (
                                     <div className="px-4 py-2 text-gray-500">No companies found</div>
@@ -2908,7 +3052,7 @@ const SettingsPage = () => {
                                       <div
                                         key={company._id}
                                         onClick={() => handleCompanySelect(company._id, company.name)}
-                                        className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50"
+                                        className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${selectedCompanyId === company._id ? 'bg-blue-50' : ''}`}
                                       >
                                         <div className="flex items-center">
                                           <span className="ml-3 block truncate">{company.name}</span>
@@ -2927,6 +3071,54 @@ const SettingsPage = () => {
                               )}
                             </div>
                           </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Role</label>
+                            <select
+                              name="role"
+                              value={newUser.role}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              required
+                            >
+                              <option value="">Select a role</option>
+                              {isSuperAdmin ? (
+                                <option value="attorney">Attorney</option>
+                              ) : isAttorney ? (
+                                <>
+                                  <option value="paralegal">Paralegal</option>
+                                  <option value="client">Client</option>
+                                </>
+                              ) : null}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Password</label>
+                            <input
+                              type="password"
+                              name="password"
+                              value={newUser.password}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              required
+                              minLength={8}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                            <input
+                              type="password"
+                              name="confirmPassword"
+                              value={newUser.confirmPassword}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              required
+                              minLength={8}
+                            />
+                          </div>
+
                           <div className="flex justify-end space-x-3">
                             <button
                               type="button"
@@ -2942,6 +3134,7 @@ const SettingsPage = () => {
                               Add User
                             </button>
                           </div>
+
                         </div>
                       </form>
                     </div>
@@ -3078,7 +3271,7 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="text-sm font-medium text-gray-900">Case Categories</h3>
-                        <button 
+                        <button
                           className="btn btn-outline text-xs py-1"
                           onClick={() => setShowAddCategory(true)}
                         >
@@ -3089,8 +3282,8 @@ const SettingsPage = () => {
                         {caseSettingsData.categories.map((category) => (
                           <div key={category.id} className="flex items-center justify-between bg-white p-3 rounded-md">
                             <div className="flex items-center space-x-3">
-                              <div 
-                                className="w-3 h-3 rounded-full" 
+                              <div
+                                className="w-3 h-3 rounded-full"
                                 style={{ backgroundColor: category.color }}
                               />
                               <div>
@@ -3115,7 +3308,7 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="text-sm font-medium text-gray-900">Case Statuses</h3>
-                        <button 
+                        <button
                           className="btn btn-outline text-xs py-1"
                           onClick={() => setShowAddStatus(true)}
                         >
@@ -3126,8 +3319,8 @@ const SettingsPage = () => {
                         {caseSettingsData.statuses.map((status) => (
                           <div key={status.id} className="flex items-center justify-between bg-white p-3 rounded-md">
                             <div className="flex items-center space-x-3">
-                              <div 
-                                className="w-3 h-3 rounded-full" 
+                              <div
+                                className="w-3 h-3 rounded-full"
                                 style={{ backgroundColor: status.color }}
                               />
                               <div>
@@ -3158,8 +3351,8 @@ const SettingsPage = () => {
                             <p className="text-xs text-gray-500">Automatically assign new cases to available attorneys</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={caseSettingsData.defaultSettings.autoAssign}
                               onChange={(e) => setCaseSettingsData(prev => ({
                                 ...prev,
@@ -3168,7 +3361,7 @@ const SettingsPage = () => {
                                   autoAssign: e.target.checked
                                 }
                               }))}
-                              className="sr-only peer" 
+                              className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
@@ -3180,8 +3373,8 @@ const SettingsPage = () => {
                             <p className="text-xs text-gray-500">Send notifications when case status changes</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={caseSettingsData.defaultSettings.notifyOnStatusChange}
                               onChange={(e) => setCaseSettingsData(prev => ({
                                 ...prev,
@@ -3190,7 +3383,7 @@ const SettingsPage = () => {
                                   notifyOnStatusChange: e.target.checked
                                 }
                               }))}
-                              className="sr-only peer" 
+                              className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
@@ -3202,8 +3395,8 @@ const SettingsPage = () => {
                             <p className="text-xs text-gray-500">Require document upload for new cases</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={caseSettingsData.defaultSettings.requireDocumentUpload}
                               onChange={(e) => setCaseSettingsData(prev => ({
                                 ...prev,
@@ -3212,7 +3405,7 @@ const SettingsPage = () => {
                                   requireDocumentUpload: e.target.checked
                                 }
                               }))}
-                              className="sr-only peer" 
+                              className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                           </label>
@@ -3243,7 +3436,7 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="text-sm font-medium text-gray-900">Custom Fields</h3>
-                        <button 
+                        <button
                           className="btn btn-outline text-xs py-1"
                           onClick={() => setShowAddField(true)}
                         >
@@ -3460,8 +3653,8 @@ const SettingsPage = () => {
                       <label className="block text-sm font-medium text-gray-700">Field Type</label>
                       <select
                         value={newField.type}
-                        onChange={(e) => setNewField(prev => ({ 
-                          ...prev, 
+                        onChange={(e) => setNewField(prev => ({
+                          ...prev,
                           type: e.target.value as 'text' | 'number' | 'date' | 'select',
                           options: e.target.value === 'select' ? prev.options : []
                         }))}
@@ -3567,7 +3760,7 @@ const SettingsPage = () => {
                           className="form-input w-full"
                         />
                       </div>
-                      <button 
+                      <button
                         className="btn btn-primary flex items-center"
                         onClick={() => setShowAddTemplate(true)}
                       >
@@ -3808,7 +4001,7 @@ const SettingsPage = () => {
                           className="form-input w-full"
                         />
                       </div>
-                      <button 
+                      <button
                         className="btn btn-primary flex items-center"
                         onClick={() => setShowAddReport(true)}
                       >
@@ -4177,18 +4370,18 @@ const SettingsPage = () => {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">System Name</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             name="systemName"
                             value={systemData.systemName}
                             onChange={handleSystemChange}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             placeholder="Enter system name"
                           />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Time Zone</label>
-                          <select 
+                          <select
                             name="timeZone"
                             value={systemData.timeZone}
                             onChange={handleSystemChange}
@@ -4203,7 +4396,7 @@ const SettingsPage = () => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Date Format</label>
-                          <select 
+                          <select
                             name="dateFormat"
                             value={systemData.dateFormat}
                             onChange={handleSystemChange}
@@ -4233,7 +4426,7 @@ const SettingsPage = () => {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <button 
+                            <button
                               className="btn btn-outline flex items-center"
                               onClick={() => handleMaintenance('cache')}
                               disabled={loading}
@@ -4248,7 +4441,7 @@ const SettingsPage = () => {
                             )}
                           </div>
                           <div>
-                            <button 
+                            <button
                               className="btn btn-outline flex items-center"
                               onClick={() => handleMaintenance('database')}
                               disabled={loading}
@@ -4486,11 +4679,11 @@ const SettingsPage = () => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Notification Recipients</label>
-                          <textarea 
+                          <textarea
                             name="notifications.recipients"
                             value={systemData.notifications.recipients.join('\n')}
                             onChange={handleSystemChange}
-                            className="mt-1 form-textarea" 
+                            className="mt-1 form-textarea"
                             placeholder="Enter email addresses (one per line)"
                             rows={3}
                           />
@@ -4639,7 +4832,7 @@ const SettingsPage = () => {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Frequency</label>
-                          <select 
+                          <select
                             name="schedule.frequency"
                             value={backupSettingsData.schedule.frequency}
                             onChange={handleBackupSettingsChange}
@@ -4652,12 +4845,12 @@ const SettingsPage = () => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Time</label>
-                          <input 
-                            type="time" 
+                          <input
+                            type="time"
                             name="schedule.time"
                             value={backupSettingsData.schedule.time}
                             onChange={handleBackupSettingsChange}
-                            className="mt-1 form-input" 
+                            className="mt-1 form-input"
                           />
                         </div>
                         {backupSettingsData.schedule.frequency === 'weekly' && (
@@ -4682,14 +4875,14 @@ const SettingsPage = () => {
                         {backupSettingsData.schedule.frequency === 'monthly' && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Day of Month</label>
-                            <input 
-                              type="number" 
+                            <input
+                              type="number"
                               name="schedule.dayOfMonth"
                               value={backupSettingsData.schedule.dayOfMonth}
                               onChange={handleBackupSettingsChange}
                               min="1"
                               max="31"
-                              className="mt-1 form-input" 
+                              className="mt-1 form-input"
                             />
                           </div>
                         )}
@@ -4702,24 +4895,24 @@ const SettingsPage = () => {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Retention Period (days)</label>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             name="retention.days"
                             value={backupSettingsData.retention.days}
                             onChange={handleBackupSettingsChange}
                             min="1"
-                            className="mt-1 form-input" 
+                            className="mt-1 form-input"
                           />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Maximum Backups</label>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             name="retention.maxBackups"
                             value={backupSettingsData.retention.maxBackups}
                             onChange={handleBackupSettingsChange}
                             min="1"
-                            className="mt-1 form-input" 
+                            className="mt-1 form-input"
                           />
                         </div>
                         <div className="flex items-center">
@@ -4744,7 +4937,7 @@ const SettingsPage = () => {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Storage Location</label>
-                          <select 
+                          <select
                             name="storage.location"
                             value={backupSettingsData.storage.location}
                             onChange={handleBackupSettingsChange}
@@ -4758,12 +4951,12 @@ const SettingsPage = () => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Storage Path</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             name="storage.path"
                             value={backupSettingsData.storage.path}
                             onChange={handleBackupSettingsChange}
-                            className="mt-1 form-input" 
+                            className="mt-1 form-input"
                             placeholder="/backups"
                           />
                         </div>
@@ -4771,42 +4964,42 @@ const SettingsPage = () => {
                           <div className="space-y-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700">Access Key</label>
-                              <input 
-                                type="password" 
+                              <input
+                                type="password"
                                 name="storage.credentials.accessKey"
                                 value={backupSettingsData.storage.credentials?.accessKey}
                                 onChange={handleBackupSettingsChange}
-                                className="mt-1 form-input" 
+                                className="mt-1 form-input"
                               />
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700">Secret Key</label>
-                              <input 
-                                type="password" 
+                              <input
+                                type="password"
                                 name="storage.credentials.secretKey"
                                 value={backupSettingsData.storage.credentials?.secretKey}
                                 onChange={handleBackupSettingsChange}
-                                className="mt-1 form-input" 
+                                className="mt-1 form-input"
                               />
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700">Bucket</label>
-                              <input 
-                                type="text" 
+                              <input
+                                type="text"
                                 name="storage.credentials.bucket"
                                 value={backupSettingsData.storage.credentials?.bucket}
                                 onChange={handleBackupSettingsChange}
-                                className="mt-1 form-input" 
+                                className="mt-1 form-input"
                               />
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700">Region</label>
-                              <input 
-                                type="text" 
+                              <input
+                                type="text"
                                 name="storage.credentials.region"
                                 value={backupSettingsData.storage.credentials?.region}
                                 onChange={handleBackupSettingsChange}
-                                className="mt-1 form-input" 
+                                className="mt-1 form-input"
                               />
                             </div>
                           </div>
@@ -4835,7 +5028,7 @@ const SettingsPage = () => {
                           <>
                             <div>
                               <label className="block text-sm font-medium text-gray-700">Encryption Algorithm</label>
-                              <select 
+                              <select
                                 name="encryption.algorithm"
                                 value={backupSettingsData.encryption.algorithm}
                                 onChange={handleBackupSettingsChange}
@@ -4847,13 +5040,13 @@ const SettingsPage = () => {
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700">Key Rotation (days)</label>
-                              <input 
-                                type="number" 
+                              <input
+                                type="number"
                                 name="encryption.keyRotation"
                                 value={backupSettingsData.encryption.keyRotation}
                                 onChange={handleBackupSettingsChange}
                                 min="1"
-                                className="mt-1 form-input" 
+                                className="mt-1 form-input"
                               />
                             </div>
                           </>
@@ -4881,7 +5074,7 @@ const SettingsPage = () => {
                         {backupSettingsData.compression.enabled && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Compression Level</label>
-                            <select 
+                            <select
                               name="compression.level"
                               value={backupSettingsData.compression.level}
                               onChange={handleBackupSettingsChange}
@@ -4929,11 +5122,11 @@ const SettingsPage = () => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Notification Recipients</label>
-                          <textarea 
+                          <textarea
                             name="notifications.recipients"
                             value={backupSettingsData.notifications.recipients.join('\n')}
                             onChange={handleBackupSettingsChange}
-                            className="mt-1 form-textarea" 
+                            className="mt-1 form-textarea"
                             placeholder="Enter email addresses (one per line)"
                             rows={3}
                           />
@@ -4945,7 +5138,7 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-sm font-medium text-gray-900 mb-4">Manual Backup</h3>
                       <div className="space-y-4">
-                        <button 
+                        <button
                           className="btn btn-primary flex items-center"
                           onClick={handleCreateBackup}
                           disabled={loading}
@@ -5017,13 +5210,13 @@ const SettingsPage = () => {
                             <p className="text-xs text-gray-500">Created: {apiSettingsData.keys.production.createdAt}</p>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <button 
+                            <button
                               className="btn btn-outline text-xs py-1"
                               onClick={() => handleRegenerateApiKey('production')}
                             >
                               Regenerate
                             </button>
-                            <button 
+                            <button
                               className="btn btn-outline text-xs py-1"
                               onClick={() => navigator.clipboard.writeText(apiSettingsData.keys.production.key)}
                             >
@@ -5039,13 +5232,13 @@ const SettingsPage = () => {
                             <p className="text-xs text-gray-500">Created: {apiSettingsData.keys.development.createdAt}</p>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <button 
+                            <button
                               className="btn btn-outline text-xs py-1"
                               onClick={() => handleRegenerateApiKey('development')}
                             >
                               Regenerate
                             </button>
-                            <button 
+                            <button
                               className="btn btn-outline text-xs py-1"
                               onClick={() => navigator.clipboard.writeText(apiSettingsData.keys.development.key)}
                             >
@@ -5761,7 +5954,7 @@ const SettingsPage = () => {
           </div>
         </div>
       )}
-      
+
     </div>
   );
 };
