@@ -1,4 +1,4 @@
-import axios, { AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { APPCONSTANTS, AUTH_END_POINTS } from './constants';
 
 // Create an Axios instance
@@ -8,6 +8,11 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Extend the InternalAxiosRequestConfig type to include _retry
+interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
 
 // Function to check if token is expired
 const isTokenExpired = (token: string): boolean => {
@@ -19,29 +24,55 @@ const isTokenExpired = (token: string): boolean => {
     }).join(''));
 
     const { exp } = JSON.parse(jsonPayload);
-    return exp * 1000 < Date.now();
+    // Consider token expired if it's within 5 minutes of expiration
+    return (exp * 1000) - (5 * 60 * 1000) < Date.now();
   } catch (error) {
     console.error('Error checking token expiration:', error);
     return true; // If there's an error parsing the token, consider it expired
   }
 };
 
+// Function to refresh token
+const refreshToken = async (): Promise<string | null> => {
+  try {
+    const response = await api.post(AUTH_END_POINTS.REFRESH_TOKEN);
+    const newToken = response.data.token;
+    if (newToken) {
+      localStorage.setItem('token', newToken);
+      return newToken;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    return null;
+  }
+};
+
 // Intercept requests to attach token if needed
 api.interceptors.request.use(
-  (config: any): any => {
+  async (config: CustomAxiosRequestConfig): Promise<CustomAxiosRequestConfig> => {
     // Skip token for auth endpoints
     if (config.url && 
         !config.url.includes(AUTH_END_POINTS.REGISTER_SUPERADMIN) && 
-        !config.url.includes(AUTH_END_POINTS.LOGIN)) {
+        !config.url.includes(AUTH_END_POINTS.LOGIN) &&
+        !config.url.includes(AUTH_END_POINTS.REFRESH_TOKEN)) {
       const token = localStorage.getItem('token');
       if (token) {
-        // Check if token is expired
+        // Check if token is expired or about to expire
         if (isTokenExpired(token)) {
-          // Clear expired token
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          // Instead of window.location.href, we'll let the component handle navigation
-          return Promise.reject('Token expired');
+          // Try to refresh the token
+          const newToken = await refreshToken();
+          if (newToken) {
+            if (config.headers) {
+              config.headers.Authorization = `Bearer ${newToken}`;
+            }
+            return config;
+          } else {
+            // If refresh fails, clear tokens and reject
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            return Promise.reject('Token expired and refresh failed');
+          }
         }
         if (config.headers) {
           config.headers.Authorization = `Bearer ${token}`;
@@ -70,7 +101,7 @@ api.interceptors.response.use(
 
     return response;
   },
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
     if (error.response) {
       const status = error.response.status;
       const message = (error.response.data as any)?.message || error.response.data;
@@ -78,10 +109,27 @@ api.interceptors.response.use(
       // Handle specific error cases
       switch (status) {
         case 401:
-          // Unauthorized - token expired or invalid
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          // Instead of window.location.href, we'll let the component handle navigation
+          // Unauthorized - try to refresh token
+          const originalRequest = error.config as CustomAxiosRequestConfig;
+          if (originalRequest && !originalRequest._retry) {
+            originalRequest._retry = true;
+            try {
+              const newToken = await refreshToken();
+              if (newToken) {
+                // Retry the original request with new token
+                if (originalRequest.headers) {
+                  originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                }
+                return api(originalRequest);
+              }
+            } catch (refreshError) {
+              // If refresh fails, clear tokens and redirect to login
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              window.location.href = '/';
+              return Promise.reject(refreshError);
+            }
+          }
           break;
         case 403:
           // Forbidden - user doesn't have permission

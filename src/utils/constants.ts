@@ -9,10 +9,12 @@ export const AUTH_END_POINTS = {
     REGISTER_ATTORNEY: "/api/v1/auth/register/attorney",
     REGISTER_USER: "/api/v1/auth/register/user",
     LOGIN: "/api/v1/auth/login",
+    REFRESH_TOKEN: "/api/v1/auth/refresh-token",
     PROFILE_GET: "/api/v1/auth/profile",
     PROFILE_PUT: "/api/v1/auth/profile",
     USER_UPDATE: "/api/v1/auth/users/:id",
-    USER_DELETE: "/api/v1/auth/users/:id"
+    USER_DELETE: "/api/v1/auth/users/:id",
+    USER_GET_BY_ID: "/api/v1/auth/users/:id"
 };
 
 export const CASE_END_POINTS = {
@@ -136,6 +138,14 @@ export const SETTINGS_END_POINTS = {
     // Performance
     PERFORMANCE_GET: "/api/v1/settings/performance",
     PERFORMANCE_UPDATE: "/api/v1/settings/performance"
+};
+
+export const SUBSCRIPTION_END_POINTS = {
+    GET_PLANS: "/api/v1/subscriptions/plans",
+    GET_PLAN_BY_ID: "/api/v1/subscriptions/plans/:id",
+    SUBSCRIBE: "/api/v1/subscriptions/subscribe",
+    CANCEL: "/api/v1/subscriptions/cancel",
+    GET_COMPANY_SUBSCRIPTION: "/api/v1/subscriptions/company/:companyId"
 };
 
 

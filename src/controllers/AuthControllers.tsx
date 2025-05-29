@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../utils/api';
 import { AUTH_END_POINTS } from '../utils/constants';
 import { useAutoLogout } from '../hooks/useAutoLogout';
+import toast from 'react-hot-toast';
 
 // Define common response type
 interface ApiResponse<T> {
@@ -29,6 +30,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   token?: string;
+  companyId?: string;
 }
 
 // Registration Methods
@@ -101,8 +103,14 @@ export const registerAttorney = async (
       statusText: response.statusText
     };
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error registering attorney:', error);
+    if (error.response?.data?.error === 'user_limit_reached') {
+      toast.error('Please contact your company administrator to upgrade your plan');
+    } else if (error.response?.data?.error === 'attorney_limit_reached') {
+      const details = error.response?.data?.details;
+      toast.error(`Attorney limit reached. Current: ${details?.currentAttorneys}/${details?.attorneyLimit}. ${details?.action}`);
+    }
     throw error;
   }
 };
@@ -143,8 +151,11 @@ export const registerUser = async (
       status: response.status,
       statusText: response.statusText
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error registering user:', error);
+    if (error.response?.data?.error === 'user_limit_reached') {
+      toast.error('Please contact your company administrator to upgrade your plan');
+    }
     throw error;
   }
 };
@@ -266,6 +277,20 @@ export const deleteUser = async (userId: string): Promise<ApiResponse<void>> => 
   }
 };
 
+export const getUserById = async (userId: string): Promise<ApiResponse<User[]>> => {
+  try {
+    const response = await api.get(AUTH_END_POINTS.USER_GET_BY_ID.replace(':id', userId));
+    return {
+      data: Array.isArray(response.data.data) ? response.data.data : [response.data.data],
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error getting user by ID:', error);
+    throw error;
+  }
+};
+
 // Context and Provider
 interface AuthContextType {
   user: User | null;
@@ -278,6 +303,7 @@ interface AuthContextType {
   updateUserProfile: (email: string, password: string) => Promise<void>;
   updateUser: (userId: string, userData: Partial<User>) => Promise<void>;
   deleteUser: (userId: string) => Promise<void>;
+  getUserById: (userId: string) => Promise<void>;
   logout: () => void;
   isAttorney: boolean;
   isParalegal: boolean;
@@ -457,6 +483,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const handleGetUserById = async (userId: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const response = await getUserById(userId);
+      if (response.data) {
+        // Only update the user state if the fetched user is the current user
+        if (user?._id === userId) {
+          setUser(response.data[0]);
+          localStorage.setItem('user', JSON.stringify(response.data[0]));
+        }
+      }
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const isSuperAdmin = user?.role === 'superadmin';
   const isAttorney = user?.role === 'attorney';
   const isParalegal = user?.role === 'paralegal';
@@ -474,6 +518,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateUserProfile: handleUpdateUserProfile,
       updateUser: handleUpdateUser,
       deleteUser: handleDeleteUser,
+      getUserById: handleGetUserById,
       logout: handleLogout,
       isAttorney,
       isParalegal,
