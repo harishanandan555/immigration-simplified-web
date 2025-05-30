@@ -154,7 +154,16 @@ export const registerUser = async (
   } catch (error: any) {
     console.error('Error registering user:', error);
     if (error.response?.data?.error === 'user_limit_reached') {
-      toast.error('Please contact your company administrator to upgrade your plan');
+      const details = error.response?.data?.details;
+      toast.error(`User limit reached. Current: ${details?.currentUsers}/${details?.userLimit}. ${details?.action}`);
+    } else if (error.response?.data?.error === 'paralegal_limit_reached') {
+      const details = error.response?.data?.details;
+      toast.error(`Paralegal limit reached. Current: ${details?.currentParalegals}/${details?.paralegalLimit}. ${details?.action}`);
+    } else if (error.response?.data?.error === 'client_limit_reached') {
+      const details = error.response?.data?.details;
+      toast.error(`Client limit reached. Current: ${details?.currentClients}/${details?.clientLimit}. ${details?.action}`);
+    } else {
+      toast.error(error.response?.data?.message || 'Error registering user');
     }
     throw error;
   }
@@ -178,8 +187,12 @@ export const login = async (email: string, password: string): Promise<ApiRespons
       throw new Error('Invalid response format from server');
     }
 
+    // Ensure we have the complete user data including companyId
+    const userData = response.data.data || response.data;
+    console.log('Raw login response:', response.data); // Debug log
+
     return {
-      data: response.data,
+      data: userData,
       status: response.status,
       statusText: response.statusText
     };
@@ -246,6 +259,7 @@ export const logout = (): void => {
 
   localStorage.removeItem('user');
   localStorage.removeItem('token');
+  localStorage.removeItem('companyId');
 };
 
 // Update and Delete Methods
@@ -402,13 +416,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await login(email, password);
       if (response.data) {
+        console.log('Login response data:', response.data); // Debug log
         setUser(response.data);
         localStorage.setItem('user', JSON.stringify(response.data));
         if (response.data.token) {
           localStorage.setItem('token', response.data.token);
         }
+        // Store companyId for attorney, paralegal, or client
+        if ((response.data.role === 'attorney' || response.data.role === 'paralegal' || response.data.role === 'client')) {
+          const companyId = response.data.companyId;
+          console.log('Company ID from response:', companyId); // Debug log
+          if (companyId) {
+            localStorage.setItem('companyId', companyId);
+          } else {
+            console.warn('Company ID is undefined for user:', response.data.email);
+          }
+        }
       }
     } catch (error) {
+      console.error('Login error:', error);
       throw error;
     } finally {
       setIsLoading(false);

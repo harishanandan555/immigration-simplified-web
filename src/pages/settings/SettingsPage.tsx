@@ -727,6 +727,7 @@ const SettingsPage = () => {
   const [companySearchTerm, setCompanySearchTerm] = useState<string>('All Companies');
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const companyDropdownRef = useRef<HTMLDivElement>(null);
+  const [userCompany, setUserCompany] = useState<Company | null>(null);
 
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
@@ -800,6 +801,13 @@ const SettingsPage = () => {
             const companiesData = await getCompanies(user._id);
             if (companiesData?.data) {
               setCompanies(companiesData.data);
+              // Set userCompany if user has a companyId
+              if (user.companyId) {
+                const userCompanyData = companiesData.data.find((company: Company) => company._id === user.companyId);
+                if (userCompanyData) {
+                  setUserCompany(userCompanyData);
+                }
+              }
             }
             break;
           case 'cases':
@@ -1664,7 +1672,7 @@ const SettingsPage = () => {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { firstName, lastName, email, role, companyId, password, confirmPassword } = newUser;
+      const { firstName, lastName, email, role, password, confirmPassword } = newUser;
 
       // Validate required fields
       if (!firstName || !lastName || !email || !role) {
@@ -1673,7 +1681,7 @@ const SettingsPage = () => {
       }
 
       // For attorneys, use their company ID
-      const finalCompanyId = isAttorney ? user?.companyId : companyId;
+      const finalCompanyId = isAttorney ? user?.companyId : newUser.companyId;
       if (!finalCompanyId) {
         toast.error('Company ID is required');
         return;
@@ -2736,6 +2744,8 @@ const SettingsPage = () => {
             )}
 
             {/* User Management */}
+
+
             {activeTab === 'users' && (isSuperAdmin || isAttorney) && (
               <>
                 <div className="p-6">
@@ -2778,85 +2788,91 @@ const SettingsPage = () => {
                       </div>
                       <div className="bg-white p-4 rounded-lg shadow">
                         <p className="text-sm text-gray-500">Selected Company</p>
-                        <div className="relative" ref={companyDropdownRef}>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder="Search companies..."
-                              value={companySearchTerm}
-                              onChange={(e) => {
-                                setCompanySearchTerm(e.target.value);
-                                setShowCompanyDropdown(true);
-                              }}
-                              onFocus={() => setShowCompanyDropdown(true)}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                              {selectedCompanyId && (
-                                <button
+                        {isSuperAdmin ? (
+                          <div className="relative" ref={companyDropdownRef}>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                placeholder="Search companies..."
+                                value={companySearchTerm}
+                                onChange={(e) => {
+                                  setCompanySearchTerm(e.target.value);
+                                  setShowCompanyDropdown(true);
+                                }}
+                                onFocus={() => setShowCompanyDropdown(true)}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              />
+                              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                {selectedCompanyId && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedCompanyId('');
+                                      setCompanySearchTerm('All Companies');
+                                      setFilteredUsers(usersData.users);
+                                    }}
+                                    className="text-gray-400 hover:text-gray-600 mr-2"
+                                  >
+                                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                )}
+                                <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
+                              </div>
+                            </div>
+
+                            {showCompanyDropdown && (
+                              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
+                                <div
                                   onClick={() => {
                                     setSelectedCompanyId('');
                                     setCompanySearchTerm('All Companies');
                                     setFilteredUsers(usersData.users);
+                                    setShowCompanyDropdown(false);
                                   }}
-                                  className="text-gray-400 hover:text-gray-600 mr-2"
+                                  className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${!selectedCompanyId ? 'bg-blue-50' : ''}`}
                                 >
-                                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                </button>
-                              )}
-                              <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
-                            </div>
-                          </div>
-
-                          {showCompanyDropdown && (
-                            <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-                              <div
-                                onClick={() => {
-                                  setSelectedCompanyId('');
-                                  setCompanySearchTerm('All Companies');
-                                  setFilteredUsers(usersData.users);
-                                  setShowCompanyDropdown(false);
-                                }}
-                                className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${!selectedCompanyId ? 'bg-blue-50' : ''}`}
-                              >
-                                <div className="flex items-center">
-                                  <span className="ml-3 block truncate">All Companies</span>
+                                  <div className="flex items-center">
+                                    <span className="ml-3 block truncate">All Companies</span>
+                                  </div>
+                                  {!selectedCompanyId && (
+                                    <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    </span>
+                                  )}
                                 </div>
-                                {!selectedCompanyId && (
-                                  <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  </span>
+                                {filteredCompanies.length === 0 ? (
+                                  <div className="px-4 py-2 text-gray-500">No companies found</div>
+                                ) : (
+                                  filteredCompanies.map((company) => (
+                                    <div
+                                      key={company._id}
+                                      onClick={() => handleCompanySelect(company._id, company.name)}
+                                      className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${selectedCompanyId === company._id ? 'bg-blue-50' : ''}`}
+                                    >
+                                      <div className="flex items-center">
+                                        <span className="ml-3 block truncate">{company.name}</span>
+                                      </div>
+                                      {selectedCompanyId === company._id && (
+                                        <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                          <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                          </svg>
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))
                                 )}
                               </div>
-                              {filteredCompanies.length === 0 ? (
-                                <div className="px-4 py-2 text-gray-500">No companies found</div>
-                              ) : (
-                                filteredCompanies.map((company) => (
-                                  <div
-                                    key={company._id}
-                                    onClick={() => handleCompanySelect(company._id, company.name)}
-                                    className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${selectedCompanyId === company._id ? 'bg-blue-50' : ''}`}
-                                  >
-                                    <div className="flex items-center">
-                                      <span className="ml-3 block truncate">{company.name}</span>
-                                    </div>
-                                    {selectedCompanyId === company._id && (
-                                      <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                      </span>
-                                    )}
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100 p-2">
+                            {userCompany?.name || 'Your Company'}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -2881,9 +2897,12 @@ const SettingsPage = () => {
                                 user.email.toLowerCase().includes(userSearchQuery.toLowerCase());
 
                               // Then apply role filter for superadmin
-                              const matchesRole = isSuperAdmin ? user.role === 'attorney' : true;
+                              const matchesRole = isSuperAdmin ? true : user.role !== 'superadmin' && user.role !== 'attorney';
 
-                              return matchesSearch && matchesRole;
+                              // Apply company filter for attorneys
+                              const matchesCompany = isSuperAdmin ? true : user.companyId === userCompany?._id;
+
+                              return matchesSearch && matchesRole && matchesCompany;
                             })
                             .map((user) => (
                               <tr key={user._id}>
@@ -2902,11 +2921,11 @@ const SettingsPage = () => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                    ${user.role === 'superadmin' ? 'bg-purple-100 text-purple-800' : ''}
-                                    ${user.role === 'attorney' ? 'bg-blue-100 text-blue-800' : ''}
-                                    ${user.role === 'paralegal' ? 'bg-green-100 text-green-800' : ''}
-                                    ${user.role === 'client' ? 'bg-gray-100 text-gray-800' : ''}
-                                  `}>
+                        ${user.role === 'superadmin' ? 'bg-purple-100 text-purple-800' : ''}
+                        ${user.role === 'attorney' ? 'bg-blue-100 text-blue-800' : ''}
+                        ${user.role === 'paralegal' ? 'bg-green-100 text-green-800' : ''}
+                        ${user.role === 'client' ? 'bg-gray-100 text-gray-800' : ''}
+                      `}>
                                     {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                                   </span>
                                 </td>
@@ -2949,13 +2968,9 @@ const SettingsPage = () => {
                 {showAddUser && (
                   <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full">
-
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
-
                       <form onSubmit={handleAddUser}>
-
                         <div className="space-y-4">
-
                           <div>
                             <label className="block text-sm font-medium text-gray-700">First Name</label>
                             <input
@@ -2992,85 +3007,99 @@ const SettingsPage = () => {
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Company</label>
-                            <div className="relative" ref={companyDropdownRef}>
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  placeholder="Search companies..."
-                                  value={companySearchTerm}
-                                  onChange={(e) => {
-                                    setCompanySearchTerm(e.target.value);
-                                    setShowCompanyDropdown(true);
-                                  }}
-                                  onFocus={() => setShowCompanyDropdown(true)}
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                />
-                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                  {selectedCompanyId && (
-                                    <button
+                          {isSuperAdmin ? (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Company</label>
+                              <div className="relative" ref={companyDropdownRef}>
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    placeholder="Search companies..."
+                                    value={companySearchTerm}
+                                    onChange={(e) => {
+                                      setCompanySearchTerm(e.target.value);
+                                      setShowCompanyDropdown(true);
+                                    }}
+                                    onFocus={() => setShowCompanyDropdown(true)}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  />
+                                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                    {selectedCompanyId && (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedCompanyId('');
+                                          setCompanySearchTerm('All Companies');
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 mr-2"
+                                      >
+                                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        </svg>
+                                      </button>
+                                    )}
+                                    <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
+                                  </div>
+                                </div>
+
+                                {showCompanyDropdown && (
+                                  <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
+                                    <div
                                       onClick={() => {
                                         setSelectedCompanyId('');
                                         setCompanySearchTerm('All Companies');
-                                        setFilteredUsers(usersData.users);
+                                        setShowCompanyDropdown(false);
                                       }}
-                                      className="text-gray-400 hover:text-gray-600 mr-2"
+                                      className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${!selectedCompanyId ? 'bg-blue-50' : ''}`}
                                     >
-                                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                      </svg>
-                                    </button>
-                                  )}
-                                  <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
-                                </div>
-                              </div>
-
-                              {showCompanyDropdown && (
-                                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-                                  <div
-                                    onClick={() => {
-                                      setSelectedCompanyId('');
-                                      setCompanySearchTerm('All Companies');
-                                      setFilteredUsers(usersData.users);
-                                      setShowCompanyDropdown(false);
-                                    }}
-                                    className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${!selectedCompanyId ? 'bg-blue-50' : ''}`}
-                                  >
-                                    {!selectedCompanyId && (
-                                      <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                      </span>
+                                      <div className="flex items-center">
+                                        <span className="ml-3 block truncate">All Companies</span>
+                                      </div>
+                                      {!selectedCompanyId && (
+                                        <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                          <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                          </svg>
+                                        </span>
+                                      )}
+                                    </div>
+                                    {filteredCompanies.length === 0 ? (
+                                      <div className="px-4 py-2 text-gray-500">No companies found</div>
+                                    ) : (
+                                      filteredCompanies.map((company) => (
+                                        <div
+                                          key={company._id}
+                                          onClick={() => {
+                                            handleCompanySelect(company._id, company.name);
+                                            setShowCompanyDropdown(false);
+                                          }}
+                                          className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${selectedCompanyId === company._id ? 'bg-blue-50' : ''}`}
+                                        >
+                                          <div className="flex items-center">
+                                            <span className="ml-3 block truncate">{company.name}</span>
+                                          </div>
+                                          {selectedCompanyId === company._id && (
+                                            <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                              </svg>
+                                            </span>
+                                          )}
+                                        </div>
+                                      ))
                                     )}
                                   </div>
-                                  {filteredCompanies.length === 0 ? (
-                                    <div className="px-4 py-2 text-gray-500">No companies found</div>
-                                  ) : (
-                                    filteredCompanies.map((company) => (
-                                      <div
-                                        key={company._id}
-                                        onClick={() => handleCompanySelect(company._id, company.name)}
-                                        className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${selectedCompanyId === company._id ? 'bg-blue-50' : ''}`}
-                                      >
-                                        <div className="flex items-center">
-                                          <span className="ml-3 block truncate">{company.name}</span>
-                                        </div>
-                                        {selectedCompanyId === company._id && (
-                                          <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
-                                          </span>
-                                        )}
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Company</label>
+                              <div className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100 p-2">
+                                {userCompany?.name || 'Your Company'}
+                              </div>
+                              <input type="hidden" name="companyId" value={userCompany?._id || ''} />
+                            </div>
+                          )}
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Role</label>
@@ -3134,7 +3163,6 @@ const SettingsPage = () => {
                               Add User
                             </button>
                           </div>
-
                         </div>
                       </form>
                     </div>
@@ -3187,9 +3215,18 @@ const SettingsPage = () => {
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 required
                               >
-                                <option value="client">Client</option>
-                                <option value="attorney">Attorney</option>
-                                <option value="paralegal">Paralegal</option>
+                                {isSuperAdmin ? (
+                                  <>
+                                    <option value="attorney">Attorney</option>
+                                    <option value="paralegal">Paralegal</option>
+                                    <option value="client">Client</option>
+                                  </>
+                                ) : (
+                                  <>
+                                    <option value="paralegal">Paralegal</option>
+                                    <option value="client">Client</option>
+                                  </>
+                                )}
                               </select>
                             </div>
                             <div>
