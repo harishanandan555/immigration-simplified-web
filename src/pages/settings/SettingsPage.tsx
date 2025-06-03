@@ -65,10 +65,16 @@ import {
   getApiSettings,
   updateApiSettings,
   getPerformanceSettings,
-  updatePerformanceSettings
+  updatePerformanceSettings,
+  deleteReportSettings,
+  vacuumDatabase,
+  analyzeDatabase,
+  exportDatabaseSchema
 } from '../../controllers/SettingsControllers';
-import { getCompanies, getCompanyUsers, Company } from '../../controllers/CompanyControllers';
+import { getAllCompaniesList, getCompanyUsers, getCompanyById, Company } from '../../controllers/CompanyControllers';
 // import { getSubscriptionPlans, getSubscriptionPlanById, subscribeToPlan, cancelSubscription, getCompanySubscription } from '../../controllers/BillingControllers';
+
+import CompanySelect from '../../components/CompanySelect';
 
 interface User {
   _id: string;
@@ -391,6 +397,53 @@ interface AuditLogsData {
   };
 }
 
+interface ReportSchedule {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+  time: string;
+}
+
+interface ReportContent {
+  caseStatusSummary: boolean;
+  financialSummary: boolean;
+  staffPerformance: boolean;
+}
+
+interface ReportParameters {
+  dateRange: { start: string; end: string };
+  caseStatus: string[];
+  caseType: string[];
+  assignedTo: string[];
+  priority: string[];
+  customFields: string[];
+}
+
+interface ReportExportOptions {
+  includeCharts: boolean;
+  includeTables: boolean;
+  includeSummary: boolean;
+  includeDetails: boolean;
+  includeAttachments: boolean;
+}
+
+interface Report {
+  _id?: string;
+  name: string;
+  category: string;
+  description: string;
+  schedule: ReportSchedule;
+  content: ReportContent;
+  recipients: string[];
+  format: 'PDF' | 'Excel' | 'CSV' | 'HTML';
+  parameters: ReportParameters;
+  filters: ReportParameters;
+  exportOptions: ReportExportOptions;
+  deliveryMethod: 'email' | 'download' | 'both';
+  emailTemplate: 'default' | 'custom';
+  fileNameFormat: string;
+  compression: boolean;
+  passwordProtection: boolean;
+}
+
 const SettingsPage = () => {
 
   const { isAttorney, isSuperAdmin, user } = useAuth();
@@ -520,7 +573,6 @@ const SettingsPage = () => {
     activeUsers: 0
   });
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
-  const [filteredUsers, setFilteredUsers] = useState<DisplayUserData[]>([]);
   const [caseSettingsData, setCaseSettingsData] = useState<CaseSettingsData>({
     categories: [],
     statuses: [],
@@ -533,7 +585,56 @@ const SettingsPage = () => {
     customFields: []
   });
   const [formTemplatesData, setFormTemplatesData] = useState<any>({});
-  const [reportSettingsData, setReportSettingsData] = useState<any>({});
+  const [newReport, setNewReport] = useState<Report>({
+    name: '',
+    category: 'Case Reports',
+    description: '',
+    schedule: {
+      frequency: 'weekly',
+      time: '09:00'
+    },
+    content: {
+      caseStatusSummary: false,
+      financialSummary: false,
+      staffPerformance: false
+    },
+    recipients: [],
+    format: 'PDF',
+    parameters: {
+      dateRange: {
+        start: '',
+        end: ''
+      },
+      caseStatus: [],
+      caseType: [],
+      assignedTo: [],
+      priority: [],
+      customFields: []
+    },
+    filters: {
+      dateRange: {
+        start: '',
+        end: ''
+      },
+      caseStatus: [],
+      caseType: [],
+      assignedTo: [],
+      priority: [],
+      customFields: []
+    },
+    exportOptions: {
+      includeCharts: true,
+      includeTables: true,
+      includeSummary: true,
+      includeDetails: false,
+      includeAttachments: false
+    },
+    deliveryMethod: 'email',
+    emailTemplate: 'default',
+    fileNameFormat: '{report_name}_{date}',
+    compression: false,
+    passwordProtection: false
+  });
   const [rolesData, setRolesData] = useState<any>({});
   const [databaseSettingsData, setDatabaseSettingsData] = useState<DatabaseSettingsData>({
     connection: {
@@ -727,9 +828,15 @@ const SettingsPage = () => {
   const [companySearchTerm, setCompanySearchTerm] = useState<string>('All Companies');
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const companyDropdownRef = useRef<HTMLDivElement>(null);
+  const [userCompany, setUserCompany] = useState<Company | null>(null);
 
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+  const [reports, setReports] = useState<Report[]>([]);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [reportToDelete, setReportToDelete] = useState<Report | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -781,6 +888,12 @@ const SettingsPage = () => {
               setBillingData(data.data.value);
             }
             break;
+          case 'system':
+            data = await getSystemSettings(user._id);
+            if (data?.data) {
+              setSystemData(data.data.value);
+            }
+            break;
           case 'users':
             data = await getUserById(user._id);
             if (data?.data) {
@@ -789,17 +902,44 @@ const SettingsPage = () => {
                 name: `${user.firstName} ${user.lastName}`,
                 status: user.active ? 'active' : 'inactive'
               }));
-              setUsersData({
-                users,
-                totalUsers: users.length,
-                activeUsers: users.filter((u: DisplayUserData) => u.active).length
-              });
-              setFilteredUsers(users);
+
+              // For superadmin, show all users by default
+              if (isSuperAdmin) {
+                setUsersData({
+                  users,
+                  totalUsers: users.length,
+                  activeUsers: users.filter((u: DisplayUserData) => u.active).length
+                });
+              } else {
+                // For other roles, only show users from their company
+                const companyUsers = users.filter((u: DisplayUserData) => u.companyId === user.companyId);
+                setUsersData({
+                  users: companyUsers,
+                  totalUsers: companyUsers.length,
+                  activeUsers: companyUsers.filter((u: DisplayUserData) => u.active).length
+                });
+              }
             }
             // Load companies for the dropdown
-            const companiesData = await getCompanies(user._id);
+            const companiesData = await getAllCompaniesList(user._id);
             if (companiesData?.data) {
               setCompanies(companiesData.data);
+              // Set userCompany if user has a companyId
+              if (user.companyId) {
+                try {
+                  const companyResponse = await getCompanyById(user.companyId);
+                  if (companyResponse?.data) {
+                    setUserCompany(companyResponse.data);
+                  }
+                } catch (error) {
+                  console.error('Error fetching company details:', error);
+                  // Fallback to finding company in the companies list if getCompanyById fails
+                  const userCompanyData = companiesData.data.find((company: Company) => company._id === user.companyId);
+                  if (userCompanyData) {
+                    setUserCompany(userCompanyData);
+                  }
+                }
+              }
             }
             break;
           case 'cases':
@@ -815,9 +955,15 @@ const SettingsPage = () => {
             }
             break;
           case 'reports':
-            data = await getReportSettings(user._id);
-            if (data?.data) {
-              setReportSettingsData(data.data.value);
+            const reportData: { data: { value: Report | Report[], id: string } } = await getReportSettings(user._id);
+            if (reportData?.data?.value) {
+              // Ensure we're setting an array and include the ID
+              const reportsData = Array.isArray(reportData.data.value) 
+                ? reportData.data.value.map((report: Report) => ({ ...report, _id: reportData.data.id }))
+                : [{ ...reportData.data.value, _id: reportData.data.id }];
+              setReports(reportsData);
+            } else {
+              setReports([]); // Set empty array if no data
             }
             break;
           case 'roles':
@@ -1223,7 +1369,6 @@ const SettingsPage = () => {
                   totalUsers: users.length,
                   activeUsers: users.filter((u: DisplayUserData) => u.active).length
                 });
-                setFilteredUsers(users);
               }
               break;
             case 'cases':
@@ -1240,8 +1385,57 @@ const SettingsPage = () => {
               break;
             case 'reports':
               data = await getReportSettings(user._id);
-              if (data?.data) {
-                setReportSettingsData(data.data.value);
+              if (data?.data.value) {
+                setNewReport({
+                  name: '',
+                  category: 'Case Reports',
+                  description: '',
+                  schedule: {
+                    frequency: 'weekly',
+                    time: '09:00'
+                  },
+                  content: {
+                    caseStatusSummary: false,
+                    financialSummary: false,
+                    staffPerformance: false
+                  },
+                  recipients: [],
+                  format: 'PDF',
+                  parameters: {
+                    dateRange: {
+                      start: '',
+                      end: ''
+                    },
+                    caseStatus: [],
+                    caseType: [],
+                    assignedTo: [],
+                    priority: [],
+                    customFields: []
+                  },
+                  filters: {
+                    dateRange: {
+                      start: '',
+                      end: ''
+                    },
+                    caseStatus: [],
+                    caseType: [],
+                    assignedTo: [],
+                    priority: [],
+                    customFields: []
+                  },
+                  exportOptions: {
+                    includeCharts: true,
+                    includeTables: true,
+                    includeSummary: true,
+                    includeDetails: false,
+                    includeAttachments: false
+                  },
+                  deliveryMethod: 'email',
+                  emailTemplate: 'default',
+                  fileNameFormat: '{report_name}_{date}',
+                  compression: false,
+                  passwordProtection: false
+                });
               }
               break;
             case 'roles':
@@ -1336,7 +1530,7 @@ const SettingsPage = () => {
           await updateFormTemplates(user._id, formTemplatesData);
           break;
         case 'reports':
-          await updateReportSettings(user._id, reportSettingsData);
+          await updateReportSettings(user._id, newReport);
           break;
         case 'roles':
           await updateRoles(user._id, rolesData);
@@ -1623,15 +1817,15 @@ const SettingsPage = () => {
     try {
       switch (operation) {
         case 'vacuum':
-          await api.post(`${SETTINGS_END_POINTS.DATABASE_MAINTENANCE}/vacuum`, { userId: user._id });
+          await vacuumDatabase(user._id);
           toast.success('Database vacuum completed successfully');
           break;
         case 'analyze':
-          await api.post(`${SETTINGS_END_POINTS.DATABASE_MAINTENANCE}/analyze`, { userId: user._id });
+          await analyzeDatabase(user._id);
           toast.success('Table analysis completed successfully');
           break;
         case 'export':
-          const response = await api.post(`${SETTINGS_END_POINTS.DATABASE_MAINTENANCE}/export`, { userId: user._id });
+          const response = await exportDatabaseSchema(user._id);
           // Create a download link for the schema file
           const blob = new Blob([response.data], { type: 'application/sql' });
           const url = window.URL.createObjectURL(blob);
@@ -1642,12 +1836,12 @@ const SettingsPage = () => {
           a.click();
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
-          toast.success('Schema exported successfully');
+          toast.success('Database schema exported successfully');
           break;
       }
     } catch (error) {
-      console.error(`Error performing database ${operation}:`, error);
-      toast.error(`Failed to perform database ${operation}`);
+      console.error(`Error during database ${operation}:`, error);
+      toast.error(`Failed to ${operation} database`);
     } finally {
       setLoading(false);
     }
@@ -1664,7 +1858,7 @@ const SettingsPage = () => {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { firstName, lastName, email, role, companyId, password, confirmPassword } = newUser;
+      const { firstName, lastName, email, role, password, confirmPassword } = newUser;
 
       // Validate required fields
       if (!firstName || !lastName || !email || !role) {
@@ -1673,7 +1867,7 @@ const SettingsPage = () => {
       }
 
       // For attorneys, use their company ID
-      const finalCompanyId = isAttorney ? user?.companyId : companyId;
+      const finalCompanyId = isAttorney ? user?.companyId : newUser.companyId;
       if (!finalCompanyId) {
         toast.error('Company ID is required');
         return;
@@ -1772,6 +1966,7 @@ const SettingsPage = () => {
 
   // Add this function after the other handlers
   const handleCompanySelect = async (companyId: string, companyName: string) => {
+    setIsLoadingUsers(true);
     setSelectedCompanyId(companyId);
     setCompanySearchTerm(companyName);
     setShowCompanyDropdown(false);
@@ -1789,7 +1984,6 @@ const SettingsPage = () => {
             name: `${user.firstName} ${user.lastName}`,
             status: user.active ? 'active' : 'inactive'
           }));
-          setFilteredUsers(users);
           setUsersData(prev => ({
             ...prev,
             totalUsers: users.length,
@@ -1805,7 +1999,6 @@ const SettingsPage = () => {
             name: `${user.firstName} ${user.lastName}`,
             status: user.active ? 'active' : 'inactive'
           }));
-          setFilteredUsers(users);
           setUsersData({
             users,
             totalUsers: users.length,
@@ -1816,7 +2009,15 @@ const SettingsPage = () => {
     } catch (error) {
       console.error('Error fetching company users:', error);
       toast.error('Failed to fetch company users');
+    } finally {
+      setIsLoadingUsers(false);
     }
+  };
+
+  // Add a clear filter function
+  const clearCompanyFilter = () => {
+    setSelectedCompanyId('');
+    setCompanySearchTerm('All Companies');
   };
 
   const handleEditUser = (user: UserData) => {
@@ -1847,7 +2048,6 @@ const SettingsPage = () => {
           ...prev,
           users: updatedUsers
         }));
-        setFilteredUsers(updatedUsers);
         setEditingUser(null);
         toast.success('User updated successfully');
       }
@@ -1860,26 +2060,34 @@ const SettingsPage = () => {
   };
 
   const handleConfirmDelete = async () => {
-    if (!userToDelete) return;
+    if (!userToDelete && !reportToDelete) return;
 
     try {
       setLoading(true);
-      await deleteUser(userToDelete);
-      // Remove the deleted user from the lists
-      const updatedUsers = usersData.users.filter(user => user._id !== userToDelete);
-      setUsersData(prev => ({
-        ...prev,
-        users: updatedUsers,
-        totalUsers: prev.totalUsers - 1,
-        activeUsers: updatedUsers.filter(u => u.active).length
-      }));
-      setFilteredUsers(updatedUsers);
-      setShowDeleteConfirmation(false);
-      setUserToDelete(null);
-      toast.success('User deleted successfully');
+      if (userToDelete) {
+        await deleteUser(userToDelete);
+        // Remove the deleted user from the lists
+        const updatedUsers = usersData.users.filter(user => user._id !== userToDelete);
+        setUsersData(prev => ({
+          ...prev,
+          users: updatedUsers,
+          totalUsers: prev.totalUsers - 1,
+          activeUsers: updatedUsers.filter(u => u.active).length
+        }));
+        setShowDeleteConfirmation(false);
+        setUserToDelete(null);
+        toast.success('User deleted successfully');
+      } else if (reportToDelete && user?._id) {
+        await deleteReportSettings(user._id, reportToDelete._id!);
+        // Remove the deleted report from the list
+        setReports(reports.filter(report => report._id !== reportToDelete._id));
+        setShowDeleteConfirmation(false);
+        setReportToDelete(null);
+        toast.success('Report deleted successfully');
+      }
     } catch (error) {
-      console.error('Error deleting user:', error);
-      toast.error('Failed to delete user');
+      console.error('Error deleting:', error);
+      toast.error('Failed to delete');
     } finally {
       setLoading(false);
     }
@@ -2176,17 +2384,675 @@ const SettingsPage = () => {
       </div>
 
       {/* Save Button */}
-      <div className="flex justify-end">
+      <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
         <button
           type="button"
+          className="btn btn-primary flex items-center"
           onClick={handleSave}
           disabled={loading}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
+          <Save size={18} className="mr-2" />
           {loading ? 'Saving...' : 'Save Database Settings'}
         </button>
       </div>
+
     </div>
+  );
+
+  const handleNewUserCompanySelect = (companyId: string) => {
+    setNewUser(prev => ({
+      ...prev,
+      companyId
+    }));
+  };
+
+  // Utility to check for plain object
+  const isPlainObject = (obj: any): obj is object => obj !== null && typeof obj === 'object' && !Array.isArray(obj);
+
+  const handleReportChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    const isCheckbox = type === 'checkbox';
+    const isSelectMultiple = (el: any): el is HTMLSelectElement => el && el.multiple;
+
+    // Helper to get array of selected values for multi-select
+    const getSelectedValues = (options: HTMLCollectionOf<HTMLOptionElement>) =>
+      Array.from(options)
+        .filter(option => option.selected)
+        .map(option => option.value);
+
+    if (name.includes('.')) {
+      const [parent, child, grandchild] = name.split('.');
+      if (grandchild) {
+        // For deeply nested fields like parameters.dateRange.start
+        setNewReport(prev => {
+          const parentValue = prev[parent as keyof Report];
+          const parentObj = isPlainObject(parentValue) ? parentValue : {};
+          const childValue = (parentObj as any)[child];
+          const childObj = isPlainObject(childValue) ? childValue : {};
+          return {
+            ...prev,
+            [parent]: {
+              ...parentObj,
+              [child]: {
+                ...childObj,
+                [grandchild]: isCheckbox ? (e.target as HTMLInputElement).checked : value
+              }
+            }
+          };
+        });
+      } else {
+        setNewReport(prev => {
+          const parentValue = prev[parent as keyof Report];
+          const parentObj = isPlainObject(parentValue) ? parentValue : {};
+          return {
+            ...prev,
+            [parent]: {
+              ...parentObj,
+              [child]: isSelectMultiple(e.target) ? getSelectedValues((e.target as HTMLSelectElement).options) : (isCheckbox ? (e.target as HTMLInputElement).checked : value)
+            }
+          };
+        });
+      }
+    } else {
+      setNewReport(prev => ({
+        ...prev,
+        [name]: isSelectMultiple(e.target) ? getSelectedValues((e.target as HTMLSelectElement).options) : (isCheckbox ? (e.target as HTMLInputElement).checked : value)
+      }));
+    }
+  };
+
+  const handleEditReport = (report: Report) => {
+    setEditingReport(report);
+    setNewReport(report);
+    setShowAddReport(true);
+  };
+
+  const handleDeleteReport = async (report: Report) => {
+    setReportToDelete(report);
+    setShowDeleteConfirmation(true);
+  };
+
+  // Update handleReportSubmit to handle both create and edit
+  const handleReportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (!user?._id) {
+        throw new Error('User ID is required');
+      }
+
+      const response = await updateReportSettings(user._id, {
+        action: editingReport ? 'update' : 'create',
+        report: newReport
+      });
+
+      if (response.status === 200) {
+        if (editingReport) {
+          setReports(reports.map(r => r._id === editingReport._id ? newReport : r));
+        } else {
+          setReports([...reports, newReport]);
+        }
+
+        setNewReport({
+          name: '',
+          category: 'Case Reports',
+          description: '',
+          schedule: {
+            frequency: 'weekly',
+            time: '09:00'
+          },
+          content: {
+            caseStatusSummary: false,
+            financialSummary: false,
+            staffPerformance: false
+          },
+          recipients: [],
+          format: 'PDF',
+          parameters: {
+            dateRange: {
+              start: '',
+              end: ''
+            },
+            caseStatus: [],
+            caseType: [],
+            assignedTo: [],
+            priority: [],
+            customFields: []
+          },
+          filters: {
+            dateRange: {
+              start: '',
+              end: ''
+            },
+            caseStatus: [],
+            caseType: [],
+            assignedTo: [],
+            priority: [],
+            customFields: []
+          },
+          exportOptions: {
+            includeCharts: true,
+            includeTables: true,
+            includeSummary: true,
+            includeDetails: false,
+            includeAttachments: false
+          },
+          deliveryMethod: 'email',
+          emailTemplate: 'default',
+          fileNameFormat: '{report_name}_{date}',
+          compression: false,
+          passwordProtection: false
+        });
+        setEditingReport(null);
+        setShowAddReport(false);
+      }
+    } catch (error) {
+      console.error('Error updating report settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderReportSettingsForm = () => (
+    <form onSubmit={handleReportSubmit} className="space-y-6">
+
+      {/* Basic Information */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Basic Information</h3>
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700">Report Name</label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            value={newReport.name}
+            onChange={handleReportChange}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700">Category</label>
+          <select
+            id="category"
+            name="category"
+            value={newReport.category}
+            onChange={handleReportChange}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="Case Reports">Case Reports</option>
+            <option value="Financial Reports">Financial Reports</option>
+            <option value="Performance Reports">Performance Reports</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description</label>
+          <textarea
+            id="description"
+            name="description"
+            value={newReport.description}
+            onChange={handleReportChange}
+            rows={3}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Schedule */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Schedule</h3>
+        <div>
+          <label htmlFor="schedule.frequency" className="block text-sm font-medium text-gray-700">Frequency</label>
+          <select
+            id="schedule.frequency"
+            name="schedule.frequency"
+            value={newReport.schedule.frequency}
+            onChange={handleReportChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="schedule.time" className="block text-sm font-medium text-gray-700">Time</label>
+          <input
+            type="time"
+            id="schedule.time"
+            name="schedule.time"
+            value={newReport.schedule.time}
+            onChange={handleReportChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Content</h3>
+        <div className="space-y-2">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="content.caseStatusSummary"
+              name="content.caseStatusSummary"
+              checked={newReport.content.caseStatusSummary}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="content.caseStatusSummary" className="ml-2 block text-sm text-gray-700">Case Status Summary</label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="content.financialSummary"
+              name="content.financialSummary"
+              checked={newReport.content.financialSummary}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="content.financialSummary" className="ml-2 block text-sm text-gray-700">Financial Summary</label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="content.staffPerformance"
+              name="content.staffPerformance"
+              checked={newReport.content.staffPerformance}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="content.staffPerformance" className="ml-2 block text-sm text-gray-700">Staff Performance</label>
+          </div>
+        </div>
+      </div>
+
+      {/* Recipients */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Recipients</h3>
+        <div>
+          <label htmlFor="recipients" className="block text-sm font-medium text-gray-700">Email Addresses</label>
+          <input
+            type="text"
+            id="recipients"
+            name="recipients"
+            value={newReport.recipients.join(', ')}
+            onChange={(e) => {
+              const emails = e.target.value.split(',').map(email => email.trim()).filter(email => email);
+              setNewReport(prev => ({
+                ...prev,
+                recipients: emails
+              }));
+            }}
+            placeholder="Enter email addresses separated by commas"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Format and Delivery */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Format and Delivery</h3>
+        <div>
+          <label htmlFor="format" className="block text-sm font-medium text-gray-700">Format</label>
+          <select
+            id="format"
+            name="format"
+            value={newReport.format}
+            onChange={handleReportChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="PDF">PDF</option>
+            <option value="Excel">Excel</option>
+            <option value="CSV">CSV</option>
+            <option value="HTML">HTML</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="deliveryMethod" className="block text-sm font-medium text-gray-700">Delivery Method</label>
+          <select
+            id="deliveryMethod"
+            name="deliveryMethod"
+            value={newReport.deliveryMethod}
+            onChange={handleReportChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="email">Email</option>
+            <option value="download">Download</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="emailTemplate" className="block text-sm font-medium text-gray-700">Email Template</label>
+          <select
+            id="emailTemplate"
+            name="emailTemplate"
+            value={newReport.emailTemplate}
+            onChange={handleReportChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="default">Default Template</option>
+            <option value="custom">Custom Template</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Parameters */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Parameters</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Date Range</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                name="parameters.dateRange.start"
+                value={newReport.parameters.dateRange.start}
+                onChange={handleReportChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+              <input
+                type="date"
+                name="parameters.dateRange.end"
+                value={newReport.parameters.dateRange.end}
+                onChange={handleReportChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Case Status</label>
+            <select
+              multiple
+              name="parameters.caseStatus"
+              value={newReport.parameters.caseStatus}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="closed">Closed</option>
+              <option value="on-hold">On Hold</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Case Type</label>
+            <select
+              multiple
+              name="parameters.caseType"
+              value={newReport.parameters.caseType}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              <option value="immigration">Immigration</option>
+              <option value="family">Family</option>
+              <option value="criminal">Criminal</option>
+              <option value="civil">Civil</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Assigned To</label>
+            <select
+              multiple
+              name="parameters.assignedTo"
+              value={newReport.parameters.assignedTo}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              {/* Add your staff list here */}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Priority</label>
+            <select
+              multiple
+              name="parameters.priority"
+              value={newReport.parameters.priority}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Custom Fields</label>
+            <select
+              multiple
+              name="parameters.customFields"
+              value={newReport.parameters.customFields}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              {/* Add your custom fields here */}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Filters</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Date Range</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                name="filters.dateRange.start"
+                value={newReport.filters.dateRange.start}
+                onChange={handleReportChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+              <input
+                type="date"
+                name="filters.dateRange.end"
+                value={newReport.filters.dateRange.end}
+                onChange={handleReportChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Case Status</label>
+            <select
+              multiple
+              name="filters.caseStatus"
+              value={newReport.filters.caseStatus}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="closed">Closed</option>
+              <option value="on-hold">On Hold</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Case Type</label>
+            <select
+              multiple
+              name="filters.caseType"
+              value={newReport.filters.caseType}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              <option value="immigration">Immigration</option>
+              <option value="family">Family</option>
+              <option value="criminal">Criminal</option>
+              <option value="civil">Civil</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Assigned To</label>
+            <select
+              multiple
+              name="filters.assignedTo"
+              value={newReport.filters.assignedTo}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              {/* Add your staff list here */}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Priority</label>
+            <select
+              multiple
+              name="filters.priority"
+              value={newReport.filters.priority}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Custom Fields</label>
+            <select
+              multiple
+              name="filters.customFields"
+              value={newReport.filters.customFields}
+              onChange={handleReportChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              {/* Add your custom fields here */}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Export Options */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Export Options</h3>
+        <div className="space-y-2">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="exportOptions.includeCharts"
+              name="exportOptions.includeCharts"
+              checked={newReport.exportOptions.includeCharts}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="exportOptions.includeCharts" className="ml-2 block text-sm text-gray-700">Include Charts</label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="exportOptions.includeTables"
+              name="exportOptions.includeTables"
+              checked={newReport.exportOptions.includeTables}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="exportOptions.includeTables" className="ml-2 block text-sm text-gray-700">Include Tables</label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="exportOptions.includeSummary"
+              name="exportOptions.includeSummary"
+              checked={newReport.exportOptions.includeSummary}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="exportOptions.includeSummary" className="ml-2 block text-sm text-gray-700">Include Summary</label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="exportOptions.includeDetails"
+              name="exportOptions.includeDetails"
+              checked={newReport.exportOptions.includeDetails}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="exportOptions.includeDetails" className="ml-2 block text-sm text-gray-700">Include Details</label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="exportOptions.includeAttachments"
+              name="exportOptions.includeAttachments"
+              checked={newReport.exportOptions.includeAttachments}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="exportOptions.includeAttachments" className="ml-2 block text-sm text-gray-700">Include Attachments</label>
+          </div>
+        </div>
+      </div>
+
+      {/* File Settings */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">File Settings</h3>
+        <div>
+          <label htmlFor="fileNameFormat" className="block text-sm font-medium text-gray-700">File Name Format</label>
+          <input
+            type="text"
+            id="fileNameFormat"
+            name="fileNameFormat"
+            value={newReport.fileNameFormat}
+            onChange={handleReportChange}
+            placeholder="e.g., {report_name}_{date}"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            required
+          />
+          <p className="mt-1 text-sm text-gray-500">Use {'{date}'} for current date, {'{name}'} for report name</p>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="compression"
+              name="compression"
+              checked={newReport.compression}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="compression" className="ml-2 block text-sm text-gray-700">Enable Compression</label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="passwordProtection"
+              name="passwordProtection"
+              checked={newReport.passwordProtection}
+              onChange={handleReportChange}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="passwordProtection" className="ml-2 block text-sm text-gray-700">Enable Password Protection</label>
+          </div>
+        </div>
+      </div>
+
+      {/* Submit Button */}
+      <div className="mt-5 flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={() => setShowAddReport(false)}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading}
+        >
+          {loading ? 'Saving...' : editingReport ? 'Update Report' : 'Create Report'}
+        </button>
+      </div>
+
+    </form>
   );
 
   return (
@@ -2741,6 +3607,7 @@ const SettingsPage = () => {
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">User Management</h2>
                   <div className="space-y-6">
+
                     {/* Search and Add User */}
                     <div className="flex justify-between items-center">
                       <div className="flex-1 max-w-sm">
@@ -2752,9 +3619,67 @@ const SettingsPage = () => {
                           className="form-input w-full"
                         />
                       </div>
+                      {isSuperAdmin && (
+                        <div className="relative ml-4">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              className="btn btn-outline flex items-center min-w-[200px] justify-between"
+                              onClick={() => setShowCompanyDropdown(!showCompanyDropdown)}
+                            >
+                              <span className="truncate">{companySearchTerm}</span>
+                              <ChevronRight className="ml-2 h-4 w-4" />
+                            </button>
+                            {selectedCompanyId && (
+                              <button
+                                onClick={clearCompanyFilter}
+                                className="btn btn-outline text-red-600 hover:text-red-700"
+                                title="Clear filter"
+                              >
+                                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          {showCompanyDropdown && (
+                            <div
+                              ref={companyDropdownRef}
+                              className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
+                            >
+                              <div className="p-2">
+                                <input
+                                  type="text"
+                                  placeholder="Search companies..."
+                                  value={companySearchTerm === 'All Companies' ? '' : companySearchTerm}
+                                  onChange={(e) => setCompanySearchTerm(e.target.value)}
+                                  className="form-input w-full mb-2"
+                                />
+                                <div className="max-h-60 overflow-y-auto">
+                                  <button
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    onClick={() => handleCompanySelect('', 'All Companies')}
+                                  >
+                                    All Companies
+                                  </button>
+                                  {filteredCompanies.map((company) => (
+                                    <button
+                                      key={company._id}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                      onClick={() => handleCompanySelect(company._id, company.name)}
+                                    >
+                                      {company.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {(isSuperAdmin || isAttorney) && (
                         <button
-                          className="btn btn-primary"
+                          className="btn btn-primary ml-4"
                           onClick={() => setShowAddUser(true)}
                         >
                           Add User
@@ -2766,98 +3691,54 @@ const SettingsPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="bg-white p-4 rounded-lg shadow">
                         <p className="text-sm text-gray-500">Total Users</p>
-                        <p className="text-2xl font-semibold">{usersData.totalUsers}</p>
+                        <p className="text-2xl font-semibold">
+                          {isLoadingUsers ? (
+                            <span className="animate-pulse">Loading...</span>
+                          ) : (
+                            userCompany?.users ?
+                              (userCompany.users.attorneys?.length || 0) +
+                              (userCompany.users.paralegals?.length || 0) +
+                              (userCompany.users.clients?.length || 0)
+                              : usersData.totalUsers
+                          )}
+                        </p>
                       </div>
                       <div className="bg-white p-4 rounded-lg shadow">
                         <p className="text-sm text-gray-500">Active Users</p>
-                        <p className="text-2xl font-semibold">{usersData.activeUsers}</p>
+                        <p className="text-2xl font-semibold">
+                          {isLoadingUsers ? (
+                            <span className="animate-pulse">Loading...</span>
+                          ) : (
+                            userCompany?.users ?
+                              (userCompany.users.attorneys?.length || 0) +
+                              (userCompany.users.paralegals?.length || 0) +
+                              (userCompany.users.clients?.length || 0)
+                              : usersData.activeUsers
+                          )}
+                        </p>
                       </div>
                       <div className="bg-white p-4 rounded-lg shadow">
                         <p className="text-sm text-gray-500">Inactive Users</p>
-                        <p className="text-2xl font-semibold">{usersData.totalUsers - usersData.activeUsers}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg shadow">
-                        <p className="text-sm text-gray-500">Selected Company</p>
-                        <div className="relative" ref={companyDropdownRef}>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder="Search companies..."
-                              value={companySearchTerm}
-                              onChange={(e) => {
-                                setCompanySearchTerm(e.target.value);
-                                setShowCompanyDropdown(true);
-                              }}
-                              onFocus={() => setShowCompanyDropdown(true)}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                              {selectedCompanyId && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedCompanyId('');
-                                    setCompanySearchTerm('All Companies');
-                                    setFilteredUsers(usersData.users);
-                                  }}
-                                  className="text-gray-400 hover:text-gray-600 mr-2"
-                                >
-                                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                </button>
-                              )}
-                              <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
-                            </div>
-                          </div>
-
-                          {showCompanyDropdown && (
-                            <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-                              <div
-                                onClick={() => {
-                                  setSelectedCompanyId('');
-                                  setCompanySearchTerm('All Companies');
-                                  setFilteredUsers(usersData.users);
-                                  setShowCompanyDropdown(false);
-                                }}
-                                className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${!selectedCompanyId ? 'bg-blue-50' : ''}`}
-                              >
-                                <div className="flex items-center">
-                                  <span className="ml-3 block truncate">All Companies</span>
-                                </div>
-                                {!selectedCompanyId && (
-                                  <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  </span>
-                                )}
-                              </div>
-                              {filteredCompanies.length === 0 ? (
-                                <div className="px-4 py-2 text-gray-500">No companies found</div>
-                              ) : (
-                                filteredCompanies.map((company) => (
-                                  <div
-                                    key={company._id}
-                                    onClick={() => handleCompanySelect(company._id, company.name)}
-                                    className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${selectedCompanyId === company._id ? 'bg-blue-50' : ''}`}
-                                  >
-                                    <div className="flex items-center">
-                                      <span className="ml-3 block truncate">{company.name}</span>
-                                    </div>
-                                    {selectedCompanyId === company._id && (
-                                      <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                      </span>
-                                    )}
-                                  </div>
-                                ))
-                              )}
-                            </div>
+                        <p className="text-2xl font-semibold">
+                          {isLoadingUsers ? (
+                            <span className="animate-pulse">Loading...</span>
+                          ) : (
+                            userCompany?.users ? 0 : usersData.totalUsers - usersData.activeUsers
                           )}
-                        </div>
+                        </p>
                       </div>
+                      {!isSuperAdmin && (
+                        <div className="bg-white p-4 rounded-lg shadow">
+                          <p className="text-sm text-gray-500">User Limit</p>
+                          <p className="text-2xl font-semibold">
+                            {isLoadingUsers ? (
+                              <span className="animate-pulse">Loading...</span>
+                            ) : (
+                              userCompany?.userLimit || 'N/A'
+                            )}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Users List */}
@@ -2865,80 +3746,81 @@ const SettingsPage = () => {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {filteredUsers
-                            .filter(user => {
-                              // First apply the search filter
-                              const matchesSearch =
-                                user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-                                user.email.toLowerCase().includes(userSearchQuery.toLowerCase());
-
-                              // Then apply role filter for superadmin
-                              const matchesRole = isSuperAdmin ? user.role === 'attorney' : true;
-
-                              return matchesSearch && matchesRole;
-                            })
-                            .map((user) => (
-                              <tr key={user._id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="flex items-center">
-                                    <div className="flex-shrink-0 h-10 w-10">
-                                      <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                        <User className="h-6 w-6 text-gray-400" />
+                          {isLoadingUsers ? (
+                            <tr>
+                              <td colSpan={5} className="px-6 py-4 text-center">
+                                <div className="flex justify-center items-center space-x-2">
+                                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                                  <span>Loading users...</span>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            usersData.users
+                              .filter(user => !isSuperAdmin || user.role === 'attorney')
+                              .map((user) => (
+                                <tr key={user._id}>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="flex items-center">
+                                      <div className="flex-shrink-0 h-10 w-10">
+                                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                          <User className="h-6 w-6 text-gray-400" />
+                                        </div>
+                                      </div>
+                                      <div className="ml-4">
+                                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                        <div className="text-sm text-gray-500">{user.email}</div>
                                       </div>
                                     </div>
-                                    <div className="ml-4">
-                                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                                      <div className="text-sm text-gray-500">{user.email}</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                    ${user.role === 'superadmin' ? 'bg-purple-100 text-purple-800' : ''}
-                                    ${user.role === 'attorney' ? 'bg-blue-100 text-blue-800' : ''}
-                                    ${user.role === 'paralegal' ? 'bg-green-100 text-green-800' : ''}
-                                    ${user.role === 'client' ? 'bg-gray-100 text-gray-800' : ''}
-                                  `}>
-                                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                    }`}>
-                                    {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                  {(isSuperAdmin || (isAttorney && user.role !== 'superadmin' && user.role !== 'attorney')) && (
-                                    <div className="flex justify-end space-x-2">
-                                      <button
-                                        onClick={() => handleEditUser(user)}
-                                        className="text-blue-600 hover:text-blue-900 mr-4"
-                                      >
-                                        <Edit className="h-5 w-5" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteUser(user._id)}
-                                        className="text-red-600 hover:text-red-900"
-                                      >
-                                        <Trash2 className="h-5 w-5" />
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                          ${user.role === 'superadmin' ? 'bg-purple-100 text-purple-800' : ''}
+                          ${user.role === 'attorney' ? 'bg-blue-100 text-blue-800' : ''}
+                          ${user.role === 'paralegal' ? 'bg-green-100 text-green-800' : ''}
+                          ${user.role === 'client' ? 'bg-gray-100 text-gray-800' : ''}
+                        `}>
+                                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                      }`}>
+                                      {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    {(isSuperAdmin || (isAttorney && user.role !== 'superadmin' && user.role !== 'attorney')) && (
+                                      <div className="flex justify-end space-x-2">
+                                        <button
+                                          onClick={() => handleEditUser(user)}
+                                          className="text-blue-600 hover:text-blue-900 mr-4"
+                                        >
+                                          <Edit className="h-5 w-5" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteUser(user._id)}
+                                          className="text-red-600 hover:text-red-900"
+                                        >
+                                          <Trash2 className="h-5 w-5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -2949,13 +3831,9 @@ const SettingsPage = () => {
                 {showAddUser && (
                   <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full">
-
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
-
                       <form onSubmit={handleAddUser}>
-
                         <div className="space-y-4">
-
                           <div>
                             <label className="block text-sm font-medium text-gray-700">First Name</label>
                             <input
@@ -2992,85 +3870,22 @@ const SettingsPage = () => {
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Company</label>
-                            <div className="relative" ref={companyDropdownRef}>
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  placeholder="Search companies..."
-                                  value={companySearchTerm}
-                                  onChange={(e) => {
-                                    setCompanySearchTerm(e.target.value);
-                                    setShowCompanyDropdown(true);
-                                  }}
-                                  onFocus={() => setShowCompanyDropdown(true)}
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                />
-                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                  {selectedCompanyId && (
-                                    <button
-                                      onClick={() => {
-                                        setSelectedCompanyId('');
-                                        setCompanySearchTerm('All Companies');
-                                        setFilteredUsers(usersData.users);
-                                      }}
-                                      className="text-gray-400 hover:text-gray-600 mr-2"
-                                    >
-                                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                      </svg>
-                                    </button>
-                                  )}
-                                  <ChevronRight className="h-5 w-5 text-gray-400 transform rotate-90" />
-                                </div>
+                          {isSuperAdmin ? (
+                            <CompanySelect
+                              onCompanySelect={handleNewUserCompanySelect}
+                              selectedCompanyId={newUser.companyId}
+                              className="mb-4"
+                              userId={user?._id || ''}
+                            />
+                          ) : (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Company</label>
+                              <div className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100 p-2">
+                                {userCompany?.name || 'Your Company'}
                               </div>
-
-                              {showCompanyDropdown && (
-                                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-                                  <div
-                                    onClick={() => {
-                                      setSelectedCompanyId('');
-                                      setCompanySearchTerm('All Companies');
-                                      setFilteredUsers(usersData.users);
-                                      setShowCompanyDropdown(false);
-                                    }}
-                                    className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${!selectedCompanyId ? 'bg-blue-50' : ''}`}
-                                  >
-                                    {!selectedCompanyId && (
-                                      <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                      </span>
-                                    )}
-                                  </div>
-                                  {filteredCompanies.length === 0 ? (
-                                    <div className="px-4 py-2 text-gray-500">No companies found</div>
-                                  ) : (
-                                    filteredCompanies.map((company) => (
-                                      <div
-                                        key={company._id}
-                                        onClick={() => handleCompanySelect(company._id, company.name)}
-                                        className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 ${selectedCompanyId === company._id ? 'bg-blue-50' : ''}`}
-                                      >
-                                        <div className="flex items-center">
-                                          <span className="ml-3 block truncate">{company.name}</span>
-                                        </div>
-                                        {selectedCompanyId === company._id && (
-                                          <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
-                                          </span>
-                                        )}
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                              )}
+                              <input type="hidden" name="companyId" value={userCompany?._id || ''} />
                             </div>
-                          </div>
+                          )}
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Role</label>
@@ -3134,7 +3949,6 @@ const SettingsPage = () => {
                               Add User
                             </button>
                           </div>
-
                         </div>
                       </form>
                     </div>
@@ -3187,9 +4001,18 @@ const SettingsPage = () => {
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 required
                               >
-                                <option value="client">Client</option>
-                                <option value="attorney">Attorney</option>
-                                <option value="paralegal">Paralegal</option>
+                                {isSuperAdmin ? (
+                                  <>
+                                    <option value="attorney">Attorney</option>
+                                    <option value="paralegal">Paralegal</option>
+                                    <option value="client">Client</option>
+                                  </>
+                                ) : (
+                                  <>
+                                    <option value="paralegal">Paralegal</option>
+                                    <option value="client">Client</option>
+                                  </>
+                                )}
                               </select>
                             </div>
                             <div>
@@ -3825,7 +4648,7 @@ const SettingsPage = () => {
                               <div className="flex justify-end space-x-2">
                                 <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
                                 <button className="text-gray-600 hover:text-gray-900">Preview</button>
-                                <button className="text-red-600 hover:text-red-900">Delete</button>
+                                <button className="text-red-600 hover:text-red-900" onClick={() => handleDeleteReport(reports[0])}>Delete</button>
                               </div>
                             </td>
                           </tr>
@@ -3856,7 +4679,7 @@ const SettingsPage = () => {
                               <div className="flex justify-end space-x-2">
                                 <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
                                 <button className="text-gray-600 hover:text-gray-900">Preview</button>
-                                <button className="text-red-600 hover:text-red-900">Delete</button>
+                                <button className="text-red-600 hover:text-red-900" onClick={() => handleDeleteReport(reports[1])}>Delete</button>
                               </div>
                             </td>
                           </tr>
@@ -3869,7 +4692,7 @@ const SettingsPage = () => {
                 {/* Add Template Modal */}
                 {showAddTemplate && (
                   <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
+                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Template</h3>
                       <form onSubmit={(e) => {
                         e.preventDefault();
@@ -4027,78 +4850,46 @@ const SettingsPage = () => {
                     </div>
 
                     {/* Reports List */}
-                    <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recipients</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          <tr>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <BarChart className="h-5 w-5 text-gray-400 mr-2" />
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">Weekly Case Summary</div>
-                                  <div className="text-sm text-gray-500">Overview of all active cases</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                Case Reports
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              Every Monday at 9:00 AM
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              5 recipients
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <div className="flex justify-end space-x-2">
-                                <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                                <button className="text-gray-600 hover:text-gray-900">Preview</button>
-                                <button className="text-red-600 hover:text-red-900">Delete</button>
-                              </div>
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <BarChart className="h-5 w-5 text-gray-400 mr-2" />
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">Monthly Financial Report</div>
-                                  <div className="text-sm text-gray-500">Revenue and billing summary</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                Financial Reports
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              First day of each month
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              3 recipients
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <div className="flex justify-end space-x-2">
-                                <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                                <button className="text-gray-600 hover:text-gray-900">Preview</button>
-                                <button className="text-red-600 hover:text-red-900">Delete</button>
-                              </div>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                    <div className="mt-6">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Format</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {Array.isArray(reports) && reports.map((report, index) => (
+                              <tr key={report._id || index}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{report.name}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.category}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {report.schedule.frequency} at {report.schedule.time}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.format}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  <button
+                                    onClick={() => handleEditReport(report)}
+                                    className="text-indigo-600 hover:text-indigo-900 mr-4"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteReport(report)}
+                                    className="text-red-600 hover:text-red-900"
+                                  >
+                                    Delete
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4109,178 +4900,7 @@ const SettingsPage = () => {
                     {/* <div className="bg-white rounded-lg p-6 max-w-2xl w-full"></div> */}
                     <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Report</h3>
-                      <form onSubmit={(e) => {
-                        e.preventDefault();
-                        // Handle form submission
-                        setShowAddReport(false);
-                      }}>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Report Name</label>
-                            <input
-                              type="text"
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              placeholder="e.g., Weekly Case Summary"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Category</label>
-                            <select
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              required
-                            >
-                              <option value="">Select a category</option>
-                              <option value="case">Case Reports</option>
-                              <option value="financial">Financial Reports</option>
-                              <option value="performance">Performance Reports</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Description</label>
-                            <textarea
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              rows={3}
-                              placeholder="Enter report description"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Schedule</label>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <select
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                  required
-                                >
-                                  <option value="daily">Daily</option>
-                                  <option value="weekly">Weekly</option>
-                                  <option value="monthly">Monthly</option>
-                                  <option value="quarterly">Quarterly</option>
-                                </select>
-                              </div>
-                              <div>
-                                <input
-                                  type="time"
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                  required
-                                />
-                              </div>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Report Content</label>
-                            <div className="mt-2 space-y-2">
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  Case Status Summary
-                                </label>
-                              </div>
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  Financial Summary
-                                </label>
-                              </div>
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  Staff Performance
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Recipients</label>
-                            <div className="mt-2 space-y-2">
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  All Attorneys
-                                </label>
-                              </div>
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  All Paralegals
-                                </label>
-                              </div>
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  Management Team
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Export Format</label>
-                            <div className="mt-2 space-y-2">
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  PDF
-                                </label>
-                              </div>
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  Excel
-                                </label>
-                              </div>
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  CSV
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-6 flex justify-end space-x-3">
-                          <button
-                            type="button"
-                            className="btn btn-outline"
-                            onClick={() => setShowAddReport(false)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            className="btn btn-primary"
-                          >
-                            Create Report
-                          </button>
-                        </div>
-                      </form>
+                      {renderReportSettingsForm()}
                     </div>
                   </div>
                 )}
@@ -5924,32 +6544,32 @@ const SettingsPage = () => {
       </div>
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirmation && userToDelete && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Delete</h3>
-              <p className="text-gray-500">
-                Are you sure you want to delete {usersData.users.find(u => u._id === userToDelete)?.name}? This action cannot be undone.
-              </p>
-              <div className="mt-5 flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirmation(false);
-                    setUserToDelete(null);
-                  }}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                  disabled={loading}
-                >
-                  {loading ? 'Deleting...' : 'Delete'}
-                </button>
-              </div>
+      {showDeleteConfirmation && reportToDelete && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Delete Report</h3>
+            <p className="text-gray-500 mb-6">
+              Are you sure you want to delete the report "{reportToDelete.name}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirmation(false);
+                  setReportToDelete(null);
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
+              >
+                {loading ? 'Deleting...' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>
