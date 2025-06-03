@@ -8,6 +8,10 @@ interface ApiResponse<T> {
   statusText: string;
 }
 
+
+
+
+
 // Set to false to skip the method
 const IS_PROFILE_ENABLED = true;
 const IS_ORGANIZATION_ENABLED = true;
@@ -18,9 +22,9 @@ const IS_INTEGRATIONS_ENABLED = true;
 const IS_BILLING_ENABLED = false;
 const IS_CASE_SETTINGS_ENABLED = true;
 const IS_FORM_TEMPLATES_ENABLED = false;
-const IS_REPORT_SETTINGS_ENABLED = false;
+const IS_REPORT_SETTINGS_ENABLED = true;
 const IS_ROLES_ENABLED = false;
-const IS_DATABASE_ENABLED = false;
+const IS_DATABASE_ENABLED = true;
 const IS_SYSTEM_ENABLED = false;
 const IS_AUDIT_LOGS_ENABLED = false;
 const IS_BACKUP_ENABLED = false;
@@ -39,7 +43,7 @@ export const getProfile = async (userId: string): Promise<ApiResponse<any>> => {
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.PROFILE_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.PROFILE_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -53,7 +57,7 @@ export const getProfile = async (userId: string): Promise<ApiResponse<any>> => {
 
 export const updateProfile = async (userId: string, profileData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.PROFILE_UPDATE}/${userId}`, profileData);
+    const response = await api.put(`${SETTINGS_END_POINTS.PROFILE_UPDATE}`.replace(':userId', userId), profileData);
     return {
       data: response.data.data,
       status: response.status,
@@ -77,7 +81,7 @@ export const getOrganization = async (userId: string): Promise<ApiResponse<any>>
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.ORGANIZATION_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.ORGANIZATION_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -91,7 +95,7 @@ export const getOrganization = async (userId: string): Promise<ApiResponse<any>>
 
 export const updateOrganization = async (userId: string, orgData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.ORGANIZATION_UPDATE}/${userId}`, orgData);
+    const response = await api.put(`${SETTINGS_END_POINTS.ORGANIZATION_UPDATE}`.replace(':userId', userId), orgData);
     return {
       data: response.data.data,
       status: response.status,
@@ -115,7 +119,7 @@ export const getNotifications = async (userId: string): Promise<ApiResponse<any>
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.NOTIFICATIONS_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.NOTIFICATIONS_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -129,7 +133,7 @@ export const getNotifications = async (userId: string): Promise<ApiResponse<any>
 
 export const updateNotifications = async (userId: string, notificationData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.NOTIFICATIONS_UPDATE}/${userId}`, notificationData);
+    const response = await api.put(`${SETTINGS_END_POINTS.NOTIFICATIONS_UPDATE}`.replace(':userId', userId), notificationData);
     return {
       data: response.data.data,
       status: response.status,
@@ -153,7 +157,7 @@ export const getSecurity = async (userId: string): Promise<ApiResponse<any>> => 
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.SECURITY_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.SECURITY_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -167,7 +171,7 @@ export const getSecurity = async (userId: string): Promise<ApiResponse<any>> => 
 
 export const updateSecurity = async (userId: string, securityData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.SECURITY_UPDATE}/${userId}`, securityData);
+    const response = await api.put(`${SETTINGS_END_POINTS.SECURITY_UPDATE}`.replace(':userId', userId), securityData);
     return {
       data: response.data.data,
       status: response.status,
@@ -181,7 +185,7 @@ export const updateSecurity = async (userId: string, securityData: any): Promise
 
 export const signOutAllDevices = async (userId: string): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.post(`${SETTINGS_END_POINTS.SECURITY_SIGNOUT_ALL}/${userId}`);
+    const response = await api.post(`${SETTINGS_END_POINTS.SECURITY_SIGNOUT_ALL}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -205,7 +209,7 @@ export const getEmailSettings = async (userId: string): Promise<ApiResponse<any>
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.EMAIL_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.EMAIL_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -219,7 +223,7 @@ export const getEmailSettings = async (userId: string): Promise<ApiResponse<any>
 
 export const updateEmailSettings = async (userId: string, emailData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.EMAIL_UPDATE}/${userId}`, emailData);
+    const response = await api.put(`${SETTINGS_END_POINTS.EMAIL_UPDATE}`.replace(':userId', userId), emailData);
     return {
       data: response.data.data,
       status: response.status,
@@ -243,7 +247,7 @@ export const getIntegrations = async (userId: string): Promise<ApiResponse<any>>
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.INTEGRATIONS_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.INTEGRATIONS_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -257,7 +261,7 @@ export const getIntegrations = async (userId: string): Promise<ApiResponse<any>>
 
 export const updateIntegrations = async (userId: string, integrationData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.INTEGRATIONS_UPDATE}/${userId}`, integrationData);
+    const response = await api.put(`${SETTINGS_END_POINTS.INTEGRATIONS_UPDATE}`.replace(':userId', userId), integrationData);
     return {
       data: response.data.data,
       status: response.status,
@@ -281,7 +285,7 @@ export const getBilling = async (userId: string): Promise<ApiResponse<any>> => {
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.BILLING_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.BILLING_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -293,10 +297,9 @@ export const getBilling = async (userId: string): Promise<ApiResponse<any>> => {
   }
 };
 
-
 export const updateBilling = async (userId: string, billingData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.BILLING_UPDATE}/${userId}`, billingData);
+    const response = await api.put(`${SETTINGS_END_POINTS.BILLING_UPDATE}`.replace(':userId', userId), billingData);
     return {
       data: response.data.data,
       status: response.status,
@@ -310,7 +313,7 @@ export const updateBilling = async (userId: string, billingData: any): Promise<A
 
 export const updateUsers = async (userId: string, usersData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.USERS_UPDATE}/${userId}`, usersData);
+    const response = await api.put(`${SETTINGS_END_POINTS.USERS_UPDATE}`.replace(':userId', userId), usersData);
     return {
       data: response.data.data,
       status: response.status,
@@ -334,7 +337,7 @@ export const getCaseSettings = async (userId: string): Promise<ApiResponse<any>>
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.CASE_SETTINGS_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.CASE_SETTINGS_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -348,7 +351,7 @@ export const getCaseSettings = async (userId: string): Promise<ApiResponse<any>>
 
 export const updateCaseSettings = async (userId: string, caseSettingsData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.CASE_SETTINGS_UPDATE}/${userId}`, caseSettingsData);
+    const response = await api.put(`${SETTINGS_END_POINTS.CASE_SETTINGS_UPDATE}`.replace(':userId', userId), caseSettingsData);
     return {
       data: response.data.data,
       status: response.status,
@@ -372,7 +375,7 @@ export const getFormTemplates = async (userId: string): Promise<ApiResponse<any>
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.FORM_TEMPLATES_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.FORM_TEMPLATES_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -386,7 +389,7 @@ export const getFormTemplates = async (userId: string): Promise<ApiResponse<any>
 
 export const updateFormTemplates = async (userId: string, formTemplatesData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.FORM_TEMPLATES_UPDATE}/${userId}`, formTemplatesData);
+    const response = await api.put(`${SETTINGS_END_POINTS.FORM_TEMPLATES_UPDATE}`.replace(':userId', userId), formTemplatesData);
     return {
       data: response.data.data,
       status: response.status,
@@ -410,7 +413,7 @@ export const getReportSettings = async (userId: string): Promise<ApiResponse<any
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.REPORT_SETTINGS_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.REPORT_SETTINGS_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -424,7 +427,7 @@ export const getReportSettings = async (userId: string): Promise<ApiResponse<any
 
 export const updateReportSettings = async (userId: string, reportSettingsData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.REPORT_SETTINGS_UPDATE}/${userId}`, reportSettingsData);
+    const response = await api.put(`${SETTINGS_END_POINTS.REPORT_SETTINGS_UPDATE}`.replace(':userId', userId), reportSettingsData);
     return {
       data: response.data.data,
       status: response.status,
@@ -432,6 +435,22 @@ export const updateReportSettings = async (userId: string, reportSettingsData: a
     };
   } catch (error) {
     console.error('Error updating report settings:', error);
+    throw error;
+  }
+};
+
+export const deleteReportSettings = async (userId: string, reportId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.delete(`${SETTINGS_END_POINTS.REPORT_SETTINGS_DELETE}`
+      .replace(':userId', userId)
+      .replace(':reportId', reportId));
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error deleting report settings:', error);
     throw error;
   }
 };
@@ -448,7 +467,7 @@ export const getRoles = async (userId: string): Promise<ApiResponse<any>> => {
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.ROLES_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.ROLES_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -462,7 +481,7 @@ export const getRoles = async (userId: string): Promise<ApiResponse<any>> => {
 
 export const updateRoles = async (userId: string, rolesData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.ROLES_UPDATE}/${userId}`, rolesData);
+    const response = await api.put(`${SETTINGS_END_POINTS.ROLES_UPDATE}`.replace(':userId', userId), rolesData);
     return {
       data: response.data.data,
       status: response.status,
@@ -486,7 +505,7 @@ export const getDatabaseSettings = async (userId: string): Promise<ApiResponse<a
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.DATABASE_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.DATABASE_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -500,7 +519,7 @@ export const getDatabaseSettings = async (userId: string): Promise<ApiResponse<a
 
 export const updateDatabaseSettings = async (userId: string, databaseData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.DATABASE_UPDATE}/${userId}`, databaseData);
+    const response = await api.put(`${SETTINGS_END_POINTS.DATABASE_UPDATE}`.replace(':userId', userId), databaseData);
     return {
       data: response.data.data,
       status: response.status,
@@ -524,7 +543,7 @@ export const getSystemSettings = async (userId: string): Promise<ApiResponse<any
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.SYSTEM_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.SYSTEM_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -538,7 +557,7 @@ export const getSystemSettings = async (userId: string): Promise<ApiResponse<any
 
 export const updateSystemSettings = async (userId: string, systemData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.SYSTEM_UPDATE}/${userId}`, systemData);
+    const response = await api.put(`${SETTINGS_END_POINTS.SYSTEM_UPDATE}`.replace(':userId', userId), systemData);
     return {
       data: response.data.data,
       status: response.status,
@@ -562,7 +581,7 @@ export const getAuditLogs = async (userId: string): Promise<ApiResponse<any>> =>
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.AUDIT_LOGS_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.AUDIT_LOGS_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -586,7 +605,7 @@ export const getBackupSettings = async (userId: string): Promise<ApiResponse<any
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.BACKUP_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.BACKUP_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -600,7 +619,7 @@ export const getBackupSettings = async (userId: string): Promise<ApiResponse<any
 
 export const updateBackupSettings = async (userId: string, backupData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.BACKUP_UPDATE}/${userId}`, backupData);
+    const response = await api.put(`${SETTINGS_END_POINTS.BACKUP_UPDATE}`.replace(':userId', userId), backupData);
     return {
       data: response.data.data,
       status: response.status,
@@ -624,7 +643,7 @@ export const getApiSettings = async (userId: string): Promise<ApiResponse<any>> 
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.API_SETTINGS_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.API_SETTINGS_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -638,7 +657,7 @@ export const getApiSettings = async (userId: string): Promise<ApiResponse<any>> 
 
 export const updateApiSettings = async (userId: string, apiSettingsData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.API_SETTINGS_UPDATE}/${userId}`, apiSettingsData);
+    const response = await api.put(`${SETTINGS_END_POINTS.API_SETTINGS_UPDATE}`.replace(':userId', userId), apiSettingsData);
     return {
       data: response.data.data,
       status: response.status,
@@ -662,7 +681,7 @@ export const getPerformanceSettings = async (userId: string): Promise<ApiRespons
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.PERFORMANCE_GET}/${userId}`);
+    const response = await api.get(`${SETTINGS_END_POINTS.PERFORMANCE_GET}`.replace(':userId', userId));
     return {
       data: response.data.data,
       status: response.status,
@@ -676,7 +695,7 @@ export const getPerformanceSettings = async (userId: string): Promise<ApiRespons
 
 export const updatePerformanceSettings = async (userId: string, performanceData: any): Promise<ApiResponse<any>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.PERFORMANCE_UPDATE}/${userId}`, performanceData);
+    const response = await api.put(`${SETTINGS_END_POINTS.PERFORMANCE_UPDATE}`.replace(':userId', userId), performanceData);
     return {
       data: response.data.data,
       status: response.status,
@@ -684,6 +703,51 @@ export const updatePerformanceSettings = async (userId: string, performanceData:
     };
   } catch (error) {
     console.error('Error updating performance settings:', error);
+    throw error;
+  }
+};
+
+// Database Maintenance Operations
+export const vacuumDatabase = async (userId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.DATABASE_VACUUM}`.replace(':userId', userId));
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error performing database vacuum:', error);
+    throw error;
+  }
+};
+
+export const analyzeDatabase = async (userId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.DATABASE_ANALYZE}`.replace(':userId', userId));
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error analyzing database:', error);
+    throw error;
+  }
+};
+
+export const exportDatabaseSchema = async (userId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.get(`${SETTINGS_END_POINTS.DATABASE_EXPORT}`.replace(':userId', userId), {
+      responseType: 'blob'
+    });
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error exporting database schema:', error);
     throw error;
   }
 };

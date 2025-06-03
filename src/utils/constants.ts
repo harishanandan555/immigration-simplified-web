@@ -14,7 +14,7 @@ export const AUTH_END_POINTS = {
     PROFILE_PUT: "/api/v1/auth/profile",
     USER_UPDATE: "/api/v1/auth/users/:id",
     USER_DELETE: "/api/v1/auth/users/:id",
-    USER_GET_BY_ID: "/api/v1/auth/users/:id"
+    GET_USERS_BY_ID: "/api/v1/auth/users/:id"
 };
 
 export const CASE_END_POINTS = {
@@ -37,8 +37,8 @@ export const CLIENT_END_POINTS = {
 };
 
 export const COMPANY_END_POINTS = {
-    GETCOMPANIES: "/api/v1/companies",
-    CREATECOMPANY: "/api/v1/companies",
+    GETCOMPANIESLIST: "/api/v1/companies/list/:userId",
+    CREATECOMPANY: "/api/v1/companies/:userId",
     GETCOMPANYBYID: "/api/v1/companies/:id",
     UPDATECOMPANY: "/api/v1/companies/:id",
     DELETECOMPANY: "/api/v1/companies/:id",
@@ -64,80 +64,83 @@ export const IMMIGRATION_END_POINTS = {
 
 export const SETTINGS_END_POINTS = {
     // Profile
-    PROFILE_GET: "/api/v1/settings/profile",
-    PROFILE_UPDATE: "/api/v1/settings/profile",
+    PROFILE_GET: "/api/v1/settings/profile/:userId",
+    PROFILE_UPDATE: "/api/v1/settings/profile/:userId",
     
     // Organization
-    ORGANIZATION_GET: "/api/v1/settings/organization",
-    ORGANIZATION_UPDATE: "/api/v1/settings/organization",
+    ORGANIZATION_GET: "/api/v1/settings/organization/:userId",
+    ORGANIZATION_UPDATE: "/api/v1/settings/organization/:userId",
     
     // Notifications
-    NOTIFICATIONS_GET: "/api/v1/settings/notifications",
-    NOTIFICATIONS_UPDATE: "/api/v1/settings/notifications",
+    NOTIFICATIONS_GET: "/api/v1/settings/notifications/:userId",
+    NOTIFICATIONS_UPDATE: "/api/v1/settings/notifications/:userId",
     
     // Security
-    SECURITY_GET: "/api/v1/settings/security",
-    SECURITY_UPDATE: "/api/v1/settings/security",
-    SECURITY_SIGNOUT_ALL: "/api/v1/settings/security/signout-all",
+    SECURITY_GET: "/api/v1/settings/security/:userId",
+    SECURITY_UPDATE: "/api/v1/settings/security/:userId",
+    SECURITY_SIGNOUT_ALL: "/api/v1/settings/security/signout-all/:userId",
     
     // Email
-    EMAIL_GET: "/api/v1/settings/email",
-    EMAIL_UPDATE: "/api/v1/settings/email",
+    EMAIL_GET: "/api/v1/settings/email/:userId",
+    EMAIL_UPDATE: "/api/v1/settings/email/:userId",
     
     // Integrations
-    INTEGRATIONS_GET: "/api/v1/settings/integrations",
-    INTEGRATIONS_UPDATE: "/api/v1/settings/integrations",
+    INTEGRATIONS_GET: "/api/v1/settings/integrations/:userId",
+    INTEGRATIONS_UPDATE: "/api/v1/settings/integrations/:userId",
     
     // Billing
-    BILLING_GET: "/api/v1/settings/billing",
-    BILLING_UPDATE: "/api/v1/settings/billing",
+    BILLING_GET: "/api/v1/settings/billing/:userId",
+    BILLING_UPDATE: "/api/v1/settings/billing/:userId",
     
     // User Management
-    USERS_GET: "/api/v1/settings/users",
-    USERS_UPDATE: "/api/v1/settings/users",
-    USERS_CREATE: "/api/v1/settings/users",
+    USERS_GET: "/api/v1/settings/users/:userId",
+    USERS_UPDATE: "/api/v1/settings/users/:userId",
+    USERS_CREATE: "/api/v1/settings/users/:userId",
     
     // Case Settings
-    CASE_SETTINGS_GET: "/api/v1/settings/cases",
-    CASE_SETTINGS_UPDATE: "/api/v1/settings/cases",
+    CASE_SETTINGS_GET: "/api/v1/settings/cases/:userId",
+    CASE_SETTINGS_UPDATE: "/api/v1/settings/cases/:userId",
     
     // Form Templates
-    FORM_TEMPLATES_GET: "/api/v1/settings/forms",
-    FORM_TEMPLATES_UPDATE: "/api/v1/settings/forms",
+    FORM_TEMPLATES_GET: "/api/v1/settings/forms/:userId",
+    FORM_TEMPLATES_UPDATE: "/api/v1/settings/forms/:userId",
     
     // Report Settings
-    REPORT_SETTINGS_GET: "/api/v1/settings/reports",
-    REPORT_SETTINGS_UPDATE: "/api/v1/settings/reports",
+    REPORT_SETTINGS_GET: "/api/v1/settings/reports/:userId",
+    REPORT_SETTINGS_UPDATE: "/api/v1/settings/reports/:userId",
+    REPORT_SETTINGS_DELETE: "/api/v1/settings/reports/:userId/:reportId",
     
     // Roles & Permissions
-    ROLES_GET: "/api/v1/settings/roles",
-    ROLES_UPDATE: "/api/v1/settings/roles",
+    ROLES_GET: "/api/v1/settings/roles/:userId",
+    ROLES_UPDATE: "/api/v1/settings/roles/:userId",
     
     // Database Settings
-    DATABASE_GET: "/api/v1/settings/database",
-    DATABASE_UPDATE: "/api/v1/settings/database",
-    DATABASE_MAINTENANCE: "/api/v1/settings/database/maintenance",
+    DATABASE_GET: "/api/v1/settings/database/:userId",
+    DATABASE_UPDATE: "/api/v1/settings/database/:userId",
+    DATABASE_VACUUM: "/api/v1/settings/database/vacuum/:userId",
+    DATABASE_ANALYZE: "/api/v1/settings/database/analyze/:userId",
+    DATABASE_EXPORT: "/api/v1/settings/database/export/:userId",
     
     // System Settings
-    SYSTEM_GET: "/api/v1/settings/system",
-    SYSTEM_UPDATE: "/api/v1/settings/system",
-    CLEAR_CACHE: "/api/v1/settings/system/cache/clear",
-    OPTIMIZE_DATABASE: "/api/v1/settings/system/database/optimize",
+    SYSTEM_GET: "/api/v1/settings/system/:userId",
+    SYSTEM_UPDATE: "/api/v1/settings/system/:userId",
+    CLEAR_CACHE: "/api/v1/settings/system/cache/clear/:userId",
+    OPTIMIZE_DATABASE: "/api/v1/settings/system/database/optimize/:userId",
     
     // Audit Logs
-    AUDIT_LOGS_GET: "/api/v1/settings/audit-logs",
+    AUDIT_LOGS_GET: "/api/v1/settings/audit-logs/:userId",
     
     // Backup & Recovery
-    BACKUP_GET: "/api/v1/settings/backup",
-    BACKUP_UPDATE: "/api/v1/settings/backup",
+    BACKUP_GET: "/api/v1/settings/backup/:userId",
+    BACKUP_UPDATE: "/api/v1/settings/backup/:userId",
     
     // API Settings
-    API_SETTINGS_GET: "/api/v1/settings/api",
-    API_SETTINGS_UPDATE: "/api/v1/settings/api",
+    API_SETTINGS_GET: "/api/v1/settings/api/:userId",
+    API_SETTINGS_UPDATE: "/api/v1/settings/api/:userId",
     
     // Performance
-    PERFORMANCE_GET: "/api/v1/settings/performance",
-    PERFORMANCE_UPDATE: "/api/v1/settings/performance"
+    PERFORMANCE_GET: "/api/v1/settings/performance/:userId",
+    PERFORMANCE_UPDATE: "/api/v1/settings/performance/:userId"
 };
 
 export const SUBSCRIPTION_END_POINTS = {

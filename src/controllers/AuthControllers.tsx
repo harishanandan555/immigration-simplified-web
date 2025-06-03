@@ -293,7 +293,7 @@ export const deleteUser = async (userId: string): Promise<ApiResponse<void>> => 
 
 export const getUserById = async (userId: string): Promise<ApiResponse<User[]>> => {
   try {
-    const response = await api.get(AUTH_END_POINTS.USER_GET_BY_ID.replace(':id', userId));
+    const response = await api.get(AUTH_END_POINTS.GET_USERS_BY_ID.replace(':id', userId));
     return {
       data: Array.isArray(response.data.data) ? response.data.data : [response.data.data],
       status: response.status,
