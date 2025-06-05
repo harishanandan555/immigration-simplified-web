@@ -1,5 +1,6 @@
 import api from '../utils/api';
 import { SETTINGS_END_POINTS } from '../utils/constants';
+import axios from 'axios';
 
 // Define common response type
 interface ApiResponse<T> {
@@ -8,9 +9,20 @@ interface ApiResponse<T> {
   statusText: string;
 }
 
-
-
-
+const handleApiError = (error: any) => {
+    if (axios.isAxiosError(error)) {
+        return {
+            data: error.response?.data || 'An error occurred',
+            status: error.response?.status || 500,
+            statusText: error.response?.statusText || 'Internal Server Error'
+        };
+    }
+    return {
+        data: 'An unexpected error occurred',
+        status: 500,
+        statusText: 'Internal Server Error'
+    };
+};
 
 // Set to false to skip the method
 const IS_PROFILE_ENABLED = true;
@@ -25,10 +37,10 @@ const IS_FORM_TEMPLATES_ENABLED = false;
 const IS_REPORT_SETTINGS_ENABLED = true;
 const IS_ROLES_ENABLED = false;
 const IS_DATABASE_ENABLED = true;
-const IS_SYSTEM_ENABLED = false;
-const IS_AUDIT_LOGS_ENABLED = false;
-const IS_BACKUP_ENABLED = false;
-const IS_API_SETTINGS_ENABLED = false;
+const IS_SYSTEM_ENABLED = true;
+const IS_AUDIT_LOGS_ENABLED = true;
+const IS_BACKUP_ENABLED = true;
+const IS_API_SETTINGS_ENABLED = true;
 const IS_PERFORMANCE_ENABLED = false;
 
 // Profile Settings
@@ -569,6 +581,104 @@ export const updateSystemSettings = async (userId: string, systemData: any): Pro
   }
 };
 
+export const clearSystemCache = async (userId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.CLEAR_CACHE}`.replace(':userId', userId));
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error clearing system cache:', error);
+    throw error;
+  }
+};
+
+export const optimizeSystemDatabase = async (userId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.OPTIMIZE_DATABASE}`.replace(':userId', userId));
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error optimizing system database:', error);
+    throw error;
+  }
+};
+
+export const updateMaintenanceMode = async (userId: string, maintenanceData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.UPDATE_MAINTENANCE_MODE}`.replace(':userId', userId), maintenanceData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating maintenance mode:', error);
+    throw error;
+  }
+};
+
+export const updateSystemPerformance = async (userId: string, performanceData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.UPDATE_SYSTEM_PERFORMANCE}`.replace(':userId', userId), performanceData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating system performance:', error);
+    throw error;
+  }
+};
+
+export const updateSystemSecurity = async (userId: string, securityData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.UPDATE_SYSTEM_SECURITY}`.replace(':userId', userId), securityData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating system security:', error);
+    throw error;
+  }
+};
+
+export const updateSystemNotifications = async (userId: string, notificationData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.UPDATE_SYSTEM_NOTIFICATIONS}`.replace(':userId', userId), notificationData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating system notifications:', error);
+    throw error;
+  }
+};
+
+export const updateSystemLogging = async (userId: string, loggingData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.UPDATE_SYSTEM_LOGGING}`.replace(':userId', userId), loggingData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating system logging:', error);
+    throw error;
+  }
+};
+
 // Audit Logs
 export const getAuditLogs = async (userId: string): Promise<ApiResponse<any>> => {
   if (!IS_AUDIT_LOGS_ENABLED) {
@@ -590,6 +700,86 @@ export const getAuditLogs = async (userId: string): Promise<ApiResponse<any>> =>
   } catch (error) {
     console.error('Error fetching audit logs:', error);
     throw error;
+  }
+};
+
+export const updateAuditLogs = async (userId: string, auditLogsData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(
+      SETTINGS_END_POINTS.AUDIT_LOGS_UPDATE.replace(':userId', userId),
+      auditLogsData
+    );
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+export const exportAuditLogs = async (userId: string, exportParams: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(
+      SETTINGS_END_POINTS.AUDIT_LOGS_EXPORT.replace(':userId', userId),
+      exportParams
+    );
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+export const archiveAuditLogs = async (userId: string, archiveParams: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(
+      SETTINGS_END_POINTS.AUDIT_LOGS_ARCHIVE.replace(':userId', userId),
+      archiveParams
+    );
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+export const filterAuditLogs = async (userId: string, filterParams: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(
+      SETTINGS_END_POINTS.AUDIT_LOGS_FILTER.replace(':userId', userId),
+      filterParams
+    );
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+export const updateAuditLogsNotifications = async (userId: string, notificationData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(
+      SETTINGS_END_POINTS.AUDIT_LOGS_NOTIFICATIONS.replace(':userId', userId),
+      notificationData
+    );
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    throw handleApiError(error);
   }
 };
 
@@ -631,6 +821,92 @@ export const updateBackupSettings = async (userId: string, backupData: any): Pro
   }
 };
 
+export const createBackup = async (userId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.BACKUP_CREATE}`.replace(':userId', userId));
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error creating backup:', error);
+    throw error;
+  }
+};
+
+export const restoreBackup = async (userId: string, backupId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.BACKUP_RESTORE}`.replace(':userId', userId), { backupId });
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error restoring backup:', error);
+    throw error;
+  }
+};
+
+export const listBackups = async (userId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.get(`${SETTINGS_END_POINTS.BACKUP_LIST}`.replace(':userId', userId));
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error listing backups:', error);
+    throw error;
+  }
+};
+
+export const deleteBackup = async (userId: string, backupId: string): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.delete(`${SETTINGS_END_POINTS.BACKUP_DELETE}`.replace(':userId', userId), {
+      data: { backupId }
+    });
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error deleting backup:', error);
+    throw error;
+  }
+};
+
+export const testBackupConnection = async (userId: string, storage: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.BACKUP_TEST_CONNECTION}`.replace(':userId', userId), storage);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error testing backup connection:', error);
+    throw error;
+  }
+};
+
+export const validateBackupSettings = async (userId: string, settings: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.BACKUP_VALIDATE}`.replace(':userId', userId), settings);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error validating backup settings:', error);
+    throw error;
+  }
+};
+
 // API Settings
 export const getApiSettings = async (userId: string): Promise<ApiResponse<any>> => {
   if (!IS_API_SETTINGS_ENABLED) {
@@ -665,6 +941,57 @@ export const updateApiSettings = async (userId: string, apiSettingsData: any): P
     };
   } catch (error) {
     console.error('Error updating API settings:', error);
+    throw error;
+  }
+};
+
+export const regenerateApiKey = async (userId: string, type: 'production' | 'development'): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.API_SETTINGS_REGENERATE_KEY}`.replace(':userId', userId), { type });
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error regenerating API key:', error);
+    throw error;
+  }
+};
+
+export const validateApiSettings = async (userId: string, settings: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.API_SETTINGS_VALIDATE}`.replace(':userId', userId), settings);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error validating API settings:', error);
+    throw error;
+  }
+};
+
+export const testApiConnection = async (userId: string, testConfig: {
+  endpoint: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  headers?: Record<string, string>;
+  body?: any;
+  timeout?: number;
+}): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(
+      `${SETTINGS_END_POINTS.API_SETTINGS_TEST_CONNECTION}`.replace(':userId', userId),
+      testConfig
+    );
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error testing API connection:', error);
     throw error;
   }
 };

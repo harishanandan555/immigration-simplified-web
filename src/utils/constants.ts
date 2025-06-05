@@ -126,17 +126,36 @@ export const SETTINGS_END_POINTS = {
     SYSTEM_UPDATE: "/api/v1/settings/system/:userId",
     CLEAR_CACHE: "/api/v1/settings/system/cache/clear/:userId",
     OPTIMIZE_DATABASE: "/api/v1/settings/system/database/optimize/:userId",
+    UPDATE_MAINTENANCE_MODE: "/api/v1/settings/system/maintenance/:userId",
+    UPDATE_SYSTEM_PERFORMANCE: "/api/v1/settings/system/performance/:userId",
+    UPDATE_SYSTEM_SECURITY: "/api/v1/settings/system/security/:userId",
+    UPDATE_SYSTEM_NOTIFICATIONS: "/api/v1/settings/system/notifications/:userId",
+    UPDATE_SYSTEM_LOGGING: "/api/v1/settings/system/logging/:userId",
     
     // Audit Logs
     AUDIT_LOGS_GET: "/api/v1/settings/audit-logs/:userId",
+    AUDIT_LOGS_UPDATE: "/api/v1/settings/audit-logs/:userId",
+    AUDIT_LOGS_EXPORT: "/api/v1/settings/audit-logs/:userId/export",
+    AUDIT_LOGS_ARCHIVE: "/api/v1/settings/audit-logs/:userId/archive",
+    AUDIT_LOGS_FILTER: "/api/v1/settings/audit-logs/:userId/filter",
+    AUDIT_LOGS_NOTIFICATIONS: "/api/v1/settings/audit-logs/:userId/notifications",
     
     // Backup & Recovery
     BACKUP_GET: "/api/v1/settings/backup/:userId",
     BACKUP_UPDATE: "/api/v1/settings/backup/:userId",
+    BACKUP_CREATE: "/api/v1/settings/backup/:userId/create",
+    BACKUP_RESTORE: "/api/v1/settings/backup/:userId/restore",
+    BACKUP_LIST: "/api/v1/settings/backup/:userId/list",
+    BACKUP_DELETE: "/api/v1/settings/backup/:userId/delete",
+    BACKUP_TEST_CONNECTION: "/api/v1/settings/backup/:userId/test-connection",
+    BACKUP_VALIDATE: "/api/v1/settings/backup/:userId/validate",
     
     // API Settings
     API_SETTINGS_GET: "/api/v1/settings/api/:userId",
     API_SETTINGS_UPDATE: "/api/v1/settings/api/:userId",
+    API_SETTINGS_VALIDATE: "/api/v1/settings/api/:userId/validate",
+    API_SETTINGS_REGENERATE_KEY: "/api/v1/settings/api/:userId/keys/regenerate",
+    API_SETTINGS_TEST_CONNECTION: "/api/v1/settings/api/:userId/test-connection",
     
     // Performance
     PERFORMANCE_GET: "/api/v1/settings/performance/:userId",
