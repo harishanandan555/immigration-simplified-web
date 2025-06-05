@@ -20,7 +20,6 @@ import {
   BarChart,
   Briefcase,
   Key,
-  Server,
   Zap,
   HardDrive,
 } from 'lucide-react';
@@ -28,48 +27,87 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { useAuth, updateUser, deleteUser, registerAttorney, registerUser, getUserById } from '../../controllers/AuthControllers';
-import api from '../../utils/api';
-import { SETTINGS_END_POINTS } from '../../utils/constants';
+
 import {
   getProfile,
   updateProfile,
+
   getOrganization,
   updateOrganization,
+
   getNotifications,
   updateNotifications,
+
   getSecurity,
   updateSecurity,
   signOutAllDevices,
+
   getEmailSettings,
   updateEmailSettings,
+
   getIntegrations,
   updateIntegrations,
+
   getBilling,
   updateBilling,
+
   updateUsers,
+
   getCaseSettings,
   updateCaseSettings,
+
   getFormTemplates,
   updateFormTemplates,
+
   getReportSettings,
   updateReportSettings,
+  deleteReportSettings,
+
   getRoles,
   updateRoles,
+
   getDatabaseSettings,
   updateDatabaseSettings,
-  getSystemSettings,
-  updateSystemSettings,
-  getAuditLogs,
-  getBackupSettings,
-  updateBackupSettings,
-  getApiSettings,
-  updateApiSettings,
-  getPerformanceSettings,
-  updatePerformanceSettings,
-  deleteReportSettings,
   vacuumDatabase,
   analyzeDatabase,
-  exportDatabaseSchema
+  exportDatabaseSchema,
+
+  getSystemSettings,
+  updateSystemSettings,
+  clearSystemCache,
+  optimizeSystemDatabase,
+  updateMaintenanceMode,
+  updateSystemPerformance,
+  updateSystemSecurity,
+  updateSystemNotifications,
+  updateSystemLogging,
+  
+  getAuditLogs,
+  updateAuditLogs,
+  exportAuditLogs,
+  archiveAuditLogs,
+  filterAuditLogs,  
+
+  getBackupSettings,
+  updateBackupSettings,
+
+  getApiSettings,
+  updateApiSettings,
+
+  getPerformanceSettings,
+  updatePerformanceSettings,
+
+  createBackup,
+  restoreBackup,
+  deleteBackup,
+  testBackupConnection,
+  validateBackupSettings,
+  listBackups,
+
+  regenerateApiKey,
+  testApiConnection,
+  validateApiSettings,
+
 } from '../../controllers/SettingsControllers';
 import { getAllCompaniesList, getCompanyUsers, getCompanyById, Company } from '../../controllers/CompanyControllers';
 // import { getSubscriptionPlans, getSubscriptionPlanById, subscribeToPlan, cancelSubscription, getCompanySubscription } from '../../controllers/BillingControllers';
@@ -286,30 +324,56 @@ interface ApiSettingsData {
       key: string;
       lastUsed: string;
       createdAt: string;
+      expiresAt: string;
     };
     development: {
       key: string;
       lastUsed: string;
       createdAt: string;
+      expiresAt: string;
     };
   };
   rateLimiting: {
     requestsPerMinute: number;
     burstLimit: number;
+    windowSize: number;
+    enabled: boolean;
   };
   cors: {
     allowedOrigins: string[];
     allowCredentials: boolean;
+    allowedMethods: string[];
+    allowedHeaders: string[];
+    exposedHeaders: string[];
+    maxAge: number;
   };
   security: {
     requireApiKey: boolean;
     ipWhitelist: string[];
     allowedMethods: ('GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')[];
+    requireHttps: boolean;
+    jwtEnabled: boolean;
+    jwtExpiry: number;
+    refreshTokenEnabled: boolean;
+    refreshTokenExpiry: number;
   };
   monitoring: {
     enabled: boolean;
     logLevel: 'debug' | 'info' | 'warn' | 'error';
     retentionDays: number;
+    metricsEnabled: boolean;
+    alertThresholds: {
+      errorRate: number;
+      responseTime: number;
+      requestCount: number;
+    };
+  };
+  documentation: {
+    enabled: boolean;
+    swaggerEnabled: boolean;
+    redocEnabled: boolean;
+    version: string;
+    basePath: string;
   };
 }
 
@@ -362,7 +426,7 @@ interface AuditLogsData {
   logging: {
     enabled: boolean;
     level: 'debug' | 'info' | 'warn' | 'error';
-    retentionPeriod: number; // in days
+    retentionPeriod: number;
     storageLocation: 'local' | 's3' | 'azure' | 'gcp';
     exportFormat: 'json' | 'csv' | 'xml';
     autoArchive: boolean;
@@ -683,36 +747,63 @@ const SettingsPage = () => {
       recipients: [],
     },
   });
+  const [backupList, setBackupList] = useState<any[]>([]);
   const [apiSettingsData, setApiSettingsData] = useState<ApiSettingsData>({
     keys: {
       production: {
         key: '',
         lastUsed: '',
-        createdAt: ''
+        createdAt: '',
+        expiresAt: ''
       },
       development: {
         key: '',
         lastUsed: '',
-        createdAt: ''
+        createdAt: '',
+        expiresAt: ''
       }
     },
     rateLimiting: {
       requestsPerMinute: 100,
-      burstLimit: 200
+      burstLimit: 200,
+      windowSize: 60,
+      enabled: true
     },
     cors: {
-      allowedOrigins: [],
-      allowCredentials: true
+      allowedOrigins: ['*'],
+      allowCredentials: true,
+      allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      exposedHeaders: ['X-Total-Count'],
+      maxAge: 86400
     },
     security: {
       requireApiKey: true,
       ipWhitelist: [],
-      allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+      allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+      requireHttps: true,
+      jwtEnabled: true,
+      jwtExpiry: 3600,
+      refreshTokenEnabled: true,
+      refreshTokenExpiry: 604800
     },
     monitoring: {
       enabled: true,
       logLevel: 'info',
-      retentionDays: 30
+      retentionDays: 30,
+      metricsEnabled: true,
+      alertThresholds: {
+        errorRate: 5,
+        responseTime: 1000,
+        requestCount: 1000
+      }
+    },
+    documentation: {
+      enabled: true,
+      swaggerEnabled: true,
+      redocEnabled: true,
+      version: '1.0.0',
+      basePath: '/api/v1'
     }
   });
   const [performanceSettingsData, setPerformanceSettingsData] = useState<PerformanceSettingsData>({
@@ -774,7 +865,7 @@ const SettingsPage = () => {
       recipients: []
     },
     export: {
-      schedule: 'none',
+      schedule: 'daily',
       time: '00:00',
       format: 'json',
       compression: true,
@@ -838,6 +929,9 @@ const SettingsPage = () => {
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [reportToDelete, setReportToDelete] = useState<Report | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredLogs, setFilteredLogs] = useState<any[]>([]);
+
   // Load initial data
   useEffect(() => {
     const loadSettings = async () => {
@@ -891,7 +985,7 @@ const SettingsPage = () => {
           case 'system':
             data = await getSystemSettings(user._id);
             if (data?.data) {
-              setSystemData(data.data.value);
+              setSystemData(data.data);
             }
             break;
           case 'users':
@@ -976,12 +1070,6 @@ const SettingsPage = () => {
             data = await getDatabaseSettings(user._id);
             if (data?.data) {
               setDatabaseSettingsData(data.data.value);
-            }
-            break;
-          case 'system':
-            data = await getSystemSettings(user._id);
-            if (data?.data) {
-              setSystemData(data.data.value);
             }
             break;
           case 'audit':
@@ -1227,32 +1315,27 @@ const SettingsPage = () => {
 
   const handleSystemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    const [section, field, subfield] = name.split('.');
+    const isCheckbox = type === 'checkbox';
+    const newValue = isCheckbox ? (e.target as HTMLInputElement).checked : value;
 
     setSystemData(prev => {
       const newData = { ...prev };
+      const keys = name.split('.');
+      let current: any = newData;
 
-      if (subfield) {
-        // Handle nested fields like maintenance.scheduledMaintenance.startTime
-        (newData[section as keyof SystemData] as any)[field][subfield] = type === 'checkbox'
-          ? (e.target as HTMLInputElement).checked
-          : type === 'number'
-            ? Number(value)
-            : value;
-      } else if (field) {
-        // Handle nested fields like maintenance.maintenanceMode
-        (newData[section as keyof SystemData] as any)[field] = type === 'checkbox'
-          ? (e.target as HTMLInputElement).checked
-          : type === 'number'
-            ? Number(value)
-            : value;
+      // Navigate to the nested property
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!current[keys[i]]) {
+          current[keys[i]] = {};
+        }
+        current = current[keys[i]];
+      }
+
+      // Handle array values
+      if (name.includes('recipients') || name.includes('allowedOrigins') || name.includes('ipWhitelist')) {
+        current[keys[keys.length - 1]] = value.split(',').map(item => item.trim());
       } else {
-        // Handle top-level fields
-        (newData[name as keyof SystemData] as any) = type === 'checkbox'
-          ? (e.target as HTMLInputElement).checked
-          : type === 'number'
-            ? Number(value)
-            : value;
+        current[keys[keys.length - 1]] = newValue;
       }
 
       return newData;
@@ -1261,12 +1344,14 @@ const SettingsPage = () => {
 
   const handleSystemSubmit = async () => {
     if (!user?._id) return;
-    setLoading(true);
     try {
-      await updateSystemSettings(user._id, systemData);
-      toast.success('System settings updated successfully');
+      setLoading(true);
+      const response = await updateSystemSettings(user._id, systemData);
+      if (response.status === 200) {
+        toast.success('System settings updated successfully');
+      }
     } catch (error) {
-      console.error('Error updating system:', error);
+      console.error('Error updating system settings:', error);
       toast.error('Failed to update system settings');
     } finally {
       setLoading(false);
@@ -1275,27 +1360,135 @@ const SettingsPage = () => {
 
   const handleMaintenance = async (operation: 'cache' | 'database') => {
     if (!user?._id) return;
-    setLoading(true);
     try {
-      const endpoint = operation === 'cache'
-        ? SETTINGS_END_POINTS.CLEAR_CACHE
-        : SETTINGS_END_POINTS.OPTIMIZE_DATABASE;
+      setLoading(true);
+      let response;
+      
+      if (operation === 'cache') {
+        response = await clearSystemCache(user._id);
+      } else {
+        response = await optimizeSystemDatabase(user._id);
+      }
 
-      await api.post(`${endpoint}/${user._id}`);
-
-      // Update the last maintenance timestamp
-      setSystemData(prev => ({
-        ...prev,
-        maintenance: {
-          ...prev.maintenance,
-          [`last${operation === 'cache' ? 'CacheClear' : 'DatabaseOptimization'}`]: new Date().toISOString()
-        }
-      }));
-
-      toast.success(`${operation === 'cache' ? 'Cache cleared' : 'Database optimized'} successfully`);
+      if (response.status === 200) {
+        toast.success(`${operation === 'cache' ? 'Cache cleared' : 'Database optimized'} successfully`);
+      }
     } catch (error) {
-      console.error(`Error performing ${operation} maintenance:`, error);
+      console.error(`Error performing ${operation} operation:`, error);
       toast.error(`Failed to ${operation === 'cache' ? 'clear cache' : 'optimize database'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMaintenanceModeToggle = async () => {
+    if (!user?._id) return;
+    try {
+      setLoading(true);
+      const response = await updateMaintenanceMode(user._id, {
+        maintenanceMode: !systemData.maintenance.maintenanceMode
+      });
+      
+      if (response.status === 200) {
+        setSystemData(prev => ({
+          ...prev,
+          maintenance: {
+            ...prev.maintenance,
+            maintenanceMode: !prev.maintenance.maintenanceMode
+          }
+        }));
+        toast.success(`Maintenance mode ${!systemData.maintenance.maintenanceMode ? 'enabled' : 'disabled'} successfully`);
+      }
+    } catch (error) {
+      console.error('Error toggling maintenance mode:', error);
+      toast.error('Failed to update maintenance mode');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleScheduledMaintenanceUpdate = async () => {
+    if (!user?._id) return;
+    try {
+      setLoading(true);
+      const response = await updateMaintenanceMode(user._id, {
+        scheduledMaintenance: systemData.maintenance.scheduledMaintenance
+      });
+      
+      if (response.status === 200) {
+        toast.success('Scheduled maintenance updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating scheduled maintenance:', error);
+      toast.error('Failed to update scheduled maintenance');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePerformanceUpdate = async () => {
+    if (!user?._id) return;
+    try {
+      setLoading(true);
+      const response = await updateSystemPerformance(user._id, systemData.performance);
+      
+      if (response.status === 200) {
+        toast.success('Performance settings updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating performance settings:', error);
+      toast.error('Failed to update performance settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSecurityUpdate = async () => {
+    if (!user?._id) return;
+    try {
+      setLoading(true);
+      const response = await updateSystemSecurity(user._id, systemData.security);
+      
+      if (response.status === 200) {
+        toast.success('Security settings updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating security settings:', error);
+      toast.error('Failed to update security settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNotificationsUpdate = async () => {
+    if (!user?._id) return;
+    try {
+      setLoading(true);
+      const response = await updateSystemNotifications(user._id, systemData.notifications);
+      
+      if (response.status === 200) {
+        toast.success('Notification settings updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating notification settings:', error);
+      toast.error('Failed to update notification settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoggingUpdate = async () => {
+    if (!user?._id) return;
+    try {
+      setLoading(true);
+      const response = await updateSystemLogging(user._id, systemData.logging);
+      
+      if (response.status === 200) {
+        toast.success('Logging settings updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating logging settings:', error);
+      toast.error('Failed to update logging settings');
     } finally {
       setLoading(false);
     }
@@ -1453,7 +1646,7 @@ const SettingsPage = () => {
             case 'system':
               data = await getSystemSettings(user._id);
               if (data?.data) {
-                setSystemData(data.data.value);
+                setSystemData(data.data);
               }
               break;
             case 'audit':
@@ -1794,7 +1987,11 @@ const SettingsPage = () => {
       const keys = name.split('.');
       let current: any = newData;
 
+      // Ensure all nested objects exist
       for (let i = 0; i < keys.length - 1; i++) {
+        if (!current[keys[i]]) {
+          current[keys[i]] = {};
+        }
         current = current[keys[i]];
       }
 
@@ -1803,6 +2000,9 @@ const SettingsPage = () => {
         current[lastKey] = checked;
       } else if (type === 'number') {
         current[lastKey] = Number(value);
+      } else if (type === 'select-multiple') {
+        const select = e.target as HTMLSelectElement;
+        current[lastKey] = Array.from(select.selectedOptions, option => option.value);
       } else {
         current[lastKey] = value;
       }
@@ -2110,10 +2310,8 @@ const SettingsPage = () => {
       const lastKey = keys[keys.length - 1];
       if (isCheckbox) {
         current[lastKey] = checked;
-      } else if (name === 'cors.allowedOrigins') {
-        current[lastKey] = value.split('\n').filter(origin => origin.trim());
-      } else if (name === 'security.ipWhitelist') {
-        current[lastKey] = value.split('\n').filter(ip => ip.trim());
+      } else if (name === 'cors.allowedOrigins' || name === 'security.ipWhitelist') {
+        current[lastKey] = value.split('\n').filter(item => item.trim());
       } else if (name === 'security.allowedMethods') {
         const methods = (e.target as HTMLSelectElement).selectedOptions;
         current[lastKey] = Array.from(methods).map(option => option.value);
@@ -2126,13 +2324,14 @@ const SettingsPage = () => {
   };
 
   const handleRegenerateApiKey = async (type: 'production' | 'development') => {
+    if (!user?._id) return;
     try {
-      const response = await api.post(`${SETTINGS_END_POINTS.API_SETTINGS_UPDATE}/keys/regenerate`, { type });
+      const response = await regenerateApiKey(user._id, type);
       setApiSettingsData(prev => ({
         ...prev,
         keys: {
           ...prev.keys,
-          [type]: response.data.data
+          [type]: response.data
         }
       }));
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} API key regenerated successfully`);
@@ -2141,6 +2340,365 @@ const SettingsPage = () => {
       toast.error('Failed to regenerate API key');
     }
   };
+
+  const handleTestApiConnection = async () => {
+    if (!user?._id) return;
+    setLoading(true);
+    try {
+      const testConfig = {
+        endpoint: apiSettingsData.documentation.basePath,
+        method: 'GET' as const,
+        headers: {
+          'Authorization': `Bearer ${apiSettingsData.keys.production.key}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 5000
+      };
+
+      const response = await testApiConnection(user._id, testConfig);
+      
+      if (response.data.success) {
+        toast.success(`API connection test successful. Response time: ${response.data.responseTime}ms`);
+      } else {
+        toast.error('API connection test failed');
+      }
+    } catch (error) {
+      console.error('Error testing API connection:', error);
+      toast.error('API connection test failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleValidateSettings = async () => {
+    if (!user?._id) return;
+    setLoading(true);
+    try {
+      const response = await validateApiSettings(user._id, apiSettingsData);
+      if (response.data.valid) {
+        toast.success('API settings validation successful');
+        if (response.data.warnings?.length > 0) {
+          toast.warning(response.data.warnings.map((w: any) => w.message).join('\n'));
+        }
+      } else {
+        toast.error('API settings validation failed');
+      }
+    } catch (error) {
+      console.error('Error validating API settings:', error);
+      toast.error('Failed to validate API settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApiSettingsSubmit = async () => {
+    if (!user?._id) return;
+    setLoading(true);
+    try {
+      await updateApiSettings(user._id, apiSettingsData);
+      toast.success('API settings updated successfully');
+    } catch (error) {
+      console.error('Error updating API settings:', error);
+      toast.error('Failed to update API settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderApiSettingsSection = () => (
+    <div className="space-y-6">
+      <div className="bg-white shadow rounded-lg p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-medium text-gray-900">API Settings</h3>
+          <div className="flex space-x-3">
+            <button
+              onClick={handleTestApiConnection}
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            >
+              Test Connection
+            </button>
+            <button
+              onClick={handleValidateSettings}
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            >
+              Validate Settings
+            </button>
+            <button
+              onClick={handleApiSettingsSubmit}
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* API Keys Section */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">API Keys</h4>
+            <div className="space-y-4">
+              {/* Production Key */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Production Key</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="password"
+                    value={apiSettingsData.keys.production.key}
+                    readOnly
+                    className="flex-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  />
+                  <button
+                    onClick={() => handleRegenerateApiKey('production')}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Regenerate
+                  </button>
+                </div>
+                <p className="mt-1 text-sm text-gray-500">Last used: {apiSettingsData.keys.production.lastUsed || 'Never'}</p>
+              </div>
+
+              {/* Development Key */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Development Key</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="password"
+                    value={apiSettingsData.keys.development.key}
+                    readOnly
+                    className="flex-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  />
+                  <button
+                    onClick={() => handleRegenerateApiKey('development')}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Regenerate
+                  </button>
+                </div>
+                <p className="mt-1 text-sm text-gray-500">Last used: {apiSettingsData.keys.development.lastUsed || 'Never'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Rate Limiting Section */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">Rate Limiting</h4>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="rateLimiting.enabled"
+                  name="rateLimiting.enabled"
+                  checked={apiSettingsData.rateLimiting.enabled}
+                  onChange={handleApiSettingsChange}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="rateLimiting.enabled" className="ml-2 block text-sm text-gray-900">
+                  Enable Rate Limiting
+                </label>
+              </div>
+              <div>
+                <label htmlFor="rateLimiting.requestsPerMinute" className="block text-sm font-medium text-gray-700">
+                  Requests per Minute
+                </label>
+                <input
+                  type="number"
+                  id="rateLimiting.requestsPerMinute"
+                  name="rateLimiting.requestsPerMinute"
+                  value={apiSettingsData.rateLimiting.requestsPerMinute}
+                  onChange={handleApiSettingsChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="rateLimiting.burstLimit" className="block text-sm font-medium text-gray-700">
+                  Burst Limit
+                </label>
+                <input
+                  type="number"
+                  id="rateLimiting.burstLimit"
+                  name="rateLimiting.burstLimit"
+                  value={apiSettingsData.rateLimiting.burstLimit}
+                  onChange={handleApiSettingsChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CORS Settings Section */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">CORS Settings</h4>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="cors.allowedOrigins" className="block text-sm font-medium text-gray-700">
+                  Allowed Origins (one per line)
+                </label>
+                <textarea
+                  id="cors.allowedOrigins"
+                  name="cors.allowedOrigins"
+                  value={apiSettingsData.cors.allowedOrigins.join('\n')}
+                  onChange={handleApiSettingsChange}
+                  rows={4}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="cors.allowCredentials"
+                  name="cors.allowCredentials"
+                  checked={apiSettingsData.cors.allowCredentials}
+                  onChange={handleApiSettingsChange}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="cors.allowCredentials" className="ml-2 block text-sm text-gray-900">
+                  Allow Credentials
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Security Settings Section */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">Security Settings</h4>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="security.requireApiKey"
+                  name="security.requireApiKey"
+                  checked={apiSettingsData.security.requireApiKey}
+                  onChange={handleApiSettingsChange}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="security.requireApiKey" className="ml-2 block text-sm text-gray-900">
+                  Require API Key
+                </label>
+              </div>
+              <div>
+                <label htmlFor="security.ipWhitelist" className="block text-sm font-medium text-gray-700">
+                  IP Whitelist (one per line)
+                </label>
+                <textarea
+                  id="security.ipWhitelist"
+                  name="security.ipWhitelist"
+                  value={apiSettingsData.security.ipWhitelist.join('\n')}
+                  onChange={handleApiSettingsChange}
+                  rows={4}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="security.allowedMethods" className="block text-sm font-medium text-gray-700">
+                  Allowed Methods
+                </label>
+                <select
+                  id="security.allowedMethods"
+                  name="security.allowedMethods"
+                  multiple
+                  value={apiSettingsData.security.allowedMethods}
+                  onChange={handleApiSettingsChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                  <option value="PATCH">PATCH</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Monitoring Settings Section */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">Monitoring</h4>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="monitoring.enabled"
+                  name="monitoring.enabled"
+                  checked={apiSettingsData.monitoring.enabled}
+                  onChange={handleApiSettingsChange}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="monitoring.enabled" className="ml-2 block text-sm text-gray-900">
+                  Enable Monitoring
+                </label>
+              </div>
+              <div>
+                <label htmlFor="monitoring.logLevel" className="block text-sm font-medium text-gray-700">
+                  Log Level
+                </label>
+                <select
+                  id="monitoring.logLevel"
+                  name="monitoring.logLevel"
+                  value={apiSettingsData.monitoring.logLevel}
+                  onChange={handleApiSettingsChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                >
+                  <option value="debug">Debug</option>
+                  <option value="info">Info</option>
+                  <option value="warn">Warning</option>
+                  <option value="error">Error</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Documentation Settings Section */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">Documentation</h4>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="documentation.enabled"
+                  name="documentation.enabled"
+                  checked={apiSettingsData.documentation.enabled}
+                  onChange={handleApiSettingsChange}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="documentation.enabled" className="ml-2 block text-sm text-gray-900">
+                  Enable Documentation
+                </label>
+              </div>
+              <div>
+                <label htmlFor="documentation.version" className="block text-sm font-medium text-gray-700">
+                  API Version
+                </label>
+                <input
+                  type="text"
+                  id="documentation.version"
+                  name="documentation.version"
+                  value={apiSettingsData.documentation.version}
+                  onChange={handleApiSettingsChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="documentation.basePath" className="block text-sm font-medium text-gray-700">
+                  Base Path
+                </label>
+                <input
+                  type="text"
+                  id="documentation.basePath"
+                  name="documentation.basePath"
+                  value={apiSettingsData.documentation.basePath}
+                  onChange={handleApiSettingsChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const handleBackupSettingsChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -2173,7 +2731,7 @@ const SettingsPage = () => {
     if (!user?._id) return;
     setLoading(true);
     try {
-      const response = await api.post(`${SETTINGS_END_POINTS.BACKUP_GET}/create`, { userId: user._id });
+      const response = await createBackup(user._id);
       toast.success('Backup started successfully');
       // Update last backup info
       setBackupSettingsData(prev => ({
@@ -2191,6 +2749,88 @@ const SettingsPage = () => {
       toast.error('Failed to create backup');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRestoreBackup = async (backupId: string) => {
+    if (!user?._id) return;
+    if (!window.confirm('Are you sure you want to restore this backup? This will overwrite current data.')) return;
+    
+    setLoading(true);
+    try {
+      await restoreBackup(user._id, backupId);
+      toast.success('Backup restored successfully');
+      // Refresh backup list
+      await loadBackupList();
+    } catch (error) {
+      console.error('Error restoring backup:', error);
+      toast.error('Failed to restore backup');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBackup = async (backupId: string) => {
+    if (!user?._id) return;
+    if (!window.confirm('Are you sure you want to delete this backup?')) return;
+    
+    setLoading(true);
+    try {
+      await deleteBackup(user._id, backupId);
+      toast.success('Backup deleted successfully');
+      // Refresh backup list
+      await loadBackupList();
+    } catch (error) {
+      console.error('Error deleting backup:', error);
+      toast.error('Failed to delete backup');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!user?._id) return;
+    setLoading(true);
+    try {
+      const { location, credentials } = backupSettingsData.storage;
+      
+      // Always pass both location and credentials
+      await testBackupConnection(user._id, {
+        location,
+        credentials: credentials || {} // Pass empty object if no credentials
+      });
+      
+      toast.success(`${location.toUpperCase()} storage connection verified`);
+    } catch (error) {
+      console.error('Error testing connection:', error);
+      toast.error('Connection test failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // const handleValidateSettings = async () => {
+  //   if (!user?._id) return;
+  //   setLoading(true);
+  //   try {
+  //     await validateBackupSettings(user._id, backupSettingsData);
+  //     toast.success('Settings validation successful');
+  //   } catch (error) {
+  //     console.error('Error validating settings:', error);
+  //     toast.error('Settings validation failed');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  const loadBackupList = async () => {
+    if (!user?._id) return;
+    try {
+      const response = await listBackups(user._id);
+      setBackupList(response.data);
+    } catch (error) {
+      console.error('Error loading backup list:', error);
+      toast.error('Failed to load backup list');
     }
   };
 
@@ -3054,6 +3694,76 @@ const SettingsPage = () => {
 
     </form>
   );
+
+  const handleAuditLogsFilter = async () => {
+    try {
+      // Validate required fields
+      if (!auditLogsData.filters.dateRange?.start || !auditLogsData.filters.dateRange?.end) {
+        console.error('Date range is required');
+        return;
+      }
+
+      if (!auditLogsData.filters.eventTypes?.length) {
+        console.error('At least one event type must be selected');
+        return;
+      }
+
+      if (!auditLogsData.filters.users?.length) {
+        console.error('At least one user must be selected');
+        return;
+      }
+
+      if (!auditLogsData.filters.ipAddresses?.length) {
+        console.error('At least one IP address must be specified');
+        return;
+      }
+
+      const response = await filterAuditLogs(user?._id || '', {
+        dateRange: auditLogsData.filters.dateRange,
+        eventTypes: auditLogsData.filters.eventTypes,
+        users: auditLogsData.filters.users,
+        ipAddresses: auditLogsData.filters.ipAddresses
+      });
+
+      if (response.status === 200) {
+        console.log('Audit logs filtered successfully');
+        // Handle the filtered results here
+      }
+    } catch (error) {
+      console.error('Error filtering audit logs:', error);
+    }
+  };
+
+  const handleAuditLogsExport = async () => {
+    try {
+      const response = await exportAuditLogs(user?._id || '', auditLogsData.export);
+      if (response.status === 200) {
+        const blob = new Blob([response.data], { type: 'application/octet-stream' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `audit-logs-${new Date().toISOString()}.${auditLogsData.export.format}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('Error exporting audit logs:', error);
+    }
+  };
+
+  const handleAuditLogsArchive = async () => {
+    try {
+      const response = await archiveAuditLogs(user?._id || '', {
+        dateRange: auditLogsData.filters.dateRange,
+        storageLocation: auditLogsData.logging.storageLocation
+      });
+      if (response.status === 200) console.log('Audit logs archived successfully');
+    } catch (error) {
+      console.error('Error archiving audit logs:', error);
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -4982,264 +5692,210 @@ const SettingsPage = () => {
             {/* System Settings */}
             {activeTab === 'system' && isSuperAdmin && (
               <>
-                <div className="p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">System Settings</h2>
-                  <div className="space-y-6">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">General Settings</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">System Name</label>
-                          <input
-                            type="text"
-                            name="systemName"
-                            value={systemData.systemName}
-                            onChange={handleSystemChange}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            placeholder="Enter system name"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Time Zone</label>
-                          <select
-                            name="timeZone"
-                            value={systemData.timeZone}
-                            onChange={handleSystemChange}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                          >
-                            <option value="UTC">UTC</option>
-                            <option value="America/New_York">America/New_York</option>
-                            <option value="America/Los_Angeles">America/Los_Angeles</option>
-                            <option value="Europe/London">Europe/London</option>
-                            <option value="Asia/Tokyo">Asia/Tokyo</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Date Format</label>
-                          <select
-                            name="dateFormat"
-                            value={systemData.dateFormat}
-                            onChange={handleSystemChange}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                          >
-                            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Language</label>
-                          <input
-                            type="text"
-                            name="language"
-                            value={systemData.language}
-                            onChange={handleSystemChange}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            placeholder="Enter language code"
-                          />
-                        </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h2 className="text-2xl font-semibold mb-6">System Settings</h2>
+                  
+                  {/* Basic System Settings */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-medium mb-4">Basic Settings</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">System Name</label>
+                        <input
+                          type="text"
+                          name="systemName"
+                          value={systemData.systemName}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Time Zone</label>
+                        <select
+                          name="timeZone"
+                          value={systemData.timeZone}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="UTC">UTC</option>
+                          <option value="EST">EST</option>
+                          <option value="PST">PST</option>
+                          {/* Add more time zones as needed */}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Date Format</label>
+                        <select
+                          name="dateFormat"
+                          value={systemData.dateFormat}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                          <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                          <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Language</label>
+                        <select
+                          name="language"
+                          value={systemData.language}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="en">English</option>
+                          <option value="es">Spanish</option>
+                          {/* Add more languages as needed */}
+                        </select>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Maintenance</h3>
+                  {/* Maintenance Settings */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-medium mb-4">Maintenance</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="maintenance.maintenanceMode"
+                          checked={systemData.maintenance.maintenanceMode}
+                          onChange={handleSystemChange}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-gray-900">Enable Maintenance Mode</label>
+                      </div>
+                      
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
+                        <h4 className="text-md font-medium">Scheduled Maintenance</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <button
-                              className="btn btn-outline flex items-center"
-                              onClick={() => handleMaintenance('cache')}
-                              disabled={loading}
-                            >
-                              <Server className="h-4 w-4 mr-2" />
-                              Clear Cache
-                            </button>
-                            {systemData.maintenance.lastCacheClear && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Last cleared: {new Date(systemData.maintenance.lastCacheClear).toLocaleString()}
-                              </p>
-                            )}
+                            <label className="block text-sm font-medium text-gray-700">Start Time</label>
+                            <input
+                              type="datetime-local"
+                              name="maintenance.scheduledMaintenance.startTime"
+                              value={systemData.maintenance.scheduledMaintenance.startTime}
+                              onChange={handleSystemChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
                           </div>
                           <div>
-                            <button
-                              className="btn btn-outline flex items-center"
-                              onClick={() => handleMaintenance('database')}
-                              disabled={loading}
-                            >
-                              <Database className="h-4 w-4 mr-2" />
-                              Optimize Database
-                            </button>
-                            {systemData.maintenance.lastDatabaseOptimization && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Last optimized: {new Date(systemData.maintenance.lastDatabaseOptimization).toLocaleString()}
-                              </p>
-                            )}
+                            <label className="block text-sm font-medium text-gray-700">Duration (minutes)</label>
+                            <input
+                              type="number"
+                              name="maintenance.scheduledMaintenance.duration"
+                              value={systemData.maintenance.scheduledMaintenance.duration}
+                              onChange={handleSystemChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
                           </div>
                         </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="maintenanceMode"
-                            checked={systemData.maintenance.maintenanceMode}
-                            onChange={handleSystemChange}
-                            className="form-checkbox"
-                            id="maintenanceMode"
-                          />
-                          <label htmlFor="maintenanceMode" className="ml-2 block text-sm text-gray-700">
-                            Enable Maintenance Mode
-                          </label>
-                        </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Scheduled Maintenance</label>
-                          <div className="space-y-2">
-                            <div className="flex items-center">
-                              <input
-                                type="checkbox"
-                                name="scheduledMaintenance.enabled"
-                                checked={systemData.maintenance.scheduledMaintenance.enabled}
-                                onChange={handleSystemChange}
-                                className="form-checkbox"
-                                id="scheduledMaintenanceEnabled"
-                              />
-                              <label htmlFor="scheduledMaintenanceEnabled" className="ml-2 block text-sm text-gray-700">
-                                Enable Scheduled Maintenance
-                              </label>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Start Time</label>
-                              <input
-                                type="datetime-local"
-                                name="scheduledMaintenance.startTime"
-                                value={systemData.maintenance.scheduledMaintenance.startTime}
-                                onChange={handleSystemChange}
-                                className="mt-1 form-input"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Duration (hours)</label>
-                              <input
-                                type="number"
-                                name="scheduledMaintenance.duration"
-                                value={systemData.maintenance.scheduledMaintenance.duration}
-                                onChange={handleSystemChange}
-                                className="mt-1 form-input"
-                                min="1"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Message</label>
-                              <textarea
-                                name="scheduledMaintenance.message"
-                                value={systemData.maintenance.scheduledMaintenance.message}
-                                onChange={handleSystemChange}
-                                className="mt-1 form-textarea"
-                                rows={3}
-                                placeholder="Enter maintenance message"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Performance</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Max Upload Size (MB)</label>
-                          <input
-                            type="number"
-                            name="performance.maxUploadSize"
-                            value={systemData.performance.maxUploadSize}
+                          <label className="block text-sm font-medium text-gray-700">Maintenance Message</label>
+                          <textarea
+                            name="maintenance.scheduledMaintenance.message"
+                            value={systemData.maintenance.scheduledMaintenance.message}
                             onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Max Concurrent Uploads</label>
-                          <input
-                            type="number"
-                            name="performance.maxConcurrentUploads"
-                            value={systemData.performance.maxConcurrentUploads}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="1"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Session Timeout (minutes)</label>
-                          <input
-                            type="number"
-                            name="performance.sessionTimeout"
-                            value={systemData.performance.sessionTimeout}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="1"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Idle Timeout (minutes)</label>
-                          <input
-                            type="number"
-                            name="performance.idleTimeout"
-                            value={systemData.performance.idleTimeout}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="1"
+                            rows={3}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                           />
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Security</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Login Attempts</label>
-                          <input
-                            type="number"
-                            name="security.loginAttempts"
-                            value={systemData.security.loginAttempts}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Lockout Duration (minutes)</label>
-                          <input
-                            type="number"
-                            name="security.lockoutDuration"
-                            value={systemData.security.lockoutDuration}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="1"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Password Expiry (days)</label>
-                          <input
-                            type="number"
-                            name="security.passwordExpiry"
-                            value={systemData.security.passwordExpiry}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="1"
-                          />
-                        </div>
+                  {/* Performance Settings */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-medium mb-4">Performance</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Max Upload Size (MB)</label>
+                        <input
+                          type="number"
+                          name="performance.maxUploadSize"
+                          value={systemData.performance.maxUploadSize}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Max Concurrent Uploads</label>
+                        <input
+                          type="number"
+                          name="performance.maxConcurrentUploads"
+                          value={systemData.performance.maxConcurrentUploads}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Session Timeout (minutes)</label>
+                        <input
+                          type="number"
+                          name="performance.sessionTimeout"
+                          value={systemData.performance.sessionTimeout}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Idle Timeout (minutes)</label>
+                        <input
+                          type="number"
+                          name="performance.idleTimeout"
+                          value={systemData.performance.idleTimeout}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security Settings */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-medium mb-4">Security</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Max Login Attempts</label>
+                        <input
+                          type="number"
+                          name="security.loginAttempts"
+                          value={systemData.security.loginAttempts}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Lockout Duration (minutes)</label>
+                        <input
+                          type="number"
+                          name="security.lockoutDuration"
+                          value={systemData.security.lockoutDuration}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Password Expiry (days)</label>
+                        <input
+                          type="number"
+                          name="security.passwordExpiry"
+                          value={systemData.security.passwordExpiry}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="space-y-2">
                         <div className="flex items-center">
                           <input
                             type="checkbox"
                             name="security.sessionManagement.allowMultipleSessions"
                             checked={systemData.security.sessionManagement.allowMultipleSessions}
                             onChange={handleSystemChange}
-                            className="form-checkbox"
-                            id="allowMultipleSessions"
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                           />
-                          <label htmlFor="allowMultipleSessions" className="ml-2 block text-sm text-gray-700">
-                            Allow Multiple Sessions
-                          </label>
+                          <label className="ml-2 block text-sm text-gray-900">Allow Multiple Sessions</label>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Max Concurrent Sessions</label>
@@ -5248,138 +5904,146 @@ const SettingsPage = () => {
                             name="security.sessionManagement.maxConcurrentSessions"
                             value={systemData.security.sessionManagement.maxConcurrentSessions}
                             onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="1"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                           />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Notifications</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="notifications.systemAlerts"
-                            checked={systemData.notifications.systemAlerts}
-                            onChange={handleSystemChange}
-                            className="form-checkbox"
-                            id="systemAlerts"
-                          />
-                          <label htmlFor="systemAlerts" className="ml-2 block text-sm text-gray-700">
-                            Enable System Alerts
-                          </label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="notifications.maintenanceNotifications"
-                            checked={systemData.notifications.maintenanceNotifications}
-                            onChange={handleSystemChange}
-                            className="form-checkbox"
-                            id="maintenanceNotifications"
-                          />
-                          <label htmlFor="maintenanceNotifications" className="ml-2 block text-sm text-gray-700">
-                            Enable Maintenance Notifications
-                          </label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="notifications.errorNotifications"
-                            checked={systemData.notifications.errorNotifications}
-                            onChange={handleSystemChange}
-                            className="form-checkbox"
-                            id="errorNotifications"
-                          />
-                          <label htmlFor="errorNotifications" className="ml-2 block text-sm text-gray-700">
-                            Enable Error Notifications
-                          </label>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Notification Recipients</label>
-                          <textarea
-                            name="notifications.recipients"
-                            value={systemData.notifications.recipients.join('\n')}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-textarea"
-                            placeholder="Enter email addresses (one per line)"
-                            rows={3}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Logging</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="logging.enabled"
-                            checked={systemData.logging.enabled}
-                            onChange={handleSystemChange}
-                            className="form-checkbox"
-                            id="loggingEnabled"
-                          />
-                          <label htmlFor="loggingEnabled" className="ml-2 block text-sm text-gray-700">
-                            Enable Logging
-                          </label>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Log Level</label>
-                          <select
-                            name="logging.level"
-                            value={systemData.logging.level}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-select"
-                          >
-                            <option value="debug">Debug</option>
-                            <option value="info">Info</option>
-                            <option value="warn">Warn</option>
-                            <option value="error">Error</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Log Retention (days)</label>
-                          <input
-                            type="number"
-                            name="logging.retention"
-                            value={systemData.logging.retention}
-                            onChange={handleSystemChange}
-                            className="mt-1 form-input"
-                            min="1"
-                          />
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="logging.includeStackTraces"
-                            checked={systemData.logging.includeStackTraces}
-                            onChange={handleSystemChange}
-                            className="form-checkbox"
-                            id="includeStackTraces"
-                          />
-                          <label htmlFor="includeStackTraces" className="ml-2 block text-sm text-gray-700">
-                            Include Stack Traces
-                          </label>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                {/* Save Button */}
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                  <button
-                    type="button"
-                    className="btn btn-primary flex items-center"
-                    onClick={handleSystemSubmit}
-                    disabled={loading}
-                  >
-                    <Save size={18} className="mr-2" />
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
+
+                  {/* Notification Settings */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-medium mb-4">Notifications</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="notifications.systemAlerts"
+                          checked={systemData.notifications.systemAlerts}
+                          onChange={handleSystemChange}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-gray-900">System Alerts</label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="notifications.maintenanceNotifications"
+                          checked={systemData.notifications.maintenanceNotifications}
+                          onChange={handleSystemChange}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-gray-900">Maintenance Notifications</label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="notifications.errorNotifications"
+                          checked={systemData.notifications.errorNotifications}
+                          onChange={handleSystemChange}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-gray-900">Error Notifications</label>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Notification Recipients</label>
+                        <input
+                          type="text"
+                          name="notifications.recipients"
+                          value={systemData.notifications.recipients.join(', ')}
+                          onChange={handleSystemChange}
+                          placeholder="Enter email addresses separated by commas"
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Logging Settings */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-medium mb-4">Logging</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="logging.enabled"
+                          checked={systemData.logging.enabled}
+                          onChange={handleSystemChange}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-gray-900">Enable Logging</label>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Log Level</label>
+                        <select
+                          name="logging.level"
+                          value={systemData.logging.level}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="debug">Debug</option>
+                          <option value="info">Info</option>
+                          <option value="warn">Warning</option>
+                          <option value="error">Error</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Retention Period (days)</label>
+                        <input
+                          type="number"
+                          name="logging.retention"
+                          value={systemData.logging.retention}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Log Format</label>
+                        <select
+                          name="logging.format"
+                          value={systemData.logging.format}
+                          onChange={handleSystemChange}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="json">JSON</option>
+                          <option value="text">Text</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="logging.includeStackTraces"
+                          checked={systemData.logging.includeStackTraces}
+                          onChange={handleSystemChange}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-gray-900">Include Stack Traces</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end space-x-4">
+                    <button
+                      onClick={() => handleMaintenance('cache')}
+                      className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Clear Cache
+                    </button>
+                    <button
+                      onClick={() => handleMaintenance('database')}
+                      className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Optimize Database
+                    </button>
+                    <button
+                      onClick={handleSystemSubmit}
+                      disabled={loading}
+                      className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      {loading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -5390,52 +6054,131 @@ const SettingsPage = () => {
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Audit Logs</h2>
                   <div className="space-y-6">
+                    {/* Search and Export */}
                     <div className="flex justify-between items-center">
                       <div className="flex-1 max-w-sm">
                         <input
                           type="text"
                           placeholder="Search logs..."
                           className="form-input w-full"
+                          onChange={(e) => setSearchQuery(e.target.value)}
                         />
                       </div>
-                      <button className="btn btn-outline">Export Logs</button>
                     </div>
 
-                    <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                      <ul className="divide-y divide-gray-200">
-                        <li>
-                          <div className="px-4 py-4 flex items-center sm:px-6">
-                            <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
-                              <div>
-                                <div className="flex text-sm">
-                                  <p className="font-medium text-primary-600 truncate">User Login</p>
-                                  <p className="ml-1 flex-shrink-0 font-normal text-gray-500">John Doe</p>
-                                </div>
-                                <div className="mt-2 flex">
-                                  <div className="flex items-center text-sm text-gray-500">
-                                    <Activity className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                                    <p>2 minutes ago</p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                    {/* Filters Section */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-900 mb-4">Filters</h3>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                            <input
+                              type="date"
+                              name="filters.dateRange.start"
+                              value={auditLogsData.filters?.dateRange?.start || ''}
+                              onChange={handleAuditLogsChange}
+                              className="mt-1 form-input"
+                            />
                           </div>
-                        </li>
-                      </ul>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">End Date</label>
+                            <input
+                              type="date"
+                              name="filters.dateRange.end"
+                              value={auditLogsData.filters?.dateRange?.end || ''}
+                              onChange={handleAuditLogsChange}
+                              className="mt-1 form-input"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Event Types</label>
+                          <select
+                            multiple
+                            name="filters.eventTypes"
+                            value={auditLogsData.filters?.eventTypes || []}
+                            onChange={handleAuditLogsChange}
+                            className="mt-1 form-select"
+                          >
+                            <option value="userActivity">User Activity</option>
+                            <option value="systemChanges">System Changes</option>
+                            <option value="securityEvents">Security Events</option>
+                            <option value="dataAccess">Data Access</option>
+                            <option value="apiCalls">API Calls</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Users</label>
+                          <input
+                            type="text"
+                            name="filters.users"
+                            value={(auditLogsData.filters?.users || []).join(', ')}
+                            onChange={(e) => {
+                              const users = e.target.value.split(',').map(user => user.trim());
+                              setAuditLogsData(prev => ({
+                                ...prev,
+                                filters: {
+                                  ...prev.filters,
+                                  users
+                                }
+                              }));
+                            }}
+                            className="mt-1 form-input"
+                            placeholder="Enter user IDs (comma-separated)"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">IP Addresses</label>
+                          <input
+                            type="text"
+                            name="filters.ipAddresses"
+                            value={(auditLogsData.filters?.ipAddresses || []).join(', ')}
+                            onChange={(e) => {
+                              const ips = e.target.value.split(',').map(ip => ip.trim());
+                              setAuditLogsData(prev => ({
+                                ...prev,
+                                filters: {
+                                  ...prev.filters,
+                                  ipAddresses: ips
+                                }
+                              }));
+                            }}
+                            className="mt-1 form-input"
+                            placeholder="Enter IP addresses (comma-separated)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Existing sections remain unchanged */}
+                    {/* Logging Configuration */}
+                    {/* Event Types */}
+                    {/* Export Settings */}
+                    {/* Notifications */}
+
+                    {/* Save Button */}
+                    <div className="flex justify-end space-x-4 mt-6">
+                      <button
+                        onClick={handleAuditLogsFilter}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        Apply Filters
+                      </button>
+                      <button
+                        onClick={handleAuditLogsExport}
+                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        Export Logs
+                      </button>
+                      <button
+                        onClick={handleAuditLogsArchive}
+                        className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                      >
+                        Archive Logs
+                      </button>
                     </div>
                   </div>
-                </div>
-                {/* Save Button */}
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                  <button
-                    type="button"
-                    className="btn btn-primary flex items-center"
-                    onClick={handleSave}
-                    disabled={loading}
-                  >
-                    <Save size={18} className="mr-2" />
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
                 </div>
               </>
             )}
@@ -5446,17 +6189,17 @@ const SettingsPage = () => {
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Backup & Recovery</h2>
                   <div className="space-y-6">
-                    {/* Backup Schedule */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Backup Schedule</h3>
-                      <div className="space-y-4">
+                    {/* Schedule Settings */}
+                    <div className="bg-white shadow rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Schedule Settings</h3>
+                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Frequency</label>
                           <select
                             name="schedule.frequency"
                             value={backupSettingsData.schedule.frequency}
                             onChange={handleBackupSettingsChange}
-                            className="mt-1 form-select"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           >
                             <option value="daily">Daily</option>
                             <option value="weekly">Weekly</option>
@@ -5470,13 +6213,13 @@ const SettingsPage = () => {
                             name="schedule.time"
                             value={backupSettingsData.schedule.time}
                             onChange={handleBackupSettingsChange}
-                            className="mt-1 form-input"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           />
                         </div>
                         {backupSettingsData.schedule.frequency === 'weekly' && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Days of Week</label>
-                            <div className="mt-2 space-x-2">
+                          <div className="col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Days of Week</label>
+                            <div className="flex flex-wrap gap-4">
                               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
                                 <label key={day} className="inline-flex items-center">
                                   <input
@@ -5484,7 +6227,7 @@ const SettingsPage = () => {
                                     name={`schedule.daysOfWeek.${index}`}
                                     checked={backupSettingsData.schedule.daysOfWeek?.includes(index)}
                                     onChange={handleBackupSettingsChange}
-                                    className="form-checkbox"
+                                    className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                   />
                                   <span className="ml-2 text-sm text-gray-700">{day}</span>
                                 </label>
@@ -5502,7 +6245,7 @@ const SettingsPage = () => {
                               onChange={handleBackupSettingsChange}
                               min="1"
                               max="31"
-                              className="mt-1 form-input"
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             />
                           </div>
                         )}
@@ -5510,9 +6253,9 @@ const SettingsPage = () => {
                     </div>
 
                     {/* Retention Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Retention Settings</h3>
-                      <div className="space-y-4">
+                    <div className="bg-white shadow rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Retention Settings</h3>
+                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Retention Period (days)</label>
                           <input
@@ -5521,7 +6264,7 @@ const SettingsPage = () => {
                             value={backupSettingsData.retention.days}
                             onChange={handleBackupSettingsChange}
                             min="1"
-                            className="mt-1 form-input"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           />
                         </div>
                         <div>
@@ -5532,28 +6275,27 @@ const SettingsPage = () => {
                             value={backupSettingsData.retention.maxBackups}
                             onChange={handleBackupSettingsChange}
                             min="1"
-                            className="mt-1 form-input"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           />
                         </div>
-                        <div className="flex items-center">
+                        <div className="col-span-2">
+                          <label className="inline-flex items-center">
                           <input
                             type="checkbox"
                             name="retention.deleteAfterRestore"
                             checked={backupSettingsData.retention.deleteAfterRestore}
                             onChange={handleBackupSettingsChange}
-                            className="form-checkbox"
-                            id="deleteAfterRestore"
+                              className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                           />
-                          <label htmlFor="deleteAfterRestore" className="ml-2 block text-sm text-gray-700">
-                            Delete backup after successful restore
+                            <span className="ml-2 text-sm text-gray-700">Delete backup after successful restore</span>
                           </label>
                         </div>
                       </div>
                     </div>
 
                     {/* Storage Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Storage Settings</h3>
+                    <div className="bg-white shadow rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Storage Settings</h3>
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Storage Location</label>
@@ -5561,7 +6303,7 @@ const SettingsPage = () => {
                             name="storage.location"
                             value={backupSettingsData.storage.location}
                             onChange={handleBackupSettingsChange}
-                            className="mt-1 form-select"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           >
                             <option value="local">Local Storage</option>
                             <option value="s3">Amazon S3</option>
@@ -5576,12 +6318,12 @@ const SettingsPage = () => {
                             name="storage.path"
                             value={backupSettingsData.storage.path}
                             onChange={handleBackupSettingsChange}
-                            className="mt-1 form-input"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             placeholder="/backups"
                           />
                         </div>
                         {backupSettingsData.storage.location !== 'local' && (
-                          <div className="space-y-4">
+                          <>
                             <div>
                               <label className="block text-sm font-medium text-gray-700">Access Key</label>
                               <input
@@ -5589,7 +6331,7 @@ const SettingsPage = () => {
                                 name="storage.credentials.accessKey"
                                 value={backupSettingsData.storage.credentials?.accessKey}
                                 onChange={handleBackupSettingsChange}
-                                className="mt-1 form-input"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                               />
                             </div>
                             <div>
@@ -5599,7 +6341,7 @@ const SettingsPage = () => {
                                 name="storage.credentials.secretKey"
                                 value={backupSettingsData.storage.credentials?.secretKey}
                                 onChange={handleBackupSettingsChange}
-                                className="mt-1 form-input"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                               />
                             </div>
                             <div>
@@ -5609,7 +6351,7 @@ const SettingsPage = () => {
                                 name="storage.credentials.bucket"
                                 value={backupSettingsData.storage.credentials?.bucket}
                                 onChange={handleBackupSettingsChange}
-                                className="mt-1 form-input"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                               />
                             </div>
                             <div>
@@ -5619,17 +6361,17 @@ const SettingsPage = () => {
                                 name="storage.credentials.region"
                                 value={backupSettingsData.storage.credentials?.region}
                                 onChange={handleBackupSettingsChange}
-                                className="mt-1 form-input"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                               />
                             </div>
-                          </div>
+                          </>
                         )}
                       </div>
                     </div>
 
                     {/* Encryption Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Encryption Settings</h3>
+                    <div className="bg-white shadow rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Encryption Settings</h3>
                       <div className="space-y-4">
                         <div className="flex items-center">
                           <input
@@ -5641,7 +6383,7 @@ const SettingsPage = () => {
                             id="encryptionEnabled"
                           />
                           <label htmlFor="encryptionEnabled" className="ml-2 block text-sm text-gray-700">
-                            Enable backup encryption
+                            Enable Encryption
                           </label>
                         </div>
                         {backupSettingsData.encryption.enabled && (
@@ -5675,8 +6417,8 @@ const SettingsPage = () => {
                     </div>
 
                     {/* Compression Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Compression Settings</h3>
+                    <div className="bg-white shadow rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Compression Settings</h3>
                       <div className="space-y-4">
                         <div className="flex items-center">
                           <input
@@ -5688,7 +6430,7 @@ const SettingsPage = () => {
                             id="compressionEnabled"
                           />
                           <label htmlFor="compressionEnabled" className="ml-2 block text-sm text-gray-700">
-                            Enable backup compression
+                            Enable Compression
                           </label>
                         </div>
                         {backupSettingsData.compression.enabled && (
@@ -5711,8 +6453,8 @@ const SettingsPage = () => {
                     </div>
 
                     {/* Notification Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Notification Settings</h3>
+                    <div className="bg-white shadow rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Notification Settings</h3>
                       <div className="space-y-4">
                         <div className="flex items-center">
                           <input
@@ -5724,7 +6466,7 @@ const SettingsPage = () => {
                             id="notifyOnSuccess"
                           />
                           <label htmlFor="notifyOnSuccess" className="ml-2 block text-sm text-gray-700">
-                            Notify on successful backup
+                            Notify on Successful Backup
                           </label>
                         </div>
                         <div className="flex items-center">
@@ -5737,70 +6479,113 @@ const SettingsPage = () => {
                             id="notifyOnFailure"
                           />
                           <label htmlFor="notifyOnFailure" className="ml-2 block text-sm text-gray-700">
-                            Notify on backup failure
+                            Notify on Backup Failure
                           </label>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Notification Recipients</label>
-                          <textarea
+                          <input
+                            type="text"
                             name="notifications.recipients"
-                            value={backupSettingsData.notifications.recipients.join('\n')}
-                            onChange={handleBackupSettingsChange}
-                            className="mt-1 form-textarea"
-                            placeholder="Enter email addresses (one per line)"
-                            rows={3}
+                            value={backupSettingsData.notifications.recipients.join(', ')}
+                            onChange={(e) => {
+                              const recipients = e.target.value.split(',').map(email => email.trim());
+                              setBackupSettingsData(prev => ({
+                                ...prev,
+                                notifications: {
+                                  ...prev.notifications,
+                                  recipients
+                                }
+                              }));
+                            }}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            placeholder="Enter email addresses (comma-separated)"
                           />
                         </div>
                       </div>
                     </div>
 
-                    {/* Manual Backup */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Manual Backup</h3>
-                      <div className="space-y-4">
+                    {/* Backup List */}
+                    <div className="bg-white shadow rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Available Backups</h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {backupList.map((backup) => (
+                              <tr key={backup.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{backup.id}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(backup.timestamp).toLocaleString()}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{backup.size} MB</td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                    backup.status === 'success' ? 'bg-green-100 text-green-800' :
+                                    backup.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {backup.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{backup.location}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
-                          className="btn btn-primary flex items-center"
-                          onClick={handleCreateBackup}
-                          disabled={loading}
+                                    onClick={() => handleRestoreBackup(backup.id)}
+                                    className="text-indigo-600 hover:text-indigo-900 mr-4"
                         >
-                          <HardDrive className="h-4 w-4 mr-2" />
-                          {loading ? 'Creating Backup...' : 'Create Backup Now'}
+                                    Restore
                         </button>
-                        {backupSettingsData.lastBackup && (
-                          <div className="mt-4 p-4 bg-white rounded-lg border">
-                            <h4 className="text-sm font-medium text-gray-900">Last Backup</h4>
-                            <div className="mt-2 space-y-2">
-                              <p className="text-sm text-gray-600">
-                                Status: <span className={`font-medium ${backupSettingsData.lastBackup.status === 'success' ? 'text-green-600' : backupSettingsData.lastBackup.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>
-                                  {backupSettingsData.lastBackup.status.charAt(0).toUpperCase() + backupSettingsData.lastBackup.status.slice(1)}
-                                </span>
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                Time: {new Date(backupSettingsData.lastBackup.timestamp).toLocaleString()}
-                              </p>
-                              {backupSettingsData.lastBackup.size > 0 && (
-                                <p className="text-sm text-gray-600">
-                                  Size: {(backupSettingsData.lastBackup.size / (1024 * 1024)).toFixed(2)} MB
-                                </p>
-                              )}
+                                  <button
+                                    onClick={() => handleDeleteBackup(backup.id)}
+                                    className="text-red-600 hover:text-red-900"
+                                  >
+                                    Delete
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                             </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Save Button */}
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-end space-x-4">
                   <button
-                    type="button"
-                    className="btn btn-primary flex items-center"
+                        onClick={handleTestConnection}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Test Connection
+                      </button>
+                      <button
+                        onClick={handleValidateSettings}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Validate Settings
+                      </button>
+                      <button
+                        onClick={handleCreateBackup}
+                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        Create Backup
+                      </button>
+                      <button
                     onClick={handleSave}
                     disabled={loading}
+                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
-                    <Save size={18} className="mr-2" />
                     {loading ? 'Saving...' : 'Save Changes'}
                   </button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -5815,226 +6600,7 @@ const SettingsPage = () => {
             {/* API Settings */}
             {activeTab === 'api' && isSuperAdmin && (
               <>
-                <div className="p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">API Settings</h2>
-                  <div className="space-y-6">
-                    {/* API Keys */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">API Keys</h3>
-                      <div className="space-y-4">
-                        {/* Production Key */}
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">Production Key</p>
-                            <p className="text-xs text-gray-500">Last used: {apiSettingsData.keys.production.lastUsed}</p>
-                            <p className="text-xs text-gray-500">Created: {apiSettingsData.keys.production.createdAt}</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              className="btn btn-outline text-xs py-1"
-                              onClick={() => handleRegenerateApiKey('production')}
-                            >
-                              Regenerate
-                            </button>
-                            <button
-                              className="btn btn-outline text-xs py-1"
-                              onClick={() => navigator.clipboard.writeText(apiSettingsData.keys.production.key)}
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                        {/* Development Key */}
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">Development Key</p>
-                            <p className="text-xs text-gray-500">Last used: {apiSettingsData.keys.development.lastUsed}</p>
-                            <p className="text-xs text-gray-500">Created: {apiSettingsData.keys.development.createdAt}</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              className="btn btn-outline text-xs py-1"
-                              onClick={() => handleRegenerateApiKey('development')}
-                            >
-                              Regenerate
-                            </button>
-                            <button
-                              className="btn btn-outline text-xs py-1"
-                              onClick={() => navigator.clipboard.writeText(apiSettingsData.keys.development.key)}
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Rate Limiting */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Rate Limiting</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Requests per Minute</label>
-                          <input
-                            type="number"
-                            name="rateLimiting.requestsPerMinute"
-                            value={apiSettingsData.rateLimiting.requestsPerMinute}
-                            onChange={handleApiSettingsChange}
-                            className="mt-1 form-input"
-                            min="1"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Burst Limit</label>
-                          <input
-                            type="number"
-                            name="rateLimiting.burstLimit"
-                            value={apiSettingsData.rateLimiting.burstLimit}
-                            onChange={handleApiSettingsChange}
-                            className="mt-1 form-input"
-                            min="1"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* CORS Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">CORS Settings</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Allowed Origins</label>
-                          <textarea
-                            name="cors.allowedOrigins"
-                            value={apiSettingsData.cors.allowedOrigins.join('\n')}
-                            onChange={handleApiSettingsChange}
-                            className="mt-1 form-textarea"
-                            rows={4}
-                            placeholder="Enter one origin per line"
-                          />
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="cors.allowCredentials"
-                            checked={apiSettingsData.cors.allowCredentials}
-                            onChange={handleApiSettingsChange}
-                            className="form-checkbox"
-                            id="allowCredentials"
-                          />
-                          <label htmlFor="allowCredentials" className="ml-2 block text-sm text-gray-700">
-                            Allow Credentials
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Security Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Security Settings</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="security.requireApiKey"
-                            checked={apiSettingsData.security.requireApiKey}
-                            onChange={handleApiSettingsChange}
-                            className="form-checkbox"
-                            id="requireApiKey"
-                          />
-                          <label htmlFor="requireApiKey" className="ml-2 block text-sm text-gray-700">
-                            Require API Key
-                          </label>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">IP Whitelist</label>
-                          <textarea
-                            name="security.ipWhitelist"
-                            value={apiSettingsData.security.ipWhitelist.join('\n')}
-                            onChange={handleApiSettingsChange}
-                            className="mt-1 form-textarea"
-                            rows={4}
-                            placeholder="Enter one IP address per line"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Allowed Methods</label>
-                          <select
-                            name="security.allowedMethods"
-                            multiple
-                            value={apiSettingsData.security.allowedMethods}
-                            onChange={handleApiSettingsChange}
-                            className="mt-1 form-select"
-                          >
-                            <option value="GET">GET</option>
-                            <option value="POST">POST</option>
-                            <option value="PUT">PUT</option>
-                            <option value="DELETE">DELETE</option>
-                            <option value="PATCH">PATCH</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Monitoring Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Monitoring Settings</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="monitoring.enabled"
-                            checked={apiSettingsData.monitoring.enabled}
-                            onChange={handleApiSettingsChange}
-                            className="form-checkbox"
-                            id="monitoringEnabled"
-                          />
-                          <label htmlFor="monitoringEnabled" className="ml-2 block text-sm text-gray-700">
-                            Enable API Monitoring
-                          </label>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Log Level</label>
-                          <select
-                            name="monitoring.logLevel"
-                            value={apiSettingsData.monitoring.logLevel}
-                            onChange={handleApiSettingsChange}
-                            className="mt-1 form-select"
-                          >
-                            <option value="debug">Debug</option>
-                            <option value="info">Info</option>
-                            <option value="warn">Warn</option>
-                            <option value="error">Error</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Log Retention (days)</label>
-                          <input
-                            type="number"
-                            name="monitoring.retentionDays"
-                            value={apiSettingsData.monitoring.retentionDays}
-                            onChange={handleApiSettingsChange}
-                            className="mt-1 form-input"
-                            min="1"
-                            max="365"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Save Button */}
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                  <button
-                    type="button"
-                    className="btn btn-primary flex items-center"
-                    onClick={handleSave}
-                    disabled={loading}
-                  >
-                    <Save size={18} className="mr-2" />
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
+                {renderApiSettingsSection()}
               </>
             )}
 
@@ -6285,256 +6851,6 @@ const SettingsPage = () => {
                     <Save size={18} className="mr-2" />
                     {loading ? 'Saving...' : 'Save Changes'}
                   </button>
-                </div>
-              </>
-            )}
-
-            {/* Audit Logs Settings */}
-            {activeTab === 'audit' && isSuperAdmin && (
-              <>
-                <div className="p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">Audit Logs Settings</h2>
-                  <div className="space-y-6">
-                    {/* Logging Configuration */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Logging Configuration</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="logging.enabled"
-                            checked={auditLogsData.logging.enabled}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">Enable Audit Logging</label>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Log Level</label>
-                          <select
-                            name="logging.level"
-                            value={auditLogsData.logging.level}
-                            onChange={handleAuditLogsChange}
-                            className="mt-1 form-select"
-                          >
-                            <option value="debug">Debug</option>
-                            <option value="info">Info</option>
-                            <option value="warn">Warning</option>
-                            <option value="error">Error</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Retention Period (days)</label>
-                          <input
-                            type="number"
-                            name="logging.retentionPeriod"
-                            value={auditLogsData.logging.retentionPeriod}
-                            onChange={handleAuditLogsChange}
-                            className="mt-1 form-input"
-                            min="1"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Storage Location</label>
-                          <select
-                            name="logging.storageLocation"
-                            value={auditLogsData.logging.storageLocation}
-                            onChange={handleAuditLogsChange}
-                            className="mt-1 form-select"
-                          >
-                            <option value="local">Local Storage</option>
-                            <option value="s3">Amazon S3</option>
-                            <option value="azure">Azure Blob Storage</option>
-                            <option value="gcp">Google Cloud Storage</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Export Format</label>
-                          <select
-                            name="logging.exportFormat"
-                            value={auditLogsData.logging.exportFormat}
-                            onChange={handleAuditLogsChange}
-                            className="mt-1 form-select"
-                          >
-                            <option value="json">JSON</option>
-                            <option value="csv">CSV</option>
-                            <option value="xml">XML</option>
-                          </select>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="logging.autoArchive"
-                            checked={auditLogsData.logging.autoArchive}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">Auto-Archive Old Logs</label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Event Types */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Event Types</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="events.userActivity"
-                            checked={auditLogsData.events.userActivity}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">User Activity</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="events.systemChanges"
-                            checked={auditLogsData.events.systemChanges}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">System Changes</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="events.securityEvents"
-                            checked={auditLogsData.events.securityEvents}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">Security Events</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="events.dataAccess"
-                            checked={auditLogsData.events.dataAccess}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">Data Access</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="events.apiCalls"
-                            checked={auditLogsData.events.apiCalls}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-gray-700">API Calls</label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Export Settings */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Export Settings</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Export Schedule</label>
-                          <select
-                            name="export.schedule"
-                            value={auditLogsData.export.schedule}
-                            onChange={handleAuditLogsChange}
-                            className="mt-1 form-select"
-                          >
-                            <option value="none">No Schedule</option>
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                          </select>
-                        </div>
-                        {auditLogsData.export.schedule !== 'none' && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Export Time</label>
-                            <input
-                              type="time"
-                              name="export.time"
-                              value={auditLogsData.export.time}
-                              onChange={handleAuditLogsChange}
-                              className="mt-1 form-input"
-                            />
-                          </div>
-                        )}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Export Format</label>
-                          <select
-                            name="export.format"
-                            value={auditLogsData.export.format}
-                            onChange={handleAuditLogsChange}
-                            className="mt-1 form-select"
-                          >
-                            <option value="json">JSON</option>
-                            <option value="csv">CSV</option>
-                            <option value="xml">XML</option>
-                          </select>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="export.compression"
-                            checked={auditLogsData.export.compression}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">Enable Compression</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="export.encryption"
-                            checked={auditLogsData.export.encryption}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">Enable Encryption</label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notifications */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-900 mb-4">Notifications</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="notifications.onCritical"
-                            checked={auditLogsData.notifications.onCritical}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">Notify on Critical Events</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="notifications.onWarning"
-                            checked={auditLogsData.notifications.onWarning}
-                            onChange={handleAuditLogsChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2 text-sm text-gray-700">Notify on Warning Events</label>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Notification Recipients</label>
-                          <textarea
-                            name="notifications.recipients"
-                            value={auditLogsData.notifications.recipients.join('\n')}
-                            onChange={handleAuditLogsChange}
-                            className="mt-1 form-textarea"
-                            rows={3}
-                            placeholder="Enter email addresses (one per line)"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </>
             )}
