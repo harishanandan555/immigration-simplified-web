@@ -6,6 +6,8 @@ import LoginPage from '../pages/auth/LoginPage';
 import FoiaCasesPage from '../pages/foia/FoiaCasesPage';
 import FoiaCaseFormPage from '../pages/foia/FoiaCaseFormPage';
 import FoiaCasesDetailsPage from '../pages/foia/FoiaCasesDetailsPage';
+import ClientListPage from '../pages/ClientListPage';
+import CreateClientPage from '../pages/CreateClientPage';
 
 // Lazy-loaded components
 const Dashboard = lazy(() => import('../pages/Dashboard'));
@@ -18,11 +20,13 @@ const ClientDetailsPage = lazy(() => import('../pages/clients/ClientDetailsPage'
 const ClientFormPage = lazy(() => import('../pages/clients/ClientFormPage'));
 const FormsLibraryPage = lazy(() => import('../pages/forms/FormsLibraryPage'));
 const FormFillPage = lazy(() => import('../pages/forms/FormFillPage'));
+const CaseFormsListPage = lazy(() => import('../pages/forms/CaseFormsListPage'));
 const DocumentsPage = lazy(() => import('../pages/documents/DocumentsPage'));
 const TasksPage = lazy(() => import('../pages/tasks/TasksPage'));
 const CalendarPage = lazy(() => import('../pages/tasks/CalendarPage'));
 const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'));
-const ImmigrationProcess = lazy(() => import('../pages/immigrationSteps/ImmigrationProcess'));
+const ImmigrationProcess = lazy(() => import('../pages/ImmigrationProcess'));
+const FormWizardPage = lazy(() => import('../pages/FormWizardPage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const AppRoutes = () => {
@@ -46,7 +50,25 @@ const AppRoutes = () => {
             </Suspense>
           } />
 
+          <Route path="/form-wizard" element={
+            <Suspense fallback={null}>
+              <FormWizardPage />
+            </Suspense>
+          } />
+
           <Route path="/immigration-process" element={
+            <Suspense fallback={null}>
+              <ImmigrationProcess />
+            </Suspense>
+          } />
+
+          <Route path="/immigration-process/new" element={
+            <Suspense fallback={null}>
+              <ImmigrationProcess />
+            </Suspense>
+          } />
+
+          <Route path="/immigration-process/:processId" element={
             <Suspense fallback={null}>
               <ImmigrationProcess />
             </Suspense>
@@ -87,12 +109,12 @@ const AppRoutes = () => {
           {/* Clients routes */}
           <Route path="/clients" element={
             <Suspense fallback={null}>
-              <ClientsPage />
+              <ClientListPage />
             </Suspense>
           } />
-          <Route path="/clients/new" element={
+          <Route path="/clients/create" element={
             <Suspense fallback={null}>
-              <ClientFormPage />
+              <CreateClientPage />
             </Suspense>
           } />
           <Route path="/clients/:id" element={
@@ -115,6 +137,11 @@ const AppRoutes = () => {
           <Route path="/forms/:id" element={
             <Suspense fallback={null}>
               <FormFillPage />
+            </Suspense>
+          } />
+          <Route path="/case-forms/:caseId" element={
+            <Suspense fallback={null}>
+              <CaseFormsListPage />
             </Suspense>
           } />
 

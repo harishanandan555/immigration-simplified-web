@@ -48,18 +48,47 @@ export const COMPANY_END_POINTS = {
 export const FOIA_CASE_END_POINTS = {
     CREATECASE: "/api/v1/foia-cases",
     GETCASES: "/api/v1/foia-cases",
-    GETCASEBYID: "/api/v1/foia-cases/:id",
+    GETCASEBYID: "/api/v1/foia-cases/:id"
 };
 
 export const IMMIGRATION_END_POINTS = {
-    BASE: "/api/v1/immigration/process",
-    GET_FORMS: "/api/v1/immigration/process/forms",
-    START_PROCESS: "/api/v1/api/immigration/process/start",
-    GET_PROCESS: "/api/v1/immigration/process/:processId",
-    UPDATE_STEP: "/api/v1/immigration/process/:processId/step",
-    ADD_DOCUMENT: "/api/v1/immigration/process/:processId/document",
-    UPDATE_DOCUMENT: "/api/v1/immigration/process/:processId/document/:documentId",
-    VALIDATE_FORM: "/api/v1/immigration/process/:processId/validate",
+    // Process Management
+    START_PROCESS: '/api/v1/immigration/process/start',
+    GET_PROCESS: '/api/v1/immigration/process/:processId',
+    UPDATE_PROCESS_STEP: '/api/v1/immigration/process/:processId/step',
+    UPDATE_PROCESS: '/api/v1/immigration/process/:processId',
+    SUBMIT_PROCESS: '/api/v1/immigration/process/:processId/submit',
+    
+    // Document Management
+    UPLOAD_DOCUMENT: '/api/v1/immigration/process/:processId/documents',
+    UPDATE_DOCUMENT: '/api/v1/immigration/process/:processId/documents/:documentId',
+    GET_DOCUMENTS: '/api/v1/immigration/process/:processId/documents',
+    
+    // Form Management
+    GET_FORMS: '/api/v1/immigration/forms',
+    SELECT_FORM_TYPE: '/api/v1/immigration/form-types/:typeId/select',
+    GET_SUBCATEGORIES: '/api/v1/immigration/form-types/:typeId/subcategories',
+    SELECT_SUBCATEGORY: '/api/v1/immigration/subcategories/:subcategoryId/select',
+    GET_FORM_DATA: '/api/v1/immigration/process/:processId/forms/:formId',
+    SAVE_FORM_DATA: '/api/v1/immigration/process/:processId/forms/:formId',
+    VALIDATE_FORM: '/api/v1/immigration/process/:processId/validate',
+    
+    // Category Management
+    GET_CATEGORIES: '/api/v1/immigration/categories',
+    GET_REQUIREMENTS: '/api/v1/immigration/categories/:categoryId/requirements',
+    
+    // FOIA Management
+    CREATE_FOIA: '/api/v1/immigration/process/:processId/foia',
+    GET_FOIA_STATUS: '/api/v1/immigration/process/:processId/foia/status',
+    
+    // Process Flow
+    SUBMIT_PROCESS_FLOW: '/api/v1/immigration/process/flow/:id',
+    
+    // Additional Utilities
+    AUTOFILL_FORMS: '/api/v1/immigration/process/:processId/forms/autofill',
+    GET_AUTOFILL_STATUS: '/api/v1/immigration/process/:processId/forms/autofill/status',
+    GENERATE_FORMS: '/api/v1/immigration/process/:processId/forms/generate',
+    DOWNLOAD_FORMS: '/api/v1/immigration/process/:processId/forms/download'
 };
 
 export const SETTINGS_END_POINTS = {

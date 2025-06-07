@@ -7,6 +7,10 @@ export interface ImmigrationCategory {
   icon?: string;
   subcategories?: string[];
   allowedRoles?: string[];
+  categoryId: string;
+  subcategoryId: string;
+  visaType: string;
+  priorityDate: string;
 }
 
 export interface ImmigrationSubcategory {
@@ -85,50 +89,124 @@ export interface ProgressStep {
 }
 
 export interface ImmigrationProcess {
+  _id?: string;
   id: string;
+  caseId: string;
   categoryId: string;
   subcategoryId: string;
   visaType: string;
   clientId: string;
-  caseId: string;
   priorityDate: string;
-  status: string;
-  currentStep: string;
+  deadline?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'rejected';
+  currentStep: 'type' | 'documents' | 'form';
   steps: ProcessStep[];
   documents: ProcessDocument[];
   formData: Record<string, any>;
   validationResults: ValidationResult | null;
+  assignedStaff?: string;
+  caseNotes?: string;
+  relatedCases?: string[];
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
+  auditLog?: AuditLogEntry[];
 }
 
 export interface ProcessStep {
+  id: string;
   name: string;
   description: string;
-  isCompleted: boolean;
-  isCurrent: boolean;
-  completedAt?: string;
-  notes?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'rejected';
+  requiredDocuments: string[];
+  requiredForms: string[];
+  formData?: Record<string, any>;
 }
 
 export interface ProcessDocument {
-  documentId: string;
-  name: string;
+  id: string;
   type: string;
-  uploadedAt: string;
-  status: string;
-  notes?: string;
+  name: string;
+  status: 'pending' | 'uploaded' | 'validated' | 'rejected';
+  url?: string;
+  metadata?: Record<string, any>;
+  extractedData?: Record<string, any>;
 }
 
 export interface ValidationResult {
   isValid: boolean;
-  errors: string[];
-  missingFields: string[];
-  suggestions: ValidationSuggestion[];
-  confidence: number;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
 }
 
-export interface ValidationSuggestion {
+export interface ValidationError {
   field: string;
-  suggestion: string;
+  message: string;
+  code: string;
+}
+
+export interface ValidationWarning {
+  field: string;
+  message: string;
+  code: string;
+}
+
+export interface ImmigrationProcessForm {
+  formNumber: string;
+  name: string;
+  description: string;
+  category: string;
+  subcategory: string;
+  formFields: FormField[];
+  requiredDocuments: RequiredDocument[];
+  version: string;
+  effectiveDate: string;
+  expirationDate: string;
+  isActive: boolean;
+}
+
+export interface FormField {
+  fieldName: string;
+  label: string;
+  type: string;
+  required: boolean;
+  validationRules: string[];
+}
+
+export interface RequiredDocument {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface CaseStrategy {
+  categoryId: string;
+  tips: string[];
+  commonMistakes: string[];
+  successFactors: string[];
+}
+
+export interface ProgressStep {
+  id: string;
+  name: string;
+  description: string;
+  isCompleted: boolean;
+  isCurrent: boolean;
+}
+
+export interface ReviewData {
+  confirmed: boolean;
+  notes: string;
+  specialInstructions: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: 'create' | 'update' | 'delete' | 'status_change' | 'document_upload' | 'form_submit';
+  userId: string;
+  userName: string;
+  timestamp: string;
+  details: Record<string, any>;
+  previousState?: Record<string, any>;
+  newState?: Record<string, any>;
 } 

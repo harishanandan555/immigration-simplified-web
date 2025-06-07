@@ -1,0 +1,227 @@
+.case-forms-list {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.case-type-section {
+  margin-bottom: 3rem;
+}
+
+.case-type-title {
+  color: #1F2937;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #E5E7EB;
+}
+
+.subcategory-section {
+  margin-bottom: 2rem;
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.subcategory-title {
+  color: #1F2937;
+  font-size: 1.25rem;
+  font-weight: 600;
+  padding: 1.5rem;
+  background: #F9FAFB;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.forms-table {
+  width: 100%;
+}
+
+.forms-table-header {
+  display: grid;
+  grid-template-columns: 120px 2fr 120px 120px 120px 160px;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: #F9FAFB;
+  border-bottom: 1px solid #E5E7EB;
+  font-weight: 500;
+  color: #4B5563;
+  font-size: 0.875rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 120px 2fr 120px 120px 120px 160px;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #E5E7EB;
+  align-items: center;
+}
+
+.form-row:last-child {
+  border-bottom: none;
+}
+
+.form-number {
+  font-family: monospace;
+  font-weight: 500;
+  color: #1F2937;
+}
+
+.form-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-title-main {
+  color: #1F2937;
+  font-weight: 500;
+}
+
+.form-description {
+  color: #6B7280;
+  font-size: 0.875rem;
+}
+
+.form-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.status-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-text.completed {
+  color: #14B8A6;
+}
+
+.status-text.pending {
+  color: #F59E0B;
+}
+
+.status-text.not-started {
+  color: #6B7280;
+}
+
+.form-due-date {
+  font-size: 0.875rem;
+}
+
+.due-date-text {
+  color: #1F2937;
+  font-weight: 500;
+}
+
+.no-due-date {
+  color: #6B7280;
+  font-style: italic;
+}
+
+.form-priority {
+  display: flex;
+  align-items: center;
+}
+
+.priority-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.action-button.primary {
+  background: #2563EB;
+  color: white;
+  border: none;
+}
+
+.action-button.primary:hover {
+  background: #1D4ED8;
+}
+
+.action-button.secondary {
+  background: white;
+  color: #6B7280;
+  border: 1px solid #E5E7EB;
+}
+
+.action-button.secondary:hover {
+  background: #F9FAFB;
+  border-color: #D1D5DB;
+}
+
+@media (max-width: 1024px) {
+  .forms-table-header,
+  .form-row {
+    grid-template-columns: 120px 2fr 120px 120px 160px;
+  }
+
+  .form-priority {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .case-forms-list {
+    padding: 1rem;
+  }
+
+  .forms-table-header {
+    display: none;
+  }
+
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem;
+  }
+
+  .form-number {
+    font-size: 1.25rem;
+  }
+
+  .form-title {
+    width: 100%;
+  }
+
+  .form-status,
+  .form-due-date,
+  .form-priority {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .form-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .action-button {
+    width: 100%;
+  }
+} 

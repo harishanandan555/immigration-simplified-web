@@ -341,7 +341,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       throw error;
     } finally {
-      setIsLoading(false);
+            setIsLoading(false);
     }
   };
 
@@ -393,7 +393,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       throw error;
     } finally {
-      setIsLoading(false);
+            setIsLoading(false);
     }
   };
 
@@ -426,7 +426,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       throw error;
     } finally {
-      setIsLoading(false);
+            setIsLoading(false);
     }
   };
 
@@ -464,7 +464,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       throw error;
     } finally {
-      setIsLoading(false);
+            setIsLoading(false);
     }
   };
 
@@ -507,8 +507,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isClient = user?.role === 'client';
 
   return (
-    <AuthContext.Provider value={{
-      user,
+    <AuthContext.Provider value={{ 
+      user, 
       isLoading,
       registerSuperadmin: handleRegisterSuperadmin,
       registerAttorney: handleRegisterAttorney,
