@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../controllers/AuthControllers';
 import LoginPage from '../pages/auth/LoginPage';
+import RegisterPage from '../pages/auth/RegisterPage';
 import FoiaCasesPage from '../pages/foia/FoiaCasesPage';
 import FoiaCaseFormPage from '../pages/foia/FoiaCaseFormPage';
 import FoiaCasesDetailsPage from '../pages/foia/FoiaCasesDetailsPage';
@@ -36,6 +37,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={!user ? <LoginPage /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/register" element={!user ? <RegisterPage /> : <Navigate to="/dashboard" replace />} />
 
       {/* Protected routes */}
       {user ? (
