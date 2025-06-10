@@ -1,5 +1,4 @@
-import api from '../utils/api';
-import { SUBSCRIPTION_END_POINTS } from '../utils/constants';
+import { APPCONSTANTS, BILLING_END_POINTS } from '../utils/constants';
 
 export interface SubscriptionPlan {
   name: 'demo' | 'basic' | 'professional' | 'enterprise';
@@ -18,19 +17,37 @@ export interface SubscriptionPlan {
   isActive: boolean;
 }
 
+export interface PaymentMethod {
+  type: 'credit_card' | 'bank_transfer' | 'other';
+  last4: string;
+  brand: string;
+  expiryMonth: number;
+  expiryYear: number;
+}
+
+export interface PaymentHistory {
+  amount: number;
+  currency: string;
+  status: 'succeeded' | 'failed' | 'pending' | 'refunded';
+  paymentDate: Date;
+  transactionId: string;
+  receiptUrl: string;
+}
+
 export interface Subscription {
-  planId: string;
   companyId: string;
-  status: 'active' | 'cancelled' | 'expired';
-  startDate: string;
-  endDate: string;
+  subscriptionPlanId: string;
   billingCycle: 'monthly' | 'yearly';
+  amount: number;
+  currency: string;
+  status: 'pending' | 'active' | 'cancelled' | 'expired' | 'failed';
+  startDate: Date;
+  endDate: Date;
+  paymentMethod: PaymentMethod;
+  paymentHistory: PaymentHistory[];
+  nextBillingDate: Date;
   autoRenew: boolean;
-  paymentMethod: {
-    type: string;
-    last4: string;
-    expiryDate: string;
-  };
+  notes: string;
 }
 
 export interface ApiResponse<T> {
@@ -39,92 +56,167 @@ export interface ApiResponse<T> {
   statusText: string;
 }
 
-// Get all subscription plans
+const handleApiError = (error: any): ApiResponse<any> => {
+  console.error('API Error:', error);
+  return {
+    data: null,
+    status: error.response?.status || 500,
+    statusText: error.response?.statusText || 'Internal Server Error'
+  };
+};
+
 export const getSubscriptionPlans = async (): Promise<ApiResponse<SubscriptionPlan[]>> => {
   try {
-    const response = await api.get(SUBSCRIPTION_END_POINTS.GET_PLANS);
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.GET_PLANS}`);
+    const data = await response.json();
     return {
-      data: response.data.data,
+      data,
       status: response.status,
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error fetching subscription plans:', error);
-    throw error;
+    return handleApiError(error);
   }
 };
 
-// Get subscription plan by ID
 export const getSubscriptionPlanById = async (planId: string): Promise<ApiResponse<SubscriptionPlan>> => {
   try {
-    const response = await api.get(SUBSCRIPTION_END_POINTS.GET_PLAN_BY_ID.replace(':id', planId));
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.GET_PLAN_DETAILS.replace(':id', planId)}`);
+    const data = await response.json();
     return {
-      data: response.data.data,
+      data,
       status: response.status,
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error fetching subscription plan:', error);
-    throw error;
+    return handleApiError(error);
   }
 };
 
-// Subscribe to a plan
-export const subscribeToPlan = async (
-  companyId: string,
-  planId: string,
-  billingCycle: 'monthly' | 'yearly',
-  paymentMethod: {
-    type: string;
-    token: string;
+export const getCurrentSubscription = async (companyId: string): Promise<ApiResponse<Subscription>> => {
+  try {
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.GET_SUBSCRIPTION}?companyId=${companyId}`);
+    const data = await response.json();
+    return {
+      data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
   }
+};
+
+export const updateSubscription = async (
+  companyId: string,
+  subscriptionData: Partial<Subscription>
 ): Promise<ApiResponse<Subscription>> => {
   try {
-    const response = await api.post(SUBSCRIPTION_END_POINTS.SUBSCRIBE, {
-      companyId,
-      planId,
-      billingCycle,
-      paymentMethod
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.UPDATE_SUBSCRIPTION}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ companyId, ...subscriptionData }),
     });
+    const data = await response.json();
     return {
-      data: response.data.data,
+      data,
       status: response.status,
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error subscribing to plan:', error);
-    throw error;
+    return handleApiError(error);
   }
 };
 
-// Cancel subscription
+export const getPaymentHistory = async (companyId: string): Promise<ApiResponse<PaymentHistory[]>> => {
+  try {
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.GET_PAYMENT_HISTORY}?companyId=${companyId}`);
+    const data = await response.json();
+    return {
+      data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+export const updatePaymentMethod = async (
+  companyId: string,
+  paymentMethod: PaymentMethod
+): Promise<ApiResponse<Subscription>> => {
+  try {
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.UPDATE_PAYMENT_METHOD}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ companyId, paymentMethod }),
+    });
+    const data = await response.json();
+    return {
+      data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
 export const cancelSubscription = async (companyId: string): Promise<ApiResponse<Subscription>> => {
   try {
-    const response = await api.post(SUBSCRIPTION_END_POINTS.CANCEL, {
-      companyId
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.CANCEL_SUBSCRIPTION}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ companyId }),
     });
+    const data = await response.json();
     return {
-      data: response.data.data,
+      data,
       status: response.status,
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error cancelling subscription:', error);
-    throw error;
+    return handleApiError(error);
   }
 };
 
-// Get company subscription
-export const getCompanySubscription = async (companyId: string): Promise<ApiResponse<Subscription>> => {
+export const renewSubscription = async (companyId: string): Promise<ApiResponse<Subscription>> => {
   try {
-    const response = await api.get(SUBSCRIPTION_END_POINTS.GET_COMPANY_SUBSCRIPTION.replace(':companyId', companyId));
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.RENEW_SUBSCRIPTION}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ companyId }),
+    });
+    const data = await response.json();
     return {
-      data: response.data.data,
+      data,
       status: response.status,
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error fetching company subscription:', error);
-    throw error;
+    return handleApiError(error);
+  }
+};
+
+export const getInvoices = async (companyId: string): Promise<ApiResponse<PaymentHistory[]>> => {
+  try {
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.GET_INVOICES}?companyId=${companyId}`);
+    const data = await response.json();
+    return {
+      data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
   }
 }; 

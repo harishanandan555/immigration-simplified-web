@@ -22,6 +22,8 @@ import {
   Key,
   Zap,
   HardDrive,
+  // Test,
+  // Validate,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -96,6 +98,14 @@ import {
 
   getPerformanceSettings,
   updatePerformanceSettings,
+  optimizePerformance,
+  updatePerformanceMonitoring,
+  updatePerformanceCache,
+  updatePerformanceDatabase,
+  updatePerformanceAlerts,
+  testPerformanceSettings,
+  getPerformanceMetrics,
+  validatePerformanceSettings,
 
   createBackup,
   restoreBackup,
@@ -297,6 +307,12 @@ interface PerformanceSettingsData {
     maxConnections: number;
     compressionLevel: 'none' | 'low' | 'medium' | 'high';
     debugMode: boolean;
+    maxUploadSize: number;
+    maxConcurrentUploads: number;
+    sessionTimeout: number;
+    idleTimeout: number;
+    queryCacheEnabled: boolean;
+    poolSize: number;
   };
   monitoring: {
     enabled: boolean;
@@ -308,6 +324,9 @@ interface PerformanceSettingsData {
       storage: number;
       responseTime: number;
       errorRate: number;
+      requestCount: number;
+      concurrentUsers: number;
+      databaseConnections: number;
     };
   };
   alerts: {
@@ -315,6 +334,40 @@ interface PerformanceSettingsData {
     slack: boolean;
     webhook: string;
     recipients: string[];
+    notificationChannels: {
+      email: boolean;
+      slack: boolean;
+      webhook: boolean;
+      sms: boolean;
+    };
+    alertLevels: {
+      critical: boolean;
+      warning: boolean;
+      info: boolean;
+    };
+  };
+  caching: {
+    enabled: boolean;
+    type: 'memory' | 'redis' | 'file';
+    ttl: number;
+    maxSize: number;
+    compression: boolean;
+  };
+  database: {
+    connectionPool: {
+      min: number;
+      max: number;
+      idleTimeout: number;
+    };
+    queryOptimization: {
+      enabled: boolean;
+      maxExecutionTime: number;
+      slowQueryThreshold: number;
+    };
+    indexing: {
+      autoIndex: boolean;
+      backgroundIndexing: boolean;
+    };
   };
 }
 
@@ -374,6 +427,11 @@ interface ApiSettingsData {
     redocEnabled: boolean;
     version: string;
     basePath: string;
+  };
+  logging: {
+    enabled: boolean;
+    level: 'debug' | 'info' | 'warn' | 'error';
+    format: 'json' | 'text';
   };
 }
 
@@ -804,6 +862,11 @@ const SettingsPage = () => {
       redocEnabled: true,
       version: '1.0.0',
       basePath: '/api/v1'
+    },
+    logging: {
+      enabled: true,
+      level: 'info',
+      format: 'json'
     }
   });
   const [performanceSettingsData, setPerformanceSettingsData] = useState<PerformanceSettingsData>({
@@ -812,7 +875,13 @@ const SettingsPage = () => {
       queryTimeout: 30,
       maxConnections: 10,
       compressionLevel: 'medium',
-      debugMode: false
+      debugMode: false,
+      maxUploadSize: 0,
+      maxConcurrentUploads: 0,
+      sessionTimeout: 0,
+      idleTimeout: 0,
+      queryCacheEnabled: true,
+      poolSize: 0
     },
     monitoring: {
       enabled: true,
@@ -823,14 +892,51 @@ const SettingsPage = () => {
         memory: 70,
         storage: 80,
         responseTime: 100,
-        errorRate: 2
+        errorRate: 2,
+        requestCount: 0,
+        concurrentUsers: 0,
+        databaseConnections: 0
       }
     },
     alerts: {
       email: true,
       slack: false,
       webhook: '',
-      recipients: []
+      recipients: [],
+      notificationChannels: {
+        email: false,
+        slack: false,
+        webhook: false,
+        sms: false
+      },
+      alertLevels: {
+        critical: true,
+        warning: true,
+        info: false
+      }
+    },
+    caching: {
+      enabled: false,
+      type: 'memory',
+      ttl: 0,
+      maxSize: 0,
+      compression: false
+    },
+    database: {
+      connectionPool: {
+        min: 0,
+        max: 0,
+        idleTimeout: 0
+      },
+      queryOptimization: {
+        enabled: false,
+        maxExecutionTime: 0,
+        slowQueryThreshold: 0
+      },
+      indexing: {
+        autoIndex: false,
+        backgroundIndexing: false
+      }
     }
   });
 
@@ -1087,7 +1193,28 @@ const SettingsPage = () => {
           case 'api':
             data = await getApiSettings(user._id);
             if (data?.data) {
-              setApiSettingsData(data.data.value);
+              const apiData: ApiSettingsData = {
+                ...data.data,
+                monitoring: data.data.monitoring || {
+                  enabled: true,
+                  logLevel: 'info',
+                  retentionDays: 30,
+                  metricsEnabled: true,
+                  alertThresholds: {
+                    errorRate: 5,
+                    responseTime: 1000,
+                    requestCount: 1000
+                  }
+                },
+                documentation: data.data.documentation || {
+                  enabled: true,
+                  swaggerEnabled: true,
+                  redocEnabled: true,
+                  version: '1.0.0',
+                  basePath: '/api/v1'
+                }
+              };
+              setApiSettingsData(apiData);
             }
             break;
           case 'performance':
@@ -1664,7 +1791,28 @@ const SettingsPage = () => {
             case 'api':
               data = await getApiSettings(user._id);
               if (data?.data) {
-                setApiSettingsData(data.data.value);
+                const apiData: ApiSettingsData = {
+                  ...data.data,
+                  monitoring: data.data.monitoring || {
+                    enabled: true,
+                    logLevel: 'info',
+                    retentionDays: 30,
+                    metricsEnabled: true,
+                    alertThresholds: {
+                      errorRate: 5,
+                      responseTime: 1000,
+                      requestCount: 1000
+                    }
+                  },
+                  documentation: data.data.documentation || {
+                    enabled: true,
+                    swaggerEnabled: true,
+                    redocEnabled: true,
+                    version: '1.0.0',
+                    basePath: '/api/v1'
+                  }
+                };
+                setApiSettingsData(apiData);
               }
               break;
             case 'performance':
@@ -2831,6 +2979,43 @@ const SettingsPage = () => {
     } catch (error) {
       console.error('Error loading backup list:', error);
       toast.error('Failed to load backup list');
+    }
+  };
+
+  const handleTestPerformanceSettings = async () => {
+    if (!user?._id) return;
+    try {
+      setLoading(true);
+      // Add your performance testing logic here
+      await testPerformanceSettings(user._id, {
+        poolSize: 10,
+        queryTimeout: 30,
+        queryCacheEnabled: true
+      });
+      toast.success('Performance settings tested successfully');
+    } catch (error) {
+      toast.error('Failed to test performance settings');
+      console.error('Error testing performance settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleValidatePerformanceSettings = async () => {
+    if (!user?._id) return;
+    try {
+      setLoading(true);
+      // Add your validation logic here
+      await validatePerformanceSettings(user._id, {
+        poolSize: 10,
+        queryTimeout: 30,
+        queryCacheEnabled: true
+      });
+      toast.success('Performance settings validated successfully');
+    } catch (error) {
+      toast.error('Failed to validate performance settings');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -6648,6 +6833,61 @@ const SettingsPage = () => {
                           />
                         </div>
                         <div>
+                          <label className="block text-sm font-medium text-gray-700">Max Upload Size (MB)</label>
+                          <input
+                            type="number"
+                            name="optimization.maxUploadSize"
+                            value={performanceSettingsData.optimization.maxUploadSize}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Max Concurrent Uploads</label>
+                          <input
+                            type="number"
+                            name="optimization.maxConcurrentUploads"
+                            value={performanceSettingsData.optimization.maxConcurrentUploads}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Session Timeout (minutes)</label>
+                          <input
+                            type="number"
+                            name="optimization.sessionTimeout"
+                            value={performanceSettingsData.optimization.sessionTimeout}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Idle Timeout (minutes)</label>
+                          <input
+                            type="number"
+                            name="optimization.idleTimeout"
+                            value={performanceSettingsData.optimization.idleTimeout}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Connection Pool Size</label>
+                          <input
+                            type="number"
+                            name="optimization.poolSize"
+                            value={performanceSettingsData.optimization.poolSize}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="1"
+                          />
+                        </div>
+                        <div>
                           <label className="block text-sm font-medium text-gray-700">Compression Level</label>
                           <select
                             name="optimization.compressionLevel"
@@ -6672,6 +6912,19 @@ const SettingsPage = () => {
                           />
                           <label htmlFor="debugMode" className="ml-2 block text-sm text-gray-700">
                             Enable Debug Mode
+                          </label>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="optimization.queryCacheEnabled"
+                            checked={performanceSettingsData.optimization.queryCacheEnabled}
+                            onChange={handlePerformanceChange}
+                            className="form-checkbox"
+                            id="queryCacheEnabled"
+                          />
+                          <label htmlFor="queryCacheEnabled" className="ml-2 block text-sm text-gray-700">
+                            Enable Query Cache
                           </label>
                         </div>
                       </div>
@@ -6777,6 +7030,208 @@ const SettingsPage = () => {
                               max="100"
                             />
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Request Count</label>
+                            <input
+                              type="number"
+                              name="monitoring.alertThresholds.requestCount"
+                              value={performanceSettingsData.monitoring.alertThresholds.requestCount}
+                              onChange={handlePerformanceChange}
+                              className="mt-1 form-input"
+                              min="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Concurrent Users</label>
+                            <input
+                              type="number"
+                              name="monitoring.alertThresholds.concurrentUsers"
+                              value={performanceSettingsData.monitoring.alertThresholds.concurrentUsers}
+                              onChange={handlePerformanceChange}
+                              className="mt-1 form-input"
+                              min="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Database Connections</label>
+                            <input
+                              type="number"
+                              name="monitoring.alertThresholds.databaseConnections"
+                              value={performanceSettingsData.monitoring.alertThresholds.databaseConnections}
+                              onChange={handlePerformanceChange}
+                              className="mt-1 form-input"
+                              min="0"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Caching Settings */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-900 mb-4">Caching Settings</h3>
+                      <div className="space-y-4">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="caching.enabled"
+                            checked={performanceSettingsData.caching.enabled}
+                            onChange={handlePerformanceChange}
+                            className="form-checkbox"
+                            id="cachingEnabled"
+                          />
+                          <label htmlFor="cachingEnabled" className="ml-2 block text-sm text-gray-700">
+                            Enable Caching
+                          </label>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Cache Type</label>
+                          <select
+                            name="caching.type"
+                            value={performanceSettingsData.caching.type}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-select"
+                          >
+                            <option value="memory">Memory</option>
+                            <option value="redis">Redis</option>
+                            <option value="file">File</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">TTL (seconds)</label>
+                          <input
+                            type="number"
+                            name="caching.ttl"
+                            value={performanceSettingsData.caching.ttl}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="0"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Max Size (MB)</label>
+                          <input
+                            type="number"
+                            name="caching.maxSize"
+                            value={performanceSettingsData.caching.maxSize}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="0"
+                          />
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="caching.compression"
+                            checked={performanceSettingsData.caching.compression}
+                            onChange={handlePerformanceChange}
+                            className="form-checkbox"
+                            id="cacheCompression"
+                          />
+                          <label htmlFor="cacheCompression" className="ml-2 block text-sm text-gray-700">
+                            Enable Cache Compression
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Database Settings */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-900 mb-4">Database Settings</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Min Connections</label>
+                          <input
+                            type="number"
+                            name="database.connectionPool.min"
+                            value={performanceSettingsData.database.connectionPool.min}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Max Connections</label>
+                          <input
+                            type="number"
+                            name="database.connectionPool.max"
+                            value={performanceSettingsData.database.connectionPool.max}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Idle Timeout (seconds)</label>
+                          <input
+                            type="number"
+                            name="database.connectionPool.idleTimeout"
+                            value={performanceSettingsData.database.connectionPool.idleTimeout}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="0"
+                          />
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="database.queryOptimization.enabled"
+                            checked={performanceSettingsData.database.queryOptimization.enabled}
+                            onChange={handlePerformanceChange}
+                            className="form-checkbox"
+                            id="queryOptimizationEnabled"
+                          />
+                          <label htmlFor="queryOptimizationEnabled" className="ml-2 block text-sm text-gray-700">
+                            Enable Query Optimization
+                          </label>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Max Execution Time (ms)</label>
+                          <input
+                            type="number"
+                            name="database.queryOptimization.maxExecutionTime"
+                            value={performanceSettingsData.database.queryOptimization.maxExecutionTime}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="0"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Slow Query Threshold (ms)</label>
+                          <input
+                            type="number"
+                            name="database.queryOptimization.slowQueryThreshold"
+                            value={performanceSettingsData.database.queryOptimization.slowQueryThreshold}
+                            onChange={handlePerformanceChange}
+                            className="mt-1 form-input"
+                            min="0"
+                          />
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="database.indexing.autoIndex"
+                            checked={performanceSettingsData.database.indexing.autoIndex}
+                            onChange={handlePerformanceChange}
+                            className="form-checkbox"
+                            id="autoIndex"
+                          />
+                          <label htmlFor="autoIndex" className="ml-2 block text-sm text-gray-700">
+                            Enable Auto Indexing
+                          </label>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="database.indexing.backgroundIndexing"
+                            checked={performanceSettingsData.database.indexing.backgroundIndexing}
+                            onChange={handlePerformanceChange}
+                            className="form-checkbox"
+                            id="backgroundIndexing"
+                          />
+                          <label htmlFor="backgroundIndexing" className="ml-2 block text-sm text-gray-700">
+                            Enable Background Indexing
+                          </label>
                         </div>
                       </div>
                     </div>
@@ -6836,12 +7291,129 @@ const SettingsPage = () => {
                             Comma-separated list of email addresses
                           </p>
                         </div>
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-medium text-gray-900">Notification Channels</h4>
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="alerts.notificationChannels.email"
+                              checked={performanceSettingsData.alerts.notificationChannels.email}
+                              onChange={handlePerformanceChange}
+                              className="form-checkbox"
+                              id="notificationEmail"
+                            />
+                            <label htmlFor="notificationEmail" className="ml-2 block text-sm text-gray-700">
+                              Email
+                            </label>
+                          </div>
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="alerts.notificationChannels.slack"
+                              checked={performanceSettingsData.alerts.notificationChannels.slack}
+                              onChange={handlePerformanceChange}
+                              className="form-checkbox"
+                              id="notificationSlack"
+                            />
+                            <label htmlFor="notificationSlack" className="ml-2 block text-sm text-gray-700">
+                              Slack
+                            </label>
+                          </div>
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="alerts.notificationChannels.webhook"
+                              checked={performanceSettingsData.alerts.notificationChannels.webhook}
+                              onChange={handlePerformanceChange}
+                              className="form-checkbox"
+                              id="notificationWebhook"
+                            />
+                            <label htmlFor="notificationWebhook" className="ml-2 block text-sm text-gray-700">
+                              Webhook
+                            </label>
+                          </div>
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="alerts.notificationChannels.sms"
+                              checked={performanceSettingsData.alerts.notificationChannels.sms}
+                              onChange={handlePerformanceChange}
+                              className="form-checkbox"
+                              id="notificationSms"
+                            />
+                            <label htmlFor="notificationSms" className="ml-2 block text-sm text-gray-700">
+                              SMS
+                            </label>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-medium text-gray-900">Alert Levels</h4>
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="alerts.alertLevels.critical"
+                              checked={performanceSettingsData.alerts.alertLevels.critical}
+                              onChange={handlePerformanceChange}
+                              className="form-checkbox"
+                              id="alertCritical"
+                            />
+                            <label htmlFor="alertCritical" className="ml-2 block text-sm text-gray-700">
+                              Critical
+                            </label>
+                          </div>
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="alerts.alertLevels.warning"
+                              checked={performanceSettingsData.alerts.alertLevels.warning}
+                              onChange={handlePerformanceChange}
+                              className="form-checkbox"
+                              id="alertWarning"
+                            />
+                            <label htmlFor="alertWarning" className="ml-2 block text-sm text-gray-700">
+                              Warning
+                            </label>
+                          </div>
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name="alerts.alertLevels.info"
+                              checked={performanceSettingsData.alerts.alertLevels.info}
+                              onChange={handlePerformanceChange}
+                              className="form-checkbox"
+                              id="alertInfo"
+                            />
+                            <label htmlFor="alertInfo" className="ml-2 block text-sm text-gray-700">
+                              Info
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
                 {/* Save Button */}
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
+                <div className="px-6 py-4 bg-gray-50 border-t flex justify-between">
+                  <div className="flex space-x-4">
+                    <button
+                      type="button"
+                      className="btn btn-secondary flex items-center"
+                      onClick={() => handleTestPerformanceSettings()}
+                      disabled={loading}
+                    >
+                      {/* <Test size={18} className="mr-2" /> */}
+                      Test Settings
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary flex items-center"
+                      onClick={() => handleValidatePerformanceSettings()}
+                      disabled={loading}
+                    >
+                      {/* <Validate size={18} className="mr-2" /> */}
+                      Validate Settings
+                    </button>
+                  </div>
                   <button
                     type="button"
                     className="btn btn-primary flex items-center"

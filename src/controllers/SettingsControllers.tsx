@@ -1034,6 +1034,118 @@ export const updatePerformanceSettings = async (userId: string, performanceData:
   }
 };
 
+export const optimizePerformance = async (userId: string, optimizationData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.PERFORMANCE_OPTIMIZE}`.replace(':userId', userId), optimizationData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error optimizing performance:', error);
+    throw error;
+  }
+};
+
+export const updatePerformanceMonitoring = async (userId: string, monitoringData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.PERFORMANCE_MONITOR}`.replace(':userId', userId), monitoringData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating performance monitoring:', error);
+    throw error;
+  }
+};
+
+export const updatePerformanceCache = async (userId: string, cacheData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.PERFORMANCE_CACHE}`.replace(':userId', userId), cacheData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating performance cache:', error);
+    throw error;
+  }
+};
+
+export const updatePerformanceDatabase = async (userId: string, databaseData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.PERFORMANCE_DATABASE}`.replace(':userId', userId), databaseData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating performance database:', error);
+    throw error;
+  }
+};
+
+export const updatePerformanceAlerts = async (userId: string, alertsData: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.PERFORMANCE_ALERTS}`.replace(':userId', userId), alertsData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating performance alerts:', error);
+    throw error;
+  }
+};
+
+export const testPerformanceSettings = async (userId: string, testConfig: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.PERFORMANCE_TEST}`.replace(':userId', userId), testConfig);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error testing performance settings:', error);
+    throw error;
+  }
+};
+
+export const getPerformanceMetrics = async (userId: string, params: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.get(`${SETTINGS_END_POINTS.PERFORMANCE_METRICS}`.replace(':userId', userId), { params });
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error fetching performance metrics:', error);
+    throw error;
+  }
+};
+
+export const validatePerformanceSettings = async (userId: string, settings: any): Promise<ApiResponse<any>> => {
+  try {
+    const response = await api.post(`${SETTINGS_END_POINTS.PERFORMANCE_VALIDATE}`.replace(':userId', userId), settings);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error validating performance settings:', error);
+    throw error;
+  }
+};
+
 // Database Maintenance Operations
 export const vacuumDatabase = async (userId: string): Promise<ApiResponse<any>> => {
   try {

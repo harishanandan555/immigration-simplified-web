@@ -17,6 +17,18 @@ export const AUTH_END_POINTS = {
     GET_USERS_BY_ID: "/api/v1/auth/users/:id"
 };
 
+export const BILLING_END_POINTS = {
+    GET_SUBSCRIPTION: "/api/v1/billing/subscription",
+    UPDATE_SUBSCRIPTION: "/api/v1/billing/subscription",
+    GET_PAYMENT_HISTORY: "/api/v1/billing/payment-history",
+    UPDATE_PAYMENT_METHOD: "/api/v1/billing/payment-method",
+    CANCEL_SUBSCRIPTION: "/api/v1/billing/subscription/cancel",
+    RENEW_SUBSCRIPTION: "/api/v1/billing/subscription/renew",
+    GET_INVOICES: "/api/v1/billing/invoices",
+    GET_PLANS: "/api/v1/billing/plans",
+    GET_PLAN_DETAILS: "/api/v1/billing/plans/:id"
+};
+
 export const CASE_END_POINTS = {
     GETCASES: "/api/v1/cases",
     CREATECASE: "/api/v1/cases",
@@ -112,7 +124,7 @@ export const SETTINGS_END_POINTS = {
     
     // Roles & Permissions
     ROLES_GET: "/api/v1/settings/roles/:userId",
-    ROLES_UPDATE: "/api/v1/settings/roles/:userId",
+    ROLES_UPDATE: "/api/v1/settings/roles/:userId", 
     
     // Database Settings
     DATABASE_GET: "/api/v1/settings/database/:userId",
@@ -159,7 +171,15 @@ export const SETTINGS_END_POINTS = {
     
     // Performance
     PERFORMANCE_GET: "/api/v1/settings/performance/:userId",
-    PERFORMANCE_UPDATE: "/api/v1/settings/performance/:userId"
+    PERFORMANCE_UPDATE: "/api/v1/settings/performance/:userId",
+    PERFORMANCE_OPTIMIZE: "/api/v1/settings/performance/:userId/optimize",
+    PERFORMANCE_MONITOR: "/api/v1/settings/performance/:userId/monitor",
+    PERFORMANCE_CACHE: "/api/v1/settings/performance/:userId/cache",
+    PERFORMANCE_DATABASE: "/api/v1/settings/performance/:userId/database",
+    PERFORMANCE_ALERTS: "/api/v1/settings/performance/:userId/alerts",
+    PERFORMANCE_TEST: "/api/v1/settings/performance/:userId/test",
+    PERFORMANCE_METRICS: "/api/v1/settings/performance/:userId/metrics",
+    PERFORMANCE_VALIDATE: "/api/v1/settings/performance/:userId/validate"
 };
 
 export const SUBSCRIPTION_END_POINTS = {
