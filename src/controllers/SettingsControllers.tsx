@@ -1,6 +1,13 @@
 import api from '../utils/api';
-import { SETTINGS_END_POINTS } from '../utils/constants';
+import { SETTINGS_END_POINTS, ROLE_TYPES, PERMISSION_MODULES, PERMISSION_ACTIONS } from '../utils/constants';
 import axios from 'axios';
+import {
+  FORM_FIELD_TYPES,
+  FORM_TEMPLATE_CATEGORIES,
+  FORM_TEMPLATE_TYPES,
+  FORM_TEMPLATE_STATUS,
+  FORM_TEMPLATE_ENDPOINTS
+} from '../utils/constants';
 
 // Define common response type
 interface ApiResponse<T> {
@@ -375,40 +382,186 @@ export const updateCaseSettings = async (userId: string, caseSettingsData: any):
   }
 };
 
-// Form Templates
-export const getFormTemplates = async (userId: string): Promise<ApiResponse<any>> => {
+// Form Template Interfaces
+export interface FormTemplateField {
+  id: string;
+  name: string;
+  label: string;
+  type: keyof typeof FORM_FIELD_TYPES;
+  required: boolean;
+  validationRules?: {
+    min?: number;
+    max?: number;
+    pattern?: string;
+    custom?: string;
+  };
+  options?: string[];
+  defaultValue?: any;
+  placeholder?: string;
+  helpText?: string;
+  order: number;
+}
+
+export interface FormTemplate {
+  _id?: string;
+  name: string;
+  description: string;
+  category: keyof typeof FORM_TEMPLATE_CATEGORIES;
+  type: keyof typeof FORM_TEMPLATE_TYPES;
+  status: keyof typeof FORM_TEMPLATE_STATUS;
+  fields: FormTemplateField[];
+  version: string;
+  effectiveDate: string;
+  expirationDate?: string;
+  isActive: boolean;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: {
+    uscisFormNumber?: string;
+    uscisFormLink?: string;
+    estimatedProcessingTime?: string;
+    fee?: number;
+    instructions?: string;
+  };
+}
+
+export interface FormTemplateData {
+  templates: FormTemplate[];
+  totalTemplates: number;
+  activeTemplates: number;
+}
+
+// Form Template API Methods
+export const getFormTemplates = async (userId: string): Promise<ApiResponse<FormTemplateData>> => {
   if (!IS_FORM_TEMPLATES_ENABLED) {
-    console.log('getFormTemplates method is skipped.');
     return {
-      data: null,
-      status: 0,
-      statusText: 'Method skipped'
+      data: {
+        templates: [],
+        totalTemplates: 0,
+        activeTemplates: 0
+      },
+      status: 200,
+      statusText: 'Form templates feature is disabled'
     };
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.FORM_TEMPLATES_GET}`.replace(':userId', userId));
+    const response = await api.get(FORM_TEMPLATE_ENDPOINTS.GET_ALL);
     return {
-      data: response.data.data,
+      data: response.data,
       status: response.status,
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error fetching form templates:', error);
+    handleApiError(error);
     throw error;
   }
 };
 
-export const updateFormTemplates = async (userId: string, formTemplatesData: any): Promise<ApiResponse<any>> => {
+export const getFormTemplateById = async (userId: string, templateId: string): Promise<ApiResponse<FormTemplate>> => {
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.FORM_TEMPLATES_UPDATE}`.replace(':userId', userId), formTemplatesData);
+    const response = await api.get(FORM_TEMPLATE_ENDPOINTS.GET_BY_ID.replace(':id', templateId));
     return {
-      data: response.data.data,
+      data: response.data,
       status: response.status,
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error updating form templates:', error);
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const createFormTemplate = async (userId: string, templateData: Partial<FormTemplate>): Promise<ApiResponse<FormTemplate>> => {
+  try {
+    const response = await api.post(FORM_TEMPLATE_ENDPOINTS.CREATE, templateData);
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const updateFormTemplate = async (userId: string, templateId: string, templateData: Partial<FormTemplate>): Promise<ApiResponse<FormTemplate>> => {
+  try {
+    const response = await api.put(FORM_TEMPLATE_ENDPOINTS.UPDATE.replace(':id', templateId), templateData);
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const deleteFormTemplate = async (userId: string, templateId: string): Promise<ApiResponse<void>> => {
+  try {
+    const response = await api.delete(FORM_TEMPLATE_ENDPOINTS.DELETE.replace(':id', templateId));
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const duplicateFormTemplate = async (userId: string, templateId: string): Promise<ApiResponse<FormTemplate>> => {
+  try {
+    const response = await api.post(FORM_TEMPLATE_ENDPOINTS.DUPLICATE.replace(':id', templateId));
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const exportFormTemplate = async (userId: string, templateId: string): Promise<ApiResponse<Blob>> => {
+  try {
+    const response = await api.get(FORM_TEMPLATE_ENDPOINTS.EXPORT.replace(':id', templateId), {
+      responseType: 'blob'
+    });
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const importFormTemplate = async (userId: string, file: File): Promise<ApiResponse<FormTemplate>> => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(FORM_TEMPLATE_ENDPOINTS.IMPORT, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    handleApiError(error);
     throw error;
   }
 };
@@ -467,12 +620,39 @@ export const deleteReportSettings = async (userId: string, reportId: string): Pr
   }
 };
 
-// Roles & Permissions
-export const getRoles = async (userId: string): Promise<ApiResponse<any>> => {
+// Roles & Permissions Interfaces
+interface Permission {
+  module: keyof typeof PERMISSION_MODULES;
+  actions: Array<keyof typeof PERMISSION_ACTIONS>;
+}
+
+interface Role {
+  _id?: string;
+  name: string;
+  type: keyof typeof ROLE_TYPES;
+  description: string;
+  permissions: Permission[];
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface RoleData {
+  roles: Role[];
+  defaultRole: string;
+}
+
+interface PermissionData {
+  permissions: Permission[];
+  roleId: string;
+}
+
+// Roles & Permissions API Methods
+export const getRoles = async (userId: string): Promise<ApiResponse<RoleData>> => {
   if (!IS_ROLES_ENABLED) {
     console.log('getRoles method is skipped.');
     return {
-      data: null,
+      data: { roles: [], defaultRole: '' },
       status: 0,
       statusText: 'Method skipped'
     };
@@ -486,22 +666,122 @@ export const getRoles = async (userId: string): Promise<ApiResponse<any>> => {
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error fetching roles:', error);
-    throw error;
+    return handleApiError(error);
   }
 };
 
-export const updateRoles = async (userId: string, rolesData: any): Promise<ApiResponse<any>> => {
+export const createRole = async (userId: string, roleData: Role): Promise<ApiResponse<Role>> => {
+  if (!IS_ROLES_ENABLED) {
+    console.log('createRole method is skipped.');
+    return {
+      data: roleData,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.ROLES_UPDATE}`.replace(':userId', userId), rolesData);
+    const response = await api.post(`${SETTINGS_END_POINTS.ROLES_CREATE}`.replace(':userId', userId), roleData);
     return {
       data: response.data.data,
       status: response.status,
       statusText: response.statusText
     };
   } catch (error) {
-    console.error('Error updating roles:', error);
-    throw error;
+    return handleApiError(error);
+  }
+};
+
+export const updateRole = async (userId: string, roleId: string, roleData: Partial<Role>): Promise<ApiResponse<Role>> => {
+  if (!IS_ROLES_ENABLED) {
+    console.log('updateRole method is skipped.');
+    return {
+      data: roleData as Role,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.ROLES_UPDATE}`.replace(':userId', userId), {
+      roleId,
+      ...roleData
+    });
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+export const deleteRole = async (userId: string, roleId: string): Promise<ApiResponse<void>> => {
+  if (!IS_ROLES_ENABLED) {
+    console.log('deleteRole method is skipped.');
+    return {
+      data: undefined,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
+  try {
+    const response = await api.delete(`${SETTINGS_END_POINTS.ROLES_DELETE}`.replace(':userId', userId).replace(':roleId', roleId));
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+export const getPermissions = async (userId: string, roleId: string): Promise<ApiResponse<PermissionData>> => {
+  if (!IS_ROLES_ENABLED) {
+    console.log('getPermissions method is skipped.');
+    return {
+      data: { permissions: [], roleId: '' },
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
+  try {
+    const response = await api.get(`${SETTINGS_END_POINTS.PERMISSIONS_GET}`.replace(':userId', userId), {
+      params: { roleId }
+    });
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+export const updatePermissions = async (userId: string, permissionData: PermissionData): Promise<ApiResponse<PermissionData>> => {
+  if (!IS_ROLES_ENABLED) {
+    console.log('updatePermissions method is skipped.');
+    return {
+      data: permissionData,
+      status: 0,
+      statusText: 'Method skipped'
+    };
+  }
+
+  try {
+    const response = await api.put(`${SETTINGS_END_POINTS.PERMISSIONS_UPDATE}`.replace(':userId', userId), permissionData);
+    return {
+      data: response.data.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
   }
 };
 
