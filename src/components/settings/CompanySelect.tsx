@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getAllCompaniesList, Company } from '../controllers/CompanyControllers';
+import { getAllCompaniesList, Company } from '../../controllers/CompanyControllers';
 
 interface CompanySelectProps {
   onCompanySelect: (companyId: string) => void;

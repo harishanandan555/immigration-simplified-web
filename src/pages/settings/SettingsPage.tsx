@@ -128,9 +128,8 @@ import {
   renewSubscription
 } from '../../controllers/BillingControllers';
 
-import CompanySelect from '../../components/CompanySelect';
-
-import RolesPermissionsPage from './RolesPermissionsPage';
+import CompanySelect from '../../components/settings/CompanySelect';
+import RolesPermissionsPage from '../../components/settings/RolesPermissionsPage';
 
 interface User {
   _id: string;
