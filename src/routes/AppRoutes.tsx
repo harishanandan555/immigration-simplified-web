@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import { useAuth } from '../controllers/AuthControllers';
@@ -7,9 +7,14 @@ import RegisterPage from '../pages/auth/RegisterPage';
 import FoiaCasesPage from '../pages/foia/FoiaCasesPage';
 import FoiaCaseFormPage from '../pages/foia/FoiaCaseFormPage';
 import FoiaCasesDetailsPage from '../pages/foia/FoiaCasesDetailsPage';
+import Dashboard from '../pages/Dashboard';
+import CaseManagement from '../pages/CaseManagement';
+import CaseWizard from '../pages/CaseWizard';
+import Settings from '../pages/Settings';
+import ClientInformation from '../pages/ClientInformation';
+import NewClientWizard from '../pages/NewClientWizard';
 
 // Lazy-loaded components
-const Dashboard = lazy(() => import('../pages/Dashboard'));
 const CasesPage = lazy(() => import('../pages/cases/CasesPage'));
 const CaseTrackerPage = lazy(() => import('../pages/cases/CaseTrackerPage'));
 const CaseDetailsPage = lazy(() => import('../pages/cases/CaseDetailsPage'));
@@ -22,8 +27,6 @@ const FormFillPage = lazy(() => import('../pages/forms/FormFillPage'));
 const DocumentsPage = lazy(() => import('../pages/documents/DocumentsPage'));
 const TasksPage = lazy(() => import('../pages/tasks/TasksPage'));
 const CalendarPage = lazy(() => import('../pages/tasks/CalendarPage'));
-const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'));
-const ImmigrationProcess = lazy(() => import('../pages/immigrationSteps/ImmigrationProcess'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const AppRoutes = () => {
@@ -48,11 +51,12 @@ const AppRoutes = () => {
             </Suspense>
           } />
 
-          <Route path="/immigration-process" element={
-            <Suspense fallback={null}>
-              <ImmigrationProcess />
-            </Suspense>
-          } />
+          <Route path="/case-management" element={<CaseManagement />} />
+          <Route path="/case-wizard" element={<CaseWizard />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/client-information" element={<ClientInformation />} />
+          <Route path="/immigration-process" element={<ClientInformation />} />
+          <Route path="/new-client" element={<NewClientWizard />} />
 
           {/* Cases routes */}
           <Route path="/cases" element={
@@ -136,13 +140,6 @@ const AppRoutes = () => {
           <Route path="/calendar" element={
             <Suspense fallback={null}>
               <CalendarPage />
-            </Suspense>
-          } />
-
-          {/* Settings route */}
-          <Route path="/settings" element={
-            <Suspense fallback={null}>
-              <SettingsPage />
             </Suspense>
           } />
 
