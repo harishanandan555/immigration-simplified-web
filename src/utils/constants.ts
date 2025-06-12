@@ -123,12 +123,12 @@ export const SETTINGS_END_POINTS = {
     REPORT_SETTINGS_DELETE: "/api/v1/settings/reports/:userId/:reportId",
     
     // Roles & Permissions
-    ROLES_GET: "/api/v1/settings/roles/:userId",
-    ROLES_UPDATE: "/api/v1/settings/roles/:userId",
-    ROLES_CREATE: "/api/v1/settings/roles/:userId",
-    ROLES_DELETE: "/api/v1/settings/roles/:userId/:roleId",
-    PERMISSIONS_GET: "/api/v1/settings/permissions/:userId",
-    PERMISSIONS_UPDATE: "/api/v1/settings/permissions/:userId",
+    ROLES_GET: "/api/v1/roles",
+    ROLES_CREATE: "/api/v1/roles",
+    ROLES_UPDATE: "/api/v1/roles/:roleId",
+    ROLES_DELETE: "/api/v1/roles/:roleId",
+    PERMISSIONS_GET: "/api/v1/roles/:roleId/permissions",
+    PERMISSIONS_UPDATE: "/api/v1/roles/:roleId/permissions",
     
     // Database Settings
     DATABASE_GET: "/api/v1/settings/database/:userId",

@@ -42,7 +42,7 @@ const IS_BILLING_ENABLED = false;
 const IS_CASE_SETTINGS_ENABLED = true;
 const IS_FORM_TEMPLATES_ENABLED = false;
 const IS_REPORT_SETTINGS_ENABLED = true;
-const IS_ROLES_ENABLED = false;
+const IS_ROLES_ENABLED = true;
 const IS_DATABASE_ENABLED = true;
 const IS_SYSTEM_ENABLED = true;
 const IS_AUDIT_LOGS_ENABLED = true;
@@ -648,7 +648,7 @@ interface PermissionData {
 }
 
 // Roles & Permissions API Methods
-export const getRoles = async (userId: string): Promise<ApiResponse<RoleData>> => {
+export const getRoles = async (): Promise<ApiResponse<RoleData>> => {
   if (!IS_ROLES_ENABLED) {
     console.log('getRoles method is skipped.');
     return {
@@ -659,7 +659,7 @@ export const getRoles = async (userId: string): Promise<ApiResponse<RoleData>> =
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.ROLES_GET}`.replace(':userId', userId));
+    const response = await api.get(SETTINGS_END_POINTS.ROLES_GET);
     return {
       data: response.data.data,
       status: response.status,
@@ -670,7 +670,7 @@ export const getRoles = async (userId: string): Promise<ApiResponse<RoleData>> =
   }
 };
 
-export const createRole = async (userId: string, roleData: Role): Promise<ApiResponse<Role>> => {
+export const createRole = async (roleData: Role): Promise<ApiResponse<Role>> => {
   if (!IS_ROLES_ENABLED) {
     console.log('createRole method is skipped.');
     return {
@@ -681,7 +681,7 @@ export const createRole = async (userId: string, roleData: Role): Promise<ApiRes
   }
 
   try {
-    const response = await api.post(`${SETTINGS_END_POINTS.ROLES_CREATE}`.replace(':userId', userId), roleData);
+    const response = await api.post(SETTINGS_END_POINTS.ROLES_CREATE, roleData);
     return {
       data: response.data.data,
       status: response.status,
@@ -693,20 +693,11 @@ export const createRole = async (userId: string, roleData: Role): Promise<ApiRes
 };
 
 export const updateRole = async (userId: string, roleId: string, roleData: Partial<Role>): Promise<ApiResponse<Role>> => {
-  if (!IS_ROLES_ENABLED) {
-    console.log('updateRole method is skipped.');
-    return {
-      data: roleData as Role,
-      status: 0,
-      statusText: 'Method skipped'
-    };
-  }
-
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.ROLES_UPDATE}`.replace(':userId', userId), {
-      roleId,
-      ...roleData
-    });
+    const response = await api.put(
+      SETTINGS_END_POINTS.ROLES_UPDATE.replace(':roleId', roleId),
+      roleData
+    );
     return {
       data: response.data.data,
       status: response.status,
@@ -717,7 +708,7 @@ export const updateRole = async (userId: string, roleId: string, roleData: Parti
   }
 };
 
-export const deleteRole = async (userId: string, roleId: string): Promise<ApiResponse<void>> => {
+export const deleteRole = async (roleId: string): Promise<ApiResponse<void>> => {
   if (!IS_ROLES_ENABLED) {
     console.log('deleteRole method is skipped.');
     return {
@@ -728,7 +719,7 @@ export const deleteRole = async (userId: string, roleId: string): Promise<ApiRes
   }
 
   try {
-    const response = await api.delete(`${SETTINGS_END_POINTS.ROLES_DELETE}`.replace(':userId', userId).replace(':roleId', roleId));
+    const response = await api.delete(SETTINGS_END_POINTS.ROLES_DELETE.replace(':roleId', roleId));
     return {
       data: response.data.data,
       status: response.status,
@@ -739,20 +730,18 @@ export const deleteRole = async (userId: string, roleId: string): Promise<ApiRes
   }
 };
 
-export const getPermissions = async (userId: string, roleId: string): Promise<ApiResponse<PermissionData>> => {
+export const getPermissions = async (roleId: string): Promise<ApiResponse<PermissionData>> => {
   if (!IS_ROLES_ENABLED) {
     console.log('getPermissions method is skipped.');
     return {
-      data: { permissions: [], roleId: '' },
+      data: { permissions: [], roleId },
       status: 0,
       statusText: 'Method skipped'
     };
   }
 
   try {
-    const response = await api.get(`${SETTINGS_END_POINTS.PERMISSIONS_GET}`.replace(':userId', userId), {
-      params: { roleId }
-    });
+    const response = await api.get(SETTINGS_END_POINTS.PERMISSIONS_GET.replace(':roleId', roleId));
     return {
       data: response.data.data,
       status: response.status,
@@ -763,7 +752,7 @@ export const getPermissions = async (userId: string, roleId: string): Promise<Ap
   }
 };
 
-export const updatePermissions = async (userId: string, permissionData: PermissionData): Promise<ApiResponse<PermissionData>> => {
+export const updatePermissions = async (permissionData: PermissionData): Promise<ApiResponse<PermissionData>> => {
   if (!IS_ROLES_ENABLED) {
     console.log('updatePermissions method is skipped.');
     return {
@@ -774,7 +763,10 @@ export const updatePermissions = async (userId: string, permissionData: Permissi
   }
 
   try {
-    const response = await api.put(`${SETTINGS_END_POINTS.PERMISSIONS_UPDATE}`.replace(':userId', userId), permissionData);
+    const response = await api.put(
+      SETTINGS_END_POINTS.PERMISSIONS_UPDATE.replace(':roleId', permissionData.roleId),
+      permissionData
+    );
     return {
       data: response.data.data,
       status: response.status,
