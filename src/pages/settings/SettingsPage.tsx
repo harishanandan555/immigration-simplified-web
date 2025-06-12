@@ -22,9 +22,50 @@ import {
   Key,
   Zap,
   HardDrive,
+  Copy, 
+  Download, 
+  Trash,
   // Test,
   // Validate,
 } from 'lucide-react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormControlLabel,
+  FormGroup,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+  Tooltip,
+} from '@mui/material';
+import { Grid } from '@mui/material';
+import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+} from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -59,14 +100,24 @@ import {
   updateCaseSettings,
 
   getFormTemplates,
-  // updateFormTemplates,
+  getFormTemplateById,
+  createFormTemplate,
+  updateFormTemplate,
+  deleteFormTemplate,
+  duplicateFormTemplate,
+  exportFormTemplate,
+  importFormTemplate,
 
   getReportSettings,
   updateReportSettings,
   deleteReportSettings,
 
   getRoles,
-  // updateRoles,
+  createRole,
+  updateRole,
+  deleteRole,
+  getPermissions,
+  updatePermissions,
 
   getDatabaseSettings,
   updateDatabaseSettings,
@@ -128,9 +179,14 @@ import {
   renewSubscription
 } from '../../controllers/BillingControllers';
 
-import CompanySelect from '../../components/CompanySelect';
+import CompanySelect from '../../components/settings/CompanySelect';
 
-import RolesPermissionsPage from './RolesPermissionsPage';
+import {
+  ROLE_TYPES,
+  PERMISSION_MODULES,
+  PERMISSION_ACTIONS,
+  DEFAULT_ROLE_PERMISSIONS,
+} from '../../utils/constants';
 
 interface User {
   _id: string;
@@ -157,6 +213,12 @@ interface OrganizationData {
   website: string;
   address: string;
   logo?: File;
+}
+
+interface FormTemplatesSectionProps {
+  userId: string;
+  isSuperAdmin: boolean;
+  isAttorney: boolean;
 }
 
 interface NotificationData {
@@ -188,13 +250,6 @@ interface IntegrationData {
   gmail: boolean;
 }
 
-// interface BillingData {
-//   plan: string;
-//   paymentMethod: {
-//     cardNumber: string;
-//     expiryDate: string;
-//   };
-// }
 interface BillingData {
   subscription: {
     plan: 'demo' | 'basic' | 'professional' | 'enterprise';
@@ -602,6 +657,24 @@ interface Report {
   passwordProtection: boolean;
 }
 
+
+
+interface Role {
+  _id?: string;
+  name: string;
+  type: keyof typeof ROLE_TYPES;
+  description: string;
+  permissions: Permission[];
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Permission {
+  module: keyof typeof PERMISSION_MODULES;
+  actions: Array<keyof typeof PERMISSION_ACTIONS>;
+}
+
 const SettingsPage = () => {
 
   const { isAttorney, isSuperAdmin, user } = useAuth();
@@ -612,6 +685,24 @@ const SettingsPage = () => {
   const [updateTrigger, setUpdateTrigger] = useState(0);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
   const POLLING_INTERVAL = 30000; // 30 seconds
+  const { enqueueSnackbar } = useSnackbar();
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isNewRoleDialogOpen, setIsNewRoleDialogOpen] = useState(false);
+  const [newRole, setNewRole] = useState<Partial<Role>>({
+    name: '',
+    type: 'STAFF',
+    description: '',
+    permissions: [],
+    isDefault: false,
+  });
+
+  // useEffect(() => {
+  //   loadRoles();
+  // }, []);
+
 
   // Profile form state
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -764,7 +855,7 @@ const SettingsPage = () => {
     },
     customFields: []
   });
-  const [formTemplatesData, setFormTemplatesData] = useState<any>({});
+  // const [formTemplatesData, setFormTemplatesData] = useState<any>({});
   const [newReport, setNewReport] = useState<Report>({
     name: '',
     category: 'Case Reports',
@@ -1225,9 +1316,14 @@ const SettingsPage = () => {
             }
             break;
           case 'roles':
-            data = await getRoles(user._id);
+            // data = await getRoles(user._id);
+            data = await getRoles();
             if (data?.data) {
               // setRolesData(data.data.value);
+              setRoles(data.data.roles.map(role => ({
+                ...role,
+                type: ((role.type as string).toLowerCase() === 'admin' ? 'SUPER_ADMIN' : (role.type as string).toUpperCase()) as keyof typeof ROLE_TYPES
+              })));
             }
             break;
           case 'database':
@@ -1900,9 +1996,14 @@ const SettingsPage = () => {
               }
               break;
             case 'roles':
-              data = await getRoles(user._id);
+              // data = await getRoles(user._id);
+              data = await getRoles();
               if (data?.data) {
                 // setRolesData(data.data.value);
+                setRoles(data.data.roles.map(role => ({
+                  ...role,
+                  type: ((role.type as string).toLowerCase() === 'admin' ? 'SUPER_ADMIN' : (role.type as string).toUpperCase()) as keyof typeof ROLE_TYPES
+                })));
               }
               break;
             case 'database':
@@ -2015,7 +2116,11 @@ const SettingsPage = () => {
           await updateReportSettings(user._id, newReport);
           break;
         case 'roles':
-          // await updateRoles(user._id, rolesData);
+          if (!selectedRole) {
+            toast.error('No role selected');
+            break;
+          }
+          await updateRole(user._id, selectedRole._id!, selectedRole);
           break;
         case 'database':
           await updateDatabaseSettings(user._id, databaseSettingsData);
@@ -2831,9 +2936,9 @@ const SettingsPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${payment.status === 'succeeded' ? 'bg-green-100 text-green-800' :
-                        payment.status === 'failed' ? 'bg-red-100 text-red-800' :
-                          payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
+                      payment.status === 'failed' ? 'bg-red-100 text-red-800' :
+                        payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
                       }`}>
                       {payment.status}
                     </span>
@@ -4258,6 +4363,438 @@ const SettingsPage = () => {
       console.error('Error archiving audit logs:', error);
     }
   };
+
+  const handleRoleSelect = async (role: Role) => {
+    try {
+      const response = await getPermissions(role._id!);
+      if (response.data) {
+        setSelectedRole({ ...role, permissions: response.data.permissions });
+      }
+    } catch (error) {
+      enqueueSnackbar('Failed to load role permissions', { variant: 'error' });
+    }
+    setIsEditMode(false);
+  };
+
+  const handleEditClick = () => {
+    setIsEditMode(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+    setSelectedRole(roles.find(r => r._id === selectedRole?._id) || null);
+  };
+
+  const handleSaveRole = async () => {
+    if (!user?._id) return;
+    if (!selectedRole) return;
+
+    try {
+      const [roleResponse, permissionsResponse] = await Promise.all([
+        updateRole(user._id,selectedRole._id!, selectedRole),
+        updatePermissions({ permissions: selectedRole.permissions, roleId: selectedRole._id! })
+      ]);
+
+      if (roleResponse.data && permissionsResponse.data) {
+        setRoles(roles.map(r => r._id === roleResponse.data._id ? roleResponse.data : r));
+        setIsEditMode(false);
+        enqueueSnackbar('Role updated successfully', { variant: 'success' });
+      }
+    } catch (error) {
+      enqueueSnackbar('Failed to update role', { variant: 'error' });
+    }
+  };
+
+  const handleDeleteClick = () => {
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleRoleConfirmDelete = async () => {
+    if (!selectedRole?._id) return;
+
+    try {
+      await deleteRole(selectedRole._id);
+      setRoles(roles.filter(r => r._id !== selectedRole._id));
+      setSelectedRole(null);
+      setIsDeleteDialogOpen(false);
+      enqueueSnackbar('Role deleted successfully', { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar('Failed to delete role', { variant: 'error' });
+    }
+  };
+
+  const handleNewRoleClick = () => {
+    const defaultPermissions = DEFAULT_ROLE_PERMISSIONS[newRole.type as keyof typeof DEFAULT_ROLE_PERMISSIONS] || [];
+    setNewRole({
+      name: '',
+      type: 'STAFF',
+      description: '',
+      permissions: Object.entries(defaultPermissions).map(([module, actions]) => ({
+        module: module as keyof typeof PERMISSION_MODULES,
+        actions: actions as Array<keyof typeof PERMISSION_ACTIONS>
+      })),
+      isDefault: false,
+    });
+    setIsNewRoleDialogOpen(true);
+  };
+
+  const handleCreateRole = async () => {
+    try {
+      const response = await createRole(newRole as Role);
+      if (response.data) {
+        setRoles([...roles, response.data]);
+        setIsNewRoleDialogOpen(false);
+        enqueueSnackbar('Role created successfully', { variant: 'success' });
+      }
+    } catch (error) {
+      enqueueSnackbar('Failed to create role', { variant: 'error' });
+    }
+  };
+
+  const handlePermissionChange = (module: keyof typeof PERMISSION_MODULES, action: keyof typeof PERMISSION_ACTIONS) => {
+    if (!selectedRole) return;
+
+    const updatedPermissions = [...selectedRole.permissions];
+    const moduleIndex = updatedPermissions.findIndex(p => p.module === module);
+
+    if (moduleIndex === -1) {
+      updatedPermissions.push({
+        module,
+        actions: [action],
+      });
+    } else {
+      const actionIndex = updatedPermissions[moduleIndex].actions.indexOf(action);
+      if (actionIndex === -1) {
+        updatedPermissions[moduleIndex].actions.push(action);
+      } else {
+        updatedPermissions[moduleIndex].actions.splice(actionIndex, 1);
+        if (updatedPermissions[moduleIndex].actions.length === 0) {
+          updatedPermissions.splice(moduleIndex, 1);
+        }
+      }
+    }
+
+    setSelectedRole({
+      ...selectedRole,
+      permissions: updatedPermissions,
+    });
+  };
+
+  const renderPermissionsTable = () => {
+    if (!selectedRole) return null;
+
+    return (
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Module</TableCell>
+              {Object.values(PERMISSION_ACTIONS).map(action => (
+                <TableCell key={action} align="center">
+                  {action.charAt(0).toUpperCase() + action.slice(1)}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {Object.values(PERMISSION_MODULES).map(module => (
+              <TableRow key={module}>
+                <TableCell>{module.charAt(0).toUpperCase() + module.slice(1)}</TableCell>
+                {Object.values(PERMISSION_ACTIONS).map(action => (
+                  <TableCell key={action} align="center">
+                    <Checkbox
+                      checked={selectedRole.permissions.some(
+                        p => p.module === module.toUpperCase() && p.actions.includes(action.toUpperCase() as keyof typeof PERMISSION_ACTIONS)
+                      )}
+                      onChange={() => handlePermissionChange(module.toUpperCase() as keyof typeof PERMISSION_MODULES, action.toUpperCase() as keyof typeof PERMISSION_ACTIONS)}
+                      disabled={!isEditMode}
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
+  };
+
+  const renderRolePermissions = () => (
+    <Box sx={{ p: 3 }}>
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h4">Roles & Permissions</Typography>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={handleNewRoleClick}
+            >
+              New Role
+            </Button>
+          </Box>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Roles
+              </Typography>
+              <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                {roles.map(role => (
+                  <Paper
+                    key={role._id}
+                    sx={{
+                      p: 2,
+                      mb: 1,
+                      cursor: 'pointer',
+                      bgcolor: selectedRole?._id === role._id ? 'action.selected' : 'background.paper',
+                    }}
+                    onClick={() => handleRoleSelect(role)}
+                  >
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Box>
+                        <Typography variant="subtitle1">{role.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {role.description}
+                        </Typography>
+                      </Box>
+                      {role.isDefault && (
+                        <Chip label="Default" size="small" color="primary" />
+                      )}
+                    </Box>
+                  </Paper>
+                ))}
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={8}>
+          {selectedRole ? (
+            <Card>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Typography variant="h6">
+                    {isEditMode ? 'Edit Role' : 'Role Details'}
+                  </Typography>
+                  <Box>
+                    {isEditMode ? (
+                      <>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          startIcon={<SaveIcon />}
+                          onClick={handleSaveRole}
+                          sx={{ mr: 1 }}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          startIcon={<CancelIcon />}
+                          onClick={handleCancelEdit}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outlined"
+                          startIcon={<EditIcon />}
+                          onClick={handleEditClick}
+                          sx={{ mr: 1 }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          startIcon={<DeleteIcon />}
+                          onClick={handleDeleteClick}
+                          disabled={selectedRole.isDefault}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                  </Box>
+                </Box>
+
+                {isEditMode ? (
+                  <Box sx={{ mb: 3 }}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Role Name"
+                          value={selectedRole.name}
+                          onChange={(e) =>
+                            setSelectedRole({ ...selectedRole, name: e.target.value })
+                          }
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <FormControl fullWidth>
+                          <InputLabel>Role Type</InputLabel>
+                          <Select
+                            value={selectedRole.type}
+                            label="Role Type"
+                            onChange={(e) =>
+                              setSelectedRole({
+                                ...selectedRole,
+                                type: e.target.value as keyof typeof ROLE_TYPES,
+                              })
+                            }
+                          >
+                            {Object.entries(ROLE_TYPES).map(([key, value]) => (
+                              <MenuItem key={key} value={key}>
+                                {value.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          multiline
+                          rows={3}
+                          label="Description"
+                          value={selectedRole.description}
+                          onChange={(e) =>
+                            setSelectedRole({ ...selectedRole, description: e.target.value })
+                          }
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                ) : (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Name: {selectedRole.name}
+                    </Typography>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Type: {selectedRole.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')}
+                    </Typography>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Description: {selectedRole.description}
+                    </Typography>
+                  </Box>
+                )}
+
+                <Typography variant="h6" gutterBottom>
+                  Permissions
+                </Typography>
+                {renderPermissionsTable()}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent>
+                <Typography variant="body1" color="text.secondary" align="center">
+                  Select a role to view its details and permissions
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+        </Grid>
+      </Grid>
+
+      {/* New Role Dialog */}
+      <Dialog open={isNewRoleDialogOpen} onClose={() => setIsNewRoleDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Role</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid component="div" item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Role Name"
+                  value={newRole.name}
+                  onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+                />
+              </Grid>
+              <Grid component="div" item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Role Type</InputLabel>
+                  <Select
+                    value={newRole.type}
+                    label="Role Type"
+                    onChange={(e) =>
+                      setNewRole({
+                        ...newRole,
+                        type: e.target.value as keyof typeof ROLE_TYPES,
+                      })
+                    }
+                  >
+                    {Object.entries(ROLE_TYPES).map(([key, value]) => (
+                      <MenuItem key={key} value={key}>
+                        {value.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid component="div" item xs={12}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Description"
+                  value={newRole.description}
+                  onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
+                />
+              </Grid>
+              <Grid component="div" item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={newRole.isDefault}
+                      onChange={(e) => setNewRole({ ...newRole, isDefault: e.target.checked })}
+                    />
+                  }
+                  label="Set as Default Role"
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsNewRoleDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleCreateRole}
+            variant="contained"
+            color="primary"
+            disabled={!newRole.name || !newRole.type}
+          >
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Role</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete the role "{selectedRole?.name}"? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleRoleConfirmDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+
+
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -6047,7 +6584,10 @@ const SettingsPage = () => {
 
             {/* Roles & Permissions */}
             {activeTab === 'roles' && isSuperAdmin && (
-              <RolesPermissionsPage />
+              // <RolesPermissionsPage />
+              <>
+                {renderRolePermissions()}
+              </>
             )}
 
             {/* System Settings */}
@@ -6889,8 +7429,8 @@ const SettingsPage = () => {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{backup.size} MB</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${backup.status === 'success' ? 'bg-green-100 text-green-800' :
-                                      backup.status === 'failed' ? 'bg-red-100 text-red-800' :
-                                        'bg-yellow-100 text-yellow-800'
+                                    backup.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                      'bg-yellow-100 text-yellow-800'
                                     }`}>
                                     {backup.status}
                                   </span>
