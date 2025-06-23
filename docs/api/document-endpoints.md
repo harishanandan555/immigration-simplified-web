@@ -213,31 +213,55 @@ This document outlines all the document management endpoints that need to be imp
 ### 4. Update Document
 **Endpoint**: `PUT /api/v1/documents/:id`
 
+**Description**: Updates the details of a specific document. Only the fields provided in the request body will be updated.
+
 **Request Body**:
+The request body is a JSON object that can contain any of the following fields. All fields are optional.
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `name` | string | The new name of the document. |
+| `description` | string | A new description for the document. |
+| `tags` | string[] | An array of tags to associate with the document. This will replace existing tags. |
+| `folderId` | string | The ID of the folder to move the document to. |
+| `status` | string | The new status of the document. Must be one of `Pending Review`, `Verified`, `Needs Update`, `Rejected`, `Archived`. |
+| `metadata` | object | An object containing metadata fields to update. See `DocumentMetadata` for details. |
+| `permissions`| object | An object containing permission fields to update. See `DocumentPermissions` for details. |
+
+
+**Example Request Body**:
 ```json
 {
-  "name": "Updated Passport.pdf",
-  "description": "Updated description",
-  "tags": ["identity", "passport", "updated"],
-  "folderId": "folder456",
+  "name": "Updated Client Passport.pdf",
+  "description": "Updated passport with new expiry date.",
+  "tags": ["identity", "passport", "updated", "valid"],
   "status": "Verified",
   "metadata": {
+    "expiryDate": "2035-01-22T00:00:00Z",
     "customFields": {
-      "documentNumber": "A12345678",
+      "documentNumber": "A98765432",
       "issuingCountry": "USA",
-      "expiryDate": "2025-06-15"
+      "notes": "Updated upon client request."
     }
   },
   "permissions": {
-    "viewers": ["user456", "user789"],
+    "viewers": ["user456", "user789", "attorney123"],
     "editors": ["user456"],
-    "allowDownload": true,
     "allowPrint": true
   }
 }
 ```
 
-**Response**: Same as Get Document by ID
+**Response**:
+The response will be the full updated document object, same as the response for `GET /api/v1/documents/:id`.
+
+**Status Codes**:
+- `200 OK`: Document updated successfully.
+- `400 Bad Request`: Invalid data provided in the request body.
+- `401 Unauthorized`: Authentication token is missing or invalid.
+- `403 Forbidden`: User does not have permission to update this document.
+- `404 Not Found`: No document found with the given ID.
+- `500 Internal Server Error`: An error occurred on the server.
 
 ### 5. Delete Document
 **Endpoint**: `DELETE /api/v1/documents/:id`

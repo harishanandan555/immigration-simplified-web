@@ -4,14 +4,14 @@ import { DOCUMENT_END_POINTS } from '../utils/constants';
 // Set to false to skip the method
 const IS_DOCUMENTS_ENABLED = true;
 const IS_DOCUMENT_CRUD_ENABLED = true;
-const IS_DOCUMENT_DOWNLOAD_ENABLED = true;
-const IS_DOCUMENT_PREVIEW_ENABLED = true;
-const IS_DOCUMENT_VERIFICATION_ENABLED = true;
-const IS_DOCUMENT_SEARCH_ENABLED = true;
-const IS_DOCUMENT_BULK_OPERATIONS_ENABLED = true;
-const IS_DOCUMENT_COMMENTS_ENABLED = true;
-const IS_DOCUMENT_FOLDERS_ENABLED = true;
-const IS_DOCUMENT_EXPORT_ENABLED = true;
+const IS_DOCUMENT_DOWNLOAD_ENABLED = false;
+const IS_DOCUMENT_PREVIEW_ENABLED = false;
+const IS_DOCUMENT_VERIFICATION_ENABLED = false;
+const IS_DOCUMENT_SEARCH_ENABLED = false;
+const IS_DOCUMENT_BULK_OPERATIONS_ENABLED = false;
+const IS_DOCUMENT_COMMENTS_ENABLED = false;
+const IS_DOCUMENT_FOLDERS_ENABLED = false;
+const IS_DOCUMENT_EXPORT_ENABLED = false;
 
 // Document Interfaces
 export interface Document {
@@ -180,7 +180,7 @@ export const getDocuments = async (params?: DocumentSearchParams): Promise<ApiRe
     });
 
     return {
-      data: response.data,
+      data: response.data.data,
       success: true,
       status: response.status
     };
@@ -310,11 +310,11 @@ export const updateDocument = async (documentId: string, updateData: DocumentUpd
   }
 };
 
-export const deleteDocument = async (documentId: string): Promise<ApiResponse<void>> => {
+export const deleteDocument = async (documentId: string): Promise<ApiResponse<null>> => {
   if (!IS_DOCUMENT_CRUD_ENABLED) {
     console.log('deleteDocument method is skipped.');
     return {
-      data: undefined,
+      data: null,
       success: true,
       status: 0,
       message: 'Method skipped'
@@ -322,14 +322,15 @@ export const deleteDocument = async (documentId: string): Promise<ApiResponse<vo
   }
 
   try {
-    const response = await api.delete(
+    const response = await api.delete<{ message?: string }>(
       DOCUMENT_END_POINTS.DELETEDOCUMENT.replace(':id', documentId)
     );
 
     return {
-      data: undefined,
+      data: null,
       success: true,
-      status: response.status
+      status: response.status,
+      message: response.data?.message || 'Document deleted successfully'
     };
   } catch (error) {
     if (error instanceof Error) {
@@ -340,7 +341,7 @@ export const deleteDocument = async (documentId: string): Promise<ApiResponse<vo
   }
 };
 
-export const downloadDocument = async (documentId: string): Promise<Blob> => {
+export const downloadDocument = async (documentId: string, documentName: string): Promise<void> => {
   if (!IS_DOCUMENT_DOWNLOAD_ENABLED) {
     console.log('downloadDocument method is skipped.');
     throw new Error('Method not enabled');
@@ -354,7 +355,16 @@ export const downloadDocument = async (documentId: string): Promise<Blob> => {
       }
     );
 
-    return response.data;
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = documentName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
   } catch (error) {
     if (error instanceof Error) {
       console.error('Error downloading document:', error.message);
@@ -364,7 +374,7 @@ export const downloadDocument = async (documentId: string): Promise<Blob> => {
   }
 };
 
-export const previewDocument = async (documentId: string): Promise<string> => {
+export const previewDocument = async (documentId: string): Promise<void> => {
   if (!IS_DOCUMENT_PREVIEW_ENABLED) {
     console.log('previewDocument method is skipped.');
     throw new Error('Method not enabled');
@@ -375,13 +385,45 @@ export const previewDocument = async (documentId: string): Promise<string> => {
       DOCUMENT_END_POINTS.PREVIEWDOCUMENT.replace(':id', documentId)
     );
 
-    return response.data.previewUrl;
+    window.open(response.data.previewUrl, '_blank');
+    
   } catch (error) {
     if (error instanceof Error) {
       console.error('Error getting document preview:', error.message);
       throw new Error(`Failed to get document preview: ${error.message}`);
     }
     throw new Error('Failed to get document preview due to an unknown error');
+  }
+};
+
+export const updateDocumentStatus = async (documentId: string, status: DocumentStatus, notes?: string): Promise<ApiResponse<Document>> => {
+  if (!IS_DOCUMENT_CRUD_ENABLED) {
+    console.log('updateDocumentStatus method is skipped.');
+    return {
+      data: {} as Document,
+      success: true,
+      status: 0,
+      message: 'Method skipped'
+    };
+  }
+
+  try {
+    const response = await api.put<Document>(
+      DOCUMENT_END_POINTS.UPDATEDOCUMENTSTATUS.replace(':id', documentId),
+      { status, notes }
+    );
+
+    return {
+      data: response.data,
+      success: true,
+      status: response.status
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Error updating document status:', error.message);
+      throw new Error(`Failed to update document status: ${error.message}`);
+    }
+    throw new Error('Failed to update document status due to an unknown error');
   }
 };
 

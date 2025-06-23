@@ -2,17 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../controllers/AuthControllers';
 import Logo from '../../components/layout/Logo';
-import { Shield, Users, Building, Check, ArrowRight, Loader2 } from 'lucide-react';
+import { Shield, Users, Check, ArrowRight, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-type UserType = 'individual' | 'company';
 type SubscriptionPlan = 'starter' | 'family';
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const { registerUser } = useAuth();
-  const [step, setStep] = useState<'type' | 'plan' | 'form'>('type');
-  const [userType, setUserType] = useState<UserType | null>(null);
+  const [step, setStep] = useState<'plan' | 'form'>('plan');
   const [subscriptionPlan, setSubscriptionPlan] = useState<SubscriptionPlan | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -23,13 +21,7 @@ const RegisterPage: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    companyName: '',
   });
-
-  const handleUserTypeSelect = (type: UserType) => {
-    setUserType(type);
-    setStep('plan');
-  };
 
   const handlePlanSelect = (plan: SubscriptionPlan) => {
     setSubscriptionPlan(plan);
@@ -58,17 +50,14 @@ const RegisterPage: React.FC = () => {
         throw new Error('Passwords do not match');
       }
 
-      if (userType === 'company' && !formData.companyName) {
-        throw new Error('Company name is required');
-      }
-
       // Register user
       await registerUser(
         formData.firstName,
         formData.lastName,
         formData.email,
         formData.password,
-        userType === 'company' ? 'company' : 'individual',
+        'client', // role
+        'individual', // userType
         '', // superadminId
         '', // attorneyId
         '' // companyId
@@ -83,39 +72,6 @@ const RegisterPage: React.FC = () => {
       setLoading(false);
     }
   };
-
-  const renderUserTypeSelection = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Choose Account Type</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <button
-          onClick={() => handleUserTypeSelect('individual')}
-          className="p-6 border-2 border-gray-200 rounded-xl hover:border-primary-500 hover:shadow-lg transition-all"
-        >
-          <div className="flex items-center justify-center mb-4">
-            <Users className="h-12 w-12 text-primary-600" />
-          </div>
-          <h3 className="text-xl font-semibold text-center mb-2">Individual</h3>
-          <p className="text-gray-600 text-center">
-            Perfect for personal immigration needs
-          </p>
-        </button>
-
-        <button
-          onClick={() => handleUserTypeSelect('company')}
-          className="p-6 border-2 border-gray-200 rounded-xl hover:border-primary-500 hover:shadow-lg transition-all"
-        >
-          <div className="flex items-center justify-center mb-4">
-            <Building className="h-12 w-12 text-primary-600" />
-          </div>
-          <h3 className="text-xl font-semibold text-center mb-2">Company</h3>
-          <p className="text-gray-600 text-center">
-            For businesses managing multiple cases
-          </p>
-        </button>
-      </div>
-    </div>
-  );
 
   const renderPlanSelection = () => (
     <div className="space-y-6">
@@ -213,23 +169,6 @@ const RegisterPage: React.FC = () => {
           />
         </div>
       </div>
-
-      {userType === 'company' && (
-        <div>
-          <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
-            Company Name
-          </label>
-          <input
-            type="text"
-            id="companyName"
-            name="companyName"
-            required
-            value={formData.companyName}
-            onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-          />
-        </div>
-      )}
 
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -355,7 +294,6 @@ const RegisterPage: React.FC = () => {
               </p>
             </div>
 
-            {step === 'type' && renderUserTypeSelection()}
             {step === 'plan' && renderPlanSelection()}
             {step === 'form' && renderRegistrationForm()}
 
