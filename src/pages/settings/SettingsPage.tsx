@@ -22,11 +22,12 @@ import {
   Key,
   Zap,
   HardDrive,
-  Copy, 
-  Download, 
+  Copy,
+  Download,
   Trash,
   // Test,
   // Validate,
+  HelpCircle,
 } from 'lucide-react';
 import {
   Box,
@@ -1187,6 +1188,38 @@ const SettingsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredLogs, setFilteredLogs] = useState<any[]>([]);
 
+  // Add state for questionnaire questions
+  const [questionnaireQuestions, setQuestionnaireQuestions] = useState(() => {
+    // Import steps from ImmigrationProcess.tsx or copy the structure here
+    return [
+      {
+        id: 'immigration-type',
+        title: 'What type of immigration benefit are you seeking?',
+        description: 'Select the category that best matches your situation',
+      },
+      {
+        id: 'employment',
+        title: 'Employment-Based Immigration',
+        description: 'Work visas and employment green cards',
+      },
+      {
+        id: 'humanitarian',
+        title: 'Humanitarian Relief',
+        description: 'Asylum, refugee, or special programs',
+      },
+      // Add more as needed from steps array
+    ];
+  });
+  const [questionnaireLoading, setQuestionnaireLoading] = useState(false);
+  const handleQuestionnaireChange = (index: number, field: 'title' | 'description', value: string) => {
+    setQuestionnaireQuestions(prev => prev.map((q, i) => i === index ? { ...q, [field]: value } : q));
+  };
+  const handleQuestionnaireSave = () => {
+    setQuestionnaireLoading(true);
+    // Simulate save
+    setTimeout(() => setQuestionnaireLoading(false), 1000);
+  };
+
   // Load initial data
   useEffect(() => {
     const loadSettings = async () => {
@@ -2184,7 +2217,8 @@ const SettingsPage = () => {
     { id: 'audit', name: 'Audit Logs', icon: Activity, adminOnly: true },
     { id: 'backup', name: 'Backup & Recovery', icon: HardDrive, adminOnly: true },
     { id: 'api', name: 'API Settings', icon: Key, adminOnly: true },
-    { id: 'performance', name: 'Performance', icon: Zap, adminOnly: true }
+    { id: 'performance', name: 'Performance', icon: Zap, adminOnly: true },
+    { id: 'questionnaire', name: 'Questionnaire', icon: HelpCircle, adminOnly: false, attorneyAllowed: true },
   ];
 
   const renderSecuritySection = () => (
@@ -2513,8 +2547,9 @@ const SettingsPage = () => {
           email,
           password,
           role,
-          user?._id || '', // superadminId
-          user?._id || '', // attorneyId
+          'company',           // <-- Add this line
+          user?._id || '',     // superadminId
+          user?._id || '',     // attorneyId
           finalCompanyId
         );
       }
@@ -4391,7 +4426,7 @@ const SettingsPage = () => {
 
     try {
       const [roleResponse, permissionsResponse] = await Promise.all([
-        updateRole(user._id,selectedRole._id!, selectedRole),
+        updateRole(user._id, selectedRole._id!, selectedRole),
         updatePermissions({ permissions: selectedRole.permissions, roleId: selectedRole._id! })
       ]);
 
@@ -8137,6 +8172,49 @@ const SettingsPage = () => {
                   >
                     <Save size={18} className="mr-2" />
                     {loading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Questionnaire Settings */}
+            {activeTab === 'questionnaire' && (
+              <>
+                <div className="p-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-6">Immigration Questionnaire Settings</h2>
+                  <div className="space-y-6">
+                    {questionnaireQuestions.map((q, idx) => (
+                      <div key={q.id} className="bg-gray-50 p-4 rounded-lg">
+                        <div className="mb-2">
+                          <label className="block text-sm font-medium text-gray-700">Question Title</label>
+                          <input
+                            type="text"
+                            value={q.title}
+                            onChange={e => handleQuestionnaireChange(idx, 'title', e.target.value)}
+                            className="mt-1 form-input w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Description</label>
+                          <textarea
+                            value={q.description}
+                            onChange={e => handleQuestionnaireChange(idx, 'description', e.target.value)}
+                            className="mt-1 form-input w-full"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
+                  <button
+                    type="button"
+                    className="btn btn-primary flex items-center"
+                    onClick={handleQuestionnaireSave}
+                    disabled={questionnaireLoading}
+                  >
+                    <Save size={18} className="mr-2" />
+                    {questionnaireLoading ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </>

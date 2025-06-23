@@ -28,6 +28,7 @@ export interface User {
   email: string;
   password: string;
   role: UserRole;
+  userType?: 'individual' | 'company';
   avatar?: string;
   token?: string;
   companyId?: string;
@@ -121,6 +122,7 @@ export const registerUser = async (
   email: string,
   password: string,
   role: string,
+  userType: 'individual' | 'company',
   superadminId: string,
   attorneyId: string,
   companyId: string
@@ -141,6 +143,7 @@ export const registerUser = async (
       email: email.toLowerCase(),
       password,
       role: role.toLowerCase(),
+      userType,
       superadminId,
       attorneyId,
       companyId
@@ -311,7 +314,7 @@ interface AuthContextType {
   isLoading: boolean;
   registerSuperadmin: (firstName: string, lastName: string, email: string, password: string) => Promise<void>;
   registerAttorney: (firstName: string, lastName: string, email: string, password: string, superadminId: string, companyId: string) => Promise<void>;
-  registerUser: (firstName: string, lastName: string, email: string, password: string, role: string, superadminId: string, attorneyId: string, companyId: string) => Promise<void>;
+  registerUser: (firstName: string, lastName: string, email: string, password: string, role: string, userType: 'individual' | 'company', superadminId: string, attorneyId: string, companyId: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   getUserProfile: (email: string, password: string) => Promise<void>;
   updateUserProfile: (email: string, password: string) => Promise<void>;
@@ -390,13 +393,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string,
     password: string,
     role: string,
+    userType: 'individual' | 'company',
     superadminId: string,
     attorneyId: string,
     companyId: string
   ): Promise<void> => {
     setIsLoading(true);
     try {
-      const response = await registerUser(firstName, lastName, email, password, role, superadminId, attorneyId, companyId);
+      const response = await registerUser(firstName, lastName, email, password, role, userType, superadminId, attorneyId, companyId);
       if (response.data) {
         setUser(response.data);
         localStorage.setItem('user', JSON.stringify(response.data));
