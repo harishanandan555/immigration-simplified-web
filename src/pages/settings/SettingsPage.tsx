@@ -182,12 +182,16 @@ import {
 
 import CompanySelect from '../../components/settings/CompanySelect';
 
+import {getAllUscisForms, getUscisFormPdf} from '../../controllers/UscisFormsControllers'
+
 import {
   ROLE_TYPES,
   PERMISSION_MODULES,
   PERMISSION_ACTIONS,
   DEFAULT_ROLE_PERMISSIONS,
 } from '../../utils/constants';
+
+import FileUpload from '../../components/common/FileUpload';
 
 interface User {
   _id: string;
@@ -214,12 +218,6 @@ interface OrganizationData {
   website: string;
   address: string;
   logo?: File;
-}
-
-interface FormTemplatesSectionProps {
-  userId: string;
-  isSuperAdmin: boolean;
-  isAttorney: boolean;
 }
 
 interface NotificationData {
@@ -856,7 +854,7 @@ const SettingsPage = () => {
     },
     customFields: []
   });
-  // const [formTemplatesData, setFormTemplatesData] = useState<any>({});
+  const [formTemplates, setFormTemplates] = useState<any[]>([]);
   const [newReport, setNewReport] = useState<Report>({
     name: '',
     category: 'Case Reports',
@@ -1220,6 +1218,12 @@ const SettingsPage = () => {
     setTimeout(() => setQuestionnaireLoading(false), 1000);
   };
 
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [showEditTemplate, setShowEditTemplate] = useState(false);
+  const [editTemplateFile, setEditTemplateFile] = useState<File | null>(null);
+  const [editTemplateBase64, setEditTemplateBase64] = useState<string | null>(null);
+  const [editTemplateLoading, setEditTemplateLoading] = useState(false);
+
   // Load initial data
   useEffect(() => {
     const loadSettings = async () => {
@@ -1332,8 +1336,10 @@ const SettingsPage = () => {
             break;
           case 'forms':
             data = await getFormTemplates(user._id);
-            if (data?.data) {
-              // setFormTemplatesData(data.data.value);
+            if (data?.data?.templates) {
+              setFormTemplates(data.data.templates);
+            } else {
+              setFormTemplates([]);
             }
             break;
           case 'reports':
@@ -1969,8 +1975,10 @@ const SettingsPage = () => {
               break;
             case 'forms':
               data = await getFormTemplates(user._id);
-              if (data?.data) {
-                // setFormTemplatesData(data.data.value);
+              if (data?.data?.templates) {
+                setFormTemplates(data.data.templates);
+              } else {
+                setFormTemplates([]);
               }
               break;
             case 'reports':
@@ -6318,68 +6326,37 @@ const SettingsPage = () => {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          <tr>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <FileText className="h-5 w-5 text-gray-400 mr-2" />
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">I-130 Petition</div>
-                                  <div className="text-sm text-gray-500">Family-based immigrant petition</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                Family-Based
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              2 days ago
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                Active
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <div className="flex justify-end space-x-2">
-                                <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                                <button className="text-gray-600 hover:text-gray-900">Preview</button>
-                                <button className="text-red-600 hover:text-red-900" onClick={() => handleDeleteReport(reports[0])}>Delete</button>
-                              </div>
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <FileText className="h-5 w-5 text-gray-400 mr-2" />
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">I-485 Application</div>
-                                  <div className="text-sm text-gray-500">Application to register permanent residence</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                Family-Based
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              1 week ago
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                Active
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <div className="flex justify-end space-x-2">
-                                <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                                <button className="text-gray-600 hover:text-gray-900">Preview</button>
-                                <button className="text-red-600 hover:text-red-900" onClick={() => handleDeleteReport(reports[1])}>Delete</button>
-                              </div>
-                            </td>
-                          </tr>
+                          {formTemplates.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-6 py-4 text-center text-gray-500">No templates found.</td>
+                            </tr>
+                          ) : (
+                            formTemplates.map((template: any) => (
+                              <tr key={template._id}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <FileText className="h-5 w-5 text-gray-400 mr-2" />
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">{template.name}</div>
+                                      <div className="text-sm text-gray-500">{template.description}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">{template.category}</td>
+                                <td className="px-6 py-4 whitespace-nowrap">{template.updatedAt ? new Date(template.updatedAt).toLocaleDateString() : '-'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    {template.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                  {/* Actions: Edit, Delete, Download, etc. */}
+                                  <button className="text-indigo-600 hover:text-indigo-900 mr-2" onClick={() => setEditingTemplate(template)}>Edit</button>
+                                  <button className="text-red-600 hover:text-red-900">Delete</button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -6491,6 +6468,129 @@ const SettingsPage = () => {
                   </div>
                 )}
 
+                {/* Edit Template Modal */}
+                {showEditTemplate && editingTemplate && (
+                  <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Template</h3>
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setEditTemplateLoading(true);
+                          try {
+                            // Call updateFormTemplate API (replace with real template ID and user ID)
+                            // If PDF file is uploaded, call importFormTemplate as well
+                            // TODO: Replace with real userId and templateId
+                            const userId = user?._id || '';
+                            const templateId = editingTemplate._id || '';
+                            await updateFormTemplate(userId, templateId, editingTemplate);
+                            if (editTemplateFile) {
+                              await importFormTemplate(userId, editTemplateFile);
+                            }
+                            setShowEditTemplate(false);
+                            setEditingTemplate(null);
+                            setEditTemplateFile(null);
+                            setEditTemplateBase64(null);
+                            // Optionally reload templates list
+                            // enqueueSnackbar('Template updated successfully', { variant: 'success' });
+                          } catch (err) {
+                            // enqueueSnackbar('Failed to update template', { variant: 'error' });
+                          } finally {
+                            setEditTemplateLoading(false);
+                          }
+                        }}
+                      >
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Template Name</label>
+                            <input
+                              type="text"
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              value={editingTemplate.name}
+                              onChange={e => setEditingTemplate((prev: any) => ({ ...prev, name: e.target.value }))}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Category</label>
+                            <select
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              value={editingTemplate.category}
+                              onChange={e => setEditingTemplate((prev: any) => ({ ...prev, category: e.target.value }))}
+                              required
+                            >
+                              <option value="">Select a category</option>
+                              <option value="family">Family-Based</option>
+                              <option value="employment">Employment-Based</option>
+                              <option value="naturalization">Naturalization</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Description</label>
+                            <textarea
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              rows={3}
+                              value={editingTemplate.description}
+                              onChange={e => setEditingTemplate((prev: any) => ({ ...prev, description: e.target.value }))}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Template Content</label>
+                            <textarea
+                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              rows={10}
+                              value={editingTemplate.content}
+                              onChange={e => setEditingTemplate((prev: any) => ({ ...prev, content: e.target.value }))}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Replace PDF (optional)</label>
+                            <FileUpload
+                              id="edit-form-upload"
+                              label="Replace PDF"
+                              onChange={(file, base64) => {
+                                setEditTemplateFile(file);
+                                setEditTemplateBase64(base64);
+                              }}
+                              helperText="Accepted file types: PDF, JPEG, PNG (max 5MB)"
+                              acceptedTypes={[".pdf", ".jpg", ".jpeg", ".png"]}
+                              maxSizeMB={5}
+                              required={false}
+                            />
+                            {editingTemplate.pdfUrl && (
+                              <a href={editingTemplate.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs mt-1 block">View current PDF</a>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-6 flex justify-end space-x-3">
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => {
+                              setShowEditTemplate(false);
+                              setEditingTemplate(null);
+                              setEditTemplateFile(null);
+                              setEditTemplateBase64(null);
+                            }}
+                            disabled={editTemplateLoading}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="btn btn-primary"
+                            disabled={editTemplateLoading}
+                          >
+                            {editTemplateLoading ? 'Saving...' : 'Save Changes'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
                 {/* Save Button */}
                 <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
                   <button
@@ -6594,7 +6694,6 @@ const SettingsPage = () => {
                 {/* Add Report Modal */}
                 {showAddReport && (
                   <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-                    {/* <div className="bg-white rounded-lg p-6 max-w-2xl w-full"></div> */}
                     <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Report</h3>
                       {renderReportSettingsForm()}
@@ -6619,7 +6718,6 @@ const SettingsPage = () => {
 
             {/* Roles & Permissions */}
             {activeTab === 'roles' && isSuperAdmin && (
-              // <RolesPermissionsPage />
               <>
                 {renderRolePermissions()}
               </>

@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, FilePlus, AlertCircle, CheckCircle } from 'lucide-react';
 import Button from './Button';
-import { validateFileType, validateFileSize } from '../../utils/validation';
-import { fileToBase64 } from '../../utils/mockApi';
+import { validateFileType, validateFileSize, fileToBase64 } from '../../utils/validation';
 
 interface FileUploadProps {
   id: string;
