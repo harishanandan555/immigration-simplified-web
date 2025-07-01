@@ -24,6 +24,8 @@ const TasksPage = lazy(() => import('../pages/tasks/TasksPage'));
 const CalendarPage = lazy(() => import('../pages/tasks/CalendarPage'));
 const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'));
 const ImmigrationProcess = lazy(() => import('../pages/immigrationSteps/ImmigrationProcess'));
+const IndividualImmigrationProcess = lazy(() => import('../pages/immigrationSteps/IndividualImmigrationProcess'));
+const EnhancedIndividualFormFiling = lazy(() => import('../pages/EnhancedIndividualFormFiling'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const AppRoutes = () => {
@@ -52,6 +54,45 @@ const AppRoutes = () => {
             <Suspense fallback={null}>
               <ImmigrationProcess />
             </Suspense>
+          } />
+
+          <Route path="/immigration-process/individual" element={
+            <Suspense fallback={null}>
+              <IndividualImmigrationProcess />
+            </Suspense>
+          } />
+
+          <Route path="/enhanced-individual-filing" element={
+            <Suspense fallback={null}>
+              <EnhancedIndividualFormFiling />
+            </Suspense>
+          } />
+
+          {/* Additional immigration workflow routes */}
+          <Route path="/immigration-process/legal-firm" element={
+            <Suspense fallback={null}>
+              <ImmigrationProcess />
+            </Suspense>
+          } />
+
+          <Route path="/forms/i-130" element={
+            <Suspense fallback={null}>
+              <EnhancedIndividualFormFiling />
+            </Suspense>
+          } />
+
+          <Route path="/forms/enhanced-filing" element={
+            <Suspense fallback={null}>
+              <EnhancedIndividualFormFiling />
+            </Suspense>
+          } />
+
+          <Route path="/immigration" element={
+            <Navigate to="/immigration-process" replace />
+          } />
+
+          <Route path="/individual-filing" element={
+            <Navigate to="/enhanced-individual-filing" replace />
           } />
 
           {/* Cases routes */}
