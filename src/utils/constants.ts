@@ -159,10 +159,6 @@ export const SETTINGS_END_POINTS = {
     CASE_SETTINGS_GET: "/api/v1/settings/cases/:userId",
     CASE_SETTINGS_UPDATE: "/api/v1/settings/cases/:userId",
     
-    // Form Templates
-    FORM_TEMPLATES_GET: "/api/v1/settings/forms/:userId",
-    FORM_TEMPLATES_UPDATE: "/api/v1/settings/forms/:userId",
-    
     // Report Settings
     REPORT_SETTINGS_GET: "/api/v1/settings/reports/:userId",
     REPORT_SETTINGS_UPDATE: "/api/v1/settings/reports/:userId",
@@ -388,14 +384,19 @@ export const FORM_FIELD_TYPES = {
 
 // Form Template Endpoints
 export const FORM_TEMPLATE_ENDPOINTS = {
-  GET_ALL: '/api/form-templates',
-  GET_BY_ID: '/api/form-templates/:id',
-  CREATE: '/api/form-templates',
-  UPDATE: '/api/form-templates/:id',
-  DELETE: '/api/form-templates/:id',
-  DUPLICATE: '/api/form-templates/:id/duplicate',
-  EXPORT: '/api/form-templates/:id/export',
-  IMPORT: '/api/form-templates/import'
+  GET_ALL: '/api/v1/form-templates',
+  GET_BY_ID: '/api/v1/form-templates/:id',
+  CREATE: '/api/v1/form-templates',
+  UPDATE: '/api/v1/form-templates/:id',
+  DELETE: '/api/v1/form-templates/:id',
+  DUPLICATE: '/api/v1/form-templates/:id/duplicate',
+  EXPORT: '/api/v1/form-templates/:id/export',
+  IMPORT: '/api/v1/form-templates/import'
 } as const;
+
+export const USCIS_FORMS_END_POINTS = {
+    GET_ALL: "/api/v1/uscis-forms",
+    GET_PDF: "/api/v1/uscis-forms/:formNumber"
+};
 
 

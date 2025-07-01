@@ -141,6 +141,25 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+/**
+ * Validate file type by MIME type or extension
+ */
+export function validateFileType(file: File, acceptedTypes: string[]): boolean {
+  const fileType = file.type;
+  const fileName = file.name.toLowerCase();
+  // Check by MIME type
+  if (acceptedTypes.includes(fileType)) return true;
+  // Check by extension
+  return acceptedTypes.some(type => fileName.endsWith(type));
+}
+
+/**
+ * Validate file size (in MB)
+ */
+export function validateFileSize(file: File, maxSizeMB: number): boolean {
+  return file.size / 1024 / 1024 <= maxSizeMB;
+}
+
 // Simulation functions for demo purposes
 function simulateCaseStatusResponse(caseNumber: string): ApiResponse {
   // Check if case number exists in our simulated database

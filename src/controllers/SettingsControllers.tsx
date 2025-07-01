@@ -31,6 +31,86 @@ const handleApiError = (error: any) => {
     };
 };
 
+
+// Form Template Interfaces
+export interface FormTemplateField {
+  id: string;
+  name: string;
+  label: string;
+  type: keyof typeof FORM_FIELD_TYPES;
+  required: boolean;
+  validationRules?: {
+    min?: number;
+    max?: number;
+    pattern?: string;
+    custom?: string;
+  };
+  options?: string[];
+  defaultValue?: any;
+  placeholder?: string;
+  helpText?: string;
+  order: number;
+}
+
+export interface FormTemplate {
+  _id?: string;
+  name: string;
+  description: string;
+  category: keyof typeof FORM_TEMPLATE_CATEGORIES;
+  type: keyof typeof FORM_TEMPLATE_TYPES;
+  status: keyof typeof FORM_TEMPLATE_STATUS;
+  fields: FormTemplateField[];
+  version: string;
+  effectiveDate: string;
+  expirationDate?: string;
+  isActive: boolean;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: {
+    uscisFormNumber?: string;
+    uscisFormLink?: string;
+    estimatedProcessingTime?: string;
+    fee?: number;
+    instructions?: string;
+  };
+}
+
+export interface FormTemplateData {
+  templates: FormTemplate[];
+  totalTemplates: number;
+  activeTemplates: number;
+}
+
+
+// Roles & Permissions Interfaces
+interface Permission {
+  module: keyof typeof PERMISSION_MODULES;
+  actions: Array<keyof typeof PERMISSION_ACTIONS>;
+}
+
+interface Role {
+  _id?: string;
+  name: string;
+  type: keyof typeof ROLE_TYPES;
+  description: string;
+  permissions: Permission[];
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface RoleData {
+  roles: Role[];
+  defaultRole: string;
+}
+
+interface PermissionData {
+  permissions: Permission[];
+  roleId: string;
+}
+
 // Set to false to skip the method
 const IS_PROFILE_ENABLED = true;
 const IS_ORGANIZATION_ENABLED = true;
@@ -40,7 +120,7 @@ const IS_EMAIL_ENABLED = true;
 const IS_INTEGRATIONS_ENABLED = true;
 const IS_BILLING_ENABLED = false;
 const IS_CASE_SETTINGS_ENABLED = true;
-const IS_FORM_TEMPLATES_ENABLED = false;
+const IS_FORM_TEMPLATES_ENABLED = true;
 const IS_REPORT_SETTINGS_ENABLED = true;
 const IS_ROLES_ENABLED = true;
 const IS_DATABASE_ENABLED = true;
@@ -382,58 +462,7 @@ export const updateCaseSettings = async (userId: string, caseSettingsData: any):
   }
 };
 
-// Form Template Interfaces
-export interface FormTemplateField {
-  id: string;
-  name: string;
-  label: string;
-  type: keyof typeof FORM_FIELD_TYPES;
-  required: boolean;
-  validationRules?: {
-    min?: number;
-    max?: number;
-    pattern?: string;
-    custom?: string;
-  };
-  options?: string[];
-  defaultValue?: any;
-  placeholder?: string;
-  helpText?: string;
-  order: number;
-}
-
-export interface FormTemplate {
-  _id?: string;
-  name: string;
-  description: string;
-  category: keyof typeof FORM_TEMPLATE_CATEGORIES;
-  type: keyof typeof FORM_TEMPLATE_TYPES;
-  status: keyof typeof FORM_TEMPLATE_STATUS;
-  fields: FormTemplateField[];
-  version: string;
-  effectiveDate: string;
-  expirationDate?: string;
-  isActive: boolean;
-  createdBy: string;
-  updatedBy: string;
-  createdAt: string;
-  updatedAt: string;
-  metadata?: {
-    uscisFormNumber?: string;
-    uscisFormLink?: string;
-    estimatedProcessingTime?: string;
-    fee?: number;
-    instructions?: string;
-  };
-}
-
-export interface FormTemplateData {
-  templates: FormTemplate[];
-  totalTemplates: number;
-  activeTemplates: number;
-}
-
-// Form Template API Methods
+// Form Template Settings
 export const getFormTemplates = async (userId: string): Promise<ApiResponse<FormTemplateData>> => {
   if (!IS_FORM_TEMPLATES_ENABLED) {
     return {
@@ -620,34 +649,7 @@ export const deleteReportSettings = async (userId: string, reportId: string): Pr
   }
 };
 
-// Roles & Permissions Interfaces
-interface Permission {
-  module: keyof typeof PERMISSION_MODULES;
-  actions: Array<keyof typeof PERMISSION_ACTIONS>;
-}
-
-interface Role {
-  _id?: string;
-  name: string;
-  type: keyof typeof ROLE_TYPES;
-  description: string;
-  permissions: Permission[];
-  isDefault: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-interface RoleData {
-  roles: Role[];
-  defaultRole: string;
-}
-
-interface PermissionData {
-  permissions: Permission[];
-  roleId: string;
-}
-
-// Roles & Permissions API Methods
+// Roles & Permissions Settings
 export const getRoles = async (): Promise<ApiResponse<RoleData>> => {
   if (!IS_ROLES_ENABLED) {
     console.log('getRoles method is skipped.');
@@ -951,7 +953,7 @@ export const updateSystemLogging = async (userId: string, loggingData: any): Pro
   }
 };
 
-// Audit Logs
+// Audit Logs Settings
 export const getAuditLogs = async (userId: string): Promise<ApiResponse<any>> => {
   if (!IS_AUDIT_LOGS_ENABLED) {
     console.log('getAuditLogs method is skipped.');
@@ -1055,7 +1057,7 @@ export const updateAuditLogsNotifications = async (userId: string, notificationD
   }
 };
 
-// Backup & Recovery
+// Backup & Recovery Settings
 export const getBackupSettings = async (userId: string): Promise<ApiResponse<any>> => {
   if (!IS_BACKUP_ENABLED) {
     console.log('getBackupSettings method is skipped.');
