@@ -26,6 +26,7 @@ const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'));
 const ImmigrationProcess = lazy(() => import('../pages/immigrationSteps/ImmigrationProcess'));
 const IndividualImmigrationProcess = lazy(() => import('../pages/immigrationSteps/IndividualImmigrationProcess'));
 const EnhancedIndividualFormFiling = lazy(() => import('../pages/EnhancedIndividualFormFiling'));
+const LegalFirmWorkflow = lazy(() => import('../pages/LegalFirmWorkflow'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const AppRoutes = () => {
@@ -65,6 +66,12 @@ const AppRoutes = () => {
           <Route path="/enhanced-individual-filing" element={
             <Suspense fallback={null}>
               <EnhancedIndividualFormFiling />
+            </Suspense>
+          } />
+
+          <Route path="/legal-firm-workflow" element={
+            <Suspense fallback={null}>
+              <LegalFirmWorkflow />
             </Suspense>
           } />
 

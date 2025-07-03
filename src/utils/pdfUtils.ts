@@ -1,6 +1,6 @@
 import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
 
-interface I130FormData {
+export interface I130FormData {
   // Part 1. Relationship
   relationshipType: string;
   childRelationshipType?: string;

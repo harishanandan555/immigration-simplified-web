@@ -7,6 +7,24 @@ export const validateFileSize = (file: File, maxSizeMB: number): boolean => {
   return file.size <= maxSizeBytes;
 };
 
+// Convert file to base64 string
+export const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      } else {
+        reject(new Error('Failed to read file as base64'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+  });
+};
+
 // Enhanced validation for immigration forms
 export interface ValidationRule {
   type: 'required' | 'email' | 'phone' | 'date' | 'ssn' | 'alienNumber' | 'passport' | 'zipCode' | 'custom';
@@ -57,7 +75,7 @@ export const IMMIGRATION_VALIDATION_RULES: Record<string, ValidationRule[]> = {
   ],
   email: [
     { type: 'required', message: 'Email address is required' },
-    { type: 'email', message: 'Please enter a valid email address' }
+    { type: 'email', message: 'Please ebnter a valid email address' }
   ],
   phone: [
     { type: 'required', message: 'Phone number is required' },

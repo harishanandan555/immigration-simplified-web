@@ -501,10 +501,7 @@ const IndividualImmigrationProcess: React.FC = () => {
     ]
   });
 
-  // State for immigration process
-  const [questionnaireStep, setQuestionnaireStep] = useState<'category' | 'subcategory' | 'confirmation'>('category');
-  const [selectedCategory, setSelectedCategory] = useState<ImmigrationCategory | null>(null);
-  const [selectedSubcategory, setSelectedSubcategory] = useState<ImmigrationSubcategory | null>(null);
+  // State for custom questionnaires
   const [showCustomQuestionnaire, setShowCustomQuestionnaire] = useState(false);
   const [selectedCustomQuestionnaire, setSelectedCustomQuestionnaire] = useState<LoadedQuestionnaire | null>(null);
   const [customQuestionnaireAnswers, setCustomQuestionnaireAnswers] = useState<Record<string, any>>({});
