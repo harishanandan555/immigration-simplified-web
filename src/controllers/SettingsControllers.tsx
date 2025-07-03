@@ -83,6 +83,14 @@ export interface FormTemplateData {
   activeTemplates: number;
 }
 
+export interface GetFormTemplatesParams {
+  page?: number;
+  limit?: number;
+  category?: string;
+  status?: string;
+  type?: string;
+  search?: string;
+}
 
 // Roles & Permissions Interfaces
 interface Permission {
@@ -463,7 +471,10 @@ export const updateCaseSettings = async (userId: string, caseSettingsData: any):
 };
 
 // Form Template Settings
-export const getFormTemplates = async (userId: string): Promise<ApiResponse<FormTemplateData>> => {
+export const getFormTemplates = async (
+  userId: string,
+  params?: GetFormTemplatesParams
+): Promise<ApiResponse<FormTemplateData>> => {
   if (!IS_FORM_TEMPLATES_ENABLED) {
     return {
       data: {
@@ -477,7 +488,7 @@ export const getFormTemplates = async (userId: string): Promise<ApiResponse<Form
   }
 
   try {
-    const response = await api.get(FORM_TEMPLATE_ENDPOINTS.GET_ALL);
+    const response = await api.get(FORM_TEMPLATE_ENDPOINTS.GET_ALL, { params });
     return {
       data: response.data,
       status: response.status,
