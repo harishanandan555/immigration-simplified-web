@@ -181,6 +181,7 @@ import {
 } from '../../controllers/BillingControllers';
 
 import CompanySelect from '../../components/settings/CompanySelect';
+import { QuestionnaireBuilder } from '../../components/settings/QuestionnaireBuilder';
 
 import {getAllUscisForms, getUscisFormPdf} from '../../controllers/UscisFormsControllers'
 
@@ -2218,6 +2219,7 @@ const SettingsPage = () => {
     { id: 'users', name: 'User Management', icon: Users, adminOnly: false, attorneyAllowed: true },
     { id: 'cases', name: 'Case Settings', icon: Briefcase, adminOnly: false, attorneyAllowed: true },
     { id: 'forms', name: 'Form Templates', icon: FileText, adminOnly: false, attorneyAllowed: true },
+    { id: 'form-builder', name: 'Form Builder', icon: Edit, adminOnly: false, attorneyAllowed: true },
     { id: 'reports', name: 'Report Settings', icon: BarChart, adminOnly: false, attorneyAllowed: true },
     { id: 'roles', name: 'Roles & Permissions', icon: Shield, adminOnly: true },
     { id: 'database', name: 'Database Settings', icon: Database, adminOnly: true },
@@ -8316,6 +8318,17 @@ const SettingsPage = () => {
                   </button>
                 </div>
               </>
+            )}
+
+            {/* Form Builder */}
+            {activeTab === 'form-builder' && (isSuperAdmin || isAttorney) && (
+              <div className="p-6">
+                <QuestionnaireBuilder
+                  userId={user?._id || ''}
+                  isSuperAdmin={isSuperAdmin}
+                  isAttorney={isAttorney}
+                />
+              </div>
             )}
 
           </div>
