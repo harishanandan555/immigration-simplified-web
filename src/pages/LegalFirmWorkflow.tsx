@@ -14,6 +14,7 @@ import FileUpload from '../components/common/FileUpload';
 import { downloadFilledI130PDF, I130FormData } from '../utils/pdfUtils';
 import questionnaireService from '../services/questionnaireService';
 import { getClients as fetchClientsFromAPI, getClientById, Client as APIClient } from '../controllers/ClientControllers';
+import { getFormTemplates, FormTemplate } from '../controllers/SettingsControllers';
 
 type Client = APIClient;
 
@@ -143,6 +144,9 @@ const LegalFirmWorkflow: React.FC = () => {
   const [selectedForms, setSelectedForms] = useState<string[]>([]);
   const [availableQuestionnaires, setAvailableQuestionnaires] = useState<any[]>([]);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string>('');
+  // Form templates from backend
+  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+  const [loadingFormTemplates, setLoadingFormTemplates] = useState(false);
 
   // Questionnaire assignment and responses
   const [questionnaireAssignment, setQuestionnaireAssignment] = useState<QuestionnaireAssignment | null>(null);
@@ -155,6 +159,23 @@ const LegalFirmWorkflow: React.FC = () => {
   // Load available questionnaires
   useEffect(() => {
     loadQuestionnaires();
+  }, []);
+
+  // Load available form templates for Select Forms screen
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      setLoadingFormTemplates(true);
+      try {
+        // You may want to pass userId or params as needed
+        const response = await getFormTemplates('');
+        console.log('Fetched form templates:', response.data.templates);
+        setFormTemplates(response.data.templates || []);
+      } catch (error) {
+        setFormTemplates([]);
+      }
+      setLoadingFormTemplates(false);
+    };
+    fetchTemplates();
   }, []);
 
   // Load existing clients from API on mount (for start step)
@@ -534,7 +555,11 @@ const LegalFirmWorkflow: React.FC = () => {
                 />
               </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={handlePrevious}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
               <Button 
                 onClick={handleClientSubmit}
                 disabled={!client.name || !client.email}
@@ -546,92 +571,133 @@ const LegalFirmWorkflow: React.FC = () => {
           </div>
         );
 
-      case 2: // Create Case
+      case 2: // Create Case (with all fields from CaseFormPage)
         return (
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-green-900 mb-2">Case Setup</h3>
               <p className="text-green-700">Create a new case for client: <strong>{client.name}</strong></p>
             </div>
-            
-            <div className="space-y-4">
-              <Input
-                id="caseTitle"
-                label="Case Title"
-                value={caseData.title}
-                onChange={(e) => setCaseData({...caseData, title: e.target.value})}
-                placeholder="e.g., Family-Based Immigration - Spouse Petition"
-                required
-              />
-              
-              <TextArea
-                id="caseDescription"
-                label="Case Description"
-                value={caseData.description}
-                onChange={(e) => setCaseData({...caseData, description: e.target.value})}
-                placeholder="Brief description of the case..."
-                rows={3}
-              />
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input
+                  id="title"
+                  label="Case Title"
+                  value={caseData.title}
+                  onChange={e => setCaseData({ ...caseData, title: e.target.value })}
+                  required
+                  placeholder="Enter case title"
+                />
+                <Input
+                  id="caseNumber"
+                  label="Case Number"
+                  value={caseData.caseNumber || ''}
+                  onChange={e => setCaseData({ ...caseData, caseNumber: e.target.value })}
+                  required
+                  placeholder="Enter case number"
+                />
                 <Select
-                  id="category"
-                  label="Immigration Category"
-                  value={caseData.category}
-                  onChange={(e) => setCaseData({...caseData, category: e.target.value, subcategory: ''})}
+                  id="type"
+                  label="Case Type"
+                  value={caseData.type || ''}
+                  onChange={e => setCaseData({ ...caseData, type: e.target.value })}
                   options={[
-                    { value: '', label: 'Select Category' },
-                    ...IMMIGRATION_CATEGORIES.map(cat => ({ value: cat.id, label: cat.name }))
+                    { value: '', label: 'Select case type' },
+                    { value: 'Civil Litigation', label: 'Civil Litigation' },
+                    { value: 'Criminal Defense', label: 'Criminal Defense' },
+                    { value: 'Family Law', label: 'Family Law' },
+                    { value: 'Immigration', label: 'Immigration' },
+                    { value: 'Corporate', label: 'Corporate' },
+                    { value: 'Real Estate', label: 'Real Estate' },
+                    { value: 'Estate Planning', label: 'Estate Planning' },
+                    { value: 'Other', label: 'Other' }
                   ]}
                   required
                 />
-                
-                {caseData.category && (
-                  <Select
-                    id="subcategory"
-                    label="Subcategory"
-                    value={caseData.subcategory}
-                    onChange={(e) => setCaseData({...caseData, subcategory: e.target.value})}
-                    options={[
-                      { value: '', label: 'Select Subcategory' },
-                      ...(IMMIGRATION_CATEGORIES.find(cat => cat.id === caseData.category)?.subcategories.map(sub => ({ value: sub.id, label: sub.name })) || [])
-                    ]}
-                    required
-                  />
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select
-                  id="priority"
-                  label="Priority Level"
-                  value={caseData.priority}
-                  onChange={(e) => setCaseData({...caseData, priority: e.target.value as any})}
+                  id="status"
+                  label="Status"
+                  value={caseData.status || 'Active'}
+                  onChange={e => setCaseData({ ...caseData, status: e.target.value })}
                   options={[
-                    { value: 'low', label: 'Low Priority' },
-                    { value: 'medium', label: 'Medium Priority' },
-                    { value: 'high', label: 'High Priority' }
+                    { value: 'Active', label: 'Active' },
+                    { value: 'Pending', label: 'Pending' },
+                    { value: 'On Hold', label: 'On Hold' },
+                    { value: 'Closed', label: 'Closed' }
                   ]}
+                  required
                 />
-                
                 <Input
-                  id="dueDate"
-                  label="Due Date"
+                  id="clientId"
+                  label="Client ID"
+                  value={caseData.clientId}
+                  onChange={e => setCaseData({ ...caseData, clientId: e.target.value })}
+                  required
+                  placeholder="Enter client ID"
+                />
+                <Select
+                  id="assignedTo"
+                  label="Assigned Attorney"
+                  value={caseData.assignedTo || ''}
+                  onChange={e => setCaseData({ ...caseData, assignedTo: e.target.value })}
+                  options={[
+                    { value: '', label: 'Select attorney' },
+                    { value: 'Sarah Reynolds', label: 'Sarah Reynolds' },
+                    { value: 'Michael Chen', label: 'Michael Chen' },
+                    { value: 'Emily Wilson', label: 'Emily Wilson' }
+                  ]}
+                  required
+                />
+                <Input
+                  id="courtLocation"
+                  label="Court Location"
+                  value={caseData.courtLocation || ''}
+                  onChange={e => setCaseData({ ...caseData, courtLocation: e.target.value })}
+                  placeholder="Enter court location"
+                />
+                <Input
+                  id="judge"
+                  label="Judge"
+                  value={caseData.judge || ''}
+                  onChange={e => setCaseData({ ...caseData, judge: e.target.value })}
+                  placeholder="Enter judge name"
+                />
+                <Input
+                  id="openDate"
+                  label="Open Date"
                   type="date"
-                  value={caseData.dueDate}
-                  onChange={(e) => setCaseData({...caseData, dueDate: e.target.value})}
+                  value={caseData.openDate || ''}
+                  onChange={e => setCaseData({ ...caseData, openDate: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="mt-4">
+                <TextArea
+                  id="description"
+                  label="Description"
+                  value={caseData.description}
+                  onChange={e => setCaseData({ ...caseData, description: e.target.value })}
+                  rows={4}
+                  placeholder="Enter case description"
                 />
               </div>
             </div>
-            
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button 
+              <Button
                 onClick={handleCaseSubmit}
-                disabled={!caseData.title || !caseData.category || !caseData.subcategory}
+                disabled={
+                  !caseData.title ||
+                  !caseData.caseNumber ||
+                  !caseData.type ||
+                  !caseData.status ||
+                  !caseData.clientId ||
+                  !caseData.assignedTo ||
+                  !caseData.openDate
+                }
               >
                 Create Case & Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
@@ -647,48 +713,43 @@ const LegalFirmWorkflow: React.FC = () => {
               <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Forms</h3>
               <p className="text-purple-700">Select the forms required for this case based on the selected category.</p>
             </div>
-            
-            {caseData.subcategory && (
-              <div className="space-y-4">
-                <h4 className="font-medium text-gray-900">Recommended Forms for {
-                  IMMIGRATION_CATEGORIES
-                    .find(cat => cat.id === caseData.category)?.subcategories
-                    .find(sub => sub.id === caseData.subcategory)?.name
-                }</h4>
-                
+
+            {/* Show form templates from backend */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">Available Form Templates</h4>
+              {loadingFormTemplates ? (
+                <div className="text-gray-500">Loading form templates...</div>
+              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {IMMIGRATION_CATEGORIES
-                    .find(cat => cat.id === caseData.category)?.subcategories
-                    .find(sub => sub.id === caseData.subcategory)?.forms.map(form => (
-                    <label key={form} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        checked={selectedForms.includes(form)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedForms([...selectedForms, form]);
-                          } else {
-                            setSelectedForms(selectedForms.filter(f => f !== form));
-                          }
-                        }}
-                        className="mr-3"
-                      />
-                      <div>
-                        <div className="font-medium text-gray-900">{form}</div>
-                        <div className="text-sm text-gray-500">
-                          {form === 'I-130' && 'Petition for Alien Relative'}
-                          {form === 'I-485' && 'Application to Register Permanent Residence'}
-                          {form === 'I-864' && 'Affidavit of Support'}
-                          {form === 'I-140' && 'Immigrant Petition for Alien Worker'}
-                          {form === 'N-400' && 'Application for Naturalization'}
+                  {formTemplates.length === 0 ? (
+                    <div className="text-gray-400">No form templates available.</div>
+                  ) : (
+                    formTemplates.map(template => (
+                      <label key={template._id || template.name} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={selectedForms.includes(template.name)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedForms([...selectedForms, template.name]);
+                            } else {
+                              setSelectedForms(selectedForms.filter(f => f !== template.name));
+                            }
+                          }}
+                          className="mr-3"
+                        />
+                        <div>
+                          <div className="font-medium text-gray-900">{template.name}</div>
+                          <div className="text-sm text-gray-500">{template.description}</div>
+                          <div className="text-xs text-gray-400">Category: {template.category}</div>
                         </div>
-                      </div>
-                    </label>
-                  ))}
+                      </label>
+                    ))
+                  )}
                 </div>
-              </div>
-            )}
-            
+              )}
+            </div>
+
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
