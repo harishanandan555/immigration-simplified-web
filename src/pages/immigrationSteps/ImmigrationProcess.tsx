@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { ImmigrationProcess } from '../../types/immigration';
 import api from '../../utils/api';
 import { IMMIGRATION_END_POINTS } from '../../utils/constants';
-import { FileCheck, AlertCircle, Users, Briefcase, Heart, Shield, Plane, Building, HelpCircle, CheckCircle, Upload, X, ChevronRight, FileText } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { FileCheck, AlertCircle, Users, Briefcase, Heart, Shield, Plane, Building, HelpCircle, CheckCircle, Upload, X, ChevronRight, FileText, User, Building2, ArrowLeft, Download, Info, AlertTriangle, Loader2, Plus, Calendar } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { mockForms } from '../../utils/mockData';
+import { downloadFilledI130PDF } from '../../utils/pdfUtils';
 
 interface SubCategory {
   id: string;
@@ -23,11 +24,8 @@ interface Step {
 const progressSteps: Step[] = [
   { id: 1, name: 'Select Category' },
   { id: 2, name: 'Upload Documents' },
-  { id: 3, name: 'Client Information' },
-  { id: 4, name: 'Case Details' },
-  { id: 5, name: 'Forms Validation' },
-  { id: 6, name: 'Auto Apply' },
-  { id: 7, name: 'Download Forms' },
+  { id: 3, name: 'I-130 Form Data' },
+  { id: 4, name: 'Download Forms' },
 ];
 
 interface MainCategory {
@@ -469,315 +467,929 @@ const getDocumentDescription = (docName: string): string => {
 };
 
 const ImmigrationProcess: React.FC = () => {
-  
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [showProcessChoice, setShowProcessChoice] = useState(true);
+  const [selectedProcess, setSelectedProcess] = useState<'individual' | 'legal-firm' | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null);
+  const [selectedMainCategory, setSelectedMainCategory] = useState<MainCategory | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<SubCategory | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [formData, setFormData] = useState<Record<string, any>>({
+    // Part 1. Relationship
+    relationshipType: '', // Spouse, Parent, Brother/Sister, Child
+    childRelationshipType: '', // For child/parent relationships
+    relatedByAdoption: '', // Yes/No for brother/sister
+    
+    // Part 2. Petitioner Information
+    petitionerFamilyName: '',
+    petitionerGivenName: '',
+    petitionerMiddleName: '',
+    petitionerBirthCity: '',
+    petitionerBirthCountry: '',
+    petitionerDateOfBirth: '',
+    petitionerSex: '',
+    petitionerMailingAddress: '',
+    petitionerPhysicalAddress: '',
+    petitionerCurrentStatus: '', // U.S. Citizen or Lawful Permanent Resident
+    petitionerCitizenshipAcquired: '', // Birth, Naturalization, Parents
+    petitionerDaytimePhone: '',
+    petitionerMobilePhone: '',
+    petitionerEmail: '',
+    
+    // Part 3. Beneficiary Information
+    beneficiaryFamilyName: '',
+    beneficiaryGivenName: '',
+    beneficiaryMiddleName: '',
+    beneficiaryBirthCity: '',
+    beneficiaryBirthCountry: '',
+    beneficiaryDateOfBirth: '',
+    beneficiarySex: '',
+    beneficiaryMailingAddress: '',
+    beneficiaryPhysicalAddress: '',
+    
+    // Part 4. Additional Information
+    additionalInformation: ''
+  });
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isPdfProcessing, setIsPdfProcessing] = useState(false);
+  const [forms, setForms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [currentProcess, setCurrentProcess] = useState<ImmigrationProcess | null>(null);
   const [documents, setDocuments] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [requiredDocuments, setRequiredDocuments] = useState<any[]>([]);
   const [formRequirements, setFormRequirements] = useState<any>(null);
-  const [selectedMainCategory, setSelectedMainCategory] = useState<MainCategory | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const isParalegal = true;
-  const [formData, setFormData] = useState({
-    i130: {
-      petitioner: '',
-      beneficiary: ''
-    },
-    i485: {
-      currentStatus: '',
-      entryDate: ''
-    },
-    i765: {
-      category: '',
-      previousEAD: '',
-      ssn: '',
-      i94Number: '',
-      lastEntryDate: '',
-      passportNumber: ''
-    }
-  });
   const [formCompletion, setFormCompletion] = useState(0);
 
-  const formTemplates = {
-    i130: {
-      id: 'i130',
-      name: 'I-130 Petition for Alien Relative',
-      description: 'Form to establish a relationship between a U.S. citizen and an alien relative'
-    },
-    i485: {
-      id: 'i485',
-      name: 'I-485 Application to Register Permanent Residence',
-      description: 'Form to apply for a green card while in the United States'
-    },
-    i864: {
-      id: 'i864',
-      name: 'I-864 Affidavit of Support',
-      description: 'Form to demonstrate financial support for the immigrant'
-    },
-    i765: {
-      id: 'i765',
-      name: 'I-765 Application for Employment Authorization',
-      description: 'Form to request work authorization'
-    },
-    i131: {
-      id: 'i131',
-      name: 'I-131 Application for Travel Document',
-      description: 'Form to request permission to travel outside the U.S.'
-    },
-    i693: {
-      id: 'i693',
-      name: 'I-693 Report of Medical Examination',
-      description: 'Form for medical examination results'
+  // Legal Firm specific state
+  const [clients, setClients] = useState([
+    { id: '1', name: 'Maria Rodriguez', caseType: 'Family-Based', status: 'In Progress', lastUpdate: '2024-01-15' },
+    { id: '2', name: 'Ahmed Hassan', caseType: 'Employment-Based', status: 'Pending Review', lastUpdate: '2024-01-14' },
+    { id: '3', name: 'Li Wei', caseType: 'Student Visa', status: 'Approved', lastUpdate: '2024-01-13' },
+    { id: '4', name: 'John Smith', caseType: 'Naturalization', status: 'Documents Needed', lastUpdate: '2024-01-12' }
+  ]);
+  const [selectedClients, setSelectedClients] = useState<string[]>([]);
+  const [bulkOperation, setBulkOperation] = useState('');
+  const [caseStats, setCaseStats] = useState({
+    totalCases: 45,
+    activeCases: 32,
+    approvedCases: 8,
+    pendingCases: 5,
+    thisMonth: 12
+  });
+
+  const handleProcessSelection = (process: 'individual' | 'legal-firm') => {
+    setSelectedProcess(process);
+    if (process === 'individual') {
+      // Navigate to individual immigration process
+      navigate('/immigration-process/individual');
+    } else {
+      // Continue with legal firm process
+      setShowProcessChoice(false);
+      setCurrentStep(0);
     }
   };
 
-  const handleDownloadForm = (formId: string) => {
-    // Here you would typically make an API call to get the form
-    console.log(`Downloading form: ${formId}`);
-    // For now, we'll just show an alert
-    alert(`Downloading ${formTemplates[formId as keyof typeof formTemplates].name}`);
+  const handleClientSelection = (clientId: string) => {
+    setSelectedClients(prev => 
+      prev.includes(clientId) 
+        ? prev.filter(id => id !== clientId)
+        : [...prev, clientId]
+    );
   };
 
-  useEffect(() => {
-    const fetchForms = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await api.get(IMMIGRATION_END_POINTS.GET_FORMS);
-        if (response.data.success) {
-          // No need to process categories since we're using static data
-        } else {
-          setError(response.data.message || 'Failed to load forms');
-        }
-      } catch (err) {
-        console.error('Error fetching forms:', err);
-        setError('Failed to load forms. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchForms();
-  }, []);
-
-  // Set required documents when form data is received
-  useEffect(() => {
-    if (formRequirements?.requiredDocuments) {
-      const docRequirements = formRequirements.requiredDocuments.map((doc: any) => ({
-        id: doc.id,
-        name: doc.name,
-        description: doc.description,
-        documentType: doc.documentType,
-        isRequired: true,
-        isUploaded: false
-      }));
-      setRequiredDocuments(docRequirements);
-    }
-  }, [formRequirements]);
-
-  const startProcess = async () => {
-    if (!selectedCategory || !selectedSubCategory) {
-      console.error('No category or subcategory selected');
-      setError('Please select both a category and subcategory first');
+  const handleBulkOperation = async () => {
+    if (selectedClients.length === 0 || !bulkOperation) {
+      alert('Please select clients and operation');
       return;
     }
 
+    setIsProcessing(true);
     try {
-      setLoading(true);
-      setError(null);
+      // Simulate bulk operation
+      if (bulkOperation === 'generate-forms') {
+        // Special handling for bulk I-130 form generation
+        alert(`Generating I-130 forms for ${selectedClients.length} selected clients...\n\nThis would typically:\n• Pull client data from case files\n• Generate pre-filled I-130 forms\n• Save forms to client folders\n• Send notifications to assigned attorneys`);
+        
+        // In production, this would iterate through each selected client
+        await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate processing time
+        
+        alert(`✅ Success! Generated I-130 forms for ${selectedClients.length} clients.\n\nForms have been saved to:\n• Client case folders\n• Document management system\n• Attorney review queue`);
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        alert(`${bulkOperation} completed for ${selectedClients.length} clients`);
+      }
       
-      // Get the selected subcategory details
-      const selectedSubCategoryDetails = selectedMainCategory?.subCategories.find(
-        sub => sub.id === selectedSubCategory
-      );
+      setSelectedClients([]);
+      setBulkOperation('');
+    } catch (error) {
+      alert('Bulk operation failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-      if (!selectedSubCategoryDetails) {
-        setError('Invalid subcategory selection');
+  const startNewCase = () => {
+    setCurrentStep(1);
+  };
+
+  const renderLegalFirmDashboard = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      {/* Dashboard Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <div className="flex items-center">
+            <Users className="h-8 w-8 text-blue-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-blue-600">Total Cases</p>
+              <p className="text-2xl font-bold text-blue-900">{caseStats.totalCases}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <div className="flex items-center">
+            <CheckCircle className="h-8 w-8 text-green-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-green-600">Active Cases</p>
+              <p className="text-2xl font-bold text-green-900">{caseStats.activeCases}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <div className="flex items-center">
+            <AlertCircle className="h-8 w-8 text-yellow-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-yellow-600">Pending</p>
+              <p className="text-2xl font-bold text-yellow-900">{caseStats.pendingCases}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+          <div className="flex items-center">
+            <Shield className="h-8 w-8 text-purple-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-purple-600">Approved</p>
+              <p className="text-2xl font-bold text-purple-900">{caseStats.approvedCases}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
+          <div className="flex items-center">
+            <Calendar className="h-8 w-8 text-indigo-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-indigo-600">This Month</p>
+              <p className="text-2xl font-bold text-indigo-900">{caseStats.thisMonth}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-4">
+        <button
+          onClick={startNewCase}
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center"
+        >
+          <Plus className="h-5 w-5 mr-2" />
+          New Case
+        </button>
+        <button
+          onClick={() => setCurrentStep(2)}
+          className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center"
+        >
+          <Users className="h-5 w-5 mr-2" />
+          Bulk Operations
+        </button>
+        <button
+          onClick={() => setCurrentStep(3)}
+          className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 flex items-center"
+        >
+          <FileText className="h-5 w-5 mr-2" />
+          Form Templates
+        </button>
+        <button
+          onClick={() => setCurrentStep(4)}
+          className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 flex items-center"
+        >
+          <Briefcase className="h-5 w-5 mr-2" />
+          Case Reports
+        </button>
+      </div>
+
+      {/* Recent Cases Table */}
+      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Recent Cases</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Case Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Update</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {clients.map((client) => (
+                <tr key={client.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <User className="h-8 w-8 text-gray-400 mr-3" />
+                      <div className="text-sm font-medium text-gray-900">{client.name}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.caseType}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      client.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                      client.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                      client.status === 'Pending Review' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {client.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.lastUpdate}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button className="text-blue-600 hover:text-blue-900 mr-3">View</button>
+                    <button className="text-green-600 hover:text-green-900 mr-3">Edit</button>
+                    <button className="text-purple-600 hover:text-purple-900">Forms</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  const renderNewCaseForm = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white rounded-lg shadow-lg p-8"
+    >
+      <div className="flex items-center mb-6">
+        <button
+          onClick={() => setCurrentStep(0)}
+          className="mr-4 text-blue-600 hover:text-blue-800"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">New Case Setup</h2>
+          <p className="text-gray-600">Create a new immigration case for a client</p>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        {/* Client Information */}
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Client Information</h3>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="First Name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Last Name"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+              <input
+                type="email"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="client@example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Phone *</label>
+              <input
+                type="tel"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="(555) 123-4567"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Country of Birth *</label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Country"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Case Details */}
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Case Details</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Case Type *</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Select Case Type</option>
+                <option value="family">Family-Based Immigration</option>
+                <option value="employment">Employment-Based Immigration</option>
+                <option value="humanitarian">Humanitarian Relief</option>
+                <option value="citizenship">Citizenship & Naturalization</option>
+                <option value="temporary">Temporary Visas</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Priority Level</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Attorney</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Select Attorney</option>
+                <option value="att1">Sarah Johnson, Esq.</option>
+                <option value="att2">Michael Chen, Esq.</option>
+                <option value="att3">Maria Garcia, Esq.</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Expected Filing Date</label>
+              <input
+                type="date"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Case Notes</label>
+              <textarea
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Initial case notes and observations..."
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 flex justify-between">
+        <button
+          onClick={() => setCurrentStep(0)}
+          className="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => {
+            alert('Case created successfully!');
+            setCurrentStep(0);
+          }}
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+        >
+          Create Case
+        </button>
+      </div>
+    </motion.div>
+  );
+
+  const renderBulkOperations = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white rounded-lg shadow-lg p-8"
+    >
+      <div className="flex items-center mb-6">
+        <button
+          onClick={() => setCurrentStep(0)}
+          className="mr-4 text-blue-600 hover:text-blue-800"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Bulk Operations</h2>
+          <p className="text-gray-600">Perform operations on multiple cases simultaneously</p>
+        </div>
+      </div>
+
+      {/* Bulk Operation Controls */}
+      <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+        <div className="flex items-center gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Select Operation</label>
+            <select
+              value={bulkOperation}
+              onChange={(e) => setBulkOperation(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Choose Operation</option>
+              <option value="status-update">Update Status</option>
+              <option value="generate-forms">Generate Forms</option>
+              <option value="send-reminders">Send Reminders</option>
+              <option value="export-data">Export Data</option>
+              <option value="archive-cases">Archive Cases</option>
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={handleBulkOperation}
+              disabled={selectedClients.length === 0 || !bulkOperation || isProcessing}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isProcessing ? 'Processing...' : `Apply to ${selectedClients.length} Selected`}
+            </button>
+          </div>
+        </div>
+        {selectedClients.length > 0 && (
+          <p className="text-sm text-blue-700">
+            {selectedClients.length} clients selected for {bulkOperation || 'operation'}
+          </p>
+        )}
+      </div>
+
+      {/* Client Selection Table */}
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left">
+                <input
+                  type="checkbox"
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedClients(clients.map(c => c.id));
+                    } else {
+                      setSelectedClients([]);
+                    }
+                  }}
+                  checked={selectedClients.length === clients.length}
+                  className="rounded border-gray-300"
+                />
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Case Type</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Update</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {clients.map((client) => (
+              <tr key={client.id} className={`hover:bg-gray-50 ${selectedClients.includes(client.id) ? 'bg-blue-50' : ''}`}>
+                <td className="px-6 py-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedClients.includes(client.id)}
+                    onChange={() => handleClientSelection(client.id)}
+                    className="rounded border-gray-300"
+                  />
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <User className="h-8 w-8 text-gray-400 mr-3" />
+                    <div className="text-sm font-medium text-gray-900">{client.name}</div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.caseType}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    client.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                    client.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                    client.status === 'Pending Review' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {client.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.lastUpdate}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </motion.div>
+  );
+
+  const renderProcessChoice = () => (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Immigration Process Portal
+          </h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Choose your immigration process type to get started with the appropriate workflow
+          </p>
+        </motion.div>
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          {/* Individual Immigration Process */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-xl shadow-lg p-8 border-2 border-transparent hover:border-blue-200 transition-all duration-300 cursor-pointer"
+            onClick={() => handleProcessSelection('individual')}
+          >
+            <div className="text-center">
+              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                <User className="h-8 w-8 text-blue-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                Individual Immigration
+              </h3>
+              <p className="text-gray-600 mb-6">
+                I'm an individual seeking immigration benefits. I want to fill out forms and submit my own application.
+              </p>
+              <div className="space-y-3 text-left">
+                <div className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                  Personal information collection
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                  Document upload and validation
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                  Step-by-step form guidance
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                  Direct submission to USCIS
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Legal Firm Process */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-white rounded-xl shadow-lg p-8 border-2 border-transparent hover:border-indigo-200 transition-all duration-300 cursor-pointer"
+            onClick={() => handleProcessSelection('legal-firm')}
+          >
+            <div className="text-center">
+              <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Building2 className="h-8 w-8 text-indigo-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                Legal Firm Services
+              </h3>
+              <p className="text-gray-600 mb-6">
+                I'm a legal professional managing multiple immigration cases for clients.
+              </p>
+              <div className="space-y-3 text-left">
+                <div className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                  Multi-client case management
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                  Bulk form processing
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                  Document verification tools
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                  Professional case tracking
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="text-center mt-12"
+        >
+          <p className="text-gray-500 text-sm">
+            Need help choosing? <Link to="/help" className="text-blue-600 hover:underline">Contact our support team</Link>
+          </p>
+        </motion.div>
+      </div>
+    </div>
+  );
+
+  const handlePrefillOfficialI130 = async () => {
+    // Check if we have the required data
+    if (!formData.petitionerGivenName || !formData.petitionerFamilyName || !formData.beneficiaryGivenName || !formData.relationshipType) {
+      alert('Please fill in the basic form data first (Petitioner Name, Beneficiary Name, and Relationship)');
+      return;
+    }
+
+    setIsPdfProcessing(true);
+    try {
+      console.log('=== Starting Legal Firm I-130 Auto-Fill Process ===');
+      console.log('Form data being used:', formData);
+
+      // First, let's test if the PDF has fillable fields
+      const { PDFDocument } = await import('pdf-lib');
+      
+      // Load the PDF to check for fillable fields
+      const response = await fetch('/forms/i-130.pdf');
+      if (!response.ok) {
+        throw new Error('Could not load the I-130 PDF from local storage');
+      }
+      
+      const pdfArrayBuffer = await response.arrayBuffer();
+      const testDoc = await PDFDocument.load(pdfArrayBuffer);
+      
+      let hasForm = false;
+      let fieldCount = 0;
+      
+      try {
+        const testForm = testDoc.getForm();
+        const testFields = testForm.getFields();
+        fieldCount = testFields.length;
+        hasForm = fieldCount > 0;
+        
+        console.log(`PDF Analysis: ${fieldCount} fillable fields found`);
+        if (fieldCount > 0) {
+          console.log('Field names:', testFields.map(f => f.getName()));
+        }
+      } catch (formError) {
+        console.log('PDF does not contain fillable form fields');
+        hasForm = false;
+      }
+
+      if (!hasForm) {
+        // If no fillable fields, offer alternative solutions
+        const useAlternative = confirm(
+          `⚠️ The I-130 PDF appears to be a scanned document without fillable fields.\n\n` +
+          `Would you like to:\n` +
+          `• Click "OK" to download the blank PDF and fill it manually\n` +
+          `• Click "Cancel" to generate an HTML reference form instead`
+        );
+        
+        if (useAlternative) {
+          // Download blank PDF
+          const link = document.createElement('a');
+          link.href = '/forms/i-130.pdf';
+          link.download = `I-130_Blank_${formData.petitionerFamilyName}_${new Date().toISOString().split('T')[0]}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          alert('✅ Blank I-130 PDF downloaded. You can print this and fill it manually with the information you entered.');
+        } else {
+          // Generate HTML form instead
+          handleGenerateHTMLI130();
+        }
         return;
       }
 
-      // Create process data
-      const processData: ImmigrationProcess = {
-        id: Date.now().toString(), // Temporary ID
-        categoryId: selectedCategory,
-        subcategoryId: selectedSubCategory,
-        visaType: selectedSubCategoryDetails.title,
-        clientId: 'client123', // TODO: Get from auth context
-        caseId: Date.now().toString(), // Temporary case ID
-        priorityDate: new Date().toISOString().split('T')[0],
-        status: 'pending',
-        currentStep: 'documents',
-        steps: [],
-        documents: [],
-        formData: {},
-        validationResults: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      setCurrentProcess(processData);
+      // If we have fillable fields, proceed with auto-fill
+      const { fillI130PDF } = await import('../../utils/pdfUtils');
       
-      // Create document requirements
-      const docRequirements = selectedSubCategoryDetails.documents.map((docName: string) => ({
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        name: docName,
-        description: getDocumentDescription(docName),
-        documentType: 'pdf',
-        isRequired: true,
-        isUploaded: false
-      }));
+      // Cast formData to the expected type
+      const i130FormData = formData as any; // We'll cast to bypass type checking since we know the structure
       
-      setRequiredDocuments(docRequirements);
-      setFormRequirements({
-        requiredDocuments: docRequirements,
-        requiredForms: selectedSubCategoryDetails.forms
-      });
-
-      setCurrentStep(1);
-      setDocuments([]);
-      setUploadError(null);
+      // Fill the PDF with the current form data
+      const filledPdfBytes = await fillI130PDF(i130FormData);
       
-      console.log('Process started successfully:', {
-        processId: processData.id,
-        category: selectedCategory,
-        subcategory: selectedSubCategory
-      });
+      // Create download
+      const blob = new Blob([filledPdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `I-130_AutoFilled_${formData.petitionerFamilyName}_${formData.beneficiaryGivenName}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-      // Navigate to document upload page
-      // navigate('/immigration-process/documents', {
-      //   state: {
-      //     selectedOptions: {
-      //       category: selectedCategory,
-      //       subcategory: selectedSubCategory,
-      //       visaType: selectedSubCategoryDetails.title
-      //     },
-      //     requiredDocuments: docRequirements
-      //   }
-      // });
-
+      alert(`✅ Success! Auto-filled I-130 form has been downloaded.\n\nFile: I-130_AutoFilled_${formData.petitionerFamilyName}_${formData.beneficiaryGivenName}_${new Date().toISOString().split('T')[0]}.pdf\n\nThe form has been pre-filled with:\n• Petitioner: ${formData.petitionerGivenName} ${formData.petitionerFamilyName}\n• Beneficiary: ${formData.beneficiaryGivenName} ${formData.beneficiaryFamilyName || formData.beneficiaryGivenName}\n• Relationship: ${formData.relationshipType}`);
+      
     } catch (error: any) {
-      console.error('Error starting process:', error);
-      setError('Failed to start process. Please try again.');
+      console.error('Error in Legal Firm I-130 auto-fill:', error);
+      
+      // Provide specific error handling based on error type
+      let errorMessage = 'Error generating auto-filled form. ';
+      let showAlternatives = true;
+      
+      if (error?.message?.includes('fillable') || error?.message?.includes('scanned')) {
+        errorMessage += 'The PDF appears to be a scanned document without fillable fields.';
+      } else if (error?.message?.includes('load') || error?.message?.includes('fetch')) {
+        errorMessage += 'Could not load the I-130 form file.';
+        showAlternatives = false;
+      } else {
+        errorMessage += 'Please try an alternative option below.';
+      }
+      
+      if (showAlternatives) {
+        const choice = confirm(
+          `❌ ${errorMessage}\n\n` +
+          `Would you like to:\n` +
+          `• Click "OK" to download the blank PDF\n` +
+          `• Click "Cancel" to generate an HTML reference form`
+        );
+        
+        if (choice) {
+          handleDownloadBlankI130();
+        } else {
+          handleGenerateHTMLI130();
+        }
+      } else {
+        alert(`❌ ${errorMessage}`);
+      }
+    } finally {
+      setIsPdfProcessing(false);
+    }
+  };
+
+  const handleDownloadBlankI130 = async () => {
+    setLoading(true);
+    try {
+      // Download the blank I-130 form
+      const link = document.createElement('a');
+      link.href = '/forms/i-130.pdf';
+      link.download = 'I-130_Blank_Form.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      alert('✅ Blank I-130 form downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading blank form:', error);
+      alert('❌ Error downloading blank form. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    // Check if process is started
-    if (!currentProcess?.id) {
-      setUploadError('Please start the immigration process first');
+  const handleGenerateHTMLI130 = () => {
+    // Check if we have some basic data
+    if (!formData.petitionerGivenName || !formData.beneficiaryGivenName) {
+      alert('Please fill in at least the Petitioner and Beneficiary names first');
       return;
     }
 
-    try {
-      setUploading(true);
-      setUploadError(null);
+    // Create HTML version of I-130 form
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I-130 Form - ${formData.petitionerFamilyName}, ${formData.petitionerGivenName}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+        .section { margin-bottom: 25px; }
+        .section-title { background-color: #f0f8ff; padding: 8px; font-weight: bold; border-left: 4px solid #0066cc; }
+        .form-row { display: flex; margin-bottom: 10px; }
+        .form-label { font-weight: bold; width: 200px; }
+        .form-value { flex: 1; border-bottom: 1px dotted #666; min-height: 20px; padding-left: 10px; }
+        .checkbox { width: 15px; height: 15px; border: 1px solid #333; display: inline-block; margin-right: 5px; text-align: center; }
+        .checked { background-color: #333; color: white; }
+        .note { background-color: #fff3cd; padding: 10px; border: 1px solid #ffc107; border-radius: 4px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>USCIS Form I-130</h1>
+        <h2>Petition for Alien Relative</h2>
+        <p><strong>Generated for Legal Firm</strong> | Date: ${new Date().toLocaleDateString()}</p>
+    </div>
 
-      // Upload each file individually
-      const uploadPromises = Array.from(files).map(async (file) => {
-        const fileFormData = new FormData();
-        fileFormData.append('file', file);
-        fileFormData.append('category', selectedCategory || '');
-        fileFormData.append('clientId', 'client123');
-        fileFormData.append('processId', currentProcess.id);
-        fileFormData.append('documentType', file.type);
+    <div class="section">
+        <div class="section-title">Part 1. Relationship</div>
+        <div class="form-row">
+            <div class="form-label">I am petitioning for my:</div>
+            <div class="form-value">
+                ${formData.relationshipType === 'spouse' ? '☑' : '☐'} Spouse
+                ${formData.relationshipType === 'child' ? '☑' : '☐'} Child
+                ${formData.relationshipType === 'parent' ? '☑' : '☐'} Parent
+                ${formData.relationshipType === 'sibling' ? '☑' : '☐'} Brother/Sister
+            </div>
+        </div>
+    </div>
 
-        try {
-          console.log('Uploading file:', {
-            fileName: file.name,
-            processId: currentProcess.id,
-            category: selectedCategory
-          });
+    <div class="section">
+        <div class="section-title">Part 2. Information About You (Petitioner)</div>
+        <div class="form-row">
+            <div class="form-label">Family Name (Last Name):</div>
+            <div class="form-value">${formData.petitionerFamilyName || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Given Name (First Name):</div>
+            <div class="form-value">${formData.petitionerGivenName || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Middle Name:</div>
+            <div class="form-value">${formData.petitionerMiddleName || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Date of Birth:</div>
+            <div class="form-value">${formData.petitionerDateOfBirth || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">City of Birth:</div>
+            <div class="form-value">${formData.petitionerBirthCity || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Country of Birth:</div>
+            <div class="form-value">${formData.petitionerBirthCountry || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Mailing Address:</div>
+            <div class="form-value">${formData.petitionerMailingAddress || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Daytime Phone Number:</div>
+            <div class="form-value">${formData.petitionerDaytimePhone || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Email Address:</div>
+            <div class="form-value">${formData.petitionerEmail || ''}</div>
+        </div>
+    </div>
 
-          const response = await api.post(IMMIGRATION_END_POINTS.ADD_DOCUMENT, fileFormData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-              'Accept': 'application/json'
-            }
-          });
+    <div class="section">
+        <div class="section-title">Part 3. Information About the Person You Are Filing For (Beneficiary)</div>
+        <div class="form-row">
+            <div class="form-label">Family Name (Last Name):</div>
+            <div class="form-value">${formData.beneficiaryFamilyName || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Given Name (First Name):</div>
+            <div class="form-value">${formData.beneficiaryGivenName || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Middle Name:</div>
+            <div class="form-value">${formData.beneficiaryMiddleName || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Date of Birth:</div>
+            <div class="form-value">${formData.beneficiaryDateOfBirth || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">City of Birth:</div>
+            <div class="form-value">${formData.beneficiaryBirthCity || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Country of Birth:</div>
+            <div class="form-value">${formData.beneficiaryBirthCountry || ''}</div>
+        </div>
+        <div class="form-row">
+            <div class="form-label">Mailing Address:</div>
+            <div class="form-value">${formData.beneficiaryMailingAddress || ''}</div>
+        </div>
+    </div>
 
-          console.log('File upload response:', {
-            fileName: file.name,
-            response: response.data
-          });
+    <div class="note">
+        <h4>Legal Firm Notes:</h4>
+        <p><strong>Client:</strong> ${formData.petitionerGivenName} ${formData.petitionerFamilyName}</p>
+        <p><strong>Relationship:</strong> Petitioning for ${formData.relationshipType}</p>
+        <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+        <p><strong>Status:</strong> Draft - Review and verify all information before submission</p>
+    </div>
+</body>
+</html>`;
 
-          if (!response.data.success) {
-            throw new Error(response.data.message || `Failed to upload ${file.name}`);
-          }
+    // Create and download HTML file
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `I-130_${formData.petitionerFamilyName}_${formData.beneficiaryGivenName}_${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
-          return {
-            ...response.data.data,
-            name: file.name,
-            type: file.type
-          };
-        } catch (error: any) {
-          console.error(`Error uploading ${file.name}:`, error);
-          throw new Error(`Failed to upload ${file.name}: ${error.message}`);
-        }
-      });
-
-      // Wait for all uploads to complete
-      const results = await Promise.all(uploadPromises);
-      
-      // Update documents state with successful uploads
-      setDocuments(prev => [...prev, ...results]);
-      
-      // Update required documents status
-      setRequiredDocuments(prev => 
-        prev.map(doc => ({
-          ...doc,
-          isUploaded: results.some(result => result.name === doc.name)
-        }))
-      );
-      
-      setUploadError(null);
-
-    } catch (error: any) {
-      console.error('Upload error:', error);
-      setUploadError(error.message || 'Failed to upload documents. Please try again.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleRemoveFile = (fileName: string) => {
-    setDocuments(prev => prev.filter(doc => doc.name !== fileName));
-    setRequiredDocuments(prev => prev.map(doc => 
-      doc.name === fileName ? { ...doc, isUploaded: false } : doc
-    ));
-  };
-
-  const handleFormDataChange = (form: string, field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [form]: {
-        ...prev[form as keyof typeof prev],
-        [field]: value
-      }
-    }));
-
-    // Calculate form completion percentage
-    const totalFields = Object.keys(formData).reduce((acc, formKey) => {
-      return acc + Object.keys(formData[formKey as keyof typeof formData]).length;
-    }, 0);
-    
-    const filledFields = Object.keys(formData).reduce((acc, formKey) => {
-      const form = formData[formKey as keyof typeof formData];
-      return acc + Object.values(form).filter(value => value !== '').length;
-    }, 0);
-
-    setFormCompletion(Math.round((filledFields / totalFields) * 100));
+    alert('✅ HTML I-130 form generated and downloaded successfully!');
   };
 
   if (loading) {
@@ -809,1237 +1421,378 @@ const ImmigrationProcess: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-    
-      {/* Progress Steps */}
-      <div className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="mb-4">
-            <div className="flex items-center justify-between">
-              {progressSteps.map((step, index) => (
-                <div key={step.id} className="flex items-center">
-                  <div
-                    className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                      currentStep >= step.id - 1
-                        ? 'bg-blue-600 text-white ring-2 ring-blue-100'
-                        : 'bg-gray-200 text-gray-600'
-                    }`}
+    <>
+      {showProcessChoice ? (
+        renderProcessChoice()
+      ) : (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+          {/* Header with back button */}
+          <div className="bg-white shadow-sm border-b">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between h-16">
+                <div className="flex items-center">
+                  <button
+                    onClick={() => setShowProcessChoice(true)}
+                    className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
                   >
-                    {step.id}
-                  </div>
-                  <div className="ml-2">
-                    <div className="text-xs font-medium text-gray-900">{step.name}</div>
-                    <div className="text-xs text-gray-500">Step {step.id}</div>
-                  </div>
-                  {index < progressSteps.length - 1 && (
-                    <div className="w-16 h-0.5 bg-gray-200 mx-2 relative">
-                      <div
-                        className={`absolute top-0 left-0 h-full bg-blue-600 transition-all duration-300 ${
-                          currentStep > step.id - 1 ? 'w-full' : 'w-0'
-                        }`}
-                      />
-                    </div>
-                  )}
+                    <ArrowLeft className="h-5 w-5 mr-2" />
+                    Back to Process Selection
+                  </button>
                 </div>
-              ))}
+                <div className="text-center">
+                  <h1 className="text-xl font-semibold text-gray-900">
+                    Legal Firm Immigration Services
+                  </h1>
+                  <p className="text-sm text-gray-500">
+                    Professional case management and form processing
+                  </p>
+                </div>
+                <div className="w-32"></div> {/* Spacer for centering */}
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-
-        {currentStep === 0 && (
-          
-          <div className="space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900">{steps[0].title}</h1>
-              <p className="mt-2 text-lg text-gray-500">{steps[0].description}</p>
-            </div>
+          {/* Legal Firm Process Content */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {currentStep === 0 && renderLegalFirmDashboard()}
+            {currentStep === 1 && renderNewCaseForm()}
+            {currentStep === 2 && renderBulkOperations()}
             
-            <div className="grid gap-6 md:grid-cols-2">
-              {steps[0].options.map((category) => (
-                <div
-                  key={category.id}
-                  className={`group relative p-6 rounded-xl border cursor-pointer transition-all duration-200 ${
-                    selectedCategory === category.id
-                      ? 'border-primary-500 bg-primary-50'
-                      : 'border-gray-200 hover:border-primary-300 hover:shadow-md'
-                  }`}
-                  onClick={() => {
-                    setSelectedCategory(category.id);
-                    setSelectedMainCategory(category);
-                  }}
-                >
-                  <div className="flex items-start space-x-4">
-                    <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center ${
-                      selectedCategory === category.id ? 'bg-primary-100' : 'bg-gray-100 group-hover:bg-primary-50'
-                    }`}>
-                      {category.icon}
+            {/* Form Templates */}
+            {currentStep === 3 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-lg shadow-lg p-8"
+              >
+                <div className="flex items-center mb-6">
+                  <button
+                    onClick={() => setCurrentStep(0)}
+                    className="mr-4 text-blue-600 hover:text-blue-800"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Form Templates & Auto-Fill</h2>
+                    <p className="text-gray-600">Generate and auto-fill immigration forms for clients</p>
+                  </div>
+                </div>
+
+                {/* I-130 Auto-Fill Section */}
+                <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center mb-4">
+                    <FileText className="h-8 w-8 text-blue-600 mr-3" />
+                    <div>
+                      <h3 className="text-xl font-semibold text-blue-900">I-130 Auto-Fill Generator</h3>
+                      <p className="text-blue-700">Generate pre-filled I-130 forms for family-based petitions</p>
+                    </div>
+                  </div>
+
+                  {/* Client Selection for Auto-Fill */}
+                  <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Client</label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Choose client for I-130 form</option>
+                        {clients.map((client) => (
+                          <option key={client.id} value={client.id}>{client.name} - {client.caseType}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
-                      <h3 className={`text-lg font-semibold ${
-                        selectedCategory === category.id ? 'text-primary-700' : 'text-gray-900'
-                      }`}>
-                        {category.title}
-                      </h3>
-                      <p className="mt-1 text-sm text-gray-500">{category.description}</p>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Form Options</label>
+                      <div className="space-y-2">
+                        <label className="flex items-center">
+                          <input type="checkbox" className="rounded border-gray-300 mr-2" defaultChecked />
+                          <span className="text-sm">Include client data</span>
+                        </label>
+                        <label className="flex items-center">
+                          <input type="checkbox" className="rounded border-gray-300 mr-2" defaultChecked />
+                          <span className="text-sm">Auto-populate from case file</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* I-130 Download Options */}
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <button
+                      onClick={handleDownloadBlankI130}
+                      disabled={loading}
+                      className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 flex items-center justify-center"
+                    >
+                      <Download className="h-5 w-5 mr-2" />
+                      {loading ? 'Downloading...' : 'Download Blank Form'}
+                    </button>
+
+                    <button
+                      onClick={handlePrefillOfficialI130}
+                      disabled={isPdfProcessing}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
+                    >
+                      {isPdfProcessing ? (
+                        <>
+                          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-5 w-5 mr-2" />
+                          Auto-Fill Official PDF
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={handleGenerateHTMLI130}
+                      className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center"
+                    >
+                      <FileText className="h-5 w-5 mr-2" />
+                      Generate HTML Form
+                    </button>
+                  </div>
+
+                  {/* Debug Option */}
+                  <div className="mt-4">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const { PDFDocument } = await import('pdf-lib');
+                          const response = await fetch('/forms/i-130.pdf');
+                          const arrayBuffer = await response.arrayBuffer();
+                          const doc = await PDFDocument.load(arrayBuffer);
+                          
+                          try {
+                            const form = doc.getForm();
+                            const fields = form.getFields();
+                            console.log(`=== PDF DEBUG INFO ===`);
+                            console.log(`Total fields: ${fields.length}`);
+                            fields.forEach((field, i) => {
+                              console.log(`${i + 1}. "${field.getName()}" (${field.constructor.name})`);
+                            });
+                            alert(`PDF Analysis Complete!\n\nFound ${fields.length} fillable fields.\nCheck the browser console (F12) for detailed field names.`);
+                          } catch (formError) {
+                            alert('❌ This PDF does not contain fillable form fields.\nIt appears to be a scanned image.');
+                          }
+                        } catch (error) {
+                          alert('Error analyzing PDF: ' + (error as any)?.message);
+                        }
+                      }}
+                      className="bg-yellow-600 text-white px-4 py-2 rounded text-sm hover:bg-yellow-700"
+                    >
+                      🔍 Debug PDF Fields
+                    </button>
+                    <span className="ml-2 text-xs text-gray-600">
+                      (Developers: Use this to see available PDF field names)
+                    </span>
+                  </div>
+
+                  {/* Quick Form Data Entry for Demo */}
+                  <div className="mt-6 p-4 bg-white rounded-lg border">
+                    <h4 className="font-semibold text-gray-900 mb-3">Quick Form Data (Demo)</h4>
+                    <div className="grid md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Petitioner Name</label>
+                        <input
+                          type="text"
+                          value={formData.petitionerGivenName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, petitionerGivenName: e.target.value }))}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="John"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Petitioner Last Name</label>
+                        <input
+                          type="text"
+                          value={formData.petitionerFamilyName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, petitionerFamilyName: e.target.value }))}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Smith"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Beneficiary Name</label>
+                        <input
+                          type="text"
+                          value={formData.beneficiaryGivenName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, beneficiaryGivenName: e.target.value }))}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Maria"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Relationship</label>
+                        <select
+                          value={formData.relationshipType}
+                          onChange={(e) => setFormData(prev => ({ ...prev, relationshipType: e.target.value }))}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">Select</option>
+                          <option value="spouse">Spouse</option>
+                          <option value="child">Child</option>
+                          <option value="parent">Parent</option>
+                          <option value="sibling">Sibling</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-gray-600">
+                      💡 In production, this data would be automatically populated from the client's case file
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {selectedMainCategory?.subCategories && (
-              <div className="mt-8 border-t pt-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Select Specific Category
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {selectedMainCategory.subCategories.map((subCategory) => (
-                    <button
-                      key={subCategory.id}
-                      className={`p-4 rounded-lg border transition-all duration-200 ${
-                        selectedSubCategory === subCategory.id
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-200 hover:border-primary-200'
-                      }`}
-                      onClick={() => setSelectedSubCategory(subCategory.id)}
-                    >
-                      <h3 className="font-medium text-gray-900">
-                        {subCategory.title}
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {subCategory.description}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {selectedSubCategory && selectedMainCategory?.subCategories && (
-              <div className="mt-8 border-t pt-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Required Forms & Documents
-                </h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Forms</h3>
-                    <ul className="space-y-2">
-                      {selectedMainCategory.subCategories
-                        .find(sub => sub.id === selectedSubCategory)
-                        ?.forms.map(form => (
-                          <li 
-                            key={form}
-                            className="flex items-center text-sm text-gray-600"
-                          >
-                            <FileCheck className="h-4 w-4 text-primary-500 mr-2" />
-                            {form}
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Documents</h3>
-                    <ul className="space-y-2">
-                      {selectedMainCategory.subCategories
-                        .find(sub => sub.id === selectedSubCategory)
-                        ?.documents.map(doc => (
-                          <li 
-                            key={doc}
-                            className="flex items-center justify-between text-sm"
-                          >
-                            <span className="flex items-center text-gray-600">
-                              <AlertCircle className="h-4 w-4 text-error-500 mr-2" />
-                              {doc}
-                            </span>
-                            <span className="text-error-500 text-xs font-medium">
-                              Required
-                            </span>
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {(isParalegal) && (
-                  <div className="mt-6 bg-yellow-50 p-4 rounded-lg">
-                    <h4 className="text-sm font-medium text-yellow-800">
-                      Professional Guidance
-                    </h4>
-                    <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside">
-                      <li>Verify client eligibility before proceeding</li>
-                      <li>Check for any potential red flags</li>
-                      <li>Review all supporting documentation thoroughly</li>
-                      <li>Consider alternative immigration pathways if needed</li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {selectedSubCategory && (
-              <div className="flex justify-center mt-8">
-                <button
-                  onClick={startProcess}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors duration-200"
-                >
-                  Start Immigration Process
-                  <svg className="ml-2 -mr-1 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {currentStep === 1 && (
-          <div className="container mx-auto px-4 py-8">
-            <div className="max-w-4xl mx-auto">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                Document Upload & Verification
-              </h1>
-              <p className="text-gray-600 mb-6">
-                Upload the required documents for your application. All documents will be verified for completeness and accuracy.
-              </p>
-
-              {/* Help Box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <div className="flex items-start">
-                  <HelpCircle className="h-5 w-5 text-blue-500 mt-0.5 mr-3" />
-                  <div>
-                    <h3 className="text-sm font-medium text-blue-800">Tips for successful document upload:</h3>
-                    <ul className="mt-2 text-sm text-blue-600 space-y-1">
-                      <li>• Ensure all documents are clear and legible</li>
-                      <li>• Include certified translations for non-English documents</li>
-                      <li>• Name your files descriptively (e.g., "Birth_Certificate.pdf")</li>
-                      <li>• Check file size limits before uploading</li>
-                      <li>• Verify all pages are included in multi-page documents</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-md p-6">
-                {/* Document Requirements List */}
-                <div className="mb-8">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">
-                    Required Documents
-                  </h2>
-                  <div className="space-y-4">
-                    {requiredDocuments.map((doc) => (
-                      <div 
-                        key={doc.name}
-                        className={`p-4 rounded-lg border ${
-                          doc.isUploaded
-                            ? 'border-green-200 bg-green-50'
-                            : 'border-red-200 bg-red-50'
-                        }`}
-                      >
-                        <div className="flex items-start">
-                          <div className="flex-shrink-0">
-                            {doc.isUploaded ? (
-                              <CheckCircle className="h-5 w-5 text-green-500" />
-                            ) : (
-                              <AlertCircle className="h-5 w-5 text-red-500" />
-                            )}
-                          </div>
-                          <div className="ml-3 flex-1">
-                            <div className="flex items-center justify-between">
-                              <h3 className="text-sm font-medium text-gray-900">
-                                {doc.name}
-                                {doc.isRequired && (
-                                  <span className="ml-2 text-xs text-red-500">Required</span>
-                                )}
-                              </h3>
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                doc.isUploaded
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {doc.isUploaded ? 'Uploaded' : 'Missing'}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-sm text-gray-500">
-                              {doc.description}
-                            </p>
-                          </div>
+                {/* Other Form Templates */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Other Form Templates</h3>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    {[
+                      { id: 'i-485', name: 'I-485 Adjustment', description: 'Application to Register Permanent Residence', status: 'Active' },
+                      { id: 'i-864', name: 'I-864 Affidavit', description: 'Affidavit of Support', status: 'Active' },
+                      { id: 'i-140', name: 'I-140 Employment', description: 'Employment-Based Petition', status: 'Active' },
+                      { id: 'n-400', name: 'N-400 Naturalization', description: 'Application for Naturalization', status: 'Active' },
+                      { id: 'i-589', name: 'I-589 Asylum', description: 'Application for Asylum', status: 'Active' }
+                    ].map((form) => (
+                      <div key={form.id} className="border rounded-lg p-6 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-4">
+                          <FileText className="h-8 w-8 text-blue-600" />
+                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                            {form.status}
+                          </span>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{form.name}</h3>
+                        <p className="text-gray-600 text-sm mb-4">{form.description}</p>
+                        <div className="flex gap-2">
+                          <button className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
+                            Edit Template
+                          </button>
+                          <button className="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700">
+                            Generate
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Upload Section */}
-                <div className="border-t border-gray-200 pt-6">
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOver(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setDragOver(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setDragOver(false);
-                      const files = Array.from(e.dataTransfer.files);
-                      handleFileUpload({ target: { files } } as any);
-                    }}
-                    className={`flex justify-center px-6 pt-5 pb-6 border-2 ${
-                      dragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
-                    } border-dashed rounded-md transition-colors duration-200`}
+                <div className="mt-8">
+                  <button className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 flex items-center">
+                    <Plus className="h-5 w-5 mr-2" />
+                    Create New Template
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Case Reports */}
+            {currentStep === 4 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-lg shadow-lg p-8"
+              >
+                <div className="flex items-center mb-6">
+                  <button
+                    onClick={() => setCurrentStep(0)}
+                    className="mr-4 text-blue-600 hover:text-blue-800"
                   >
-                    <div className="space-y-1 text-center">
-                      <Upload className={`mx-auto h-12 w-12 ${
-                        dragOver ? 'text-primary-500' : 'text-gray-400'
-                      }`} />
-                      <div className="flex text-sm text-gray-600">
-                        <label
-                          htmlFor="file-upload"
-                          className="relative cursor-pointer bg-white rounded-md font-medium text-primary-600 hover:text-primary-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500"
-                        >
-                          <span>{uploading ? 'Uploading...' : 'Upload files'}</span>
-                          <input
-                            id="file-upload"
-                            name="file-upload"
-                            type="file"
-                            className="sr-only"
-                            multiple
-                            onChange={handleFileUpload}
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            disabled={uploading}
-                          />
-                        </label>
-                        <p className="pl-1">or drag and drop</p>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        PDF, PNG, JPG up to 10MB each
-                      </p>
-                      {uploadError && (
-                        <p className="text-sm text-red-600 mt-2">{uploadError}</p>
-                      )}
-                    </div>
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Case Reports & Analytics</h2>
+                    <p className="text-gray-600">Comprehensive reporting and business intelligence</p>
                   </div>
                 </div>
 
-                {/* Uploaded Files List */}
-                {documents.length > 0 && (
-                  <div className="mt-6">
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">
-                      Uploaded Files
-                    </h3>
-                    <ul className="divide-y divide-gray-200">
-                      {documents.map((doc) => (
-                        <li key={doc.name} className="py-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center flex-1 min-w-0">
-                              <FileText className="h-5 w-5 text-gray-400" />
-                              <div className="ml-2 flex-1">
-                                <p className="text-sm font-medium text-gray-900 truncate">
-                                  {doc.name}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  {doc.description}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="ml-4 flex items-center space-x-4">
-                              <button
-                                onClick={() => handleRemoveFile(doc.name)}
-                                className="text-gray-400 hover:text-gray-500"
-                              >
-                                <X className="h-5 w-5" />
-                              </button>
-                            </div>
+                <div className="grid md:grid-cols-2 gap-8">
+                  {/* Quick Reports */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Reports</h3>
+                    <div className="space-y-3">
+                      {[
+                        { name: 'Monthly Case Summary', icon: Calendar },
+                        { name: 'Client Status Report', icon: Users },
+                        { name: 'Revenue Analysis', icon: Briefcase },
+                        { name: 'Form Completion Rates', icon: FileText },
+                        { name: 'Attorney Performance', icon: Shield }
+                      ].map((report, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center">
+                            <report.icon className="h-5 w-5 text-gray-600 mr-3" />
+                            <span className="text-gray-900">{report.name}</span>
                           </div>
-                        </li>
+                          <button className="text-blue-600 hover:text-blue-800 text-sm">Generate</button>
+                        </div>
                       ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              {/* Navigation */}
-              <div className="flex justify-between mt-6">
-                <button
-                  onClick={() => setCurrentStep(0)}
-                  className="text-gray-600 hover:text-gray-900"
-                >
-                  Back to Category Selection
-                </button>
-                <button
-                  onClick={() => setCurrentStep(2)}
-                  className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-                >
-                  Continue to Client Information
-                  <ChevronRight className="ml-2 h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 2 && (
-          <div className="space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900">Client Information</h1>
-              <p className="mt-2 text-lg text-gray-500">Enter your personal details</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <form className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter client's full name"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter email address"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      id="phone"
-                      name="phone"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700 mb-1">
-                      Date of Birth
-                    </label>
-                    <input
-                      type="date"
-                      id="dateOfBirth"
-                      name="dateOfBirth"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Address</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label htmlFor="address.street" className="block text-sm font-medium text-gray-700 mb-1">
-                          Street
-                        </label>
-                        <input
-                          type="text"
-                          id="address.street"
-                          name="address.street"
-                          required
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          placeholder="Enter street address"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="address.city" className="block text-sm font-medium text-gray-700 mb-1">
-                          City
-                        </label>
-                        <input
-                          type="text"
-                          id="address.city"
-                          name="address.city"
-                          required
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          placeholder="Enter city"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="address.state" className="block text-sm font-medium text-gray-700 mb-1">
-                          State
-                        </label>
-                        <input
-                          type="text"
-                          id="address.state"
-                          name="address.state"
-                          required
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          placeholder="Enter state"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="address.zipCode" className="block text-sm font-medium text-gray-700 mb-1">
-                          ZIP Code
-                        </label>
-                        <input
-                          type="text"
-                          id="address.zipCode"
-                          name="address.zipCode"
-                          required
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          placeholder="Enter ZIP code"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="address.country" className="block text-sm font-medium text-gray-700 mb-1">
-                          Country
-                        </label>
-                        <input
-                          type="text"
-                          id="address.country"
-                          name="address.country"
-                          required
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          placeholder="Enter country"
-                        />
-                      </div>
                     </div>
                   </div>
 
+                  {/* Custom Reports */}
                   <div>
-                    <label htmlFor="nationality" className="block text-sm font-medium text-gray-700 mb-1">
-                      Nationality
-                    </label>
-                    <input
-                      type="text"
-                      id="nationality"
-                      name="nationality"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter nationality"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="alienNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                      Alien Number
-                    </label>
-                    <input
-                      type="text"
-                      id="alienNumber"
-                      name="alienNumber"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter A-Number"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="passportNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                      Passport Number
-                    </label>
-                    <input
-                      type="text"
-                      id="passportNumber"
-                      name="passportNumber"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter passport number"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="entryDate" className="block text-sm font-medium text-gray-700 mb-1">
-                      Entry Date
-                    </label>
-                    <input
-                      type="date"
-                      id="entryDate"
-                      name="entryDate"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="visaCategory" className="block text-sm font-medium text-gray-700 mb-1">
-                      Visa Category
-                    </label>
-                    <input
-                      type="text"
-                      id="visaCategory"
-                      name="visaCategory"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter visa category"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-                      Notes
-                    </label>
-                    <textarea
-                      id="notes"
-                      name="notes"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter any additional notes"
-                      rows={4}
-                    />
-                  </div>
-                </div>
-              </form>
-            </div>
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={() => setCurrentStep(1)}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Back to Documents
-              </button>
-              <button
-                onClick={() => setCurrentStep(3)}
-                className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-              >
-                Continue to Case Details
-                <ChevronRight className="ml-2 h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 3 && (
-          <div className="space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900">Case Details</h1>
-              <p className="mt-2 text-lg text-gray-500">Provide information about your case</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <form className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="caseType" className="block text-sm font-medium text-gray-700 mb-1">
-                      Case Type
-                    </label>
-                    <select
-                      id="caseType"
-                      name="caseType"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="">Select case type</option>
-                      <option value="family">Family-Based Immigration</option>
-                      <option value="employment">Employment-Based Immigration</option>
-                      <option value="humanitarian">Humanitarian Relief</option>
-                      <option value="citizenship">Citizenship & Naturalization</option>
-                      <option value="temporary">Temporary Visas</option>
-                      <option value="business">Business Immigration</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label htmlFor="priorityDate" className="block text-sm font-medium text-gray-700 mb-1">
-                      Priority Date
-                    </label>
-                    <input
-                      type="date"
-                      id="priorityDate"
-                      name="priorityDate"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                      Receipt Number
-                    </label>
-                    <input
-                      type="text"
-                      id="receiptNumber"
-                      name="receiptNumber"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter USCIS receipt number"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="filingLocation" className="block text-sm font-medium text-gray-700 mb-1">
-                      Filing Location
-                    </label>
-                    <input
-                      type="text"
-                      id="filingLocation"
-                      name="filingLocation"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter USCIS office location"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="currentStatus" className="block text-sm font-medium text-gray-700 mb-1">
-                      Current Status
-                    </label>
-                    <select
-                      id="currentStatus"
-                      name="currentStatus"
-                      required
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="">Select current status</option>
-                      <option value="pending">Pending</option>
-                      <option value="approved">Approved</option>
-                      <option value="denied">Denied</option>
-                      <option value="rfed">Request for Evidence</option>
-                      <option value="interview">Interview Scheduled</option>
-                      <option value="appeal">Appeal Filed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label htmlFor="nextActionDate" className="block text-sm font-medium text-gray-700 mb-1">
-                      Next Action Date
-                    </label>
-                    <input
-                      type="date"
-                      id="nextActionDate"
-                      name="nextActionDate"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label htmlFor="caseNotes" className="block text-sm font-medium text-gray-700 mb-1">
-                      Case Notes
-                    </label>
-                    <textarea
-                      id="caseNotes"
-                      name="caseNotes"
-                      rows={4}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Enter any important case notes or updates"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Important Dates</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label htmlFor="filingDate" className="block text-sm font-medium text-gray-700 mb-1">
-                          Filing Date
-                        </label>
-                        <input
-                          type="date"
-                          id="filingDate"
-                          name="filingDate"
-                          required
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="biometricsDate" className="block text-sm font-medium text-gray-700 mb-1">
-                          Biometrics Date
-                        </label>
-                        <input
-                          type="date"
-                          id="biometricsDate"
-                          name="biometricsDate"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="interviewDate" className="block text-sm font-medium text-gray-700 mb-1">
-                          Interview Date
-                        </label>
-                        <input
-                          type="date"
-                          id="interviewDate"
-                          name="interviewDate"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="decisionDate" className="block text-sm font-medium text-gray-700 mb-1">
-                          Decision Date
-                        </label>
-                        <input
-                          type="date"
-                          id="decisionDate"
-                          name="decisionDate"
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Case Requirements</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Custom Report Builder</h3>
                     <div className="space-y-4">
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="biometricsCompleted"
-                          name="biometricsCompleted"
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="biometricsCompleted" className="ml-2 block text-sm text-gray-700">
-                          Biometrics Completed
-                        </label>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option>Case Analysis</option>
+                          <option>Financial Report</option>
+                          <option>Timeline Report</option>
+                          <option>Document Status</option>
+                        </select>
                       </div>
-
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="medicalExamCompleted"
-                          name="medicalExamCompleted"
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="medicalExamCompleted" className="ml-2 block text-sm text-gray-700">
-                          Medical Exam Completed
-                        </label>
-                      </div>
-
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="backgroundCheckCompleted"
-                          name="backgroundCheckCompleted"
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="backgroundCheckCompleted" className="ml-2 block text-sm text-gray-700">
-                          Background Check Completed
-                        </label>
-                      </div>
-
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="affidavitOfSupportSubmitted"
-                          name="affidavitOfSupportSubmitted"
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="affidavitOfSupportSubmitted" className="ml-2 block text-sm text-gray-700">
-                          Affidavit of Support Submitted
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={() => setCurrentStep(2)}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Back to Client Information
-              </button>
-              <button
-                onClick={() => setCurrentStep(4)}
-                className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-              >
-                Continue to Forms
-                <ChevronRight className="ml-2 h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 4 && (
-          <div className="space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900">Forms Validation</h1>
-              <p className="mt-2 text-lg text-gray-500">Fill out all required immigration forms</p>
-            </div>
-
-            <div className="bg-white shadow rounded-lg p-6">
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-                  <span className="text-sm font-medium text-gray-700">{formCompletion}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <motion.div
-                    className="bg-blue-600 h-2.5 rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${formCompletion}%` }}
-                    transition={{ duration: 0.5 }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                {selectedMainCategory?.subCategories
-                  .find(sub => sub.id === selectedSubCategory)
-                  ?.forms.map((form) => (
-                    <div key={form} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold">{form}</h3>
-                        <button
-                          onClick={() => {
-                            const formId = mockForms.find(f => f.name.toLowerCase().includes(form.toLowerCase()))?.id;
-                            if (formId) {
-                              navigate(`/forms/${formId}`);
-                            }
-                          }}
-                          className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center"
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                          Edit Form
-                        </button>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {form === 'I-130' && (
-                          <>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Petitioner</label>
-                              <input
-                                type="text"
-                                value={formData.i130.petitioner}
-                                onChange={(e) => handleFormDataChange('i130', 'petitioner', e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter petitioner's name"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Beneficiary</label>
-                              <input
-                                type="text"
-                                value={formData.i130.beneficiary}
-                                onChange={(e) => handleFormDataChange('i130', 'beneficiary', e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter beneficiary's name"
-                              />
-                            </div>
-                          </>
-                        )}
-                        
-                        {form === 'I-485' && (
-                          <>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Current Status</label>
-                              <input
-                                type="text"
-                                value={formData.i485.currentStatus}
-                                onChange={(e) => handleFormDataChange('i485', 'currentStatus', e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter current status"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Entry Date</label>
-                              <input
-                                type="date"
-                                value={formData.i485.entryDate}
-                                onChange={(e) => handleFormDataChange('i485', 'entryDate', e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                              />
-                            </div>
-                          </>
-                        )}
-
-                        {/* Add more form fields based on form type */}
-                        {form === 'I-864' && (
-                          <>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Sponsor's Income</label>
-                              <input
-                                type="number"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter annual income"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Tax Year</label>
-                              <input
-                                type="number"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter tax year"
-                              />
-                            </div>
-                          </>
-                        )}
-
-                        {form === 'I-693' && (
-                          <>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Medical Exam Date</label>
-                              <input
-                                type="date"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Civil Surgeon</label>
-                              <input
-                                type="text"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter civil surgeon's name"
-                              />
-                            </div>
-                          </>
-                        )}
-
-                        {form === 'I-765' && (
-                          <>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Employment Authorization Category</label>
-                              <select
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                value={formData.i765?.category || ''}
-                                onChange={(e) => handleFormDataChange('i765', 'category', e.target.value)}
-                              >
-                                <option value="">Select category</option>
-                                <option value="c8">(c)(8) - Pending asylum application</option>
-                                <option value="c9">(c)(9) - Pending adjustment of status</option>
-                                <option value="a3">(a)(3) - Refugee</option>
-                                <option value="a5">(a)(5) - Asylee</option>
-                                <option value="a10">(a)(10) - Withholding of removal</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Previous EAD Information</label>
-                              <input
-                                type="text"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Previous EAD number (if any)"
-                                value={formData.i765?.previousEAD || ''}
-                                onChange={(e) => handleFormDataChange('i765', 'previousEAD', e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">SSN (if any)</label>
-                              <input
-                                type="text"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter SSN"
-                                value={formData.i765?.ssn || ''}
-                                onChange={(e) => handleFormDataChange('i765', 'ssn', e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">I-94 Number</label>
-                              <input
-                                type="text"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter I-94 number"
-                                value={formData.i765?.i94Number || ''}
-                                onChange={(e) => handleFormDataChange('i765', 'i94Number', e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Last Entry Date</label>
-                              <input
-                                type="date"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                value={formData.i765?.lastEntryDate || ''}
-                                onChange={(e) => handleFormDataChange('i765', 'lastEntryDate', e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700">Passport Number</label>
-                              <input
-                                type="text"
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter passport number"
-                                value={formData.i765?.passportNumber || ''}
-                                onChange={(e) => handleFormDataChange('i765', 'passportNumber', e.target.value)}
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      <div className="mt-4 flex justify-end">
-                        <button
-                          className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                          onClick={() => {/* Handle form preview */}}
-                        >
-                          Preview Form
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={() => setCurrentStep(3)}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Back to Case Details
-              </button>
-              <button
-                onClick={() => setCurrentStep(5)}
-                className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-              >
-                Continue to Review
-                <ChevronRight className="ml-2 h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 5 && (
-          <div className="space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900">Auto Apply Process</h1>
-              <p className="mt-2 text-lg text-gray-500">Process your application</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex items-center justify-center space-x-4">
-                  <p className="text-lg text-gray-700">Processing your application...</p>
-                </div>
-                <div className="mt-6 space-y-4">
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center"
-                  >
-                    <svg className="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Validating documents</span>
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="flex items-center"
-                  >
-                    <svg className="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Filling forms automatically</span>
-                  </motion.div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 6 && (
-          <div className="space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900">Download USCIS Forms</h1>
-              <p className="mt-2 text-lg text-gray-500">Download the required forms for your application</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="bg-white shadow rounded-lg p-6">
-                <div className="space-y-4">
-                  {Object.values(formTemplates).map((template) => (
-                    <motion.div
-                      key={template.id}
-                      whileHover={{ scale: 1.02 }}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer"
-                      onClick={() => handleDownloadForm(template.id)}
-                    >
-                      <div className="flex items-center">
-                        <svg className="h-6 w-6 text-blue-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        <div>
-                          <h3 className="font-medium">{template.name}</h3>
-                          <p className="text-sm text-gray-500">{template.description}</p>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="date" className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          <input type="date" className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                       </div>
-                      <span className="text-blue-600">Download</span>
-                    </motion.div>
-                  ))}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Filters</label>
+                        <div className="space-y-2">
+                          <label className="flex items-center">
+                            <input type="checkbox" className="rounded border-gray-300 mr-2" />
+                            <span className="text-sm">Active cases only</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input type="checkbox" className="rounded border-gray-300 mr-2" />
+                            <span className="text-sm">Include archived cases</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input type="checkbox" className="rounded border-gray-300 mr-2" />
+                            <span className="text-sm">High priority cases</span>
+                          </label>
+                        </div>
+                      </div>
+                      <button className="w-full bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700">
+                        Generate Custom Report
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Navigation */}
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={() => setCurrentStep(5)}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Back to Auto Apply
-              </button>
-              <button
-                onClick={() => {/* Handle final submission */}}
-                className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-              >
-                Submit Application
-                <ChevronRight className="ml-2 h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        )}
-        
-      </div>
-
-      {/* Add loading and error states */}
-      {loading && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-            <p className="mt-4 text-center text-gray-700">Starting your application...</p>
+                {/* Export Options */}
+                <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-semibold text-gray-900 mb-3">Export Options</h4>
+                  <div className="flex gap-3">
+                    <button className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm">
+                      Export to Excel
+                    </button>
+                    <button className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm">
+                      Export to PDF
+                    </button>
+                    <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">
+                      Send via Email
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
       )}
-
-      {error && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <div className="flex items-center justify-center text-red-500 mb-4">
-              <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <p className="text-center text-gray-700 mb-4">{error}</p>
-            <div className="flex justify-center space-x-4">
-              <button
-                onClick={() => setError(null)}
-                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              >
-                Try Again
-              </button>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-              >
-                Refresh Page
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 };
 
-export default ImmigrationProcess; 
+export default ImmigrationProcess;
