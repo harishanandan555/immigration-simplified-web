@@ -30,6 +30,7 @@ const ClientsPage = () => {
         setLoading(true);
         const clientData: any = await getClients();
 
+        console.log('Fetched clients:', clientData);
         if (clientData && clientData.length > 0) {
           setClients(clientData);
         } else {
@@ -47,9 +48,9 @@ const ClientsPage = () => {
 
   const filteredClients = clients.filter(
     (client) =>
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.alienNumber.toLowerCase().includes(searchTerm.toLowerCase())
+      (client.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.alienNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
