@@ -28,6 +28,10 @@ const IndividualImmigrationProcess = lazy(() => import('../pages/immigrationStep
 const EnhancedIndividualFormFiling = lazy(() => import('../pages/EnhancedIndividualFormFiling'));
 const LegalFirmWorkflow = lazy(() => import('../pages/LegalFirmWorkflow'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
+const MyQuestionnaires = lazy(() => import('../pages/MyQuestionnaires'));
+const FillQuestionnaire = lazy(() => import('../pages/FillQuestionnaire'));
+const QuestionnaireResponses = lazy(() => import('../pages/QuestionnaireResponses'));
+const ResponseView = lazy(() => import('../pages/ResponseView'));
 
 const AppRoutes = () => {
   
@@ -71,6 +75,7 @@ const AppRoutes = () => {
 
           <Route path="/legal-firm-workflow" element={
             <Suspense fallback={null}>
+              {/* Attorneys only route */}
               <LegalFirmWorkflow />
             </Suspense>
           } />
@@ -165,6 +170,28 @@ const AppRoutes = () => {
           <Route path="/forms/:id" element={
             <Suspense fallback={null}>
               <FormFillPage />
+            </Suspense>
+          } />
+
+          {/* Questionnaires routes */}
+          <Route path="/my-questionnaires" element={
+            <Suspense fallback={null}>
+              <MyQuestionnaires />
+            </Suspense>
+          } />
+          <Route path="/questionnaires/fill/:id" element={
+            <Suspense fallback={null}>
+              <FillQuestionnaire />
+            </Suspense>
+          } />
+          <Route path="/questionnaires/responses" element={
+            <Suspense fallback={null}>
+              <QuestionnaireResponses />
+            </Suspense>
+          } />
+          <Route path="/questionnaires/response/:id" element={
+            <Suspense fallback={null}>
+              <ResponseView />
             </Suspense>
           } />
 

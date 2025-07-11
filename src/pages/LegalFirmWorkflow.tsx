@@ -3,8 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Users, FileText, ClipboardList, Send, Download, CheckCircle, 
   ArrowRight, ArrowLeft, Plus, User, Briefcase, FormInput,
-  MessageSquare, FileCheck, AlertCircle, Clock, Star
+  MessageSquare, FileCheck, AlertCircle, Clock, Star, Info as InfoIcon,
+  Loader
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../utils/idValidation';
+// No debug utilities needed in production
+import api from '../utils/api';
+import { APPCONSTANTS } from '../utils/constants';
 
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
@@ -12,14 +18,36 @@ import Select from '../components/common/Select';
 import TextArea from '../components/common/TextArea';
 import FileUpload from '../components/common/FileUpload';
 import { downloadFilledI130PDF, I130FormData } from '../utils/pdfUtils';
-import questionnaireService from '../services/questionnaireService';
+import { 
+  isQuestionnaireApiAvailable, 
+  getQuestionnaires 
+} from '../controllers/QuestionnaireControllers';
+import {
+  assignQuestionnaire,
+  isApiEndpointAvailable
+} from '../controllers/QuestionnaireAssignmentControllers';
+import {
+  submitQuestionnaireResponses,
+  normalizeQuestionnaireStructure
+} from '../controllers/QuestionnaireResponseControllers';
+import {
+  generateSecurePassword,
+  createClientUserAccount
+} from '../controllers/UserCreationController';
+// Service imports have been moved to controllers
 import { getClients as fetchClientsFromAPI, getClientById, Client as APIClient } from '../controllers/ClientControllers';
 import { getFormTemplates, FormTemplate } from '../controllers/SettingsControllers';
 
-type Client = APIClient;
+// Extend APIClient with optional _id field and name parts
+type Client = APIClient & { 
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+};
 
 interface Case {
   id: string;
+  _id?: string; // Added for compatibility with MongoDB
   clientId: string;
   title: string;
   description: string;
@@ -31,6 +59,15 @@ interface Case {
   questionnaires: string[];
   createdAt: string;
   dueDate: string;
+  visaType?: string;
+  priorityDate?: string;
+  caseNumber?: string;
+  type?: string;
+  // Additional optional properties that might be used in the UI
+  assignedTo?: string;
+  courtLocation?: string;
+  judge?: string;
+  openDate?: string;
 }
 
 interface QuestionnaireAssignment {
@@ -43,6 +80,10 @@ interface QuestionnaireAssignment {
   assignedAt: string;
   completedAt?: string;
   responses: Record<string, any>;
+  dueDate?: string;
+  notes?: string;
+  clientEmail?: string;
+  clientUserId?: string;
 }
 
 interface FormData {
@@ -91,11 +132,9 @@ const WORKFLOW_STEPS = [
   { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
 ];
 
+// Use generateSecurePassword from UserCreationController
 
-import api from '../utils/api';
-import { IMMIGRATION_END_POINTS } from '../utils/constants';
-
-const LegalFirmWorkflow: React.FC = () => {
+const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -104,6 +143,8 @@ const LegalFirmWorkflow: React.FC = () => {
   const [client, setClient] = useState<any>({
     id: '',
     name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     address: {
@@ -184,9 +225,49 @@ const LegalFirmWorkflow: React.FC = () => {
       setFetchingClients(true);
       try {
         const apiClients = await fetchClientsFromAPI();
-        setExistingClients(apiClients || []);
+        
+        // Make sure each client has a valid MongoDB ObjectId
+        const validatedClients = apiClients?.map((client: any) => {
+          // If client already has a valid ObjectId, use it
+          if (client._id && isValidMongoObjectId(client._id)) {
+            return {
+              ...client,
+              id: client._id // Ensure id is also set to the valid ObjectId
+            };
+          }
+          
+          // If client has id but not _id, check if id is valid
+          if (client.id && isValidMongoObjectId(client.id)) {
+            return {
+              ...client,
+              _id: client.id // Set _id to the valid ObjectId
+            };
+          }
+          
+          // Otherwise, generate a new valid ObjectId
+          const validId = generateObjectId();
+          console.log(`Converting client ID ${client._id || client.id} to valid ObjectId: ${validId}`);
+          
+          return {
+            ...client,
+            id: validId,
+            _id: validId
+          };
+        }) || [];
+        
+        console.log('Validated clients:', validatedClients);
+        setExistingClients(validatedClients);
       } catch (err) {
-        setExistingClients([]);
+        console.error('Error fetching clients:', err);
+        // Load clients from localStorage as fallback
+        try {
+          const localClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
+          console.log('Loaded clients from localStorage:', localClients);
+          setExistingClients(localClients);
+        } catch (localErr) {
+          console.error('Error loading local clients:', localErr);
+          setExistingClients([]);
+        }
       } finally {
         setFetchingClients(false);
       }
@@ -197,27 +278,137 @@ const LegalFirmWorkflow: React.FC = () => {
   const loadQuestionnaires = async () => {
     try {
       setLoading(true);
-      const isAPIAvailable = await questionnaireService.isAPIAvailable();
+      const isAPIAvailable = await isQuestionnaireApiAvailable();
       
       if (isAPIAvailable) {
-        const response = await questionnaireService.getQuestionnaires({
+        const response = await getQuestionnaires({
           is_active: true,
           limit: 50
         });
-        setAvailableQuestionnaires(response.questionnaires);
+        
+        console.log('API response for questionnaires:', response);
+        
+        // Questionnaires loaded successfully from API
+        if (response.questionnaires && response.questionnaires.length > 0) {
+          console.log('First questionnaire structure from API:', 
+            JSON.stringify(response.questionnaires[0], null, 2));
+        }
+        
+        // Normalize questionnaire data to ensure consistent structure
+        const normalizedQuestionnaires = response.questionnaires.map((q: any) => {
+          // Special handling for API response format
+          if (q.id && q.id.startsWith('q_') && q.fields) {
+            console.log('Processing API format questionnaire:', q.id);
+          }
+          return normalizeQuestionnaireStructure(q);
+        });
+        console.log('Normalized questionnaires from API:', normalizedQuestionnaires);
+        setAvailableQuestionnaires(normalizedQuestionnaires);
       } else {
         // Fallback to localStorage
         const savedQuestionnaires = localStorage.getItem('immigration-questionnaires');
         if (savedQuestionnaires) {
-          setAvailableQuestionnaires(JSON.parse(savedQuestionnaires));
+          const parsedQuestionnaires = JSON.parse(savedQuestionnaires);
+          // Questionnaires loaded from localStorage
+          console.log('Loading questionnaires from localStorage:', parsedQuestionnaires);
+          
+          // Normalize questionnaire data from localStorage
+          const normalizedQuestionnaires = parsedQuestionnaires.map((q: any) => {
+            // First apply the standard normalization
+            const normalizedQ = normalizeQuestionnaireStructure(q);
+            // Log each questionnaire's field structure before and after normalization
+            console.log(`Questionnaire "${q.title || q.name || 'unnamed'}":`, 
+              'Original fields:', q.fields || q.questions || [], 
+              'Normalized fields:', normalizedQ.fields);
+            return normalizedQ;
+          });
+          setAvailableQuestionnaires(normalizedQuestionnaires);
+        } else {
+          console.warn('No questionnaires found in localStorage');
+          // Load demo questionnaires if nothing is available
+          const demoQuestionnaires = [
+            {
+              _id: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId for demo
+              title: 'I-130 Family Petition Questionnaire',
+              category: 'FAMILY_BASED',
+              description: 'Basic information needed for family-based petitions',
+              fields: [
+                { id: 'fullName', type: 'text', label: 'Full Name', required: true },
+                { id: 'birthDate', type: 'date', label: 'Date of Birth', required: true },
+                { id: 'birthCountry', type: 'text', label: 'Country of Birth', required: true },
+                { id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true, 
+                  options: ['Spouse', 'Parent', 'Child', 'Sibling'] }
+              ]
+            },
+            {
+              _id: '507f1f77bcf86cd799439012', // Valid MongoDB ObjectId for demo
+              title: 'I-485 Adjustment of Status',
+              category: 'FAMILY_BASED',
+              description: 'Information required for adjustment of status applications',
+              fields: [
+                { id: 'usEntry', type: 'date', label: 'Date of Last Entry to US', required: true },
+                { id: 'i94Number', type: 'text', label: 'I-94 Number', required: true },
+                { id: 'currentStatus', type: 'text', label: 'Current Immigration Status', required: true }
+              ]
+            },
+            {
+              _id: '507f1f77bcf86cd799439013', // Valid MongoDB ObjectId for demo
+              title: 'N-400 Naturalization Questionnaire',
+              category: 'NATURALIZATION',
+              description: 'Information needed for citizenship application',
+              fields: [
+                { id: 'residenceYears', type: 'number', label: 'Years as Permanent Resident', required: true },
+                { id: 'absences', type: 'textarea', label: 'List all absences from the US', required: true },
+                { id: 'criminalHistory', type: 'radio', label: 'Do you have any criminal history?', required: true,
+                  options: ['Yes', 'No'] }
+              ]
+            }
+          ];
+          console.log('Loading demo questionnaires:', demoQuestionnaires);
+          setAvailableQuestionnaires(demoQuestionnaires);
+          localStorage.setItem('immigration-questionnaires', JSON.stringify(demoQuestionnaires));
         }
       }
     } catch (error) {
       console.error('Error loading questionnaires:', error);
+      // Load demo questionnaires in case of error
+      const demoQuestionnaires = [
+        {
+          _id: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId for demo
+          title: 'I-130 Family Petition Questionnaire',
+          category: 'FAMILY_BASED',
+          description: 'Basic information needed for family-based petitions',
+          fields: [
+            { id: 'fullName', type: 'text', label: 'Full Name', required: true },
+            { id: 'birthDate', type: 'date', label: 'Date of Birth', required: true },
+            { id: 'birthCountry', type: 'text', label: 'Country of Birth', required: true },
+            { id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true, 
+              options: ['Spouse', 'Parent', 'Child', 'Sibling'] }
+          ]
+        },
+        {
+          _id: '507f1f77bcf86cd799439012', // Valid MongoDB ObjectId for demo
+          title: 'I-485 Adjustment of Status',
+          category: 'FAMILY_BASED',
+          description: 'Information required for adjustment of status applications',
+          fields: [
+            { id: 'usEntry', type: 'date', label: 'Date of Last Entry to US', required: true },
+            { id: 'i94Number', type: 'text', label: 'I-94 Number', required: true },
+            { id: 'currentStatus', type: 'text', label: 'Current Immigration Status', required: true }
+          ]
+        }
+      ];
+      console.log('Loading demo questionnaires due to error:', demoQuestionnaires);
+      setAvailableQuestionnaires(demoQuestionnaires);
     } finally {
       setLoading(false);
     }
   };
+  
+  /**
+   * Normalizes questionnaire data structure to ensure consistent fields format
+   */
+  // Use the imported normalizeQuestionnaireStructure function from QuestionnaireResponseControllers
 
   const handleNext = () => {
     console.log('Current step:', currentStep, 'Moving to:', currentStep + 1);
@@ -232,34 +423,102 @@ const LegalFirmWorkflow: React.FC = () => {
     }
   };
 
-  const handleClientSubmit = () => {
+  const handleClientSubmit = async () => {
     console.log('Client submit called with data:', client);
     
-    // Generate client ID and save
-    const clientId = `client_${Date.now()}`;
+    // Ensure client has a name with first and last name parts
+    if (!client.name || client.name.trim() === '') {
+      toast.error('Client name is required');
+      return;
+    }
+    
+    // Parse name to ensure we have first and last name components
+    let firstName = '', lastName = '';
+    const nameParts = client.name.trim().split(' ');
+    if (nameParts.length > 1) {
+      firstName = nameParts[0];
+      lastName = nameParts.slice(1).join(' ');
+    } else {
+      // If only one word in name, use it as firstName and default lastName
+      firstName = nameParts[0];
+      lastName = 'Client'; // Default last name
+    }
+    
+    // Generate a valid MongoDB ObjectId for the client
+    const clientId = generateObjectId();
     const updatedClient = {
       ...client,
       id: clientId,
+      _id: clientId, // Add both id and _id for compatibility
+      firstName, // Add parsed name components
+      lastName,
       createdAt: new Date().toISOString()
     };
     setClient(updatedClient);
     
-    // Save to localStorage (in real app, this would be API call)
-    const existingClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
-    existingClients.push(updatedClient);
-    localStorage.setItem('legal-firm-clients', JSON.stringify(existingClients));
+    try {
+      // Try to create the client in the backend API
+      const response = await api.post('/api/v1/clients', {
+        name: client.name,
+        firstName: updatedClient.firstName, // Use the parsed firstName
+        lastName: updatedClient.lastName,   // Use the parsed lastName
+        email: client.email,
+        phone: client.phone || '555-555-5555', // Default phone if not provided
+        dateOfBirth: client.dateOfBirth || new Date().toISOString(), // Default DOB if not provided
+        nationality: client.nationality || 'Unknown',
+        address: client.address || {
+          street: '123 Main St',
+          city: 'Anytown',
+          state: 'CA',
+          zipCode: '12345',
+          country: 'United States'
+        },
+        status: 'active'
+      });
+      
+      // If successful, use the returned client ID from the API
+      if (response.data && (response.data._id || response.data.id)) {
+        const apiClientId = response.data._id || response.data.id;
+        console.log(`Client created in API with ID: ${apiClientId}`);
+        
+        // Update the client with the API-generated ID
+        const apiClient = {
+          ...updatedClient,
+          id: apiClientId,
+          _id: apiClientId
+        };
+        setClient(apiClient);
+        
+        // Save to localStorage for future reference
+        const existingClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
+        existingClients.push(apiClient);
+        localStorage.setItem('legal-firm-clients', JSON.stringify(existingClients));
+      } else {
+        // Fallback to local storage if API doesn't return an ID
+        const existingClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
+        existingClients.push(updatedClient);
+        localStorage.setItem('legal-firm-clients', JSON.stringify(existingClients));
+      }
+    } catch (error) {
+      console.error('Failed to create client in API:', error);
+      // Fallback to localStorage storage
+      const existingClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
+      existingClients.push(updatedClient);
+      localStorage.setItem('legal-firm-clients', JSON.stringify(existingClients));
+    }
     
     console.log('Client saved, calling handleNext');
     handleNext();
   };
 
   const handleCaseSubmit = () => {
-    // Generate case ID and save
-    const caseId = `case_${Date.now()}`;
+    // Generate valid MongoDB ObjectId for the case
+    const caseId = generateObjectId();
     const updatedCase = {
       ...caseData,
       id: caseId,
-      clientId: client.id,
+      _id: caseId, // Add both id and _id for compatibility
+      clientId: client.id || client._id, // Use either id or _id
       createdAt: new Date().toISOString()
     };
     setCaseData(updatedCase);
@@ -282,42 +541,526 @@ const LegalFirmWorkflow: React.FC = () => {
     handleNext();
   };
 
-  const handleQuestionnaireAssignment = () => {
+  // State for client credentials
+  const [clientCredentials, setClientCredentials] = useState({
+    email: '',  // Will be populated with client.email when needed
+    password: '',
+    createAccount: false
+  });
+  
+  const handleQuestionnaireAssignment = async () => {
     if (!selectedQuestionnaire) return;
     
-    const assignment: QuestionnaireAssignment = {
-      id: `assignment_${Date.now()}`,
-      caseId: caseData.id,
-      clientId: client.id,
-      questionnaireId: selectedQuestionnaire,
-      questionnaireName: availableQuestionnaires.find(q => q.id === selectedQuestionnaire)?.title || 'Questionnaire',
-      status: 'pending',
-      assignedAt: new Date().toISOString(),
-      responses: {}
-    };
+    setLoading(true);
     
-    setQuestionnaireAssignment(assignment);
+    // Declare assignmentData in outer scope so it's accessible in the catch block
+    let assignmentData: any = null;
     
-    // Save assignment
-    const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
-    existingAssignments.push(assignment);
-    localStorage.setItem('questionnaire-assignments', JSON.stringify(existingAssignments));
-    
-    handleNext();
+    try {
+      // Enhanced flexible matching to find the selected questionnaire
+      const selectedQ = availableQuestionnaires.find(q => {
+        // Check all possible ID fields
+        const possibleIds = [
+          q._id,          // MongoDB ObjectId
+          q.id,           // Original ID or API ID
+          q.originalId,   // Original ID before conversion
+          q.name          // Fallback to name if used as ID
+        ].filter(Boolean); // Remove undefined/null values
+        
+        // For API questionnaires, prioritize matching the q_ prefixed ID
+        if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+          console.log(`handleAssignQuestionnaire: Found exact match for API questionnaire: ${q.id}`);
+          return true;
+        }
+        
+        // Check if any of the possible IDs match
+        const matches = possibleIds.includes(selectedQuestionnaire);
+        if (matches) {
+          console.log(`handleAssignQuestionnaire: Found matching questionnaire by ID: ${selectedQuestionnaire} matched with:`, possibleIds);
+        }
+        return matches;
+      });
+      
+      if (!selectedQ) {
+        toast.error('Could not find selected questionnaire');
+        console.warn(`Could not find questionnaire with ID ${selectedQuestionnaire}`);
+        return;
+      }
+      
+      // Validate that questionnaire has fields/questions
+      const normalizedQ = normalizeQuestionnaireStructure(selectedQ);
+      
+      // Log the normalized questionnaire for debugging
+      console.log('Normalized questionnaire for assignment:', normalizedQ);
+      
+      // Check for fields/questions in multiple locations
+      let fields = normalizedQ.fields || normalizedQ.questions || [];
+      
+      // Special handling for API format questionnaires
+      if (normalizedQ.id && normalizedQ.id.startsWith('q_') && Array.isArray(normalizedQ.fields)) {
+        console.log('API questionnaire format detected in assignment:', normalizedQ.id);
+        fields = normalizedQ.fields;
+      }
+      
+      if (!fields || fields.length === 0) {
+        toast.error('This questionnaire has no questions defined. Please select another questionnaire.');
+        setLoading(false);
+        return;
+      }
+      
+      // Questionnaire is valid with fields
+      
+      // Check if we need to create a client account
+      let clientUserId = null;
+      if (clientCredentials.createAccount && clientCredentials.email && clientCredentials.password) {
+        // Create client user account first
+        try {
+          // Parse name into first and last name, ensuring lastName is never empty
+          let firstName = '', lastName = '';
+          if (client.name) {
+            const nameParts = client.name.trim().split(' ');
+            if (nameParts.length > 1) {
+              firstName = nameParts[0];
+              lastName = nameParts.slice(1).join(' ');
+            } else {
+              // If only one word in name, use it as firstName and default lastName
+              firstName = nameParts[0];
+              lastName = 'Client'; // Default last name to ensure validation passes
+            }
+          } else {
+            // Provide default values if name is empty
+            firstName = 'New';
+            lastName = 'Client';
+          }
+          
+          console.log(`Creating client user account for: ${firstName} ${lastName}`);
+          
+          // Use controller to create client account
+          const userResponse = await createClientUserAccount({
+            firstName: firstName,
+            lastName: lastName,
+            email: clientCredentials.email.toLowerCase(),
+            password: clientCredentials.password,
+            role: 'client',
+            userType: 'individual'
+          });
+          
+          clientUserId = userResponse._id;
+          console.log('Client user account created with ID:', clientUserId);
+          
+          toast.success(`Client account created successfully for ${clientCredentials.email}`);
+        } catch (error: any) {
+          console.error('Error creating client account:', error);
+          toast.error(`Account creation failed: ${error.message}`);
+          // Continue with questionnaire assignment even if account creation fails
+        }
+      }
+      
+      // Get questionnaire ID from normalized questionnaire
+      // Since we now ensure all IDs are valid in normalizeQuestionnaireStructure
+      const questionnaireId = normalizedQ._id;
+      
+      if (!isValidMongoObjectId(questionnaireId)) {
+        console.error(`After normalization, ID is still invalid: ${questionnaireId}`);
+        toast.error(`Cannot assign questionnaire with invalid ID format. Please contact support.`);
+        setLoading(false);
+        return;
+      }
+      
+      // If we had to convert the ID, log this for debugging
+      if (normalizedQ.originalId) {
+        console.log(`Using converted ID: Original=${normalizedQ.originalId}, Converted=${questionnaireId}`);
+      }
+      
+      validateMongoObjectId(questionnaireId, 'questionnaire');
+      
+      // If we have a clientUserId from user creation, use that instead
+      let clientId = clientUserId || client._id || client.id;
+      
+      console.log(`Using client ID: ${clientId} (from user creation: ${!!clientUserId})`);
+      
+      // If the client ID isn't a valid ObjectId, convert it to one and store the mapping
+      if (!isValidMongoObjectId(clientId)) {
+        console.warn(`Client ID ${clientId} is not a valid MongoDB ObjectId, converting...`);
+        // Check if we already have a clientId._id that's valid
+        if (client._id && isValidMongoObjectId(client._id)) {
+          clientId = client._id;
+        } else {
+          // Generate a new valid ObjectId
+          clientId = generateObjectId();
+          // Save it back to the client object for future use
+          client._id = clientId;
+          
+          // Update client in localStorage with the valid ID
+          const clients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
+          const updatedClients = clients.map((c: any) => {
+            if (c.id === client.id) {
+              return { ...c, _id: clientId };
+            }
+            return c;
+          });
+          localStorage.setItem('legal-firm-clients', JSON.stringify(updatedClients));
+          
+          console.log(`Converted client ID from ${client.id} to valid MongoDB ObjectId: ${clientId}`);
+        }
+      }
+      
+      // Final validation
+      try {
+        validateMongoObjectId(clientId, 'client');
+      } catch (error) {
+        console.error('Failed to validate client ID:', error);
+        toast.error('Could not create a valid client ID. Please try again.');
+        setLoading(false);
+        return;
+      }
+      
+      // Validate case ID if it exists and ensure it's a valid MongoDB ObjectId
+      let caseId = caseData._id || caseData.id;
+      if (caseId) {
+        // If the case ID isn't a valid ObjectId, convert it
+        if (!isValidMongoObjectId(caseId)) {
+          console.warn(`Case ID ${caseId} is not a valid MongoDB ObjectId, converting...`);
+          // Check if we already have a caseId._id that's valid
+          if (caseData._id && isValidMongoObjectId(caseData._id)) {
+            caseId = caseData._id;
+          } else {
+            // Generate a new valid ObjectId
+            caseId = generateObjectId();
+            // Save it back to the case object for future use
+            caseData._id = caseId;
+            
+            // Update case in localStorage with the valid ID
+            const cases = JSON.parse(localStorage.getItem('legal-firm-cases') || '[]');
+            const updatedCases = cases.map((c: any) => {
+              if (c.id === caseData.id) {
+                return { ...c, _id: caseId };
+              }
+              return c;
+            });
+            localStorage.setItem('legal-firm-cases', JSON.stringify(updatedCases));
+            
+            console.log(`Converted case ID from ${caseData.id} to valid MongoDB ObjectId: ${caseId}`);
+          }
+        }
+        validateMongoObjectId(caseId, 'case');
+      }
+      
+      // Define the assignment data
+      assignmentData = {
+        questionnaireId,
+        questionnaireName: normalizedQ.title || 'Questionnaire',
+        clientId,
+        caseId: caseId || undefined,
+        status: 'pending',
+        assignedAt: new Date().toISOString(),
+        dueDate: caseData.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Default 7 days due date
+        notes: `Please complete this questionnaire for your ${caseData.category || 'immigration'} case.`,
+        clientUserId: clientUserId, // Include the user ID if a new account was created
+        clientEmail: clientCredentials.email || client.email // Use provided email or client email
+      };
+      
+      // Debug log the validated data before making the API call
+      console.log('Creating questionnaire assignment with data:', JSON.stringify(assignmentData, null, 2));
+      
+      // Check if we have an authentication token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn('No authentication token found. Creating assignment in local storage only.');
+        toast.error('You must be logged in to assign questionnaires through the API. Will use local storage instead.');
+        // Don't throw error, just set a flag to skip API call
+        // Use both API and localStorage as needed
+        
+        // Create and save assignment in localStorage
+        const localAssignment: QuestionnaireAssignment = {
+          id: `assignment_${Date.now()}`,
+          caseId: caseData.id,
+          clientId: client.id,
+          questionnaireId: selectedQuestionnaire,
+          questionnaireName: normalizedQ.title || normalizedQ.name || 'Questionnaire',
+          status: 'pending',
+          assignedAt: new Date().toISOString(),
+          completedAt: undefined,
+          responses: {},
+          dueDate: caseData.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          notes: `Please complete this questionnaire for your ${caseData.category || 'immigration'} case.`,
+          clientEmail: clientCredentials.email || client.email,
+          clientUserId: clientUserId
+        };
+        
+        // Save to localStorage
+        const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
+        existingAssignments.push(localAssignment);
+        localStorage.setItem('questionnaire-assignments', JSON.stringify(existingAssignments));
+        
+        // Update state
+        setQuestionnaireAssignment(localAssignment);
+        
+        // Show success and proceed
+        toast.success(`Questionnaire "${normalizedQ.title || normalizedQ.name}" has been assigned to client ${client.name} (local storage only).`);
+        setLoading(false);
+        handleNext();
+        return;
+      }
+      
+      // Log the token (first 10 chars for security) to verify it exists
+      console.log(`Using authentication token: ${token.substring(0, 10)}...`);
+      
+      // Use the controller to check if the API endpoint is available
+      const endpointPath = '/api/v1/questionnaire-assignments';
+      const endpointAvailable = await isApiEndpointAvailable(endpointPath);
+      
+      // Log and notify user about API availability
+      console.log('Questionnaire assignments endpoint available:', endpointAvailable);
+      
+      if (!endpointAvailable) {
+        toast.error('API endpoint not available. Assignment will be saved locally only.');
+      }
+      
+      let assignment: QuestionnaireAssignment;
+      // Track success state for future use
+      
+      // Only attempt API call if the endpoint is available
+      if (endpointAvailable) {
+        try {
+          // Add debugging for the request
+          console.log(`Sending assignment to API: ${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`);
+          console.log('Assignment data:', JSON.stringify(assignmentData, null, 2));
+          console.log('Request headers:', { 'Authorization': `Bearer ${token.substring(0, 10)}...` });
+          
+          // Send directly with fetch for creating the assignment
+          const fetchResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(assignmentData)
+          });
+          
+          console.log(`Fetch response: status=${fetchResponse.status}, ok=${fetchResponse.ok}`);
+          
+          if (!fetchResponse.ok) {
+            const errorText = await fetchResponse.text();
+            console.error(`Fetch error response: ${errorText}`);
+            throw new Error(`Assignment creation failed: ${fetchResponse.status} ${fetchResponse.statusText}\n${errorText}`);
+          }
+          
+          // Parse the successful response
+          const response = await fetchResponse.json();
+          
+          // Handle the response which returns json directly
+          const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
+          console.log('Got assignment ID from API:', responseId);
+          
+          assignment = {
+            id: responseId,
+            caseId: caseData.id,
+            clientId: client.id,
+            questionnaireId: selectedQuestionnaire,
+            questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
+            status: 'pending',
+            assignedAt: new Date().toISOString(),
+            completedAt: undefined,
+            responses: {},
+            dueDate: assignmentData.dueDate,
+            notes: assignmentData.notes,
+            clientEmail: assignmentData.clientEmail,
+            clientUserId: assignmentData.clientUserId
+          };
+          
+          // API save succeeded
+          console.log('Questionnaire successfully assigned through API');
+        } catch (apiError: any) {
+          console.error('API call failed despite server being available:', apiError);
+          throw apiError; // Re-throw to be caught by the main catch block
+        }
+      } else {
+        // API not available, fall back to localStorage immediately
+        console.warn('API server not available, using localStorage fallback');
+        assignment = {
+          id: `assignment_${Date.now()}`,
+          caseId: caseData.id,
+          clientId: client.id,
+          questionnaireId: selectedQuestionnaire,
+          questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
+          status: 'pending',
+          assignedAt: new Date().toISOString(),
+          completedAt: undefined,
+          responses: {},
+          // Include fields from assignmentData
+          dueDate: assignmentData.dueDate,
+          notes: assignmentData.notes,
+          clientEmail: assignmentData.clientEmail,
+          clientUserId: assignmentData.clientUserId
+        };
+        
+        // Save assignment to localStorage as fallback
+        const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
+        existingAssignments.push(assignment);
+        localStorage.setItem('questionnaire-assignments', JSON.stringify(existingAssignments));
+        toast.success('API server not available. Assignment saved locally only.', { icon: <InfoIcon size={16} /> });
+      }
+      
+      setQuestionnaireAssignment(assignment);
+      
+      // Notify the user of success
+      toast.success(`Questionnaire "${selectedQ?.title || selectedQ?.name}" has been assigned to client ${client.name}.`);
+      
+      // Move to next step
+      handleNext();
+    } catch (error: any) {
+      console.error('Error assigning questionnaire:', error);
+      
+      // Display more specific error messages
+      if (error?.message && error.message.includes('Invalid')) {
+        // This is our validation error
+        toast.error(error.message);
+      } else if (error?.message && error.message.includes('Authentication required')) {
+        // Authentication error
+        toast.error('You must be logged in to assign questionnaires. Please log in first.');
+        // Could navigate to login page here if needed
+        // navigate('/login');
+      } else if (error?.response?.status === 404 || error?.message?.includes('not found')) {
+        // API endpoint not found
+        console.error('API endpoint not found:', error.request?.responseURL || '/api/v1/questionnaire-assignments');
+        
+        // Create a helpful toast message
+        toast.error(
+          <div>
+            <p>The questionnaire assignment API endpoint was not found (404).</p>
+            <p className="text-sm mt-2">Possible solutions:</p>
+            <ul className="text-sm list-disc pl-4">
+              <li>Ensure the API server is running</li>
+              <li>Verify the API is accessible at {APPCONSTANTS.API_BASE_URL}</li>
+              <li>Check that routes are registered properly in server.js</li>
+              <li>If you're running the API on a different port, update the API_BASE_URL</li>
+            </ul>
+            <p className="text-sm mt-2">A local copy of the assignment has been saved.</p>
+          </div>, 
+          { duration: 8000 }
+        );
+        
+        // Show simpler message after detailed one
+        setTimeout(() => {
+          toast.success('Assignment saved locally. You can continue with your workflow.', { icon: <AlertCircle size={16} /> });
+        }, 1000);
+        
+        console.warn('API endpoint not found, using local storage fallback');
+      } else if (error?.response?.data?.error) {
+        // This is an API error with details
+        toast.error(`API Error: ${error.response.data.error}`);
+      } else {
+        // Generic fallback error
+        toast.error('Failed to assign questionnaire. Using local storage as fallback.');
+      }
+      
+      // Don't proceed to next step or save to localStorage if it's an ID validation error
+      if (error?.message && error.message.includes('Invalid')) {
+        return;
+      }
+      
+      // Create a local assignment as fallback
+      console.log('Creating local assignment as fallback to API');
+      // Enhanced flexible matching to find the selected questionnaire
+      const selectedQ = availableQuestionnaires.find(q => {
+        // Check all possible ID fields
+        const possibleIds = [
+          q._id,          // MongoDB ObjectId
+          q.id,           // Original ID or API ID
+          q.originalId,   // Original ID before conversion
+          q.name          // Fallback to name if used as ID
+        ].filter(Boolean); // Remove undefined/null values
+        
+        // For API questionnaires, prioritize matching the q_ prefixed ID
+        if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+          console.log(`localAssignment: Found exact match for API questionnaire: ${q.id}`);
+          return true;
+        }
+        
+        // Check if any of the possible IDs match
+        const matches = possibleIds.includes(selectedQuestionnaire);
+        if (matches) {
+          console.log(`localAssignment: Found matching questionnaire by ID: ${selectedQuestionnaire} matched with:`, possibleIds);
+        }
+        return matches;
+      });
+      
+      // Create a local assignment with the same data format as the API would return
+      const localAssignment: QuestionnaireAssignment = {
+        id: `assignment_${Date.now()}`,
+        caseId: caseData.id,
+        clientId: client.id,
+        questionnaireId: selectedQuestionnaire,
+        questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
+        status: 'pending',
+        assignedAt: new Date().toISOString(),
+        completedAt: undefined,
+        responses: {},
+        // Include all fields from the assignment data if available
+        dueDate: assignmentData ? assignmentData.dueDate : undefined,
+        notes: assignmentData ? assignmentData.notes : undefined,
+        clientEmail: assignmentData ? assignmentData.clientEmail : client.email,
+        clientUserId: assignmentData ? assignmentData.clientUserId : undefined
+      };
+      
+      // Update the state with our local assignment
+      setQuestionnaireAssignment(localAssignment);
+      
+      // Save assignment to localStorage for persistence
+      const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
+      existingAssignments.push(localAssignment);
+      localStorage.setItem('questionnaire-assignments', JSON.stringify(existingAssignments));
+      
+      // Show success message to the user
+      toast.success(`Questionnaire "${selectedQ?.title || selectedQ?.name}" has been assigned to client ${client.name} (local storage mode).`);
+      
+      // Only proceed to next step if it's not an ID validation error
+      handleNext();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResponseSubmit = () => {
+  const handleResponseSubmit = async () => {
     if (!questionnaireAssignment) return;
     
-    const updatedAssignment = {
-      ...questionnaireAssignment,
-      status: 'completed' as const,
-      completedAt: new Date().toISOString(),
-      responses: clientResponses
-    };
-    
-    setQuestionnaireAssignment(updatedAssignment);
-    handleNext();
+    try {
+      setLoading(true);
+      
+      // Use controller to submit responses
+      if (questionnaireAssignment.id && !questionnaireAssignment.id.startsWith('assignment_')) {
+        // Submit using API for real server-generated IDs
+        await submitQuestionnaireResponses(questionnaireAssignment.id, clientResponses);
+      }
+      
+      const updatedAssignment = {
+        ...questionnaireAssignment,
+        status: 'completed' as const,
+        completedAt: new Date().toISOString(),
+        responses: clientResponses
+      };
+      
+      setQuestionnaireAssignment(updatedAssignment);
+      
+      // Update locally regardless (for resilience)
+      const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
+      const updatedAssignments = existingAssignments.map((a: any) => {
+        if (a.id === questionnaireAssignment.id) {
+          return updatedAssignment;
+        }
+        return a;
+      });
+      localStorage.setItem('questionnaire-assignments', JSON.stringify(updatedAssignments));
+      
+      toast.success('Questionnaire responses saved successfully');
+      handleNext();
+    } catch (error) {
+      console.error('Error submitting questionnaire responses:', error);
+      toast.error('There was an error saving the responses. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFormDetailsSubmit = () => {
@@ -329,30 +1072,40 @@ const LegalFirmWorkflow: React.FC = () => {
     try {
       setLoading(true);
 
-      // Call backend API to save the workflow process
-      const response = await api.post(IMMIGRATION_END_POINTS.START_PROCESS, {
-        client,
-        caseData,
-        selectedForms,
-        selectedQuestionnaire,
-        questionnaireAssignment,
-        clientResponses,
-        formDetails,
+      // Prepare payload to match backend requirements
+      const payload = {
+        categoryId: caseData.category,
+        subcategoryId: caseData.subcategory,
+        visaType: caseData.visaType || '',
+        clientId: client.id,
+        caseId: caseData.id,
+        priorityDate: caseData.priorityDate || new Date().toISOString(),
+        status: caseData.status || 'draft',
+        assignedForms: selectedForms || caseData.assignedForms || [],
+        questionnaires: caseData.questionnaires || (selectedQuestionnaire ? [selectedQuestionnaire] : []),
+        questionnaireAssignment: questionnaireAssignment || null,
+        clientResponses: clientResponses || {},
+        formDetails: formDetails || [],
         steps: WORKFLOW_STEPS.map((step, idx) => ({
           id: step.id,
           title: step.title,
           description: step.description,
           status: idx < currentStep ? 'completed' : idx === currentStep ? 'current' : 'pending'
-        }))
-      });
+        })),
+        createdAt: caseData.createdAt || new Date(),
+        dueDate: caseData.dueDate || null
+      };
 
-      // Optionally, show a success message or handle the response
+      // Call backend API to save the workflow process (correct endpoint)
+      const response = await api.post('/api/v1/immigration/process', payload);
+
+      console.log("Workflow saved successfully:", response.data);
       alert('Workflow saved successfully!');
 
       // For I-130 form auto-fill (existing logic)
       if (selectedForms.includes('I-130')) {
         const i130Data = {
-          relationshipType: caseData.subcategory.includes('spouse') ? 'Spouse' : 'Child',
+          relationshipType: caseData.subcategory && caseData.subcategory.includes('spouse') ? 'Spouse' : 'Child',
           petitionerFamilyName: client.lastName,
           petitionerGivenName: client.firstName,
           petitionerMiddleName: '',
@@ -470,7 +1223,27 @@ const LegalFirmWorkflow: React.FC = () => {
                 id="name"
                 label="Full Name"
                 value={client.name}
-                onChange={(e) => setClient({...client, name: e.target.value})}
+                onChange={(e) => {
+                  const fullName = e.target.value;
+                  // Parse name into firstName and lastName
+                  let firstName = '', lastName = '';
+                  if (fullName) {
+                    const nameParts = fullName.trim().split(' ');
+                    if (nameParts.length > 1) {
+                      firstName = nameParts[0];
+                      lastName = nameParts.slice(1).join(' ');
+                    } else {
+                      firstName = nameParts[0];
+                      lastName = 'Client'; // Default
+                    }
+                  }
+                  setClient({
+                    ...client, 
+                    name: fullName,
+                    firstName: firstName,
+                    lastName: lastName
+                  });
+                }}
                 required
               />
               <Input
@@ -571,7 +1344,7 @@ const LegalFirmWorkflow: React.FC = () => {
           </div>
         );
 
-      case 2: // Create Case (with all fields from CaseFormPage)
+      case 2: // Create Case
         return (
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -583,84 +1356,91 @@ const LegalFirmWorkflow: React.FC = () => {
                 <Input
                   id="title"
                   label="Case Title"
-                  value={caseData.title}
+                  placeholder="Enter case title"
+                  value={caseData.title || ''}
                   onChange={e => setCaseData({ ...caseData, title: e.target.value })}
                   required
-                  placeholder="Enter case title"
                 />
                 <Input
                   id="caseNumber"
                   label="Case Number"
+                  placeholder="Enter case number"
                   value={caseData.caseNumber || ''}
                   onChange={e => setCaseData({ ...caseData, caseNumber: e.target.value })}
-                  required
-                  placeholder="Enter case number"
                 />
                 <Select
-                  id="type"
-                  label="Case Type"
-                  value={caseData.type || ''}
-                  onChange={e => setCaseData({ ...caseData, type: e.target.value })}
+                  id="category"
+                  label="Immigration Category"
+                  value={caseData.category || ''}
+                  onChange={e => setCaseData({ ...caseData, category: e.target.value })}
                   options={[
-                    { value: '', label: 'Select case type' },
-                    { value: 'Civil Litigation', label: 'Civil Litigation' },
-                    { value: 'Criminal Defense', label: 'Criminal Defense' },
-                    { value: 'Family Law', label: 'Family Law' },
-                    { value: 'Immigration', label: 'Immigration' },
-                    { value: 'Corporate', label: 'Corporate' },
-                    { value: 'Real Estate', label: 'Real Estate' },
-                    { value: 'Estate Planning', label: 'Estate Planning' },
-                    { value: 'Other', label: 'Other' }
+                    { value: '', label: 'Select category' },
+                    ...IMMIGRATION_CATEGORIES.map(cat => ({
+                      value: cat.id,
+                      label: cat.name
+                    }))
+                  ]}
+                  required
+                />
+                <Select
+                  id="subcategory"
+                  label="Subcategory"
+                  value={caseData.subcategory || ''}
+                  onChange={e => setCaseData({ ...caseData, subcategory: e.target.value })}
+                  options={[
+                    { value: '', label: 'Select subcategory' },
+                    ...(caseData.category ? 
+                      IMMIGRATION_CATEGORIES
+                        .find(cat => cat.id === caseData.category)
+                        ?.subcategories.map(sub => ({
+                          value: sub.id,
+                          label: sub.name
+                        })) || [] 
+                      : []
+                    )
+                  ]}
+                  required
+                />
+                <Select
+                  id="priority"
+                  label="Priority"
+                  value={caseData.priority}
+                  onChange={e => setCaseData({ ...caseData, priority: e.target.value as "low" | "medium" | "high" })}
+                  options={[
+                    { value: 'low', label: 'Low' },
+                    { value: 'medium', label: 'Medium' },
+                    { value: 'high', label: 'High' },
                   ]}
                   required
                 />
                 <Select
                   id="status"
                   label="Status"
-                  value={caseData.status || 'Active'}
-                  onChange={e => setCaseData({ ...caseData, status: e.target.value })}
+                  value={caseData.status}
+                  onChange={e => setCaseData({ ...caseData, status: e.target.value as "draft" | "in-progress" | "review" | "completed" })}
                   options={[
-                    { value: 'Active', label: 'Active' },
-                    { value: 'Pending', label: 'Pending' },
-                    { value: 'On Hold', label: 'On Hold' },
-                    { value: 'Closed', label: 'Closed' }
+                    { value: 'draft', label: 'Draft' },
+                    { value: 'in-progress', label: 'In Progress' },
+                    { value: 'review', label: 'Review' },
+                    { value: 'completed', label: 'Completed' }
                   ]}
                   required
                 />
                 <Input
-                  id="clientId"
-                  label="Client ID"
-                  value={caseData.clientId}
-                  onChange={e => setCaseData({ ...caseData, clientId: e.target.value })}
-                  required
-                  placeholder="Enter client ID"
-                />
-                <Select
-                  id="assignedTo"
-                  label="Assigned Attorney"
-                  value={caseData.assignedTo || ''}
-                  onChange={e => setCaseData({ ...caseData, assignedTo: e.target.value })}
-                  options={[
-                    { value: '', label: 'Select attorney' },
-                    { value: 'Sarah Reynolds', label: 'Sarah Reynolds' },
-                    { value: 'Michael Chen', label: 'Michael Chen' },
-                    { value: 'Emily Wilson', label: 'Emily Wilson' }
-                  ]}
+                  id="visaType"
+                  label="Visa Type"
+                  value={caseData.visaType || ''}
+                  onChange={e => setCaseData({ ...caseData, visaType: e.target.value })}
+                  placeholder="E.g., B-2, H-1B, L-1"
                   required
                 />
                 <Input
-                  id="courtLocation"
-                  label="Court Location"
-                  value={caseData.courtLocation || ''}
-                  onChange={e => setCaseData({ ...caseData, courtLocation: e.target.value })}
-                  placeholder="Enter court location"
-                />
-                <Input
-                  id="judge"
-                  label="Judge"
-                  value={caseData.judge || ''}
-                  onChange={e => setCaseData({ ...caseData, judge: e.target.value })}
-                  placeholder="Enter judge name"
+                  id="priorityDate"
+                  label="Priority Date"
+                  type="date"
+                  value={caseData.priorityDate || ''}
+                  onChange={e => setCaseData({ ...caseData, priorityDate: e.target.value })}
+                  required
                 />
                 <Input
                   id="openDate"
@@ -691,11 +1471,10 @@ const LegalFirmWorkflow: React.FC = () => {
                 onClick={handleCaseSubmit}
                 disabled={
                   !caseData.title ||
-                  !caseData.caseNumber ||
-                  !caseData.type ||
+                  !caseData.category ||
                   !caseData.status ||
-                  !caseData.clientId ||
-                  !caseData.assignedTo ||
+                  !caseData.visaType ||
+                  !caseData.priorityDate ||
                   !caseData.openDate
                 }
               >
@@ -766,198 +1545,684 @@ const LegalFirmWorkflow: React.FC = () => {
           </div>
         );
 
-      case 4: // Assign Questionnaire
+      case 4: // Assign Questionnaire (now using QuestionnaireBuilder/availableQuestionnaires)
         return (
           <div className="space-y-6">
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-orange-900 mb-2">Assign Questionnaire</h3>
               <p className="text-orange-700">Send a questionnaire to the client to collect required information.</p>
             </div>
-            
+
+            {/* Description of how questionnaires work */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mr-2">
+                  <InfoIcon className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-1">How Client Questionnaires Work</h4>
+                  <p className="text-blue-700 text-sm">
+                    When you assign a questionnaire, the client will receive a notification and the questionnaire will
+                    appear in their dashboard. They can fill it out at their convenience, and you'll be notified
+                    once it's completed.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-4">
               <Select
                 id="questionnaire"
                 label="Select Questionnaire"
                 value={selectedQuestionnaire}
-                onChange={(e) => setSelectedQuestionnaire(e.target.value)}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  console.log('Selected questionnaire ID from dropdown:', selectedId);
+                  
+                  // Log all available questionnaires with their ID fields for debugging
+                  console.log('Available questionnaires with IDs:', availableQuestionnaires.map(q => ({
+                    _id: q._id,
+                    id: q.id,
+                    apiQuestionnaire: q.apiQuestionnaire,
+                    originalId: q.originalId,
+                    name: q.name,
+                    title: q.title
+                  })));
+                  
+                  // Enhanced flexible matching to find the selected questionnaire
+                  const selected = availableQuestionnaires.find(q => {
+                    // Check all possible ID fields
+                    const possibleIds = [
+                      q._id,          // MongoDB ObjectId
+                      q.id,           // Original ID or API ID
+                      q.originalId,   // Original ID before conversion
+                      q.name          // Fallback to name if used as ID
+                    ].filter(Boolean); // Remove undefined/null values
+                    
+                    // For API questionnaires, prioritize matching the q_ prefixed ID
+                    if (q.apiQuestionnaire && q.id === selectedId) {
+                      console.log(`Found exact match for API questionnaire: ${q.id}`);
+                      return true;
+                    }
+                    
+                    // Check if any of the possible IDs match
+                    const matches = possibleIds.includes(selectedId);
+                    if (matches) {
+                      console.log(`Found matching questionnaire by ID: ${selectedId} matched with:`, possibleIds);
+                    }
+                    return matches;
+                  });
+                  
+                  console.log('Selected questionnaire details:', selected);
+                  setSelectedQuestionnaire(selectedId);
+                  
+                  // If not found, log a warning
+                  if (!selected) {
+                    console.warn(`Could not find questionnaire with ID ${selectedId} in available questionnaires`);
+                  }
+                }}
                 options={[
                   { value: '', label: 'Choose a questionnaire' },
                   ...availableQuestionnaires
-                    .filter(q => q.category === caseData.category || q.category === 'general')
-                    .map(questionnaire => ({
-                      value: questionnaire.id,
-                      label: `${questionnaire.title} (${questionnaire.fields?.length || 0} questions)`
-                    }))
+                    .filter(q => {
+                      // Add debug for questionnaire categories
+                      console.log(`Questionnaire filter check:`, {
+                        id: q._id || q.id,
+                        title: q.title || q.name,
+                        questCategory: q.category,
+                        caseCategory: caseData.category
+                      });
+                      
+                      if (!caseData.category) return true;
+                      if (!q.category) return true;
+                      const catMap: Record<string, string> = {
+                        'family-based': 'FAMILY_BASED',
+                        'employment-based': 'EMPLOYMENT_BASED',
+                        'citizenship': 'NATURALIZATION',
+                        'asylum': 'ASYLUM',
+                        'foia': 'FOIA',
+                        'other': 'OTHER',
+                        'assessment': 'ASSESSMENT',
+                      };
+                      // Convert case category to questionnaire category if needed
+                      // const mapped = catMap[caseData.category] || '';
+                      // Make the category matching more lenient
+                      return true; // Show all questionnaires for now regardless of category
+                    })
+                    .map(q => {
+                      // First normalize the questionnaire structure to ensure consistent fields
+                      const normalizedQ = normalizeQuestionnaireStructure(q);
+                      
+                      // Handle ID resolution with preference for the original API ID format
+                      let idToUse;
+                      let wasConverted = false;
+                      
+                      // For API format questionnaires, ALWAYS use the original q_ format ID
+                      if (q.id && q.id.startsWith('q_')) {
+                        idToUse = q.id;
+                        console.log(`Using original API questionnaire ID: ${idToUse}`);
+                      } 
+                      // For questionnaires with an originalId, offer both options with preference for original
+                      else if (normalizedQ.originalId) {
+                        // Use the original ID for selection to maintain consistency with saved data
+                        idToUse = normalizedQ.originalId;
+                        wasConverted = true;
+                        console.log(`Using original questionnaire ID for selection: ${idToUse} (MongoDB ID: ${normalizedQ._id})`);
+                      }
+                      // For normalized IDs, use that format
+                      else if (normalizedQ._id) {
+                        idToUse = normalizedQ._id;
+                        console.log(`Using normalized questionnaire ID: ${idToUse}`);
+                      }
+                      // Fall back to any available ID
+                      else {
+                        idToUse = normalizedQ._id || normalizedQ.id || normalizedQ.name || `q_${Date.now()}`;
+                        console.log(`Using fallback questionnaire ID: ${idToUse}`);
+                      }
+                      
+                      // Count questions
+                      const fields = normalizedQ.fields || [];
+                      const questionCount = fields.length;
+                      
+                      // Log what's being added to the dropdown
+                      console.log(`Adding questionnaire to dropdown: ${normalizedQ.title || normalizedQ.name || 'Untitled'} with ID ${idToUse} (${questionCount} questions)`);
+                      
+                      return {
+                        // Store all possible IDs to help with matching later
+                        value: idToUse, // Use the resolved ID as primary value for selection
+                        apiId: q.id && q.id.startsWith('q_') ? q.id : undefined,
+                        mongoId: normalizedQ._id,
+                        originalId: normalizedQ.originalId,
+                        label: `${normalizedQ.title || normalizedQ.name || 'Untitled'} (${questionCount} questions)${wasConverted ? ' 🔄' : ''}`,
+                        hasValidId: true, // Should always be valid now
+                        wasConverted, // Flag if ID was converted
+                        fields: fields.length > 0 // Flag to indicate if questions/fields exist
+                      };
+                    })
                 ]}
                 required
-              />
-              
-              {selectedQuestionnaire && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-2">Questionnaire Preview</h4>
-                  {(() => {
-                    const questionnaire = availableQuestionnaires.find(q => q.id === selectedQuestionnaire);
-                    return questionnaire ? (
-                      <div>
-                        <p className="text-gray-700 mb-2">{questionnaire.description}</p>
-                        <p className="text-sm text-gray-500">
-                          This questionnaire contains {questionnaire.fields?.length || 0} questions covering:
-                        </p>
-                        <ul className="text-sm text-gray-500 mt-1 ml-4">
-                          {questionnaire.fields?.slice(0, 3).map((field: any, index: number) => (
-                            <li key={index}>• {field.label}</li>
-                          ))}
-                          {questionnaire.fields?.length > 3 && <li>• And {questionnaire.fields.length - 3} more...</li>}
+              />                {selectedQuestionnaire && (() => {
+                // Enhanced flexible matching to find the selected questionnaire
+                const questionnaire = availableQuestionnaires.find(q => {
+                  // Check all possible ID fields
+                  const possibleIds = [
+                    q._id,          // MongoDB ObjectId
+                    q.id,           // Original ID or API ID
+                    q.originalId,   // Original ID before conversion
+                    q.name          // Fallback to name if used as ID
+                  ].filter(Boolean); // Remove undefined/null values
+                  
+                  // For API questionnaires, prioritize matching the q_ prefixed ID
+                  if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+                    console.log(`Preview: Found exact match for API questionnaire: ${q.id}`);
+                    return true;
+                  }
+                  
+                  // Check if any of the possible IDs match
+                  const matches = possibleIds.includes(selectedQuestionnaire);
+                  if (matches) {
+                    console.log(`Preview: Found matching questionnaire by ID: ${selectedQuestionnaire} matched with:`, possibleIds);
+                  }
+                  return matches;
+                });
+                
+                if (!questionnaire) {
+                  console.warn(`Preview: Could not find questionnaire with ID ${selectedQuestionnaire}`);
+                  return (
+                    <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+                      <p className="text-yellow-700">Questionnaire not found. Please select a different questionnaire.</p>
+                    </div>
+                  );
+                }
+                
+                // Questionnaire structure is valid
+                let fields = questionnaire.fields || questionnaire.questions || [];
+                
+                // Special handling for API format questionnaires
+                if (questionnaire.apiQuestionnaire || 
+                   (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields))) {
+                  console.log('API questionnaire format detected in preview:', questionnaire.id);
+                  fields = questionnaire.fields;
+                }
+                
+                console.log('Questionnaire preview fields:', fields);
+                const hasValidId = questionnaire._id && isValidMongoObjectId(questionnaire._id);
+                const hasConvertedId = !!questionnaire.originalId;
+                
+                return (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-medium text-gray-900">Questionnaire Preview</h4>
+                      {!hasValidId && (
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full flex items-center">
+                          <AlertCircle size={12} className="mr-1" /> Invalid ID Format
+                        </span>
+                      )}
+                      {hasConvertedId && (
+                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full flex items-center">
+                          <CheckCircle size={12} className="mr-1" /> ID Converted for Backend
+                        </span>
+                      )}
+                    </div>
+                    
+                    <p className="text-gray-700 mb-2">{questionnaire.description || 'No description provided.'}</p>
+                    
+                    <div className="flex items-center text-sm text-gray-500 mb-2">
+                      <ClipboardList className="w-4 h-4 mr-2" />
+                      This questionnaire contains {fields.length} questions
+                    </div>
+                    
+                    {fields.length > 0 ? (
+                      <div className="max-h-60 overflow-y-auto border border-gray-200 rounded bg-white p-2">
+                        <ul className="space-y-2">
+                          {fields.map((field: any, idx: number) => {
+                            const fieldId = field.id || field._id || `field_${idx}`;
+                            const fieldLabel = field.label || field.question || `Question ${idx + 1}`;
+                            const fieldType = field.type || 'text';
+                            
+                            return (
+                              <li key={fieldId} className="py-1 px-2 hover:bg-gray-50 rounded">
+                                <div className="flex items-center">
+                                  <span className="text-primary-600 font-semibold mr-2">{idx + 1}.</span>
+                                  <span className="flex-grow">{fieldLabel}</span>
+                                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                                    {fieldType}
+                                  </span>
+                                </div>
+                                {(field.description || field.help_text) && (
+                                  <p className="text-xs text-gray-500 mt-1 ml-6">{field.description || field.help_text}</p>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
-                    ) : null;
-                  })()}
+                    ) : (
+                      <div className="text-center py-6 border border-dashed border-gray-300 bg-white rounded">
+                        <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No questions defined in this questionnaire.</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          This questionnaire may be incomplete or malformed.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Set due date (optional) */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (Optional)</label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  value={caseData.dueDate || ''}
+                  onChange={(e) => setCaseData({...caseData, dueDate: e.target.value})}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The client will be asked to complete the questionnaire by this date.
+                </p>
+              </div>
+
+              {/* Client account creation section */}
+              <div className="mt-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
+                <div className="flex items-center mb-4">
+                  <input
+                    type="checkbox"
+                    id="createClientAccount"
+                    checked={clientCredentials.createAccount}
+                    onChange={(e) => {
+                      // When enabling account creation, generate a password automatically
+                      if (e.target.checked && !clientCredentials.password) {
+                        const generatedPassword = generateSecurePassword();
+                        setClientCredentials({
+                          ...clientCredentials, 
+                          createAccount: e.target.checked,
+                          password: generatedPassword
+                        });
+                      } else {
+                        setClientCredentials({...clientCredentials, createAccount: e.target.checked});
+                      }
+                    }}
+                    className="h-4 w-4 text-primary-600 border-gray-300 rounded"
+                  />
+                  <label htmlFor="createClientAccount" className="ml-2 text-sm font-medium text-blue-800">
+                    Create client account for accessing questionnaires
+                  </label>
                 </div>
-              )}
+                
+                {clientCredentials.createAccount && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-blue-700">
+                      This will create a login account for your client so they can access and complete the questionnaire
+                      directly in the system.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                        <input
+                          type="email"
+                          value={clientCredentials.email || client.email || ''}
+                          onChange={(e) => {
+                            // When email is entered and no password exists, generate one
+                            if (e.target.value && !clientCredentials.password) {
+                              const generatedPassword = generateSecurePassword();
+                              setClientCredentials({
+                                ...clientCredentials, 
+                                email: e.target.value,
+                                password: generatedPassword
+                              });
+                            } else {
+                              setClientCredentials({...clientCredentials, email: e.target.value});
+                            }
+                          }}
+                          placeholder="client@example.com"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                          required={clientCredentials.createAccount}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Default is client's email from their profile
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={clientCredentials.password}
+                            readOnly
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newPassword = generateSecurePassword();
+                              setClientCredentials({...clientCredentials, password: newPassword});
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200"
+                          >
+                            Regenerate
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          System-generated secure password for client access
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                      <p className="text-xs text-yellow-700">
+                        <strong>Note:</strong> The client will receive an email with these login details to access their questionnaire.
+                        Be sure to save this information as the password is encrypted and cannot be retrieved later.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button 
-                onClick={handleQuestionnaireAssignment}
-                disabled={!selectedQuestionnaire}
-              >
-                Assign to Client & Continue
-                <Send className="w-4 h-4 ml-2" />
-              </Button>
+              {selectedQuestionnaire && (() => {
+                // Enhanced flexible matching to find the selected questionnaire
+                const questionnaire = availableQuestionnaires.find(q => {
+                  // Check all possible ID fields
+                  const possibleIds = [
+                    q._id,          // MongoDB ObjectId
+                    q.id,           // Original ID or API ID
+                    q.originalId,   // Original ID before conversion
+                    q.name          // Fallback to name if used as ID
+                  ].filter(Boolean); // Remove undefined/null values
+                  
+                  // For API questionnaires, prioritize matching the q_ prefixed ID
+                  if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+                    console.log(`Client Review: Found exact match for API questionnaire: ${q.id}`);
+                    return true;
+                  }
+                  
+                  // Check if any of the possible IDs match
+                  const matches = possibleIds.includes(selectedQuestionnaire);
+                  if (matches) {
+                    console.log(`Client Review: Found matching questionnaire by ID: ${selectedQuestionnaire} matched with:`, possibleIds);
+                  }
+                  return matches;
+                });
+                const hasFields = questionnaire && 
+                                 (questionnaire.fields?.length > 0 || questionnaire.questions?.length > 0);
+                
+                if (!hasFields) {
+                  return (
+                    <div className="flex items-center">
+                      <Button 
+                        onClick={() => toast.error('This questionnaire has no questions defined. Please select another questionnaire.')}
+                        className="bg-yellow-500 hover:bg-yellow-600"
+                      >
+                        <AlertCircle className="w-4 h-4 mr-2" />
+                        No Questions Availableilable
+                      </Button>
+                    </div>
+                                   );
+                }
+                
+                return (
+                  <Button 
+                    onClick={handleQuestionnaireAssignment}
+                    disabled={!selectedQuestionnaire}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader className="w-4 h-4 mr-2 animate-spin" />
+                        Assigning...
+                      </>
+                    ) : (
+                      <>
+                        Assign to Client & Continue
+                        <Send className="w-4 h-4 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                );
+              })()}
             </div>
           </div>
         );
 
-      case 5: // Collect Answers (Simulate client responses)
+      case 5: // Collect Answers (Dynamic client responses for selected questionnaire)
         return (
           <div className="space-y-6">
             <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-indigo-900 mb-2">Client Responses</h3>
-              <p className="text-indigo-700">Review and simulate client responses to the questionnaire.</p>
+              <p className="text-indigo-700">Review and fill out the questionnaire as the client would.</p>
             </div>
-            
-            {questionnaireAssignment && (
-              <div className="space-y-4">
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
+            {questionnaireAssignment && (() => {
+              // Enhanced flexible matching to find the assigned questionnaire
+              const questionnaire = availableQuestionnaires.find(q => {
+                // Check all possible ID fields
+                const possibleIds = [
+                  q._id,          // MongoDB ObjectId
+                  q.id,           // Original ID or API ID
+                  q.originalId,   // Original ID before conversion
+                  q.name          // Fallback to name if used as ID
+                ].filter(Boolean); // Remove undefined/null values
+                
+                // For API questionnaires, prioritize matching the q_ prefixed ID
+                if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
+                  console.log(`Looking for fields: Found exact match for API questionnaire: ${q.id}`);
+                  return true;
+                }
+                
+                // Check if any of the possible IDs match
+                const matches = possibleIds.includes(questionnaireAssignment.questionnaireId);
+                if (matches) {
+                  console.log(`Looking for fields: Found matching questionnaire by ID: ${questionnaireAssignment.questionnaireId} matched with:`, possibleIds);
+                }
+                return matches;
+              });
+              
+              // Debug log to check questionnaire matching
+              console.log('Looking for questionnaire with ID:', questionnaireAssignment.questionnaireId);
+              console.log('Available questionnaires:', availableQuestionnaires.map(q => ({ 
+                id: q._id || q.id || q.name, title: q.title || q.name 
+              })));
+              console.log('Found questionnaire:', questionnaire);
+              
+              if (!questionnaire) return null;
+              
+              // Try to find questions/fields in multiple possible locations
+              let questions = questionnaire.fields || 
+                           questionnaire.questions || 
+                           questionnaire.form?.fields || 
+                           questionnaire.form?.questions || 
+                           [];
+              
+              // If API response format is detected
+              if (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields)) {
+                console.log('API questionnaire format detected:', questionnaire.id);
+                questions = questionnaire.fields;
+              }
+                             
+              console.log('Questions found for rendering:', questions);
+              
+              if (!questions || questions.length === 0) {
+                return <div className="text-gray-500">No questions found in this questionnaire.</div>;
+              }
+              return (
+                <div className="space-y-4 bg-white border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-medium text-gray-900">{questionnaireAssignment.questionnaireName}</h4>
+                    <h4 className="font-medium text-gray-900">{questionnaire.title || questionnaire.name}</h4>
                     <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
                       {questionnaireAssignment.status}
                     </span>
                   </div>
-                  
                   <div className="space-y-4">
-                    {/* Simulate common questions for demo */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Beneficiary First Name
-                      </label>
-                      <Input
-                        id="beneficiaryFirstName"
-                        label=""
-                        value={clientResponses.beneficiaryFirstName || ''}
-                        onChange={(e) => setClientResponses({
-                          ...clientResponses,
-                          beneficiaryFirstName: e.target.value
-                        })}
-                        placeholder="Enter beneficiary's first name"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Beneficiary Last Name
-                      </label>
-                      <Input
-                        id="beneficiaryLastName"
-                        label=""
-                        value={clientResponses.beneficiaryLastName || ''}
-                        onChange={(e) => setClientResponses({
-                          ...clientResponses,
-                          beneficiaryLastName: e.target.value
-                        })}
-                        placeholder="Enter beneficiary's last name"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Beneficiary Date of Birth
-                      </label>
-                      <Input
-                        id="beneficiaryDateOfBirth"
-                        label=""
-                        type="date"
-                        value={clientResponses.beneficiaryDateOfBirth || ''}
-                        onChange={(e) => setClientResponses({
-                          ...clientResponses,
-                          beneficiaryDateOfBirth: e.target.value
-                        })}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Beneficiary Birth City
-                      </label>
-                      <Input
-                        id="beneficiaryBirthCity"
-                        label=""
-                        value={clientResponses.beneficiaryBirthCity || ''}
-                        onChange={(e) => setClientResponses({
-                          ...clientResponses,
-                          beneficiaryBirthCity: e.target.value
-                        })}
-                        placeholder="City of birth"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Beneficiary Birth Country
-                      </label>
-                      <Input
-                        id="beneficiaryBirthCountry"
-                        label=""
-                        value={clientResponses.beneficiaryBirthCountry || ''}
-                        onChange={(e) => setClientResponses({
-                          ...clientResponses,
-                          beneficiaryBirthCountry: e.target.value
-                        })}
-                        placeholder="Country of birth"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Relationship to Petitioner
-                      </label>
-                      <Select
-                        id="relationship"
-                        label=""
-                        value={clientResponses.relationship || ''}
-                        onChange={(e) => setClientResponses({
-                          ...clientResponses,
-                          relationship: e.target.value
-                        })}
-                        options={[
-                          { value: '', label: 'Select relationship' },
-                          { value: 'spouse', label: 'Spouse' },
-                          { value: 'child', label: 'Child' },
-                          { value: 'parent', label: 'Parent' },
-                          { value: 'sibling', label: 'Sibling' }
-                        ]}
-                      />
-                    </div>
+                    {questions.map((q: any, idx: number) => {
+                      // Log each field for debugging
+                      console.log(`Rendering field ${idx}:`, q);
+                      
+                      // Ensure field has required properties
+                      const fieldId = q.id || q._id || `field_${idx}`;
+                      const fieldLabel = q.label || q.question || q.name || `Question ${idx + 1}`;
+                      const fieldType = q.type || 'text';
+                      const fieldOptions = q.options || [];
+                      
+                      // Render input based on type
+                      if (fieldType === 'date') {
+                        return (
+                          <div key={fieldId}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{fieldLabel}</label>
+                            <Input
+                              id={fieldId}
+                              label=""
+                              type="date"
+                              value={clientResponses[fieldId] || clientResponses[fieldLabel] || ''}
+                              onChange={e => setClientResponses({
+                                ...clientResponses,
+                                [fieldId]: e.target.value
+                              })}
+                            />
+                          </div>
+                        );
+                      } else if (fieldType === 'select' && Array.isArray(fieldOptions)) {
+                        return (
+                          <div key={fieldId}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{fieldLabel}</label>
+                            <Select
+                              id={fieldId}
+                              label=""
+                              value={clientResponses[fieldId] || clientResponses[fieldLabel] || ''}
+                              onChange={e => setClientResponses({
+                                ...clientResponses,
+                                [fieldId]: e.target.value
+                              })}
+                              options={[
+                                { value: '', label: 'Select an option' },
+                                ...fieldOptions.map((opt: any) => ({ value: opt, label: opt }))
+                              ]}
+                            />
+                          </div>
+                        );
+                      } else if (fieldType === 'multiselect' && Array.isArray(fieldOptions)) {
+                        return (
+                          <div key={fieldId}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{fieldLabel}</label>
+                            <select
+                              multiple
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                              value={clientResponses[fieldId] || clientResponses[fieldLabel] || []}
+                              onChange={e => {
+                                const selected = Array.from(e.target.selectedOptions, option => option.value);
+                                setClientResponses({
+                                  ...clientResponses,
+                                  [fieldId]: selected
+                                });
+                              }}
+                            >
+                              {fieldOptions.map((opt: any) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      } else if (fieldType === 'checkbox' && Array.isArray(fieldOptions)) {
+                        return (
+                          <div key={fieldId}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{fieldLabel}</label>
+                            <div className="flex flex-wrap gap-4">
+                              {fieldOptions.map((opt: any) => (
+                                <label key={opt} className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={Array.isArray(clientResponses[fieldId] || clientResponses[fieldLabel]) && (clientResponses[fieldId] || clientResponses[fieldLabel])?.includes(opt)}
+                                    onChange={e => {
+                                      const prev = Array.isArray(clientResponses[fieldId] || clientResponses[fieldLabel]) 
+                                        ? (clientResponses[fieldId] || clientResponses[fieldLabel]) 
+                                        : [];
+                                      if (e.target.checked) {
+                                        setClientResponses({
+                                          ...clientResponses,
+                                          [fieldId]: [...prev, opt]
+                                        });
+                                      } else {
+                                        setClientResponses({
+                                          ...clientResponses,
+                                          [fieldId]: prev.filter((v: any) => v !== opt)
+                                        });
+                                      }
+                                    }}
+                                    className="mr-2"
+                                  />
+                                  {opt}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      } else if (fieldType === 'radio' && Array.isArray(fieldOptions)) {
+                        return (
+                          <div key={fieldId}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{fieldLabel}</label>
+                            <div className="flex flex-wrap gap-4">
+                              {fieldOptions.map((opt: any) => (
+                                <label key={opt} className="flex items-center">
+                                  <input
+                                    type="radio"
+                                    name={fieldId}
+                                    value={opt}
+                                    checked={clientResponses[fieldId] === opt}
+                                    onChange={() => setClientResponses({
+                                      ...clientResponses,
+                                      [fieldId]: opt
+                                    })}
+                                    className="mr-2"
+                                  />
+                                  {opt}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      } else if (fieldType === 'textarea') {
+                        return (
+                          <div key={fieldId}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{fieldLabel}</label>
+                            <TextArea
+                              id={fieldId}
+                              label=""
+                              value={clientResponses[fieldId] || clientResponses[fieldLabel] || ''}
+                              onChange={e => setClientResponses({
+                                ...clientResponses,
+                                [fieldId]: e.target.value
+                              })}
+                              rows={3}
+                            />
+                          </div>
+                        );
+                      } else {
+                        // Default to text input
+                        return (
+                          <div key={fieldId}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{fieldLabel}</label>
+                            <Input
+                              id={fieldId}
+                              label=""
+                              type={fieldType === 'email' ? 'email' : fieldType === 'number' ? 'number' : 'text'}
+                              value={clientResponses[fieldId] || clientResponses[fieldLabel] || ''}
+                              onChange={e => setClientResponses({
+                                ...clientResponses,
+                                [fieldId]: e.target.value
+                              })}
+                              placeholder={q.placeholder || ''}
+                            />
+                          </div>
+                        );
+                      }
+                    })}
                   </div>
                 </div>
-              </div>
-            )}
-            
+              );
+            })()}
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -979,9 +2244,9 @@ const LegalFirmWorkflow: React.FC = () => {
           <div className="space-y-6">
             <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-teal-900 mb-2">Form Details</h3>
-              <p className="text-teal-700">Review and complete additional form information before auto-filling.</p>
+              <p className="text-teal-700">Review all details filled so far before proceeding to auto-fill forms.</p>
             </div>
-            
+
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900">Selected Forms Summary</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -992,37 +2257,95 @@ const LegalFirmWorkflow: React.FC = () => {
                       <CheckCircle className="w-5 h-5 text-green-500" />
                     </div>
                     <p className="text-sm text-gray-500 mt-1">
-                      Ready for auto-fill with client data
+                      Will be auto-filled with client and case data
                     </p>
                   </div>
                 ))}
               </div>
-              
+
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">Data Summary</h4>
+                <h4 className="font-medium text-gray-900 mb-2">All Details Summary</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <strong>Client:</strong> {client.name}
-                  </div>
-                  <div>
-                    <strong>Email:</strong> {client.email}
-                  </div>
-                  <div>
-                    <strong>Case:</strong> {caseData.title}
-                  </div>
-                  <div>
-                    <strong>Category:</strong> {IMMIGRATION_CATEGORIES.find(c => c.id === caseData.category)?.name}
-                  </div>
-                  <div>
-                    <strong>Responses:</strong> {Object.keys(clientResponses).length} answers collected
-                  </div>
-                  <div>
-                    <strong>Forms:</strong> {selectedForms.length} forms selected
-                  </div>
+                  <div><strong>Client Name:</strong> {client.name}</div>
+                  <div><strong>Email:</strong> {client.email}</div>
+                  <div><strong>Phone:</strong> {client.phone}</div>
+                  <div><strong>Date of Birth:</strong> {client.dateOfBirth}</div>
+                  <div><strong>Nationality:</strong> {client.nationality}</div>
+                  <div><strong>Address:</strong> {client.address?.street}, {client.address?.city}, {client.address?.state} {client.address?.zipCode}, {client.address?.country}</div>
+                  <div><strong>Case Title:</strong> {caseData.title}</div>
+                  <div><strong>Case Number:</strong> {caseData.caseNumber}</div>
+                  <div><strong>Case Type:</strong> {caseData.type}</div>
+                  <div><strong>Status:</strong> {caseData.status}</div>
+                  <div><strong>Assigned Attorney:</strong> {caseData.assignedTo}</div>
+                  <div><strong>Open Date:</strong> {caseData.openDate}</div>
+                  <div><strong>Category:</strong> {IMMIGRATION_CATEGORIES.find(c => c.id === caseData.category)?.name}</div>
+                  <div><strong>Subcategory:</strong> {caseData.subcategory}</div>
+                  <div className="md:col-span-2"><strong>Description:</strong> {caseData.description}</div>
                 </div>
+
+                {/* Questionnaire responses summary */}
+                {questionnaireAssignment && (() => {
+                  // Enhanced flexible matching to find the assigned questionnaire
+                  const questionnaire = availableQuestionnaires.find(q => {
+                    // Check all possible ID fields
+                    const possibleIds = [
+                      q._id,          // MongoDB ObjectId
+                      q.id,           // Original ID or API ID
+                      q.originalId,   // Original ID before conversion
+                      q.name          // Fallback to name if used as ID
+                    ].filter(Boolean); // Remove undefined/null values
+                    
+                    // For API questionnaires, prioritize matching the q_ prefixed ID
+                    if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
+                      console.log(`Assignment: Found exact match for API questionnaire: ${q.id}`);
+                      return true;
+                    }
+                    
+                    // Check if any of the possible IDs match
+                    const matches = possibleIds.includes(questionnaireAssignment.questionnaireId);
+                    if (matches) {
+                      console.log(`Assignment: Found matching questionnaire by ID: ${questionnaireAssignment.questionnaireId} matched with:`, possibleIds);
+                    }
+                    return matches;
+                  });
+                  const questions = questionnaire ? (questionnaire.fields || questionnaire.questions) : [];
+                  if (!questions || questions.length === 0) {
+                    return (
+                      <div className="mt-6">
+                        <strong className="font-medium text-gray-900 mb-2 block">Questionnaire Responses</strong>
+                        <div className="text-gray-500 italic">No questionnaire responses found.</div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="mt-6">
+                      <strong className="font-medium text-gray-900 mb-2 block">Questionnaire Responses</strong>
+                      <div className="space-y-2">
+                        {questions.map((q: any, idx: number) => {
+                          const key = q.id || q.label || `q_${idx}`;
+                          const answer = clientResponses[key];
+                          let displayAnswer = '';
+                          if (Array.isArray(answer)) {
+                            displayAnswer = answer.join(', ');
+                          } else if (typeof answer === 'boolean') {
+                            displayAnswer = answer ? 'Yes' : 'No';
+                          } else {
+                            displayAnswer = answer || '-';
+                          }
+                          return (
+                            <div key={key} className="flex flex-col md:flex-row md:items-center md:gap-2">
+                              <span className="font-medium text-gray-700"><strong>{q.label || q.question}:</strong></span>
+                              <span className="text-gray-900">{displayAnswer}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
-            
+
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -1118,6 +2441,11 @@ const LegalFirmWorkflow: React.FC = () => {
         return null;
     }
   };
+
+  // API connectivity is checked through regular application flows
+
+  // Utility function to get and validate current user data
+  // User data is managed through the application context
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
