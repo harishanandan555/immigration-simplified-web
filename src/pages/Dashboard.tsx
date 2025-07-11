@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Clock,
@@ -8,10 +8,12 @@ import {
   AlertCircle,
   Users,
   FileCheck,
-  CalendarDays
+  CalendarDays,
+  ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../controllers/AuthControllers';
 import { mockCases, mockTasks, mockClients } from '../utils/mockData';
+import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
 import {
   BarChart,
   Bar,
@@ -27,8 +29,60 @@ import {
 } from 'recharts';
 
 const Dashboard = () => {
-  const { user, isClient } = useAuth();
+  const { user, isClient, isAttorney, isParalegal, isSuperAdmin } = useAuth();
   const [timeframe, setTimeframe] = useState<'week' | 'month' | 'quarter'>('month');
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [attorneyAssignments, setAttorneyAssignments] = useState<any[]>([]);
+  const [loadingQuestionnaires, setLoadingQuestionnaires] = useState(false);
+  const [loadingAttorneyQuestionnaires, setLoadingAttorneyQuestionnaires] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Load questionnaire assignments for clients
+  useEffect(() => {
+    if (isClient) {
+      const loadAssignments = async () => {
+        try {
+          setLoadingQuestionnaires(true);
+          const data = await questionnaireAssignmentService.getMyAssignments();
+          setAssignments(data);
+          
+          // Check for pending questionnaires to show notification
+          const pendingAssignments = data.filter(a => a.status === 'pending');
+          setPendingCount(pendingAssignments.length);
+          setShowNotification(pendingAssignments.length > 0);
+        } catch (error) {
+          console.error('Error loading questionnaire assignments:', error);
+        } finally {
+          setLoadingQuestionnaires(false);
+        }
+      };
+
+      loadAssignments();
+    }
+  }, [isClient]);
+
+  // Load questionnaire assignments for attorneys/superadmins
+  useEffect(() => {
+    if (isAttorney || isSuperAdmin) {
+      const loadAttorneyAssignments = async () => {
+        try {
+          setLoadingAttorneyQuestionnaires(true);
+          const data = await questionnaireAssignmentService.getAllAssignments({ 
+            status: 'completed',
+            limit: 5 
+          });
+          setAttorneyAssignments(data);
+        } catch (error) {
+          console.error('Error loading attorney questionnaire assignments:', error);
+        } finally {
+          setLoadingAttorneyQuestionnaires(false);
+        }
+      };
+
+      loadAttorneyAssignments();
+    }
+  }, [isAttorney, isSuperAdmin]);
 
   // Filter cases if user is a client
   const filteredCases = isClient
@@ -75,6 +129,44 @@ const Dashboard = () => {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-500">Welcome back, {user?.firstName} {user?.lastName}</p>
       </div>
+
+      {/* Notification for new questionnaires */}
+      {showNotification && isClient && (
+        <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <FileText className="h-5 w-5 text-blue-400" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-blue-700">
+                You have {pendingCount} {pendingCount === 1 ? 'questionnaire' : 'questionnaires'} pending completion.
+              </p>
+              <div className="mt-2">
+                <Link 
+                  to="/my-questionnaires"
+                  className="text-sm font-medium text-blue-700 hover:text-blue-600"
+                >
+                  View questionnaires <span aria-hidden="true">&rarr;</span>
+                </Link>
+              </div>
+            </div>
+            <div className="ml-auto pl-3">
+              <div className="-mx-1.5 -my-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowNotification(false)}
+                  className="inline-flex rounded-md p-1.5 text-blue-500 hover:bg-blue-100 focus:outline-none"
+                >
+                  <span className="sr-only">Dismiss</span>
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -166,6 +258,30 @@ const Dashboard = () => {
             <div className="mt-4">
               <Link to="/documents" className="text-sm text-purple-600 hover:text-purple-700 font-medium">
                 View documents →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Client Questionnaires */}
+        {isClient && (
+          <div className="card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">Pending Questionnaires</p>
+                <p className="text-2xl font-bold mt-1">
+                  {loadingQuestionnaires 
+                    ? '...' 
+                    : assignments.filter(a => a.status !== 'completed').length}
+                </p>
+              </div>
+              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                <ClipboardList size={20} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to="/my-questionnaires" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                Complete questionnaires →
               </Link>
             </div>
           </div>
@@ -390,6 +506,116 @@ const Dashboard = () => {
               )}
             </div>
           </div>
+
+          {/* Questionnaires */}
+          {isClient && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium">Questionnaires</h2>
+                <Link to="/my-questionnaires" className="text-sm text-primary-600 hover:text-primary-700">
+                  View all
+                </Link>
+              </div>
+
+              <div className="space-y-4">
+                {loadingQuestionnaires ? (
+                  <div className="py-4 text-center text-gray-500">
+                    <p className="text-sm">Loading your questionnaires...</p>
+                  </div>
+                ) : assignments.length > 0 ? (
+                  assignments.map(assignment => (
+                    <div
+                      key={assignment.id}
+                      className="p-3 rounded-lg border border-gray-200 bg-white"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {assignment.questionnaire.title}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Due: {new Date(assignment.dueDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <Link
+                            to={`/questionnaires/fill/${assignment._id}`}
+                            className="inline-flex items-center px-3 py-1 text-xs rounded-md bg-primary-100 text-primary-700 hover:bg-primary-200"
+                          >
+                            {assignment.status === 'completed' ? 'View Responses' : 'Continue Questionnaire'}
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-4 text-center text-gray-500">
+                    <ClipboardList className="mx-auto h-8 w-8 text-gray-400" />
+                    <p className="mt-2 text-sm">No questionnaires assigned</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Questionnaire Responses for Attorneys/Superadmins */}
+          {(isAttorney || isSuperAdmin) && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium">Recent Questionnaire Responses</h2>
+                <Link to="/questionnaires/responses" className="text-sm text-primary-600 hover:text-primary-700">
+                  View all
+                </Link>
+              </div>
+
+              <div className="space-y-4">
+                {loadingAttorneyQuestionnaires ? (
+                  <div className="py-4 text-center text-gray-500">
+                    <p className="text-sm">Loading recent responses...</p>
+                  </div>
+                ) : attorneyAssignments.length > 0 ? (
+                  attorneyAssignments.map(assignment => (
+                    <div
+                      key={assignment._id}
+                      className="p-3 rounded-lg border border-gray-200 bg-white"
+                    >
+                      <div className="flex items-start">
+                        <div className="text-green-500 flex-shrink-0">
+                          <CheckCircle size={18} />
+                        </div>
+                        <div className="ml-3 flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-900">
+                              {assignment.questionnaireId?.title || 'Untitled Questionnaire'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(assignment.completedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Client: {assignment.clientId?.firstName} {assignment.clientId?.lastName}
+                          </p>
+                          <div className="flex items-center justify-end mt-2">
+                            <Link
+                              to={`/questionnaires/response/${assignment._id}`}
+                              className="inline-flex items-center px-3 py-1 text-xs rounded-md bg-primary-100 text-primary-700 hover:bg-primary-200"
+                            >
+                              View Response
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-4 text-center text-gray-500">
+                    <ClipboardList className="mx-auto h-8 w-8 text-gray-400" />
+                    <p className="mt-2 text-sm">No recent questionnaire responses</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Quick Actions */}
           <div className="card">

@@ -30,7 +30,8 @@ import {
   Shield,
   Plane,
   X,
-  Clock
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { 
@@ -157,6 +158,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAddQuestionsGuide, setShowAddQuestionsGuide] = useState(false);
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
@@ -172,6 +174,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       
       // Check if API is available
       const isAPIAvailable = await questionnaireService.isAPIAvailable();
+      let loadedQuestionnaires = [];
       
       if (isAPIAvailable) {
         // Load from API
@@ -183,6 +186,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
         // Convert API format to local format
         const convertedQuestionnaires = response.questionnaires.map(convertAPIToLocal);
         setQuestionnaires(convertedQuestionnaires);
+        loadedQuestionnaires = convertedQuestionnaires;
         
         // Export function to make questionnaires available globally
         (window as any).getImmigrationQuestionnaires = () => convertedQuestionnaires;
@@ -194,12 +198,15 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
         if (savedQuestionnaires) {
           const localQuestionnaires = JSON.parse(savedQuestionnaires);
           setQuestionnaires(localQuestionnaires);
+          loadedQuestionnaires = localQuestionnaires;
           
           (window as any).getImmigrationQuestionnaires = () => localQuestionnaires;
           (window as any).getQuestionnaireByCategory = (category: string) => 
             localQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
         }
       }
+      
+      return loadedQuestionnaires;
         
     } catch (error: any) {
       console.error('Error loading questionnaires:', error);
@@ -242,25 +249,55 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
 
   // Convert local questionnaire format to API format
   const convertLocalToAPI = (localQuestionnaire: Partial<ImmigrationQuestionnaire>) => {
+    if (!localQuestionnaire) {
+      return {};
+    }
+    
+    // Ensure fields have all required properties
+    const formattedFields = localQuestionnaire.fields?.map((field, index) => ({
+      id: field.id || `field_${Date.now()}_${index}`,
+      type: field.type,
+      label: field.label,
+      placeholder: field.placeholder || '',
+      required: typeof field.required === 'boolean' ? field.required : false,
+      help_text: field.help_text || '',
+      eligibility_impact: field.eligibility_impact || 'medium',
+      options: ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type) ? 
+        (field.options?.length ? field.options : ['Option 1', 'Option 2']) : 
+        [],
+      validation: field.validation || {},
+      conditional_logic: field.conditional_logic || {},
+      order: field.order !== undefined ? field.order : index,
+      width: field.width || 'full',
+      category: field.category || '',
+      subcategory: field.subcategory || '',
+      weight: field.weight || 1
+    })) || [];
+    
+    // Format the settings object properly
+    const formattedSettings = {
+      show_progress_bar: localQuestionnaire.settings?.show_progress_bar !== false,
+      allow_back_navigation: localQuestionnaire.settings?.allow_back_navigation !== false,
+      auto_save: localQuestionnaire.settings?.auto_save !== false,
+      require_completion: localQuestionnaire.settings?.require_completion === true,
+      show_results: localQuestionnaire.settings?.show_results !== false,
+      theme: localQuestionnaire.settings?.theme || 'default'
+    };
+    
+    // Return formatted data for API
     return {
-      title: localQuestionnaire.title,
-      description: localQuestionnaire.description,
-      category: localQuestionnaire.category,
-      settings: localQuestionnaire.settings,
-      fields: localQuestionnaire.fields?.map(field => ({
-        id: field.id,
-        type: field.type,
-        label: field.label,
-        placeholder: field.placeholder,
-        required: field.required,
-        help_text: field.help_text,
-        eligibility_impact: field.eligibility_impact || 'medium',
-        options: field.options,
-        validation: field.validation,
-        conditional_logic: field.conditional_logic,
-        order: field.order
-      })) || [],
-      is_active: localQuestionnaire.is_active !== false
+      title: localQuestionnaire.title || 'Unnamed Questionnaire',
+      description: localQuestionnaire.description || '',
+      category: localQuestionnaire.category || 'general',
+      subcategory: localQuestionnaire.subcategory || '',
+      settings: formattedSettings,
+      fields: formattedFields,
+      is_active: localQuestionnaire.is_active !== false,
+      // Include metadata if updating an existing questionnaire
+      ...(localQuestionnaire.id && localQuestionnaire.id !== 'new' ? { 
+        id: localQuestionnaire.id,
+        version: localQuestionnaire.version
+      } : {})
     };
   };
 
@@ -343,91 +380,239 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     toast.success('Field deleted successfully');
   };
 
+  // Function to check if user is logged in before saving
+  const checkLoginBeforeSave = async () => {
+    // Check if there's a token
+    const token = localStorage.getItem('auth_token') || 
+                 sessionStorage.getItem('auth_token') || 
+                 localStorage.getItem('access_token') || 
+                 localStorage.getItem('token');
+    
+    if (!token) {
+      toast.error('You must be logged in to save questionnaires.');
+      setError('Authentication error: No login token found. Please log in.');
+      return false;
+    }
+    
+    return true;
+  };
+
   const saveQuestionnaire = async () => {
-    if (!selectedQuestionnaire) return;
+    if (!selectedQuestionnaire) {
+      toast.error('No questionnaire selected to save');
+      return;
+    }
+
+    // Check login before saving
+    const isLoggedIn = await checkLoginBeforeSave();
+    if (!isLoggedIn) return;
 
     try {
       setLoading(true);
+      setError(null);
+      
+      // Get and validate auth token
+      const authToken = localStorage.getItem('auth_token') || 
+                         sessionStorage.getItem('auth_token') || 
+                         localStorage.getItem('access_token') || 
+                         localStorage.getItem('token');
+      
+      if (!authToken) {
+        toast.error('Authentication token not found. Please log in again.');
+        setError('No authentication token found. Please log in again.');
+        setLoading(false);
+        return;
+      }
+      
+      // Test authentication
+      const authStatus = await questionnaireService.testAuthentication();
+      
+      if (!authStatus.isAuthenticated) {
+        toast.error(`Authentication error: ${authStatus.message}. Please log in again.`);
+        setError(`Authentication error: ${authStatus.message}`);
+        setLoading(false);
+        return;
+      }
       
       // Check if API is available
       const isAPIAvailable = await questionnaireService.isAPIAvailable();
       
-      if (isAPIAvailable) {
-        // Save via API
-        const apiData = convertLocalToAPI(selectedQuestionnaire);
-        
-        if (selectedQuestionnaire.id === 'new') {
-          // Create new questionnaire
-          await questionnaireService.createQuestionnaire(apiData as any);
-          toast.success('Questionnaire created successfully');
-        } else {
-          // Update existing questionnaire
-          await questionnaireService.updateQuestionnaire(selectedQuestionnaire.id, apiData as any);
-          toast.success('Questionnaire updated successfully');
-        }
-        
-        // Reload to get updated data
-        await loadQuestionnaires();
-        setSelectedQuestionnaire(null);
-      } else {
-        // Fallback to localStorage
-        let updatedQuestionnaires = [...questionnaires];
-        
-        if (selectedQuestionnaire.id === 'new') {
-          const newQuestionnaire = {
-            ...selectedQuestionnaire,
-            id: Date.now().toString(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            version: 1
-          };
-          updatedQuestionnaires.push(newQuestionnaire);
-          toast.success('Questionnaire created successfully (offline)');
-        } else {
-          const index = updatedQuestionnaires.findIndex(q => q.id === selectedQuestionnaire.id);
-          if (index >= 0) {
-            updatedQuestionnaires[index] = {
-              ...selectedQuestionnaire,
-              updated_at: new Date().toISOString()
-            };
-            toast.success('Questionnaire updated successfully (offline)');
-          }
-        }
-        
-        setQuestionnaires(updatedQuestionnaires);
-        localStorage.setItem('immigration-questionnaires', JSON.stringify(updatedQuestionnaires));
-        setSelectedQuestionnaire(null);
-        
-        // Update global functions
-        (window as any).getImmigrationQuestionnaires = () => updatedQuestionnaires;
-        (window as any).getQuestionnaireByCategory = (category: string) => 
-          updatedQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
+      if (!isAPIAvailable) {
+        toast.error('API is not available. Please check your internet connection and try again.');
+        setError('API is not available. Please check your internet connection and try again.');
+        setLoading(false);
+        return;
       }
       
+      // Format and validate questionnaire data
+      const apiData = convertLocalToAPI(selectedQuestionnaire);
+      
+      if (Object.keys(apiData).length === 0 || !(apiData as { title?: string }).title || (apiData as { title?: string }).title?.trim() === '') {
+        toast.error('Questionnaire title is required');
+        setError('Questionnaire title is required');
+        setLoading(false);
+        return;
+      }
+      
+      if (selectedQuestionnaire.id === 'new') {
+        // Create new questionnaire
+        try {
+          const response = await questionnaireService.createQuestionnaire(apiData as any);
+          toast.success('Questionnaire created successfully');
+          
+          // Verify the questionnaire was created and fetch it
+          try {
+            const createdQuestionnaire = await questionnaireService.getQuestionnaireById(response.id);
+            
+            // Update UI with created questionnaire but keep the questionnaire selected
+            const updatedQuestionnaires = await loadQuestionnaires();              // Find the newly created questionnaire and select it
+              const newlyCreated = updatedQuestionnaires.find((q: ImmigrationQuestionnaire) => q.id === response.id);
+              if (newlyCreated) {
+                setSelectedQuestionnaire(newlyCreated);
+                toast.info('Now you can add questions to your questionnaire');
+                // Show the guide banner
+                setShowAddQuestionsGuide(true);
+                
+                // Auto-hide the guide after 15 seconds
+                setTimeout(() => {
+                  setShowAddQuestionsGuide(false);
+                }, 15000);
+              } else {
+                // If we can't find it for some reason, use the returned data with proper formatting
+                const formattedNewQuestionnaire = {
+                  ...createdQuestionnaire,
+                  id: response.id,
+                  fields: createdQuestionnaire.fields || []
+                };
+                setSelectedQuestionnaire(formattedNewQuestionnaire);
+                setShowAddQuestionsGuide(true);
+              }
+              setShowQuestionnaireSettings(false);
+            setShowAddQuestionsGuide(true);
+            
+          } catch (verifyError) {
+            toast.warning('Questionnaire may not have been saved correctly. Please check and try again.');
+          }
+        } catch (apiError: any) {
+          // Check for specific error types
+          if (apiError.message.includes('Authentication') || apiError.message.includes('log in')) {
+            toast.error('Authentication error. Please log in again.');
+          } else if (apiError.message.includes('title already exists')) {
+            toast.error('A questionnaire with this title already exists. Please choose a different title.');
+          } else {
+            toast.error(`Failed to create questionnaire: ${apiError.message}`);
+          }
+          setError(`Failed to create questionnaire: ${apiError.message}`);
+        }
+      } else {
+        // Update existing questionnaire
+        try {
+          const response = await questionnaireService.updateQuestionnaire(selectedQuestionnaire.id, apiData as any);
+          toast.success('Questionnaire updated successfully');
+          
+          // Reload questionnaires but keep the questionnaire selected
+          const updatedQuestionnaires = await loadQuestionnaires();
+          
+          // Find the updated questionnaire and keep it selected
+          const updatedQuestionnaire = updatedQuestionnaires.find((q: ImmigrationQuestionnaire) => q.id === selectedQuestionnaire.id);
+          if (updatedQuestionnaire) {
+            setSelectedQuestionnaire(updatedQuestionnaire);
+          }
+          setShowQuestionnaireSettings(false);
+          
+        } catch (updateError: any) {
+          console.error('API error updating questionnaire:', updateError);
+          
+          // Check for specific error types
+          if (updateError.message.includes('Authentication') || updateError.message.includes('log in')) {
+            toast.error('Authentication error. Please log in again.');
+          } else {
+            toast.error(`Failed to update questionnaire: ${updateError.message}`);
+          }
+          
+          setError(`Failed to update questionnaire: ${updateError.message}`);
+        }
+      }
     } catch (error: any) {
       console.error('Error saving questionnaire:', error);
       toast.error('Failed to save questionnaire: ' + error.message);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
+
+
 
   const deleteQuestionnaire = async (questionnaireId: string) => {
     if (!confirm('Are you sure you want to delete this questionnaire?')) return;
 
     try {
       setLoading(true);
+      setError(null);
+      
+      // Get and validate auth token first
+      const authToken = localStorage.getItem('auth_token') || 
+                       sessionStorage.getItem('auth_token') || 
+                       localStorage.getItem('access_token') || 
+                       localStorage.getItem('token');
+      
+      if (!authToken) {
+        toast.error('Authentication token not found. Please log in again.');
+        setError('No authentication token found. Please log in again.');
+        setLoading(false);
+        return;
+      }
       
       // Check if API is available
       const isAPIAvailable = await questionnaireService.isAPIAvailable();
       
       if (isAPIAvailable) {
-        // Delete via API
-        await questionnaireService.deleteQuestionnaire(questionnaireId);
-        toast.success('Questionnaire deleted successfully');
-        
-        // Remove from local state
-        setQuestionnaires(prev => prev.filter((q: ImmigrationQuestionnaire) => q.id !== questionnaireId));
+        try {
+          // Direct fetch approach for better error visibility
+          const baseURL = import.meta.env.VITE_API_BASE_URL || 
+                         (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+                           ? "http://localhost:5005/api/v1"
+                           : "https://immigration-simplified-api.onrender.com/api/v1");
+          
+          const response = await fetch(`${baseURL}/questionnaires/${questionnaireId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${authToken}`
+            }
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            
+            // Handle specific error codes
+            if (response.status === 401) {
+              toast.error('Authentication failed. Please log in again.');
+            } else if (response.status === 404) {
+              toast.error('Questionnaire not found. It may have been already deleted.');
+            } else if (response.status === 403) {
+              toast.error('You do not have permission to delete this questionnaire.');
+            } else {
+              toast.error(`Failed to delete: ${response.statusText}`);
+            }
+            
+            throw new Error(`Delete failed: ${response.statusText}`);
+          }
+          
+          // Successfully deleted
+          toast.success('Questionnaire deleted successfully');
+          
+          // Remove from local state
+          setQuestionnaires(prev => prev.filter((q: ImmigrationQuestionnaire) => q.id !== questionnaireId));
+          
+          // Clear selection if the deleted questionnaire was selected
+          if (selectedQuestionnaire?.id === questionnaireId) {
+            setSelectedQuestionnaire(null);
+          }
+        } catch (apiError: any) {
+          toast.error(`Delete failed: ${apiError.message}`);
+          throw apiError; // Re-throw to be caught by the outer catch
+        }
       } else {
         // Fallback to localStorage
         const updatedQuestionnaires = questionnaires.filter((q: ImmigrationQuestionnaire) => q.id !== questionnaireId);
@@ -439,14 +624,15 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
         (window as any).getImmigrationQuestionnaires = () => updatedQuestionnaires;
         (window as any).getQuestionnaireByCategory = (category: string) => 
           updatedQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
-      }
-      
-      if (selectedQuestionnaire?.id === questionnaireId) {
-        setSelectedQuestionnaire(null);
+          
+        // Clear selection if the deleted questionnaire was selected
+        if (selectedQuestionnaire?.id === questionnaireId) {
+          setSelectedQuestionnaire(null);
+        }
       }
     } catch (error: any) {
-      console.error('Error deleting questionnaire:', error);
-      toast.error('Failed to delete questionnaire: ' + error.message);
+      toast.error(`Failed to delete questionnaire: ${error.message || 'Unknown error'}`);
+      setError(`Delete failed: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -527,6 +713,10 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       event.target.value = '';
     }
   };
+  
+
+
+
 
   const filteredQuestionnaires = questionnaires.filter(questionnaire => {
     // Ensure questionnaire has required properties
@@ -884,28 +1074,41 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 pt-6 border-t">
-              <button
-                onClick={() => setShowQuestionnaireSettings(false)}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowQuestionnaireSettings(false);
-                  saveQuestionnaire();
-                }}
-                disabled={!selectedQuestionnaire.title.trim() || loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {loading ? (
-                  <Clock className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4 mr-2" />
-                )}
-                Save Settings
-              </button>
+            <div className="pt-6 border-t">
+              {selectedQuestionnaire.id === 'new' && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-700 text-sm">
+                  <div className="font-medium mb-1">Creating a new questionnaire:</div>
+                  <ol className="list-decimal list-inside space-y-1 pl-2">
+                    <li>Save these basic settings first</li>
+                    <li>Then add questions to your questionnaire</li>
+                    <li>All changes will be saved to the database</li>
+                  </ol>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowQuestionnaireSettings(false)}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowQuestionnaireSettings(false);
+                    saveQuestionnaire();
+                  }}
+                  disabled={!selectedQuestionnaire.title.trim() || loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {loading ? (
+                    <Clock className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  {selectedQuestionnaire.id === 'new' ? 'Create & Continue' : 'Save Settings'}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -913,49 +1116,75 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     </div>
   );
 
+
+
+  // Helper function to check auth token
+
+
   if (!isSuperAdmin && !isAttorney) {
     return null;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-medium text-gray-900">Immigration Questionnaire Builder</h2>
-        <div className="flex space-x-4">
-          <input
-            type="text"
-            placeholder="Search questionnaires..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Categories</option>
-            {immigrationCategories.map(category => (
-              <option key={category.id} value={category.id}>{category.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={createNewQuestionnaire}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-          >
-            <Plus size={18} className="mr-2" />
-            New Questionnaire
-          </button>
-          <label className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 cursor-pointer flex items-center">
-            <Upload size={18} className="mr-2" />
-            Import
+    <div className="space-y-8 max-w-7xl mx-auto p-6">
+      {/* Error display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 flex items-start">
+          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 mr-2 flex-shrink-0" />
+          <div>
+            <h3 className="font-medium">Error</h3>
+            <p className="text-sm">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Main Card Container for Header and Controls */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6">
+        <div className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">Immigration Form Builder</h2>
+            <p className="text-gray-500 text-sm">Create, edit, and organize custom forms for all immigration categories.</p>
+          </div>
+          {/* Controls: search and filter on first row, buttons on second row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
             <input
-              type="file"
-              accept=".json"
-              onChange={importQuestionnaire}
-              className="hidden"
+              type="text"
+              placeholder="Search questionnaires..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Categories</option>
+              {immigrationCategories.map(category => (
+                <option key={category.id} value={category.id}>{category.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
+            <button
+              onClick={createNewQuestionnaire}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center font-medium shadow-sm whitespace-nowrap"
+              style={{ minWidth: 0 }}
+            >
+              <Plus size={18} className="mr-2" />
+              New Questionnaire
+            </button>
+            <label className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 cursor-pointer flex items-center justify-center font-medium shadow-sm whitespace-nowrap" style={{ minWidth: 0 }}>
+              <Upload size={18} className="mr-2" />
+              Import
+              <input
+                type="file"
+                accept=".json"
+                onChange={importQuestionnaire}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
       </div>
 
@@ -1026,44 +1255,78 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
         <div className="lg:col-span-2">
           {selectedQuestionnaire ? (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="font-medium text-gray-900">{selectedQuestionnaire.title}</h3>
-                  <p className="text-sm text-gray-500">{selectedQuestionnaire.fields?.length || 0} questions</p>
+              <div>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-medium text-gray-900">{selectedQuestionnaire.title}</h3>
+                    <p className="text-sm text-gray-500">{selectedQuestionnaire.fields?.length || 0} questions</p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setShowQuestionnaireSettings(true)}
+                      className="px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center"
+                    >
+                      <Settings size={16} className="mr-1" />
+                      Settings
+                    </button>
+                    <button
+                      onClick={saveQuestionnaire}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+                    >
+                      <Save size={16} className="mr-1" />
+                      Save
+                    </button>
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setShowQuestionnaireSettings(true)}
-                    className="px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center"
-                  >
-                    <Settings size={16} className="mr-1" />
-                    Settings
-                  </button>
-                  <button
-                    onClick={saveQuestionnaire}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-                  >
-                    <Save size={16} className="mr-1" />
-                    Save
-                  </button>
-                </div>
+                
+                {/* Guide banner that shows after creating a new questionnaire */}
+                {showAddQuestionsGuide && (
+                  <div className="mt-4 mb-6 p-4 bg-green-50 border border-green-200 rounded-md flex items-start">
+                    <div className="bg-green-100 p-2 rounded-full mr-3">
+                      <Plus size={20} className="text-green-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-green-800 font-medium mb-1">Ready to Add Questions!</h4>
+                      <p className="text-green-700 text-sm mb-2">
+                        Your questionnaire has been created. Now you can add questions by:
+                      </p>
+                      <ol className="list-decimal text-sm text-green-700 pl-5 space-y-1">
+                        <li>Select a field type from the "Add Questions" section below</li>
+                        <li>Configure your question details in the popup form</li>
+                        <li>Click "Save Field" to add it to your questionnaire</li>
+                      </ol>
+                      <button 
+                        onClick={() => setShowAddQuestionsGuide(false)}
+                        className="text-sm text-green-700 hover:text-green-900 mt-2 underline"
+                      >
+                        Dismiss this message
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Question Types Palette */}
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">Add Questions</h4>
-                <div className="grid grid-cols-4 gap-2">
+              <div className="bg-gray-50 p-4 border border-gray-200 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                  <Plus size={18} className="mr-2 text-blue-600" />
+                  Add Questions to Questionnaire
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {questionnaireFieldTypes.map(fieldType => (
                     <button
                       key={fieldType.type}
                       onClick={() => addQuestionnaireField(fieldType.type)}
-                      className="p-2 border border-gray-200 rounded-md hover:bg-gray-50 text-xs flex flex-col items-center"
+                      className="p-3 border border-gray-200 bg-white rounded-md hover:bg-blue-50 hover:border-blue-300 text-sm flex flex-col items-center transition-colors"
                     >
-                      <fieldType.icon size={16} className="mb-1" />
+                      <fieldType.icon size={18} className="mb-2 text-gray-600" />
                       {fieldType.label}
                     </button>
                   ))}
                 </div>
+                <p className="text-xs text-gray-500 mt-3">
+                  Click on a field type above to add it to your questionnaire. You can reorder fields later by dragging.
+                </p>
               </div>
 
               {/* Questions List */}
@@ -1118,20 +1381,41 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                   )}
                 </div>
               </div>
+
+              {showAddQuestionsGuide && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-md text-green-800 text-sm">
+                  <div className="font-medium mb-2">Quick Start: Add Questions</div>
+                  <p className="mb-2">Your new questionnaire is ready! Follow these steps to add questions:</p>
+                  <ol className="list-decimal list-inside pl-5">
+                    <li>Click on the question type buttons above to add fields.</li>
+                    <li>Fill in the details for each question in the panel that appears.</li>
+                    <li>Use the drag-and-drop feature to reorder questions as needed.</li>
+                  </ol>
+                  <p className="mt-2 font-medium">Tip:</p>
+                  <p>Use the preview feature to see how your questionnaire looks to users.</p>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <button
+                      onClick={() => setShowAddQuestionsGuide(false)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+                    >
+                      Got it, thanks!
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-12 text-gray-500">
-              <HelpCircle size={48} className="mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium">No questionnaire selected</p>
-              <p>Select a questionnaire from the list or create a new one to start building</p>
+              <HelpCircle size={48} className="mx-auto mb-2 text-gray-300" />
+              <p>Select or create a questionnaire to start building</p>
             </div>
           )}
         </div>
       </div>
-
+      
       {/* Modals */}
       {showFieldEditor && renderFieldEditor()}
       {showQuestionnaireSettings && renderQuestionnaireSettings()}
     </div>
   );
-}; 
+};

@@ -33,6 +33,7 @@ import {
   Heart,
   Shield,
   Plane,
+  Clipboard,
   X
 } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -720,130 +721,155 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-medium text-gray-900">Immigration Questionnaire Builder</h2>
-        <div className="flex space-x-4">
-          <input
-            type="text"
-            placeholder="Search questionnaires..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Categories</option>
-            {immigrationCategories.map(category => (
-              <option key={category.id} value={category.id}>{category.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={createNewQuestionnaire}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-          >
-            <Plus size={18} className="mr-2" />
-            New Questionnaire
-          </button>
-          <label className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 cursor-pointer flex items-center">
-            <Upload size={18} className="mr-2" />
-            Import
+    <div className="space-y-8 max-w-7xl mx-auto p-6">
+      {/* Main Card Container for Header and Controls */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6">
+        <div className="flex flex-col gap-4">
+          <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Immigration Form Builder</h2>
+          <p className="text-gray-500 text-sm">Create, edit, and organize custom forms for all immigration categories.</p>
+          </div>
+          {/* Controls: search and filter on first row, buttons on second row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
             <input
-              type="file"
-              accept=".json"
-              onChange={importQuestionnaire}
-              className="hidden"
+              type="text"
+              placeholder="Search questionnaires..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Categories</option>
+              {immigrationCategories.map(category => (
+                <option key={category.id} value={category.id}>{category.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
+            <button
+              onClick={createNewQuestionnaire}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center font-medium shadow-sm whitespace-nowrap"
+              style={{ minWidth: 0 }}
+            >
+              <Plus size={18} className="mr-2" />
+              New Questionnaire
+            </button>
+            <label className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 cursor-pointer flex items-center justify-center font-medium shadow-sm whitespace-nowrap" style={{ minWidth: 0 }}>
+              <Upload size={18} className="mr-2" />
+              Import
+              <input
+                type="file"
+                accept=".json"
+                onChange={importQuestionnaire}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Questionnaires List */}
-        <div className="space-y-4">
-          <h3 className="font-medium text-gray-900">Questionnaires ({filteredQuestionnaires.length})</h3>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {filteredQuestionnaires.map(questionnaire => (
-              <div
-                key={questionnaire.id}
-                className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
-                  selectedQuestionnaire?.id === questionnaire.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                }`}
-                onClick={() => setSelectedQuestionnaire(questionnaire)}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{questionnaire.name}</h4>
-                    <p className="text-sm text-gray-500">
-                      {immigrationCategories.find(c => c.id === questionnaire.category)?.label}
-                    </p>
-                    <p className="text-xs text-gray-400">{questionnaire.questions.length} questions</p>
-                  </div>
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        exportQuestionnaire(questionnaire);
-                      }}
-                      className="p-1 text-gray-400 hover:text-gray-600"
-                    >
-                      <Download size={14} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        duplicateQuestionnaire(questionnaire);
-                      }}
-                      className="p-1 text-gray-400 hover:text-gray-600"
-                    >
-                      <Copy size={14} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteQuestionnaire(questionnaire.id);
-                      }}
-                      className="p-1 text-gray-400 hover:text-red-600"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+        <div className="space-y-6 bg-white border border-gray-100 rounded-xl shadow-sm p-6 h-fit">
+          <h3 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
+            <Clipboard className="w-5 h-5 text-blue-500" />
+            Questionnaires <span className="text-xs text-gray-400 font-normal">({filteredQuestionnaires.length})</span>
+          </h3>
+          <div className="space-y-3 max-h-[32rem] overflow-y-auto pr-1">
+            {filteredQuestionnaires.length === 0 ? (
+              <div className="text-center text-gray-400 py-8">
+                <HelpCircle size={40} className="mx-auto mb-2 text-gray-200" />
+                <p>No questionnaires found</p>
+              </div>
+            ) : (
+              filteredQuestionnaires.map(questionnaire => (
+                <div
+                  key={questionnaire.id}
+                  className={`transition border rounded-lg cursor-pointer hover:shadow-md hover:border-blue-400 bg-gray-50 px-4 py-3 ${
+                    selectedQuestionnaire?.id === questionnaire.id ? 'border-blue-500 bg-blue-50 shadow' : 'border-gray-200'
+                  }`}
+                  onClick={() => setSelectedQuestionnaire(questionnaire)}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 text-base mb-1">{questionnaire.name}</h4>
+                      <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                        <FileText className="w-4 h-4 text-blue-400" />
+                        {immigrationCategories.find(c => c.id === questionnaire.category)?.label}
+                        <span className="ml-2 text-gray-400">{questionnaire.questions.length} questions</span>
+                      </div>
+                      <p className="text-xs text-gray-400 line-clamp-2">{questionnaire.description}</p>
+                    </div>
+                    <div className="flex flex-col gap-1 items-end">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          exportQuestionnaire(questionnaire);
+                        }}
+                        className="p-1 text-gray-400 hover:text-blue-600"
+                        title="Export"
+                      >
+                        <Download size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          duplicateQuestionnaire(questionnaire);
+                        }}
+                        className="p-1 text-gray-400 hover:text-green-600"
+                        title="Duplicate"
+                      >
+                        <Copy size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteQuestionnaire(questionnaire.id);
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-600"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
         {/* Questionnaire Builder */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 bg-white border border-gray-100 rounded-xl shadow-sm p-8 min-h-[32rem] flex flex-col">
           {selectedQuestionnaire ? (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
+            <div className="space-y-8 flex-1 flex flex-col">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 border-b pb-4">
                 <div>
-                  <h3 className="font-medium text-gray-900">{selectedQuestionnaire.name}</h3>
+                  <h3 className="font-bold text-xl text-gray-900 mb-1">{selectedQuestionnaire.name}</h3>
                   <p className="text-sm text-gray-500">{selectedQuestionnaire.questions.length} questions</p>
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex flex-wrap gap-2 items-center">
                   <button
                     onClick={() => setShowQuestionnaireSettings(true)}
-                    className="px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center"
+                    className="px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center font-medium"
                   >
                     <Settings size={16} className="mr-1" />
                     Settings
                   </button>
                   <button
                     onClick={() => setPreviewMode(true)}
-                    className="px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center"
+                    className="px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center font-medium"
                   >
                     <Eye size={16} className="mr-1" />
                     Preview
                   </button>
                   <button
                     onClick={saveQuestionnaire}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center font-medium shadow-sm"
                   >
                     <Save size={16} className="mr-1" />
                     Save
@@ -853,15 +879,15 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
 
               {/* Question Types Palette */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-2">Add Questions</h4>
-                <div className="grid grid-cols-4 gap-2">
+                <h4 className="font-semibold text-gray-900 mb-2">Add Questions</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {questionnaireFieldTypes.map(fieldType => (
                     <button
                       key={fieldType.type}
                       onClick={() => addQuestionnaireField(fieldType.type)}
-                      className="p-2 border border-gray-200 rounded-md hover:bg-gray-50 text-xs flex flex-col items-center"
+                      className="p-3 border border-gray-200 rounded-lg hover:bg-blue-50 text-xs flex flex-col items-center transition shadow-sm"
                     >
-                      <fieldType.icon size={16} className="mb-1" />
+                      <fieldType.icon size={18} className="mb-1 text-blue-500" />
                       {fieldType.label}
                     </button>
                   ))}
@@ -869,9 +895,9 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
               </div>
 
               {/* Questions List */}
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">Questions</h4>
-                <div className="space-y-2">
+              <div className="flex-1 flex flex-col">
+                <h4 className="font-semibold text-gray-900 mb-2">Questions</h4>
+                <div className="space-y-3 flex-1">
                   {selectedQuestionnaire.questions
                     .sort((a, b) => a.order - b.order)
                     .map((question, index) => (
@@ -881,44 +907,44 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                         onDragStart={() => handleDragStart(index)}
                         onDragEnter={() => handleDragEnter(index)}
                         onDragEnd={handleDragEnd}
-                        className="p-3 border border-gray-200 rounded-md bg-white hover:bg-gray-50 cursor-move"
+                        className="p-4 border border-gray-200 rounded-lg bg-white hover:bg-blue-50 cursor-move flex justify-between items-center shadow-sm transition"
                       >
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center space-x-3">
-                            <Move size={16} className="text-gray-400" />
-                            <div>
-                              <span className="font-medium text-gray-900">{question.label}</span>
-                              <span className="text-sm text-gray-500 ml-2">({question.type})</span>
-                              {question.required && (
-                                <span className="text-xs text-red-500 ml-1">Required</span>
-                              )}
-                              {question.eligibilityImpact === 'high' && (
-                                <span className="text-xs text-orange-500 ml-1">High Impact</span>
-                              )}
-                            </div>
+                        <div className="flex items-center gap-3">
+                          <Move size={18} className="text-gray-300" />
+                          <div>
+                            <span className="font-medium text-gray-900">{question.label}</span>
+                            <span className="text-xs text-gray-500 ml-2">({question.type})</span>
+                            {question.required && (
+                              <span className="text-xs text-red-500 ml-2">Required</span>
+                            )}
+                            {question.eligibilityImpact === 'high' && (
+                              <span className="text-xs text-orange-500 ml-2">High Impact</span>
+                            )}
                           </div>
-                          <div className="flex space-x-1">
-                            <button
-                              onClick={() => editQuestionnaireField(question)}
-                              className="p-1 text-gray-400 hover:text-gray-600"
-                            >
-                              <Edit3 size={14} />
-                            </button>
-                            <button
-                              onClick={() => deleteQuestionnaireField(question.id)}
-                              className="p-1 text-gray-400 hover:text-red-600"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => editQuestionnaireField(question)}
+                            className="p-1 text-gray-400 hover:text-blue-600"
+                            title="Edit"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => deleteQuestionnaireField(question.id)}
+                            className="p-1 text-gray-400 hover:text-red-600"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </div>
                     ))}
 
                   {selectedQuestionnaire.questions.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <HelpCircle size={48} className="mx-auto mb-2 text-gray-300" />
-                      <p>No questions added yet</p>
+                    <div className="text-center py-12 text-gray-400">
+                      <HelpCircle size={48} className="mx-auto mb-2 text-gray-200" />
+                      <p className="font-medium">No questions added yet</p>
                       <p className="text-sm">Click on a question type above to get started</p>
                     </div>
                   )}
@@ -926,10 +952,10 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
               </div>
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <HelpCircle size={48} className="mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium">No questionnaire selected</p>
-              <p>Select a questionnaire from the list or create a new one to start building</p>
+            <div className="flex flex-col items-center justify-center h-full min-h-[20rem] text-gray-400 text-center">
+              <HelpCircle size={56} className="mx-auto mb-4 text-gray-200" />
+              <p className="text-xl font-semibold">No questionnaire selected</p>
+              <p className="text-base">Select a questionnaire from the list or create a new one to start building</p>
             </div>
           )}
         </div>
