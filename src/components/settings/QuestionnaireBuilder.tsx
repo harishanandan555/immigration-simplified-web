@@ -447,7 +447,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       // Format and validate questionnaire data
       const apiData = convertLocalToAPI(selectedQuestionnaire);
       
-      if (Object.keys(apiData).length === 0 || !(apiData as { title?: string }).title || (apiData as { title?: string }).title?.trim() === '') {
+      if (Object.keys(apiData).length === 0 || !apiData.title || apiData.title.trim() === '') {
         toast.error('Questionnaire title is required');
         setError('Questionnaire title is required');
         setLoading(false);
