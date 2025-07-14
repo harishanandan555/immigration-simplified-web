@@ -399,4 +399,96 @@ export const USCIS_FORMS_END_POINTS = {
     GET_PDF: "/api/v1/uscis-forms/:formNumber"
 };
 
+export const PDF_TEMPLATE_END_POINTS = {
+    // Get PDF form fields and parameters
+    GET_FIELDS: "/api/v1/pdf-templates/render/fields/:templateId",
+    
+    // Update PDF form fields configuration
+    UPDATE_FIELDS: "/api/v1/pdf-templates/update/fields/:pdfTemplateName",
+    
+    // Render PDF form
+    RENDER_PDF: "/api/v1/pdf-templates/render/:templateId",
+    
+    // Download multiple PDF forms
+    DOWNLOAD_MULTIPLE: "/api/v1/pdf-templates/download",
+    
+    // Template management
+    GET_ALL_TEMPLATES: "/api/v1/pdf-templates",
+    GET_TEMPLATE_BY_ID: "/api/v1/pdf-templates/:templateId",
+    CREATE_TEMPLATE: "/api/v1/pdf-templates",
+    UPDATE_TEMPLATE: "/api/v1/pdf-templates/:templateId",
+    DELETE_TEMPLATE: "/api/v1/pdf-templates/:templateId",
+    
+    // Template validation
+    VALIDATE_TEMPLATE: "/api/v1/pdf-templates/:templateId/validate",
+    
+    // Template preview
+    PREVIEW_TEMPLATE: "/api/v1/pdf-templates/:templateId/preview",
+    
+    // Template export/import
+    EXPORT_TEMPLATE: "/api/v1/pdf-templates/:templateId/export",
+    IMPORT_TEMPLATE: "/api/v1/pdf-templates/import",
+    
+    // Template versioning
+    GET_TEMPLATE_VERSIONS: "/api/v1/pdf-templates/:templateId/versions",
+    RESTORE_TEMPLATE_VERSION: "/api/v1/pdf-templates/:templateId/versions/:versionId/restore",
+    
+    // Template sharing
+    SHARE_TEMPLATE: "/api/v1/pdf-templates/:templateId/share",
+    UNSHARE_TEMPLATE: "/api/v1/pdf-templates/:templateId/unshare",
+    GET_TEMPLATE_PERMISSIONS: "/api/v1/pdf-templates/:templateId/permissions",
+    UPDATE_TEMPLATE_PERMISSIONS: "/api/v1/pdf-templates/:templateId/permissions"
+} as const;
+
+// PDF Template Field Types
+export const PDF_FIELD_TYPES = {
+    TEXT: 'text',
+    NUMBER: 'number',
+    DATE: 'date',
+    CHECKBOX: 'checkbox',
+    RADIO: 'radio',
+    SIGNATURE: 'signature',
+    ADDRESS: 'address',
+    PHONE: 'phone',
+    EMAIL: 'email',
+    SSN: 'ssn',
+    ALIEN_NUMBER: 'alien_number',
+    RECEIPT_NUMBER: 'receipt_number',
+    SELECT: 'select',
+    MULTI_SELECT: 'multi_select'
+} as const;
+
+// PDF Template Status
+export const PDF_TEMPLATE_STATUS = {
+    DRAFT: 'draft',
+    ACTIVE: 'active',
+    ARCHIVED: 'archived',
+    DEPRECATED: 'deprecated'
+} as const;
+
+// PDF Template Categories
+export const PDF_TEMPLATE_CATEGORIES = {
+    FAMILY_BASED: 'family_based',
+    EMPLOYMENT_BASED: 'employment_based',
+    NATURALIZATION: 'naturalization',
+    ASYLUM: 'asylum',
+    FOIA: 'foia',
+    OTHER: 'other'
+} as const;
+
+// Common Immigration Form Templates
+export const COMMON_IMMIGRATION_FORMS = {
+    G_28: 'g-28',
+    I_130: 'i-130',
+    I_485: 'i-485',
+    I_765: 'i-765',
+    I_864: 'i-864',
+    I_90: 'i-90',
+    I_751: 'i-751',
+    N_400: 'n-400',
+    N_600: 'n-600',
+    I_821: 'i-821',
+    I_589: 'i-589'
+} as const;
+
 
