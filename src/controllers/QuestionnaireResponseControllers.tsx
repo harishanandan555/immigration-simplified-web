@@ -16,27 +16,39 @@ export interface QuestionnaireResponse {
  * Submit responses for a questionnaire assignment
  * @param assignmentId The ID of the questionnaire assignment
  * @param responses The responses data to submit
+ * @param notes Optional notes to include with the submission
  * @returns The created/updated questionnaire response object
  */
 export const submitQuestionnaireResponses = async (
   assignmentId: string,
-  responses: Record<string, any>
+  responses: Record<string, any>,
+  notes?: string
 ): Promise<QuestionnaireResponse> => {
   try {
-    const response = await api.post(`/api/v1/questionnaire-assignments/${assignmentId}/responses`, {
+    // Use the correct endpoint that matches the backend
+    const response = await api.post(`/api/v1/questionnaire-assignments/${assignmentId}/submit`, {
       responses,
-      status: 'submitted'
+      notes
     });
-    return response.data;
-  } catch (error) {
+    return response.data.data || response.data;
+  } catch (error: any) {
     console.error('Error submitting questionnaire responses:', error);
+    
+    // Handle specific authorization errors
+    if (error.response?.status === 403) {
+      const errorMessage = error.response?.data?.error || 'Not authorized to submit responses for this assignment';
+      throw new Error(`Authorization Error: ${errorMessage}. Please contact your attorney or ensure you are logged in with the correct account.`);
+    }
+    
     // For resilience in case of API failure, store in localStorage
     const localResponses = JSON.parse(localStorage.getItem('questionnaire-responses') || '[]');
     const newResponse = {
       id: `response_${Date.now()}`,
       assignmentId,
+      questionnaireId: 'unknown', // We don't have this in this context
+      clientId: 'unknown', // We don't have this in this context
       responses,
-      status: 'submitted',
+      status: 'submitted' as const,
       submittedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

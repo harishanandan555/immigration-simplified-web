@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, 
@@ -10,35 +10,18 @@ import {
   Loader2
 } from 'lucide-react';
 import { useAuth } from '../controllers/AuthControllers';
-import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
+import { useQuestionnaireAssignments } from '../hooks/useQuestionnaireAssignments';
 import toast from 'react-hot-toast';
-
-interface QuestionnaireAssignment {
-  _id: string;
-  questionnaireId: {
-    _id: string;
-    title: string;
-    category: string;
-    description: string;
-  };
-  caseId?: {
-    _id: string;
-    title: string;
-    category: string;
-  };
-  status: 'pending' | 'in-progress' | 'completed';
-  assignedAt: string;
-  completedAt?: string;
-  dueDate?: string;
-  isOverdue?: boolean;
-}
 
 const MyQuestionnaires: React.FC = () => {
   const navigate = useNavigate();
   const { user, isClient } = useAuth();
-  const [assignments, setAssignments] = useState<QuestionnaireAssignment[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const { 
+    assignments, 
+    loading, 
+    error, 
+    loadAssignments 
+  } = useQuestionnaireAssignments('client', localStorage.getItem('token') || undefined);
 
   useEffect(() => {
     // Redirect if not a client
@@ -46,23 +29,22 @@ const MyQuestionnaires: React.FC = () => {
       navigate('/dashboard');
       return;
     }
-
-    loadAssignments();
-  }, [isClient, user, navigate]);
-
-  const loadAssignments = async () => {
-    try {
-      setLoading(true);
-      const assignmentsData = await questionnaireAssignmentService.getMyAssignments();
-      setAssignments(assignmentsData);
-      setError(null);
-    } catch (err) {
-      setError('Failed to load your questionnaires. Please try again.');
-      toast.error('Error loading questionnaires');
-    } finally {
-      setLoading(false);
+    
+    // Load assignments when component mounts
+    if (isClient && user) {
+      loadAssignments();
     }
-  };
+  }, [isClient, user, navigate, loadAssignments]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('=== MyQuestionnaires Debug ===');
+    console.log('Assignments:', assignments);
+    console.log('Loading:', loading);
+    console.log('Error:', error);
+    console.log('User:', user);
+    console.log('IsClient:', isClient);
+  }, [assignments, loading, error, user, isClient]);
 
   const getStatusColor = (status: string, isOverdue?: boolean): string => {
     if (isOverdue) return 'text-red-600 bg-red-50 border-red-200';
@@ -156,7 +138,9 @@ const MyQuestionnaires: React.FC = () => {
             >
               <div className="flex justify-between items-start mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {assignment.questionnaireId?.title || 'Untitled Questionnaire'}
+                  {(assignment as any).questionnaire?.title || 
+                   (assignment as any).questionnaireId?.title || 
+                   'Untitled Questionnaire'}
                 </h2>
                 <span 
                   className={`px-2 py-1 text-xs rounded-full flex items-center ${getStatusColor(assignment.status, assignment.isOverdue)}`}
@@ -168,9 +152,21 @@ const MyQuestionnaires: React.FC = () => {
                 </span>
               </div>
               
-              {assignment.caseId && (
+              {(assignment as any).caseId && (
                 <div className="text-sm text-gray-600 mb-4">
-                  <span className="font-medium">Related Case:</span> {assignment.caseId.title}
+                  <span className="font-medium">Related Case:</span> {(assignment as any).caseId.title}
+                </div>
+              )}
+              
+              {(assignment as any).wasOrphaned && (
+                <div className="bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
+                  <div className="flex items-center">
+                    <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
+                    <span className="text-sm text-orange-800 font-medium">Assignment Reset</span>
+                  </div>
+                  <p className="text-xs text-orange-700 mt-1">
+                    This questionnaire was previously completed but the response data was removed. You can now resubmit it.
+                  </p>
                 </div>
               )}
               
