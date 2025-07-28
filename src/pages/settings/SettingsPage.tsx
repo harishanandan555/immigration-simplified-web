@@ -104,7 +104,6 @@ import {
   getFormTemplateById,
   createFormTemplate,
   updateFormTemplate,
-  deleteFormTemplate,
   duplicateFormTemplate,
   exportFormTemplate,
   importFormTemplate,
@@ -1219,6 +1218,12 @@ const SettingsPage = () => {
     setTimeout(() => setQuestionnaireLoading(false), 1000);
   };
 
+  // Template handlers
+  const handleEditTemplate = (template: any) => {
+    setEditingTemplate(template);
+    setShowEditTemplate(true);
+  };
+
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [showEditTemplate, setShowEditTemplate] = useState(false);
   const [editTemplateFile, setEditTemplateFile] = useState<File | null>(null);
@@ -2302,7 +2307,8 @@ const SettingsPage = () => {
 
         {/* Security Information */}
         <div className="mt-6 pt-6 border-t border-gray-200">
-          <h4 className="text-sm font-medium text-gray-900 mb-4">Security Information</h4>
+          <h4 className="text-sm font-medium text-gray-900 mb-4">Security 
+          </h4>
           <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
             <div>
               <dt className="text-sm font-medium text-gray-500">Last Password Change</dt>
@@ -4655,15 +4661,6 @@ const SettingsPage = () => {
                         >
                           Edit
                         </Button>
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          startIcon={<DeleteIcon />}
-                          onClick={handleDeleteClick}
-                          disabled={selectedRole.isDefault}
-                        >
-                          Delete
-                        </Button>
                       </>
                     )}
                   </Box>
@@ -4817,22 +4814,6 @@ const SettingsPage = () => {
             disabled={!newRole.name || !newRole.type}
           >
             Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Role</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete the role "{selectedRole?.name}"? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleRoleConfirmDelete} color="error" variant="contained">
-            Delete
           </Button>
         </DialogActions>
       </Dialog>
@@ -5515,12 +5496,6 @@ const SettingsPage = () => {
                                           className="text-blue-600 hover:text-blue-900 mr-4"
                                         >
                                           <Edit className="h-5 w-5" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteUser(user._id)}
-                                          className="text-red-600 hover:text-red-900"
-                                        >
-                                          <Trash2 className="h-5 w-5" />
                                         </button>
                                       </div>
                                     )}
@@ -6352,9 +6327,8 @@ const SettingsPage = () => {
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                  {/* Actions: Edit, Delete, Download, etc. */}
-                                  <button className="text-indigo-600 hover:text-indigo-900 mr-2" onClick={() => setEditingTemplate(template)}>Edit</button>
-                                  <button className="text-red-600 hover:text-red-900">Delete</button>
+                                  {/* Actions: Edit only (Delete removed) */}
+                                  <button className="text-indigo-600 hover:text-indigo-900 mr-2" onClick={() => handleEditTemplate(template)}>Edit</button>
                                 </td>
                               </tr>
                             ))
