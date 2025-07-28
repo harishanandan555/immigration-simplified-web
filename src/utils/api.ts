@@ -1,5 +1,6 @@
 import axios, { AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { APPCONSTANTS, AUTH_END_POINTS } from './constants';
+import { setupSecurityInterceptor } from '../services/passwordSecurityMonitor';
 
 // Create an Axios instance
 const api = axios.create({
@@ -35,15 +36,38 @@ const isTokenExpired = (token: string): boolean => {
 // Function to refresh token
 const refreshToken = async (): Promise<string | null> => {
   try {
-    const response = await api.post(AUTH_END_POINTS.REFRESH_TOKEN);
-    const newToken = response.data.token;
+    const currentToken = localStorage.getItem('token');
+    if (!currentToken) {
+      console.log('No token found for refresh');
+      return null;
+    }
+
+    // Create a new axios instance without interceptors to avoid infinite loops
+    const refreshApi = axios.create({
+      baseURL: APPCONSTANTS.API_BASE_URL,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`
+      },
+    });
+
+    console.log('Attempting to refresh token...');
+    const response = await refreshApi.post(AUTH_END_POINTS.REFRESH_TOKEN);
+    
+    const newToken = response.data.token || response.data.data?.token;
     if (newToken) {
+      console.log('Token refreshed successfully');
       localStorage.setItem('token', newToken);
       return newToken;
     }
+    
+    console.log('No new token received in refresh response');
     return null;
   } catch (error) {
     console.error('Error refreshing token:', error);
+    // Clear invalid tokens
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     return null;
   }
 };
@@ -51,32 +75,47 @@ const refreshToken = async (): Promise<string | null> => {
 // Intercept requests to attach token if needed
 api.interceptors.request.use(
   async (config: CustomAxiosRequestConfig): Promise<CustomAxiosRequestConfig> => {
-    // Skip token for auth endpoints
-    if (config.url && 
-        !config.url.includes(AUTH_END_POINTS.REGISTER_SUPERADMIN) && 
-        !config.url.includes(AUTH_END_POINTS.LOGIN) &&
-        !config.url.includes(AUTH_END_POINTS.REFRESH_TOKEN)) {
+    // Skip token for auth endpoints (except refresh which needs the current token)
+    const skipTokenEndpoints = [
+      AUTH_END_POINTS.REGISTER_SUPERADMIN,
+      AUTH_END_POINTS.LOGIN
+    ];
+    
+    const needsToken = !skipTokenEndpoints.some(endpoint => config.url?.includes(endpoint));
+    
+    if (needsToken) {
       const token = localStorage.getItem('token');
       if (token) {
-        // Check if token is expired or about to expire
-        if (isTokenExpired(token)) {
-          // Try to refresh the token
-          const newToken = await refreshToken();
-          if (newToken) {
-            if (config.headers) {
-              config.headers.Authorization = `Bearer ${newToken}`;
+        // For refresh token endpoint, always use current token
+        if (config.url?.includes(AUTH_END_POINTS.REFRESH_TOKEN)) {
+          if (config.headers) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        } else {
+          // For other endpoints, check if token is expired
+          if (isTokenExpired(token)) {
+            console.log('Token expired, attempting refresh before request');
+            const newToken = await refreshToken();
+            if (newToken) {
+              if (config.headers) {
+                config.headers.Authorization = `Bearer ${newToken}`;
+              }
+            } else {
+              // If refresh fails, clear tokens and redirect
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              window.location.href = '/login';
+              return Promise.reject(new Error('Token expired and refresh failed'));
             }
-            return config;
           } else {
-            // If refresh fails, clear tokens and reject
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            return Promise.reject('Token expired and refresh failed');
+            if (config.headers) {
+              config.headers.Authorization = `Bearer ${token}`;
+            }
           }
         }
-        if (config.headers) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
+      } else if (!config.url?.includes('my-assignments') && !config.url?.includes('questionnaires')) {
+        // Only redirect for non-client endpoints if no token
+        console.log('No token found for protected endpoint');
       }
     }
     return config;
@@ -109,27 +148,45 @@ api.interceptors.response.use(
       // Handle specific error cases
       switch (status) {
         case 401:
-          // Unauthorized - try to refresh token
+          // Unauthorized - try to refresh token if not already attempted
           const originalRequest = error.config as CustomAxiosRequestConfig;
+          
+          // Don't retry refresh token endpoint failures
+          if (originalRequest?.url?.includes(AUTH_END_POINTS.REFRESH_TOKEN)) {
+            console.log('Refresh token failed, redirecting to login');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+            break;
+          }
+          
           if (originalRequest && !originalRequest._retry) {
             originalRequest._retry = true;
             try {
+              console.log('401 error, attempting token refresh');
               const newToken = await refreshToken();
               if (newToken) {
                 // Retry the original request with new token
                 if (originalRequest.headers) {
                   originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 }
+                console.log('Retrying request with new token');
                 return api(originalRequest);
               }
             } catch (refreshError) {
+              console.error('Token refresh failed:', refreshError);
               // If refresh fails, clear tokens and redirect to login
               localStorage.removeItem('token');
               localStorage.removeItem('user');
-              window.location.href = '/';
+              window.location.href = '/login';
               return Promise.reject(refreshError);
             }
           }
+          // If we get here, redirect to login
+          console.log('Could not refresh token, redirecting to login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
           break;
         case 403:
           // Forbidden - user doesn't have permission
@@ -160,5 +217,8 @@ api.interceptors.response.use(
     }
   }
 );
+
+// Setup security monitoring for password-related endpoints
+setupSecurityInterceptor(api);
 
 export default api;

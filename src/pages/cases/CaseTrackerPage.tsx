@@ -5,7 +5,6 @@ import { Search, AlertCircle, Clock, CheckCircle, FileText, Calendar, ArrowRight
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Alert from '../../components/common/Alert';
-import DebugView from '../../components/common/DebugView';
 
 import { getCaseByNumber } from '../../controllers/CaseControllers';
 import { CaseStatus } from '../../types';
@@ -197,15 +196,6 @@ const CaseStatusPage: React.FC = () => {
               </p>
             </div>
           </div>
-
-          {showDebug && (
-            <DebugView
-              data={caseStatus}
-              title="Case Status Data"
-              expanded
-              className="mb-6"
-            />
-          )}
 
           <div className="text-right mb-4">
             <Button

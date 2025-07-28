@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 // import { useAuth, login } from '../../controllers/AuthControllers';
 import { useAuth } from '../../controllers/AuthControllers';
@@ -28,8 +28,21 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  // Handle post-login navigation based on user role
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'client') {
+        navigate('/my-questionnaires');
+        toast.success('Welcome to your client portal!');
+      } else {
+        navigate('/dashboard');
+        toast.success('Welcome back!');
+      }
+    }
+  }, [user, navigate]);
         
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +51,7 @@ const LoginPage: React.FC = () => {
 
     try {
       await login(email, password);
-      navigate('/dashboard');
+      // Navigation will be handled by the useEffect above when user state updates
 
       // const response = await login(email, password) as LoginResponse;
       

@@ -5,24 +5,20 @@ import {
   Save, 
   Send, 
   Loader2, 
-  AlertTriangle, 
-  CheckCircle,
-  HelpCircle
+  AlertTriangle,
+  CheckCircle
 } from 'lucide-react';
 import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
-import { useAuth } from '../controllers/AuthControllers';
 import toast from 'react-hot-toast';
-import { validateMongoObjectId, isValidMongoObjectId } from '../utils/idValidation';
 
 interface QuestionnaireField {
   id: string;
   type: string;
   label: string;
-  question?: string;
-  help_text?: string;
   placeholder?: string;
   required: boolean;
   options?: string[];
+  order?: number;
 }
 
 interface QuestionnaireAssignment {
@@ -30,82 +26,119 @@ interface QuestionnaireAssignment {
   questionnaireId: {
     _id: string;
     title: string;
-    description?: string;
+    category: string;
+    description: string;
     fields: QuestionnaireField[];
   };
-  status: 'pending' | 'in-progress' | 'completed';
-  responseId?: string;
+  status: string;
+  responses?: Record<string, any>;
+  wasOrphaned?: boolean;
 }
 
 const FillQuestionnaire: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id: assignmentId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
   
   const [assignment, setAssignment] = useState<QuestionnaireAssignment | null>(null);
   const [responses, setResponses] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState<boolean>(true);
-  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<boolean>(false);
-  const [currentStep, setCurrentStep] = useState<number>(0);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  // Fields per step (for pagination)
-  const FIELDS_PER_STEP = 5;
 
   useEffect(() => {
-    if (!id) {
-      navigate('/my-questionnaires');
-      return;
+    if (assignmentId) {
+      loadAssignment();
     }
-
-    loadAssignment();
-  }, [id, navigate]);
+  }, [assignmentId]);
 
   const loadAssignment = async () => {
     try {
       setLoading(true);
       
-      // Validate id parameter before making API call
-      if (!id || !isValidMongoObjectId(id)) {
-        setError('Invalid questionnaire ID format. Please check the URL.');
-        console.error(`Invalid ObjectId format: ${id}`);
-        return;
-      }
+      // Get all assignments and find the specific one
+      const assignments = await questionnaireAssignmentService.getMyAssignments();
+      const foundAssignment = assignments.find((a: any) => a._id === assignmentId || a.id === assignmentId);
       
-      const data = await questionnaireAssignmentService.getAssignment(id as string);
-      
-      // Check if the assignment exists and has a questionnaire
-      if (!data || !data.questionnaireId) {
-        setError('Questionnaire not found or has been removed');
+      if (!foundAssignment) {
+        setError('Questionnaire assignment not found');
         return;
       }
 
-      // Check if already completed
-      if (data.status === 'completed') {
-        setResponses(data.responseId?.responses || {});
+      console.log('Loaded assignment for filling:', foundAssignment);
+      
+      // Ensure questionnaire has fields
+      if (!foundAssignment.questionnaireId?.fields && !foundAssignment.questionnaire?.fields) {
+        setError('This questionnaire has no fields to fill out');
+        return;
+      }
+
+      // Detect orphaned assignments: completed status but no responseId or actual response data
+      let actualStatus = foundAssignment.status || 'pending';
+      let wasOrphaned = false;
+      
+      console.log(`FillQuestionnaire - Checking assignment ${foundAssignment._id}:`, {
+        status: foundAssignment.status,
+        responseId: foundAssignment.responseId,
+        hasResponseId: !!foundAssignment.responseId,
+        responseIdType: typeof foundAssignment.responseId
+      });
+      
+      // If assignment shows as completed, check if it actually has response data
+      if (foundAssignment.status === 'completed') {
+        console.log(`FillQuestionnaire - Assignment ${foundAssignment._id} marked as completed - checking validity:`, {
+          responseId: foundAssignment.responseId,
+          responses: foundAssignment.responses,
+          completedAt: foundAssignment.completedAt
+        });
+        
+        // Only reset to pending if it's completed but missing BOTH responseId AND response data
+        const hasNoResponseId = !foundAssignment.responseId;
+        const hasNoResponseData = !foundAssignment.responses || Object.keys(foundAssignment.responses).length === 0;
+        
+        if (hasNoResponseId && hasNoResponseData) {
+          // This is truly orphaned - completed but no data
+          actualStatus = 'pending';
+          wasOrphaned = true;
+          console.log(`FillQuestionnaire - Assignment ${foundAssignment._id} force reset to pending (was orphaned)`);
+        } else {
+          // This is legitimately completed with data
+          console.log(`FillQuestionnaire - Assignment ${foundAssignment._id} is legitimately completed`);
+        }
+      }
+
+      // Normalize the assignment structure
+      const normalizedAssignment = {
+        _id: foundAssignment._id || foundAssignment.id,
+        questionnaireId: {
+          _id: foundAssignment.questionnaireId?._id || foundAssignment.questionnaireId,
+          title: foundAssignment.questionnaireId?.title || foundAssignment.questionnaireName || 'Untitled Questionnaire',
+          category: foundAssignment.questionnaireId?.category || 'immigration',
+          description: foundAssignment.questionnaireId?.description || '',
+          fields: foundAssignment.questionnaireId?.fields || foundAssignment.questionnaire?.fields || []
+        },
+        status: actualStatus,
+        responses: foundAssignment.responses || {},
+        wasOrphaned: wasOrphaned
+      };
+
+      setAssignment(normalizedAssignment);
+      
+      // Load existing responses or draft responses
+      const existingResponses = normalizedAssignment.responses || {};
+      const draftResponses = assignmentId ? questionnaireAssignmentService.loadDraftResponses(assignmentId) : null;
+      
+      // Use draft responses if they exist and are more recent than existing responses
+      const responsesToUse = draftResponses || existingResponses;
+      setResponses(responsesToUse);
+      
+      if (draftResponses) {
+        console.log('Loaded draft responses:', draftResponses);
       }
       
-      setAssignment(data);
-      
-      // If not yet started, update to in-progress
-      if (data.status === 'pending') {
-        await questionnaireAssignmentService.updateStatus(data._id, 'in-progress');
-      }
-    } catch (err: any) {
-      console.error('Error loading questionnaire:', err);
-      if (err?.response?.data?.error) {
-        setError(err.response.data.error);
-        toast.error(err.response.data.error);
-      } else if (err?.message?.includes('Invalid')) {
-        // This is our validation error
-        setError(err.message);
-        toast.error(err.message);
-      } else {
-        setError('Failed to load questionnaire. Please try again.');
-        toast.error('Error loading questionnaire');
-      }
+      setError(null);
+    } catch (err) {
+      console.error('Error loading assignment:', err);
+      setError('Failed to load questionnaire. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -116,140 +149,97 @@ const FillQuestionnaire: React.FC = () => {
       ...prev,
       [fieldId]: value
     }));
-    
-    // Clear error for this field if exists
-    if (fieldErrors[fieldId]) {
-      setFieldErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[fieldId];
-        return newErrors;
-      });
-    }
-    
-    setSaved(false);
   };
 
   const handleSave = async () => {
     try {
-      setSaved(false);
       setSubmitting(true);
       
-      if (!assignment) return;
-      
-      // Ensure we're using valid MongoDB ObjectId format
-      const questionnaireId = assignment.questionnaireId._id;
-      const assignmentId = assignment._id;
-      
-      // Validate IDs using utility function
-      validateMongoObjectId(questionnaireId, 'questionnaire');
-      validateMongoObjectId(assignmentId, 'assignment');
-      
-      // Save as draft (not completing)
-      await questionnaireAssignmentService.submitQuestionnaire(
-        questionnaireId,
-        assignmentId,
-        responses
-      );
-      
-      setSaved(true);
-      toast.success('Your responses have been saved');
-    } catch (err: any) {
-      console.error('Error saving questionnaire responses:', err);
-      if (err?.message?.includes('Invalid')) {
-        toast.error(err.message);
-      } else {
-        toast.error('Failed to save responses');
+      if (!assignment || !assignmentId) {
+        toast.error('No assignment found');
+        return;
       }
+
+      // Save draft responses to localStorage
+      await questionnaireAssignmentService.saveDraftResponses(assignmentId, responses);
+      toast.success('Draft saved successfully');
+    } catch (err) {
+      console.error('Error saving draft:', err);
+      toast.error('Failed to save draft');
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const validateResponses = (): boolean => {
-    if (!assignment?.questionnaireId.fields) return false;
-    
-    const newErrors: Record<string, string> = {};
-    
-    assignment.questionnaireId.fields.forEach(field => {
-      if (field.required) {
-        const value = responses[field.id];
-        
-        if (value === undefined || value === null || value === '') {
-          newErrors[field.id] = 'This field is required';
-        } else if (Array.isArray(value) && value.length === 0) {
-          newErrors[field.id] = 'Please select at least one option';
-        }
-      }
-    });
-    
-    setFieldErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async () => {
-    // Validate required fields
-    if (!validateResponses()) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-    
     try {
       setSubmitting(true);
       
-      if (!assignment) return;
+      if (!assignment) {
+        toast.error('No assignment found');
+        return;
+      }
+
+      // Validate required fields
+      const requiredFields = assignment.questionnaireId.fields.filter(field => field.required);
+      const missingFields = requiredFields.filter(field => !responses[field.id] || responses[field.id] === '');
       
-      // Ensure we're using valid MongoDB ObjectId format
-      const questionnaireId = assignment.questionnaireId._id;
-      const assignmentId = assignment._id;
+      if (missingFields.length > 0) {
+        toast.error(`Please fill in all required fields: ${missingFields.map(f => f.label).join(', ')}`);
+        return;
+      }
+
+      // Submit questionnaire response via API
+      console.log('Submitting responses for assignment:', assignment._id);
+      console.log('Responses data:', responses);
       
-      // Validate IDs using utility function
-      validateMongoObjectId(questionnaireId, 'questionnaire');
-      validateMongoObjectId(assignmentId, 'assignment');
-      
-      // Submit questionnaire
-      await questionnaireAssignmentService.submitQuestionnaire(
-        questionnaireId,
-        assignmentId,
-        responses
+      await questionnaireAssignmentService.submitQuestionnaireResponses(
+        assignment._id,
+        responses,
+        'Submitted by client' // Optional notes
       );
       
-      // Update status to completed
-      await questionnaireAssignmentService.updateStatus(assignmentId, 'completed');
+      // Clear draft after successful submission
+      questionnaireAssignmentService.clearDraftResponses(assignment._id);
       
-      toast.success('Questionnaire submitted successfully');
+      toast.success('Questionnaire submitted successfully!');
+      
+      // Navigate back to questionnaires list
       navigate('/my-questionnaires');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error submitting questionnaire:', err);
-      if (err?.message?.includes('Invalid')) {
-        toast.error(err.message);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit questionnaire';
+      
+      // Handle authorization errors specifically
+      if (errorMessage.includes('AUTHORIZATION ERROR')) {
+        // Show a more user-friendly error for authorization issues
+        toast.error(
+          <div className="max-w-md">
+            <p className="font-bold text-red-600 mb-2">⚠️ Wrong Account</p>
+            <p className="text-sm mb-2">You're logged in with the wrong account for this questionnaire.</p>
+            <p className="text-xs text-gray-600">Check the console for detailed instructions on how to login with the correct client account.</p>
+          </div>,
+          { 
+            duration: 8000,
+            style: {
+              maxWidth: '400px'
+            }
+          }
+        );
+        
+        // Also log the full error for detailed instructions
+        console.error('Full authorization error details:', errorMessage);
       } else {
-        toast.error('Failed to submit questionnaire');
+        toast.error(errorMessage);
       }
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const nextStep = () => {
-    if (!assignment?.questionnaireId.fields) return;
-    
-    const totalSteps = Math.ceil(assignment.questionnaireId.fields.length / FIELDS_PER_STEP);
-    if (currentStep < totalSteps - 1) {
-      setCurrentStep(currentStep + 1);
-      window.scrollTo(0, 0);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-      window.scrollTo(0, 0);
     }
   };
 
   const renderField = (field: QuestionnaireField) => {
-    const isDisabled = assignment?.status === 'completed';
-    
+    const value = responses[field.id] || '';
+
     switch (field.type) {
       case 'text':
       case 'email':
@@ -257,262 +247,151 @@ const FillQuestionnaire: React.FC = () => {
       case 'number':
         return (
           <div key={field.id} className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {field.label || field.question}
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            {field.help_text && (
-              <p className="text-xs text-gray-500 mb-1 flex items-center">
-                <HelpCircle className="w-3 h-3 mr-1" />
-                {field.help_text}
-              </p>
-            )}
             <input
-              type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
-              value={responses[field.id] || ''}
-              onChange={e => handleInputChange(field.id, e.target.value)}
-              disabled={isDisabled}
+              type={field.type}
+              value={value}
+              onChange={(e) => handleInputChange(field.id, e.target.value)}
               placeholder={field.placeholder}
-              className={`w-full px-3 py-2 border ${
-                fieldErrors[field.id] 
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
-                isDisabled ? 'bg-gray-100 cursor-not-allowed' : ''
-              }`}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required={field.required}
             />
-            {fieldErrors[field.id] && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors[field.id]}</p>
-            )}
           </div>
         );
-      
-      case 'date':
-        return (
-          <div key={field.id} className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {field.label || field.question}
-              {field.required && <span className="text-red-500 ml-1">*</span>}
-            </label>
-            {field.help_text && (
-              <p className="text-xs text-gray-500 mb-1">{field.help_text}</p>
-            )}
-            <input
-              type="date"
-              value={responses[field.id] || ''}
-              onChange={e => handleInputChange(field.id, e.target.value)}
-              disabled={isDisabled}
-              className={`w-full px-3 py-2 border ${
-                fieldErrors[field.id] 
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
-                isDisabled ? 'bg-gray-100 cursor-not-allowed' : ''
-              }`}
-            />
-            {fieldErrors[field.id] && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors[field.id]}</p>
-            )}
-          </div>
-        );
-      
+
       case 'textarea':
         return (
           <div key={field.id} className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {field.label || field.question}
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            {field.help_text && (
-              <p className="text-xs text-gray-500 mb-1">{field.help_text}</p>
-            )}
             <textarea
-              value={responses[field.id] || ''}
-              onChange={e => handleInputChange(field.id, e.target.value)}
-              disabled={isDisabled}
+              value={value}
+              onChange={(e) => handleInputChange(field.id, e.target.value)}
               placeholder={field.placeholder}
               rows={4}
-              className={`w-full px-3 py-2 border ${
-                fieldErrors[field.id] 
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
-                isDisabled ? 'bg-gray-100 cursor-not-allowed' : ''
-              }`}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required={field.required}
             />
-            {fieldErrors[field.id] && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors[field.id]}</p>
-            )}
           </div>
         );
-      
+
       case 'select':
         return (
           <div key={field.id} className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {field.label || field.question}
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            {field.help_text && (
-              <p className="text-xs text-gray-500 mb-1">{field.help_text}</p>
-            )}
             <select
-              value={responses[field.id] || ''}
-              onChange={e => handleInputChange(field.id, e.target.value)}
-              disabled={isDisabled}
-              className={`w-full px-3 py-2 border ${
-                fieldErrors[field.id] 
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
-                isDisabled ? 'bg-gray-100 cursor-not-allowed' : ''
-              }`}
+              value={value}
+              onChange={(e) => handleInputChange(field.id, e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required={field.required}
             >
-              <option value="">Select an option</option>
-              {field.options?.map((option, i) => (
-                <option key={i} value={option}>
+              <option value="">{field.placeholder || 'Select an option'}</option>
+              {field.options?.map((option, index) => (
+                <option key={index} value={option}>
                   {option}
                 </option>
               ))}
             </select>
-            {fieldErrors[field.id] && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors[field.id]}</p>
-            )}
           </div>
         );
-      
+
       case 'radio':
         return (
           <div key={field.id} className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {field.label || field.question}
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            {field.help_text && (
-              <p className="text-xs text-gray-500 mb-1">{field.help_text}</p>
-            )}
-            <div className="mt-2 space-y-2">
-              {field.options?.map((option, i) => (
-                <label key={i} className="inline-flex items-center mr-4">
+            <div className="space-y-2">
+              {field.options?.map((option, index) => (
+                <label key={index} className="flex items-center">
                   <input
                     type="radio"
-                    checked={responses[field.id] === option}
-                    onChange={() => handleInputChange(field.id, option)}
-                    disabled={isDisabled}
-                    className={`form-radio h-4 w-4 text-primary-600 border-gray-300 ${
-                      isDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                    }`}
+                    name={field.id}
+                    value={option}
+                    checked={value === option}
+                    onChange={(e) => handleInputChange(field.id, e.target.value)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    required={field.required}
                   />
-                  <span className="ml-2 text-gray-700">{option}</span>
+                  <span className="ml-2 text-sm text-gray-700">{option}</span>
                 </label>
               ))}
             </div>
-            {fieldErrors[field.id] && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors[field.id]}</p>
-            )}
           </div>
         );
-      
+
       case 'checkbox':
         return (
           <div key={field.id} className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {field.label || field.question}
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            {field.help_text && (
-              <p className="text-xs text-gray-500 mb-1">{field.help_text}</p>
-            )}
-            <div className="mt-2 space-y-2">
-              {field.options?.map((option, i) => {
-                const selectedValues = Array.isArray(responses[field.id]) 
-                  ? responses[field.id] 
-                  : [];
-                  
-                return (
-                  <label key={i} className="inline-flex items-center mr-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedValues.includes(option)}
-                      onChange={e => {
-                        const updatedValues = [...selectedValues];
-                        if (e.target.checked) {
-                          updatedValues.push(option);
-                        } else {
-                          const index = updatedValues.indexOf(option);
-                          if (index >= 0) updatedValues.splice(index, 1);
-                        }
-                        handleInputChange(field.id, updatedValues);
-                      }}
-                      disabled={isDisabled}
-                      className={`form-checkbox h-4 w-4 text-primary-600 border-gray-300 ${
-                        isDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                      }`}
-                    />
-                    <span className="ml-2 text-gray-700">{option}</span>
-                  </label>
-                );
-              })}
+            <div className="space-y-2">
+              {field.options?.map((option, index) => (
+                <label key={index} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    value={option}
+                    checked={Array.isArray(value) && value.includes(option)}
+                    onChange={(e) => {
+                      const currentValues = Array.isArray(value) ? value : [];
+                      if (e.target.checked) {
+                        handleInputChange(field.id, [...currentValues, option]);
+                      } else {
+                        handleInputChange(field.id, currentValues.filter(v => v !== option));
+                      }
+                    }}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">{option}</span>
+                </label>
+              ))}
             </div>
-            {fieldErrors[field.id] && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors[field.id]}</p>
-            )}
           </div>
         );
-      
-      case 'yesno':
+
+      case 'date':
         return (
           <div key={field.id} className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {field.label || field.question}
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            {field.help_text && (
-              <p className="text-xs text-gray-500 mb-1">{field.help_text}</p>
-            )}
-            <div className="mt-2 space-x-4">
-              <label className="inline-flex items-center">
-                <input
-                  type="radio"
-                  checked={responses[field.id] === true}
-                  onChange={() => handleInputChange(field.id, true)}
-                  disabled={isDisabled}
-                  className={`form-radio h-4 w-4 text-primary-600 border-gray-300 ${
-                    isDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                  }`}
-                />
-                <span className="ml-2 text-gray-700">Yes</span>
-              </label>
-              
-              <label className="inline-flex items-center">
-                <input
-                  type="radio"
-                  checked={responses[field.id] === false}
-                  onChange={() => handleInputChange(field.id, false)}
-                  disabled={isDisabled}
-                  className={`form-radio h-4 w-4 text-primary-600 border-gray-300 ${
-                    isDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                  }`}
-                />
-                <span className="ml-2 text-gray-700">No</span>
-              </label>
-            </div>
-            {fieldErrors[field.id] && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors[field.id]}</p>
-            )}
+            <input
+              type="date"
+              value={value}
+              onChange={(e) => handleInputChange(field.id, e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required={field.required}
+            />
           </div>
         );
-      
+
       default:
         return (
           <div key={field.id} className="mb-6">
-            <label className="block text-sm font-medium text-gray-700">
-              {field.label || field.question}
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            <div className="text-sm text-gray-500 italic mt-1">
-              Field type "{field.type}" not supported yet
-            </div>
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => handleInputChange(field.id, e.target.value)}
+              placeholder={field.placeholder}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required={field.required}
+            />
           </div>
         );
     }
@@ -520,171 +399,136 @@ const FillQuestionnaire: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-12 flex justify-center items-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500 mr-2" />
-        <span className="text-gray-600">Loading questionnaire...</span>
-      </div>
-    );
-  }
-
-  if (error || !assignment) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-start">
-          <AlertTriangle className="w-5 h-5 mr-2 mt-0.5" />
-          <div>
-            <h2 className="font-medium">Error</h2>
-            <p>{error || 'Questionnaire not found'}</p>
-            <button 
-              onClick={() => navigate('/my-questionnaires')}
-              className="mt-2 text-red-700 hover:text-red-800 font-medium"
-            >
-              Back to My Questionnaires
-            </button>
-          </div>
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex justify-center items-center p-12">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="ml-2 text-gray-600">Loading questionnaire...</span>
         </div>
       </div>
     );
   }
 
-  const isCompleted = assignment.status === 'completed';
-  const fields = assignment.questionnaireId.fields || [];
-  const totalSteps = Math.ceil(fields.length / FIELDS_PER_STEP);
-  const startIndex = currentStep * FIELDS_PER_STEP;
-  const endIndex = Math.min(startIndex + FIELDS_PER_STEP, fields.length);
-  const currentFields = fields.slice(startIndex, endIndex);
-  const progress = Math.round((currentStep + 1) / totalSteps * 100);
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
+          <div className="flex items-center">
+            <AlertTriangle className="w-5 h-5 mr-2" />
+            <p>{error}</p>
+          </div>
+          <button 
+            onClick={() => navigate('/my-questionnaires')}
+            className="mt-2 text-red-700 hover:text-red-800 font-medium"
+          >
+            Back to Questionnaires
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!assignment) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="text-center p-12">
+          <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">Questionnaire Not Found</h2>
+          <p className="text-gray-600 mb-4">The requested questionnaire could not be loaded.</p>
+          <button 
+            onClick={() => navigate('/my-questionnaires')}
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
+            Back to Questionnaires
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const sortedFields = assignment.questionnaireId.fields.sort((a, b) => (a.order || 0) - (b.order || 0));
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <button
-            onClick={() => navigate('/my-questionnaires')}
-            className="text-gray-600 hover:text-gray-800 flex items-center mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back to My Questionnaires
-          </button>
-          
+    <div className="container mx-auto px-4 py-6 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center mb-6">
+        <button
+          onClick={() => navigate('/my-questionnaires')}
+          className="mr-4 p-2 text-gray-600 hover:text-gray-800 rounded-md hover:bg-gray-100"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {assignment.questionnaireId.title || 'Complete Your Questionnaire'}
+            {assignment.questionnaireId.title}
           </h1>
-          
           {assignment.questionnaireId.description && (
-            <p className="text-gray-600 mt-2">{assignment.questionnaireId.description}</p>
-          )}
-          
-          {isCompleted && (
-            <div className="mt-4 bg-green-50 text-green-700 p-3 rounded-lg flex items-center">
-              <CheckCircle className="w-5 h-5 mr-2" />
-              <span>You've completed this questionnaire. Thank you!</span>
-            </div>
+            <p className="text-gray-600 mt-1">{assignment.questionnaireId.description}</p>
           )}
         </div>
-        
-        {/* Progress bar */}
-        {totalSteps > 1 && (
-          <div className="mb-8">
-            <div className="flex justify-between text-xs text-gray-600 mb-1">
-              <span>Progress</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-primary-600 h-2 rounded-full"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-            <div className="text-xs text-gray-500 mt-1 text-center">
-              Step {currentStep + 1} of {totalSteps}
-            </div>
+      </div>
+
+      {/* Status Badge */}
+      <div className="mb-6">
+        <span className={`px-3 py-1 text-sm rounded-full ${
+          assignment.status === 'completed' 
+            ? 'bg-green-100 text-green-800' 
+            : assignment.status === 'in-progress'
+            ? 'bg-blue-100 text-blue-800'
+            : 'bg-yellow-100 text-yellow-800'
+        }`}>
+          {assignment.status === 'completed' && <CheckCircle className="w-4 h-4 inline mr-1" />}
+          {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
+        </span>
+      </div>
+
+      {/* Orphaned Assignment Warning */}
+      {assignment.wasOrphaned && (
+        <div className="bg-orange-50 border border-orange-200 rounded-md p-4 mb-6">
+          <div className="flex items-center">
+            <AlertTriangle className="w-5 h-5 text-orange-600 mr-2" />
+            <span className="text-sm text-orange-800 font-medium">Assignment Reset</span>
           </div>
-        )}
-        
-        {/* Questionnaire fields */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          {currentFields.length === 0 ? (
-            <div className="text-center text-gray-500 py-8">
-              This questionnaire has no questions to answer.
-            </div>
-          ) : (
-            currentFields.map((field) => renderField(field))
-          )}
+          <p className="text-sm text-orange-700 mt-1">
+            This questionnaire was previously completed but the response data was removed. You can now resubmit it.
+          </p>
         </div>
-        
-        {/* Navigation and submission buttons */}
-        <div className="mt-6 flex justify-between">
-          <div>
-            {currentStep > 0 && (
-              <button
-                onClick={prevStep}
-                disabled={submitting}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Previous
-              </button>
-            )}
-          </div>
-          
-          <div className="flex space-x-3">
-            {!isCompleted && (
-              <button
-                onClick={handleSave}
-                disabled={submitting || Object.keys(responses).length === 0}
-                className={`px-4 py-2 border border-primary-600 text-primary-600 rounded-md hover:bg-primary-50 flex items-center ${
-                  (submitting || Object.keys(responses).length === 0) 
-                    ? 'opacity-60 cursor-not-allowed' 
-                    : ''
-                }`}
-              >
-                {submitting ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4 mr-2" />
-                )}
-                Save
-              </button>
-            )}
+      )}
+
+      {/* Form */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+          {sortedFields.map(field => renderField(field))}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={submitting}
+              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md font-medium flex items-center disabled:opacity-50"
+            >
+              {submitting ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              Save Draft
+            </button>
             
-            {currentStep < totalSteps - 1 ? (
-              <button
-                onClick={nextStep}
-                disabled={submitting}
-                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center"
-              >
-                Next
-              </button>
-            ) : (
-              !isCompleted && (
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className={`px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center ${
-                    submitting ? 'opacity-60 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {submitting ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4 mr-2" />
-                  )}
-                  Submit
-                </button>
-              )
-            )}
+            <button
+              type="submit"
+              disabled={submitting || assignment.status === 'completed'}
+              className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-md font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
+              {assignment.status === 'completed' ? 'Completed' : 'Submit Questionnaire'}
+            </button>
           </div>
-        </div>
-        
-        {/* Saved indicator */}
-        {saved && (
-          <div className="mt-4 text-center text-sm text-green-600 flex items-center justify-center">
-            <CheckCircle className="w-4 h-4 mr-1" />
-            Changes saved
-          </div>
-        )}
+        </form>
       </div>
     </div>
   );

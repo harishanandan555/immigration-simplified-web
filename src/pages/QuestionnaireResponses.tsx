@@ -13,7 +13,7 @@ import {
   User
 } from 'lucide-react';
 import { useAuth } from '../controllers/AuthControllers';
-import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
+import { useQuestionnaireAssignments } from '../hooks/useQuestionnaireAssignments';
 import toast from 'react-hot-toast';
 
 interface QuestionnaireAssignment {
@@ -24,8 +24,35 @@ interface QuestionnaireAssignment {
     category: string;
     description: string;
   };
-  clientId: {
+  clientId: string; // This is just a string ID, not an object
+  clientUserId?: {
     _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  actualClient?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    client_id: string;
+  };
+  submittedBy?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  assignedBy?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  attorneyInfo?: {
+    _id: string;
+    attorney_id: string;
     firstName: string;
     lastName: string;
     email: string;
@@ -36,17 +63,23 @@ interface QuestionnaireAssignment {
     category: string;
     status: string;
   };
+  responseId?: {
+    _id: string;
+    responses: Record<string, any>;
+    submittedAt: string;
+    notes?: string;
+  };
   status: 'pending' | 'in-progress' | 'completed';
   assignedAt: string;
   completedAt?: string;
   dueDate?: string;
-  responseId?: string;
   isOverdue?: boolean;
 }
 
 const QuestionnaireResponses: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { getClientResponses } = useQuestionnaireAssignments('attorney', localStorage.getItem('token') || undefined);
   const [assignments, setAssignments] = useState<QuestionnaireAssignment[]>([]);
   const [filteredAssignments, setFilteredAssignments] = useState<QuestionnaireAssignment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -68,32 +101,120 @@ const QuestionnaireResponses: React.FC = () => {
     // Apply filters
     let filtered = [...assignments];
     
+    console.log('Applying filters - initial assignments:', assignments.length);
+    console.log('Search term:', searchTerm);
+    console.log('Status filter:', statusFilter);
+    
     // Search term filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(assignment => 
-        assignment.questionnaireId?.title?.toLowerCase().includes(term) ||
-        `${assignment.clientId?.firstName} ${assignment.clientId?.lastName}`.toLowerCase().includes(term) ||
-        assignment.caseId?.title?.toLowerCase().includes(term)
-      );
+      filtered = filtered.filter(assignment => {
+        // Safely get questionnaire title
+        const questionnaireTitle = assignment.questionnaireId?.title?.toLowerCase() || '';
+        
+        // Safely get client name
+        let clientName = '';
+        if (assignment.actualClient?.firstName && assignment.actualClient?.lastName) {
+          clientName = `${assignment.actualClient.firstName} ${assignment.actualClient.lastName}`.toLowerCase();
+        } else if (assignment.clientUserId?.firstName && assignment.clientUserId?.lastName) {
+          clientName = `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}`.toLowerCase();
+        }
+        
+        // Safely get case title
+        const caseTitle = assignment.caseId?.title?.toLowerCase() || '';
+        
+        const matches = questionnaireTitle.includes(term) || 
+               clientName.includes(term) || 
+               caseTitle.includes(term);
+        
+        console.log('Search filter check:', {
+          term,
+          questionnaireTitle,
+          clientName,
+          caseTitle,
+          matches
+        });
+        
+        return matches;
+      });
+      console.log('After search filter:', filtered.length);
     }
     
     // Status filter
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(assignment => assignment.status === statusFilter);
+      const beforeStatusFilter = filtered.length;
+      filtered = filtered.filter(assignment => {
+        const matches = assignment.status === statusFilter;
+        console.log('Status filter check:', {
+          assignmentStatus: assignment.status,
+          filterStatus: statusFilter,
+          matches
+        });
+        return matches;
+      });
+      console.log(`After status filter (${statusFilter}):`, filtered.length, 'from', beforeStatusFilter);
     }
     
+    console.log('Final filtered assignments:', filtered.length);
     setFilteredAssignments(filtered);
   }, [assignments, searchTerm, statusFilter]);
 
   const loadAssignments = async () => {
     try {
       setLoading(true);
-      const assignmentsData = await questionnaireAssignmentService.getAllAssignments();
-      setAssignments(assignmentsData);
-      setFilteredAssignments(assignmentsData);
+      
+      // Get all questionnaire assignments, not just completed ones
+      // This will help us see assignments that are marked as completed but have missing response data
+      const responseData = await getClientResponses({
+        // Remove status filter to get all assignments
+        page: 1,
+        limit: 50 // Get more results for better demo
+      });
+      
+      console.log('Raw API Response:', responseData);
+      
+      const assignmentsData = responseData.data.assignments || [];
+      
+      // Filter to only show completed assignments in the UI
+      // This way we can see completed assignments even if they have missing response data
+      const completedAssignments = assignmentsData.filter((assignment: any) => 
+        assignment.status === 'completed'
+      );
+      
+      // Debug the data structure and response data
+      console.log('All assignments data:', assignmentsData);
+      console.log('Completed assignments:', completedAssignments.length);
+      console.log('Assignments with missing response data:', 
+        completedAssignments.filter((a: any) => !a.responseId).length
+      );
+      
+      if (completedAssignments.length > 0) {
+        console.log('First assignment structure:', JSON.stringify(completedAssignments[0], null, 2));
+        // Check if we have response data
+        const first = completedAssignments[0];
+        console.log('clientId type:', typeof first.clientId, 'value:', first.clientId);
+        console.log('actualClient type:', typeof first.actualClient, 'value:', first.actualClient);
+        console.log('responseId data:', first.responseId);
+        console.log('response data available:', !!first.responseId?.responses);
+        if (first.responseId?.responses) {
+          console.log('Sample response fields:', Object.keys(first.responseId.responses).slice(0, 3));
+        }
+      }
+      
+      setAssignments(completedAssignments);
       setError(null);
+      
+      console.log('State set - assignments:', completedAssignments.length, 'filtered will be set by useEffect');
+      
+      if (completedAssignments.length > 0) {
+        const assignmentsWithResponses = completedAssignments.filter((a: any) => a.responseId?.responses);
+        const assignmentsWithoutResponses = completedAssignments.length - assignmentsWithResponses.length;
+        
+        toast.success(`Loaded ${completedAssignments.length} completed questionnaires` + 
+          (assignmentsWithoutResponses > 0 ? ` (${assignmentsWithoutResponses} missing response data)` : ''));
+      }
     } catch (err) {
+      console.error('Error loading responses:', err);
       setError('Failed to load questionnaire responses. Please try again.');
       toast.error('Error loading questionnaire responses');
     } finally {
@@ -140,12 +261,76 @@ const QuestionnaireResponses: React.FC = () => {
     });
   };
 
+  const handleClientClick = (assignment: QuestionnaireAssignment) => {
+    // Prepare the data to pass to the Legal Firm Workflow
+    const clientInfo = assignment.actualClient || assignment.clientUserId;
+    const questionnaireInfo = assignment.questionnaireId;
+    const responseInfo = assignment.responseId;
+    
+    if (!clientInfo || !questionnaireInfo) {
+      toast.error('Cannot navigate - missing client or questionnaire data');
+      return;
+    }
+    
+    const workflowData = {
+      clientId: clientInfo._id,
+      clientEmail: clientInfo.email,
+      clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
+      questionnaireId: questionnaireInfo._id,
+      questionnaireTitle: questionnaireInfo.title,
+      existingResponses: responseInfo?.responses || {},
+      fields: questionnaireInfo.fields || [],
+      mode: responseInfo?.responses ? 'edit' : 'new', // Edit if responses exist, new otherwise
+      originalAssignmentId: assignment._id
+    };
+    
+    console.log('Navigating to Legal Firm Workflow with data:', workflowData);
+    
+    // Store the workflow data in sessionStorage for the Legal Firm Workflow to pick up
+    sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));
+    
+    // Navigate to the Legal Firm Workflow page
+    navigate('/legal-firm-workflow');
+    
+    toast.success(`Navigating to ${responseInfo?.responses ? 'edit' : 'create'} ${clientInfo.firstName}'s responses`);
+  };
+
   const handleViewResponse = (assignmentId: string) => {
     // Validate assignmentId is a valid MongoDB ObjectId
     if (!/^[0-9a-fA-F]{24}$/.test(assignmentId)) {
       toast.error('Invalid assignment ID format');
       return;
     }
+    
+    // Find the assignment to check if response data exists
+    const assignment = filteredAssignments.find(a => a._id === assignmentId);
+    if (!assignment) {
+      toast.error('Assignment not found');
+      return;
+    }
+    
+    // Check if responseId exists and has response data
+    if (!assignment.responseId) {
+      toast.error('No response data available for this assignment');
+      console.warn('Assignment has no responseId:', assignmentId);
+      return;
+    }
+    
+    if (!assignment.responseId.responses) {
+      toast.error('Response data is empty or corrupted');
+      console.warn('Assignment responseId exists but no response data:', assignmentId);
+      return;
+    }
+    
+    // Log response data for debugging
+    console.log('📋 Viewing response for assignment:', assignmentId);
+    console.log('📝 Response data:', assignment.responseId.responses);
+    console.log('📊 Number of fields completed:', Object.keys(assignment.responseId.responses).length);
+    console.log('🗓️ Submitted at:', assignment.responseId.submittedAt);
+    if (assignment.responseId.notes) {
+      console.log('📝 Notes:', assignment.responseId.notes);
+    }
+    
     navigate(`/questionnaires/response/${assignmentId}`);
   };
 
@@ -153,12 +338,6 @@ const QuestionnaireResponses: React.FC = () => {
     <div className="container mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Client Questionnaire Responses</h1>
-        <button 
-          onClick={loadAssignments}
-          className="text-primary-600 hover:text-primary-700 font-medium flex items-center"
-        >
-          Refresh
-        </button>
       </div>
       
       {/* Filters and Search */}
@@ -192,28 +371,28 @@ const QuestionnaireResponses: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center p-12">
+        <div className="flex justify-center items-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-          <span className="ml-2 text-gray-600">Loading questionnaire responses...</span>
+          <span className="ml-3 text-gray-600">Loading questionnaire responses...</span>
         </div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
-          <p>{error}</p>
-          <button 
-            onClick={loadAssignments}
-            className="mt-2 text-red-700 hover:text-red-800 font-medium"
-          >
-            Try Again
-          </button>
+          <div className="flex items-center">
+            <AlertTriangle className="w-5 h-5 mr-2" />
+            <p>{error}</p>
+          </div>
         </div>
       ) : filteredAssignments.length === 0 ? (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
           <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">No Questionnaire Responses</h2>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">No Completed Questionnaire Responses</h2>
           <p className="text-gray-600 mb-4">
             {searchTerm || statusFilter !== 'all' ? 
-              'No responses match your search criteria.' : 
-              'There are no questionnaire responses available.'}
+              'No completed responses match your search criteria.' : 
+              'There are no completed questionnaire responses available yet.'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Responses will appear here once clients complete their assigned questionnaires.
           </p>
         </div>
       ) : (
@@ -231,6 +410,9 @@ const QuestionnaireResponses: React.FC = () => {
                   Case
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Assigned By
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -245,16 +427,31 @@ const QuestionnaireResponses: React.FC = () => {
               {filteredAssignments.map(assignment => (
                 <tr key={assignment._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
+                    <div 
+                      className="flex items-center cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                      onClick={() => handleClientClick(assignment)}
+                      title="Click to edit client responses in Legal Firm Workflow"
+                    >
                       <div className="flex-shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
                         <User className="h-4 w-4 text-gray-500" />
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {assignment.clientId?.firstName} {assignment.clientId?.lastName}
+                        <div className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
+                          {assignment.actualClient?.firstName && assignment.actualClient?.lastName ? 
+                            `${assignment.actualClient.firstName} ${assignment.actualClient.lastName}` :
+                            assignment.clientUserId?.firstName && assignment.clientUserId?.lastName ? 
+                            `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}` : 
+                            'Client Name Not Available'
+                          }
                         </div>
                         <div className="text-sm text-gray-500">
-                          {assignment.clientId?.email}
+                          {assignment.actualClient?.email || assignment.clientUserId?.email || 'No email available'}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          Client ID: {String(assignment.actualClient?.client_id || assignment.clientId || assignment.clientUserId?._id || 'N/A')}
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">
+                          Click to {assignment.responseId?.responses ? 'edit' : 'create'} responses →
                         </div>
                       </div>
                     </div>
@@ -273,6 +470,26 @@ const QuestionnaireResponses: React.FC = () => {
                       <span className="text-sm text-gray-500">No case linked</span>
                     )}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center">
+                        <User className="h-3 w-3 text-blue-600" />
+                      </div>
+                      <div className="ml-3">
+                        <div className="text-sm font-medium text-gray-900">
+                          {assignment.attorneyInfo?.firstName && assignment.attorneyInfo?.lastName ? 
+                            `${assignment.attorneyInfo.firstName} ${assignment.attorneyInfo.lastName}` :
+                            assignment.assignedBy?.firstName && assignment.assignedBy?.lastName ? 
+                            `${assignment.assignedBy.firstName} ${assignment.assignedBy.lastName}` : 
+                            'Attorney Not Available'
+                          }
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          Attorney ID: {String(assignment.attorneyInfo?.attorney_id || assignment.assignedBy?._id || 'N/A')}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <span 
                       className={`px-2 py-1 text-xs rounded-full inline-flex items-center ${getStatusColor(assignment.status, assignment.isOverdue)}`}
@@ -282,6 +499,14 @@ const QuestionnaireResponses: React.FC = () => {
                         {assignment.isOverdue ? 'Overdue' : assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
                       </span>
                     </span>
+                    {assignment.status === 'completed' && !assignment.responseId && (
+                      <div className="mt-1">
+                        <span className="px-2 py-1 text-xs rounded-full bg-orange-50 text-orange-600 border border-orange-200">
+                          <AlertTriangle className="w-3 h-3 inline mr-1" />
+                          Missing Response Data
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-500">
@@ -304,18 +529,38 @@ const QuestionnaireResponses: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleViewResponse(assignment._id)}
-                      disabled={assignment.status !== 'completed'}
-                      className={`inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 ${
-                        assignment.status === 'completed'
-                          ? 'bg-white hover:bg-gray-50'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
-                    >
-                      <Eye className="w-3 h-3 mr-1" />
-                      View
-                    </button>
+                    <div className="flex flex-col space-y-2">
+                      <button
+                        onClick={() => handleViewResponse(assignment._id)}
+                        disabled={assignment.status !== 'completed' || !assignment.responseId || !assignment.responseId.responses}
+                        className={`inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 ${
+                          assignment.status === 'completed' && assignment.responseId?.responses
+                            ? 'bg-white hover:bg-gray-50'
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }`}
+                        title={
+                          assignment.status !== 'completed' 
+                            ? 'Assignment not completed'
+                            : !assignment.responseId 
+                            ? 'No response data available'
+                            : !assignment.responseId.responses
+                            ? 'Response data is empty'
+                            : 'View the completed response'
+                        }
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Response
+                      </button>
+                      {assignment.responseId?.responses ? (
+                        <div className="text-xs text-green-600">
+                          {Object.keys(assignment.responseId.responses).length} fields completed
+                        </div>
+                      ) : assignment.status === 'completed' ? (
+                        <div className="text-xs text-red-600">
+                          No response data available
+                        </div>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
