@@ -43,8 +43,9 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/" element={!user ? <LoginPage /> : <Navigate to="/dashboard" replace />} />
-      <Route path="/register" element={!user ? <RegisterPage /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/" element={!user ? <LoginPage /> : <Navigate to={user.role === 'client' ? '/my-questionnaires' : '/dashboard'} replace />} />
+      <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={user.role === 'client' ? '/my-questionnaires' : '/dashboard'} replace />} />
+      <Route path="/register" element={!user ? <RegisterPage /> : <Navigate to={user.role === 'client' ? '/my-questionnaires' : '/dashboard'} replace />} />
 
       {/* Protected routes */}
       {user ? (

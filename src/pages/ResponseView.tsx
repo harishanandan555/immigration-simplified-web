@@ -11,7 +11,8 @@ import {
   Download,
   Mail,
   MessageSquare,
-  File
+  File,
+  FileText
 } from 'lucide-react';
 import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
 import { useAuth } from '../controllers/AuthControllers';
@@ -28,35 +29,90 @@ interface QuestionnaireField {
 
 interface QuestionnaireResponse {
   _id: string;
-  responses: Record<string, any>;
-  submittedAt: string;
-}
-
-interface QuestionnaireAssignment {
-  _id: string;
-  questionnaireId: {
-    _id: string;
-    title: string;
-    description?: string;
-    fields: QuestionnaireField[];
-  };
-  clientId: {
+  questionnaire_id: string;
+  client_id: {
     _id: string;
     firstName: string;
     lastName: string;
     email: string;
-    phone?: string;
+  };
+  submitted_by: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  responses: Record<string, any>;
+  is_complete: boolean;
+  notes?: string;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface QuestionnaireAssignment {
+  _id: string;
+  questionnaire?: {
+    _id: string;
+    title: string;
+    description?: string;
+    category: string;
+    fields?: QuestionnaireField[];
+    id?: string;
+  };
+  questionnaireId?: {
+    _id: string;
+    title: string;
+    description?: string;
+    category: string;
+    fields?: QuestionnaireField[];
+  };
+  client?: string; // This is just the string ID
+  clientId?: string; // This is just the string ID
+  clientUserId?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  actualClient?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    client_id: string;
+  };
+  submittedBy?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  assignedBy?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  attorneyInfo?: {
+    _id: string;
+    attorney_id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
   };
   caseId?: {
     _id: string;
     title: string;
     category: string;
     status: string;
-  };
+  } | string;
   status: 'pending' | 'in-progress' | 'completed';
   assignedAt: string;
   completedAt?: string;
   dueDate?: string;
+  notes?: string;
+  response?: QuestionnaireResponse;
   responseId?: QuestionnaireResponse;
 }
 
@@ -89,27 +145,91 @@ const ResponseView: React.FC = () => {
   const loadAssignment = async () => {
     try {
       setLoading(true);
-      const data = await questionnaireAssignmentService.getAssignment(id as string);
       
-      // Check if the assignment exists and has a questionnaire
-      if (!data || !data.questionnaireId) {
-        setError('Questionnaire assignment not found');
+      console.log('Loading assignment response for ID:', id);
+      
+      // Use the dedicated endpoint to get assignment with response data
+      const responseData = await questionnaireAssignmentService.getAssignmentResponse(id as string);
+      
+      console.log('Raw assignment response:', responseData);
+      
+      if (!responseData.data) {
+        setError('Assignment not found');
         return;
       }
-
-      // Check if response exists
-      if (data.status !== 'completed' || !data.responseId) {
-        setError('This questionnaire has not been completed by the client yet');
-        return;
+      
+      const assignmentData = responseData.data;
+      
+      console.log('Assignment data:', assignmentData);
+      
+      setAssignment(assignmentData);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error loading assignment response:', err);
+      
+      // If the dedicated endpoint fails, try the fallback approach
+      try {
+        console.log('Trying fallback approach...');
+        const fallbackData = await questionnaireAssignmentService.getClientResponses({
+          status: 'completed',
+          page: 1,
+          limit: 100
+        });
+        
+        if (fallbackData.data?.assignments) {
+          const assignmentData = fallbackData.data.assignments.find((a: any) => a._id === id);
+          if (assignmentData) {
+            console.log('Found assignment via fallback:', assignmentData);
+            setAssignment(assignmentData);
+            setError(null);
+            return;
+          }
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback also failed:', fallbackErr);
       }
       
-      setAssignment(data);
-    } catch (err) {
-      setError('Failed to load questionnaire response. Please try again.');
-      toast.error('Error loading questionnaire response');
+      setError(err.message || 'Failed to load assignment response. Please try again.');
+      toast.error('Error loading assignment response');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper functions to get client information
+  const getClientInfo = (assignment: QuestionnaireAssignment) => {
+    // Try multiple possible locations for client info
+    return assignment.actualClient || 
+           assignment.clientUserId || 
+           assignment.response?.client_id || 
+           assignment.responseId?.client_id;
+  };
+
+  const getClientName = (assignment: QuestionnaireAssignment) => {
+    const client = getClientInfo(assignment);
+    if (client) {
+      return `${client.firstName} ${client.lastName}`;
+    }
+    return 'Unknown Client';
+  };
+
+  const getClientEmail = (assignment: QuestionnaireAssignment) => {
+    const client = getClientInfo(assignment);
+    return client?.email || 'No email available';
+  };
+
+  // Helper to get questionnaire info from either structure
+  const getQuestionnaireInfo = (assignment: QuestionnaireAssignment) => {
+    return assignment.questionnaire || assignment.questionnaireId;
+  };
+
+  // Helper to get response info from either structure  
+  const getResponseInfo = (assignment: QuestionnaireAssignment) => {
+    return assignment.response || assignment.responseId;
+  };
+
+  const getCaseInfo = (assignment: QuestionnaireAssignment) => {
+    return typeof assignment.caseId === 'object' ? assignment.caseId : null;
   };
 
   const formatDate = (dateString?: string): string => {
@@ -135,7 +255,7 @@ const ResponseView: React.FC = () => {
       // Simulating API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      toast.success(`Email sent to ${assignment.clientId.firstName} ${assignment.clientId.lastName}`);
+      toast.success(`Email sent to ${getClientName(assignment)}`);
     } catch (err) {
       toast.error('Failed to send email');
     } finally {
@@ -153,12 +273,48 @@ const ResponseView: React.FC = () => {
       // Simulating API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      toast.success(`Message sent to ${assignment.clientId.firstName} ${assignment.clientId.lastName}`);
+      toast.success(`Message sent to ${getClientName(assignment)}`);
     } catch (err) {
       toast.error('Failed to send message');
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const handleClientClick = () => {
+    if (!assignment) return;
+    
+    const responseInfo = getResponseInfo(assignment);
+    const questionnaireInfo = getQuestionnaireInfo(assignment);
+    const clientInfo = getClientInfo(assignment);
+    
+    if (!responseInfo?.responses || !questionnaireInfo || !clientInfo) {
+      toast.error('Cannot navigate - missing required data');
+      return;
+    }
+    
+    // Prepare the data to pass to the Legal Firm Workflow
+    const workflowData = {
+      clientId: clientInfo._id,
+      clientEmail: clientInfo.email,
+      clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
+      questionnaireId: questionnaireInfo._id,
+      questionnaireTitle: questionnaireInfo.title,
+      existingResponses: responseInfo.responses,
+      fields: questionnaireInfo.fields || [],
+      mode: 'edit', // Indicate this is editing existing responses
+      originalAssignmentId: assignment._id
+    };
+    
+    console.log('Navigating to Legal Firm Workflow with data:', workflowData);
+    
+    // Store the workflow data in sessionStorage for the Legal Firm Workflow to pick up
+    sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));
+    
+    // Navigate to the Legal Firm Workflow page
+    navigate('/legal-firm-workflow');
+    
+    toast.success(`Navigating to edit ${clientInfo.firstName}'s responses`);
   };
 
   const handleExportPDF = async () => {
@@ -204,7 +360,7 @@ const ResponseView: React.FC = () => {
     );
   }
 
-  if (error || !assignment || !assignment.responseId) {
+  if (error || !assignment) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-start">
@@ -224,8 +380,11 @@ const ResponseView: React.FC = () => {
     );
   }
 
-  const responses = assignment.responseId.responses || {};
-  const fields = assignment.questionnaireId.fields || [];
+  // Get the response and questionnaire info using helper functions
+  const responseInfo = getResponseInfo(assignment);
+  const questionnaireInfo = getQuestionnaireInfo(assignment);
+  const responses = responseInfo?.responses || {};
+  const fields = questionnaireInfo?.fields || [];
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -241,29 +400,43 @@ const ResponseView: React.FC = () => {
           </button>
           
           <h1 className="text-2xl font-bold text-gray-900 mb-4">
-            {assignment.questionnaireId.title}
+            {questionnaireInfo?.title || 'Questionnaire Response'}
           </h1>
           
           <div className="bg-green-50 text-green-700 p-3 rounded-lg flex items-center mb-4">
             <CheckCircle className="w-5 h-5 mr-2" />
             <span>Completed by client on {formatDate(assignment.completedAt)}</span>
           </div>
+          
+          {responseInfo && (
+            <div className="bg-blue-50 text-blue-700 p-3 rounded-lg flex items-center mb-4">
+              <FileText className="w-5 h-5 mr-2" />
+              <span>Response submitted: {formatDate(responseInfo.createdAt)} | {Object.keys(responses).length} fields completed</span>
+            </div>
+          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Client Information */}
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <h3 className="text-lg font-medium text-gray-900 mb-3">Client</h3>
-            <div className="flex items-center mb-3">
+            <div 
+              className="flex items-center mb-3 cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
+              onClick={handleClientClick}
+              title="Click to edit client responses in Legal Firm Workflow"
+            >
               <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
                 <User className="h-5 w-5 text-gray-500" />
               </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">
-                  {assignment.clientId.firstName} {assignment.clientId.lastName}
+              <div className="ml-3 flex-1">
+                <p className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
+                  {getClientName(assignment)}
                 </p>
                 <p className="text-sm text-gray-500">
-                  {assignment.clientId.email}
+                  {getClientEmail(assignment)}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Click to edit responses →
                 </p>
               </div>
             </div>
@@ -290,15 +463,16 @@ const ResponseView: React.FC = () => {
           {/* Case Information */}
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <h3 className="text-lg font-medium text-gray-900 mb-3">Case Details</h3>
-            {assignment.caseId ? (
+            {getCaseInfo(assignment) ? (
               <div>
-                <p className="font-medium">{assignment.caseId.title}</p>
-                <p className="text-sm text-gray-500 mb-2">Category: {assignment.caseId.category}</p>
-                <p className="text-sm text-gray-500">Status: {assignment.caseId.status}</p>
+                <p className="font-medium">{getCaseInfo(assignment)?.title}</p>
+                <p className="text-sm text-gray-500 mb-2">Category: {getCaseInfo(assignment)?.category}</p>
+                <p className="text-sm text-gray-500">Status: {getCaseInfo(assignment)?.status}</p>
                 <div className="mt-4">
                   <button
                     onClick={() => {
-                      const caseId = assignment.caseId?._id;
+                      const caseInfo = getCaseInfo(assignment);
+                      const caseId = caseInfo?._id;
                       if (caseId && /^[0-9a-fA-F]{24}$/.test(caseId)) {
                         navigate(`/cases/${caseId}`);
                       } else {
@@ -350,21 +524,63 @@ const ResponseView: React.FC = () => {
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
             <h3 className="text-lg font-medium text-gray-900">Client Responses</h3>
+            {responseInfo?.notes && (
+              <p className="text-sm text-gray-600 mt-1">Notes: {responseInfo.notes}</p>
+            )}
           </div>
           <div className="divide-y divide-gray-200">
-            {fields.length === 0 ? (
+            {Object.keys(responses).length === 0 ? (
               <div className="p-6 text-center text-gray-500">
-                This questionnaire has no questions.
+                No response data available.
               </div>
+            ) : fields.length > 0 ? (
+              // If we have field definitions, use them to render with labels
+              Object.entries(responses).map(([fieldId, value]) => {
+                // Find the corresponding field definition
+                const field = fields.find(f => f.id === fieldId);
+                
+                if (field) {
+                  // We have a field definition, use it to render properly
+                  return (
+                    <div key={fieldId} className="p-6 hover:bg-gray-50">
+                      <div className="mb-1 font-medium text-gray-900">
+                        {field.label || field.question || fieldId}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </div>
+                      <div className="mt-2 text-gray-700">
+                        {renderResponseValue(field, value)}
+                      </div>
+                    </div>
+                  );
+                } else {
+                  // No field definition found, show with generic label
+                  return (
+                    <div key={fieldId} className="p-6 hover:bg-gray-50">
+                      <div className="mb-1 font-medium text-gray-900">
+                        Question {fieldId}
+                      </div>
+                      <div className="mt-2 text-gray-700">
+                        {value !== undefined && value !== null && value !== '' ? 
+                          String(value) : 
+                          <span className="text-gray-400 italic">Not provided</span>
+                        }
+                      </div>
+                    </div>
+                  );
+                }
+              })
             ) : (
-              fields.map((field) => (
-                <div key={field.id} className="p-6 hover:bg-gray-50">
+              // If we don't have field definitions, just show the raw responses
+              Object.entries(responses).map(([fieldId, value]) => (
+                <div key={fieldId} className="p-6 hover:bg-gray-50">
                   <div className="mb-1 font-medium text-gray-900">
-                    {field.label || field.question}
-                    {field.required && <span className="text-red-500 ml-1">*</span>}
+                    Field {fieldId}
                   </div>
                   <div className="mt-2 text-gray-700">
-                    {renderResponseValue(field, responses[field.id])}
+                    {value !== undefined && value !== null && value !== '' ? 
+                      String(value) : 
+                      <span className="text-gray-400 italic">Not provided</span>
+                    }
                   </div>
                 </div>
               ))

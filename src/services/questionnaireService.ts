@@ -1,4 +1,4 @@
-import { ImmigrationQuestionnaire, QuestionnaireField, QuestionnaireResponse } from '../types/questionnaire';
+import { ImmigrationQuestionnaire, QuestionnaireResponse } from '../types/questionnaire';
 
 export interface ApiResponse<T> {
   data?: T;
@@ -597,6 +597,44 @@ class QuestionnaireService {
         isAuthenticated: false,
         message: `Authentication check error: ${error.message}`
       };
+    }
+  }
+
+  /**
+   * Get questionnaire details by ID (for clients)
+   * @param {string} questionnaireId - The questionnaire ID
+   * @returns {Promise<Object>} Questionnaire details
+   */
+  async getQuestionnaireForClient(questionnaireId: string): Promise<ImmigrationQuestionnaire> {
+    const token = this.getAuthToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+
+    console.log(`[QuestionnaireService] Getting questionnaire ${questionnaireId} for client`);
+
+    try {
+      const response = await fetch(`${this.baseURL}/questionnaires/${questionnaireId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[QuestionnaireService] Failed to get questionnaire: ${response.status} ${errorText}`);
+        throw new Error(`Failed to get questionnaire: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(`[QuestionnaireService] Successfully retrieved questionnaire ${questionnaireId}`);
+      
+      return data.data || data;
+    } catch (error: any) {
+      console.error(`[QuestionnaireService] Error getting questionnaire ${questionnaireId}:`, error);
+      throw new Error(`Failed to get questionnaire: ${error.message}`);
     }
   }
 }

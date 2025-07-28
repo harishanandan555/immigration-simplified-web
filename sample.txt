@@ -1,6 +1,0 @@
-          
-        // Show success message
-        // toast.success('Login successful!', {
-        //   duration: 2000,
-        //   position: 'top-right',
-        // });
