@@ -440,6 +440,23 @@ export const PDF_TEMPLATE_END_POINTS = {
     UPDATE_TEMPLATE_PERMISSIONS: "/api/v1/pdf-templates/:templateId/permissions"
 } as const;
 
+export const FORM_AUTO_FILL_END_POINTS = {
+    // Render PDF form fields
+    RENDER_FIELDS: "/api/v1/forms/render/fields/:templateId",
+    
+    // Update PDF form fields
+    UPDATE_FIELDS: "/api/v1/forms/update/fields/:pdfTemplateName",
+    
+    // Render PDF form with data
+    RENDER_FORM_WITH_DATA: "/api/v1/forms/render/insert-data/:templateId",
+    
+    // Download multiple PDF forms
+    DOWNLOAD_MULTIPLE: "/api/v1/forms/download",
+    
+    // Get display names by template ID
+    GET_DISPLAY_NAMES: "/api/v1/forms/display-names/:templateId"
+} as const;
+
 // PDF Template Field Types
 export const PDF_FIELD_TYPES = {
     TEXT: 'text',
