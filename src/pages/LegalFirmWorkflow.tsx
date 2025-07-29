@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom'; // Not used
 import { 
   Users, FileText, ClipboardList, Send, Download, CheckCircle, 
-  ArrowRight, ArrowLeft, Plus, User, Briefcase, FormInput,
-  MessageSquare, FileCheck, AlertCircle, Clock, Star, Info as InfoIcon,
+  ArrowRight, ArrowLeft, User, Briefcase, FormInput,
+  MessageSquare, FileCheck, AlertCircle, Clock, Info as InfoIcon,
   Loader, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -21,14 +21,14 @@ import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import TextArea from '../components/common/TextArea';
-import FileUpload from '../components/common/FileUpload';
-import { downloadFilledI130PDF, I130FormData } from '../utils/pdfUtils';
+// import FileUpload from '../components/common/FileUpload'; // Not used
+import { downloadFilledI130PDF } from '../utils/pdfUtils';
 import { 
   isQuestionnaireApiAvailable, 
   getQuestionnaires 
 } from '../controllers/QuestionnaireControllers';
 import {
-  assignQuestionnaire,
+  // assignQuestionnaire, // Not used
   isApiEndpointAvailable
 } from '../controllers/QuestionnaireAssignmentControllers';
 import {
@@ -93,6 +93,9 @@ interface QuestionnaireAssignment {
   tempPassword?: string; // Added for client account creation
   formCaseIds?: Record<string, string>; // Map of form names to case IDs
   selectedForms?: string[]; // List of selected forms
+  accountCreated?: boolean; // Track whether user account was successfully created
+  formType?: string; // Type of the primary form
+  formCaseIdGenerated?: string; // Generated case ID for the primary form
 }
 
 interface FormData {
@@ -144,7 +147,7 @@ const WORKFLOW_STEPS = [
 // Use generateSecurePassword from UserCreationController
 
 const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // Not used in current implementation
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -208,7 +211,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Form details
   const [formDetails, setFormDetails] = useState<FormData[]>([]);
-  const [currentFormIndex, setCurrentFormIndex] = useState(0);
+  // const [currentFormIndex, setCurrentFormIndex] = useState(0); // Not used
+
+  // State for client credentials
+  const [clientCredentials, setClientCredentials] = useState({
+    email: '',  // Will be populated with client.email when needed
+    password: '',
+    createAccount: false
+  });
+
+  // State for form details ID (backend integration)
+  const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
+  
+  // State for auto-fill data from API
+  const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
+  const [autoFillEnabled, setAutoFillEnabled] = useState(false);
+  const [loadingWorkflows, setLoadingWorkflows] = useState(false);
 
   // Load available questionnaires
   useEffect(() => {
@@ -222,7 +240,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Load available workflows for auto-fill on component mount
   useEffect(() => {
     const loadWorkflowsForAutoFill = async () => {
-      console.log('🔄 Loading workflows for auto-fill...');
       await fetchWorkflowsFromAPI();
     };
     
@@ -233,39 +250,25 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to resume workflow from saved progress
   const resumeWorkflow = async (workflowId: string) => {
     try {
-      console.log('🔄 Attempting to resume workflow:', workflowId);
       
       let workflowData = null;
       
-      // Try to load from API first
+      // Try to load from API only
       const token = localStorage.getItem('token');
       if (token) {
         try {
           const response = await api.get(`/api/v1/workflows/progress/${workflowId}`);
           workflowData = response.data.data || response.data;
-          console.log('✅ Loaded workflow from API:', workflowData);
           toast.success('Workflow resumed from server', { duration: 2000 });
         } catch (apiError: any) {
-          console.warn('⚠️ Failed to load workflow from API:', apiError);
-          if (apiError.response?.status !== 404) {
-            toast.error('Failed to load from server, checking local storage');
-          }
+          toast.error('Failed to load workflow from server');
         }
-      }
-      
-      // Fallback to localStorage
-      if (!workflowData) {
-        const savedWorkflows = JSON.parse(localStorage.getItem('legal-firm-workflows') || '[]');
-        workflowData = savedWorkflows.find((w: any) => w.workflowId === workflowId);
-        
-        if (workflowData) {
-          console.log('✅ Loaded workflow from localStorage:', workflowData);
-          toast.success('Workflow resumed from local storage', { duration: 2000 });
-        }
+      } else {
+        toast.error('Authentication required to resume workflow');
       }
       
       if (!workflowData) {
-        toast.error('Workflow not found');
+        toast.error('Workflow not found or failed to load');
         return false;
       }
       
@@ -304,13 +307,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         setCurrentStep(workflowData.currentStep);
       }
       
-      console.log('✅ Workflow state restored successfully');
       toast.success(`Workflow resumed at step: ${WORKFLOW_STEPS[workflowData.currentStep]?.title || 'Unknown'}`);
       
       return true;
       
     } catch (error) {
-      console.error('❌ Error resuming workflow:', error);
       toast.error('Failed to resume workflow');
       return false;
     }
@@ -324,7 +325,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const resumeWorkflowId = urlParams.get('resumeWorkflow');
       
       if (resumeWorkflowId) {
-        console.log('🔄 URL parameter detected for workflow resumption:', resumeWorkflowId);
+
         resumeWorkflow(resumeWorkflowId);
         
         // Clean up URL
@@ -338,11 +339,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (resumeData) {
         try {
           const { workflowId } = JSON.parse(resumeData);
-          console.log('🔄 SessionStorage detected for workflow resumption:', workflowId);
+
           resumeWorkflow(workflowId);
           sessionStorage.removeItem('resumeWorkflow');
         } catch (error) {
-          console.error('Error parsing resume workflow data:', error);
+
           sessionStorage.removeItem('resumeWorkflow');
         }
       }
@@ -360,7 +361,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     if (workflowData) {
       try {
         const data = JSON.parse(workflowData);
-        console.log('Found pre-filled workflow data after questionnaires loaded:', data);
+
         
         // Check if we have the questionnaire in our available questionnaires
         let foundQuestionnaire = availableQuestionnaires.find(q => 
@@ -373,7 +374,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         
         // If not found and we have field data, create a temporary questionnaire
         if (!foundQuestionnaire) {
-          console.log('Creating temporary questionnaire from pre-filled data');
+
           
           // If we have fields from the response data, use them
           const fieldsToUse = data.fields && data.fields.length > 0 ? data.fields : [
@@ -398,12 +399,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             apiQuestionnaire: true
           };
           
-          console.log('Created temporary questionnaire:', foundQuestionnaire);
+
           
           // Add it to available questionnaires
           setAvailableQuestionnaires(prev => [...prev, foundQuestionnaire]);
         } else {
-          console.log('Found existing questionnaire:', foundQuestionnaire);
+
         }
         
         // Set client data
@@ -432,14 +433,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             clientEmail: data.clientEmail
           };
           
-          console.log('Creating questionnaire assignment:', assignment);
+
           setQuestionnaireAssignment(assignment);
         }
         
         // Set existing responses if in edit mode
         if (data.mode === 'edit' && data.existingResponses) {
           setClientResponses(data.existingResponses);
-          console.log('Set client responses:', data.existingResponses);
+
         }
         
         // Jump to the answers collection step since we have responses
@@ -455,7 +456,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         sessionStorage.removeItem('legalFirmWorkflowData');
         
       } catch (error) {
-        console.error('Error parsing workflow data:', error);
+
         sessionStorage.removeItem('legalFirmWorkflowData');
       }
     }
@@ -468,7 +469,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       try {
         // You may want to pass userId or params as needed
         const response = await getFormTemplates('');
-        console.log('Fetched form templates:', response.data.templates);
+
         setFormTemplates(response.data.templates || []);
       } catch (error) {
         setFormTemplates([]);
@@ -485,8 +486,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       try {
         const apiClients = await fetchClientsFromAPI();
         
+        // Filter clients to only include role "client" and userType "individual"
+        const filteredClients = apiClients?.filter((client: any) => {
+          const hasValidRole = client.role === 'client';
+          const hasValidUserType = client.userType === 'individual';
+          
+          if (!hasValidRole || !hasValidUserType) {
+
+            return false;
+          }
+          
+          return true;
+        }) || [];
+        
+
+        
         // Make sure each client has a valid MongoDB ObjectId
-        const validatedClients = apiClients?.map((client: any) => {
+        const validatedClients = filteredClients.map((client: any) => {
           // If client already has a valid ObjectId, use it
           if (client._id && isValidMongoObjectId(client._id)) {
             return {
@@ -505,26 +521,41 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           
           // Otherwise, generate a new valid ObjectId
           const validId = generateObjectId();
-          console.log(`Converting client ID ${client._id || client.id} to valid ObjectId: ${validId}`);
+
           
           return {
             ...client,
             id: validId,
             _id: validId
           };
-        }) || [];
+        });
         
-        console.log('Validated clients:', validatedClients);
+
         setExistingClients(validatedClients);
       } catch (err) {
-        console.error('Error fetching clients:', err);
+
         // Load clients from localStorage as fallback
         try {
           const localClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
-          console.log('Loaded clients from localStorage:', localClients);
-          setExistingClients(localClients);
+          
+          // Apply same filtering for localStorage clients
+          const filteredLocalClients = localClients.filter((client: any) => {
+            const hasValidRole = client.role === 'client';
+            const hasValidUserType = client.userType === 'individual';
+            
+            if (!hasValidRole || !hasValidUserType) {
+
+              return false;
+            }
+            
+            return true;
+          });
+          
+
+
+          setExistingClients(filteredLocalClients);
         } catch (localErr) {
-          console.error('Error loading local clients:', localErr);
+
           setExistingClients([]);
         }
       } finally {
@@ -545,23 +576,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           limit: 50
         });
         
-        console.log('API response for questionnaires:', response);
+
         
         // Questionnaires loaded successfully from API
         if (response.questionnaires && response.questionnaires.length > 0) {
-          console.log('First questionnaire structure from API:', 
-            JSON.stringify(response.questionnaires[0], null, 2));
+          // Questionnaires loaded successfully from API
         }
         
         // Normalize questionnaire data to ensure consistent structure
         const normalizedQuestionnaires = response.questionnaires.map((q: any) => {
           // Special handling for API response format
           if (q.id && q.id.startsWith('q_') && q.fields) {
-            console.log('Processing API format questionnaire:', q.id);
+            // Found API questionnaire with q_ prefix
           }
           return normalizeQuestionnaireStructure(q);
         });
-        console.log('Normalized questionnaires from API:', normalizedQuestionnaires);
+
         setAvailableQuestionnaires(normalizedQuestionnaires);
       } else {
         // Fallback to localStorage
@@ -569,21 +599,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         if (savedQuestionnaires) {
           const parsedQuestionnaires = JSON.parse(savedQuestionnaires);
           // Questionnaires loaded from localStorage
-          console.log('Loading questionnaires from localStorage:', parsedQuestionnaires);
+
           
           // Normalize questionnaire data from localStorage
           const normalizedQuestionnaires = parsedQuestionnaires.map((q: any) => {
             // First apply the standard normalization
             const normalizedQ = normalizeQuestionnaireStructure(q);
-            // Log each questionnaire's field structure before and after normalization
-            console.log(`Questionnaire "${q.title || q.name || 'unnamed'}":`, 
-              'Original fields:', q.fields || q.questions || [], 
-              'Normalized fields:', normalizedQ.fields);
+            // Normalization complete
             return normalizedQ;
           });
           setAvailableQuestionnaires(normalizedQuestionnaires);
         } else {
-          console.warn('No questionnaires found in localStorage');
           // Load demo questionnaires if nothing is available
           const demoQuestionnaires = [
             {
@@ -623,13 +649,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               ]
             }
           ];
-          console.log('Loading demo questionnaires:', demoQuestionnaires);
+
           setAvailableQuestionnaires(demoQuestionnaires);
           localStorage.setItem('immigration-questionnaires', JSON.stringify(demoQuestionnaires));
         }
       }
     } catch (error) {
-      console.error('Error loading questionnaires:', error);
       // Load demo questionnaires in case of error
       const demoQuestionnaires = [
         {
@@ -657,7 +682,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           ]
         }
       ];
-      console.log('Loading demo questionnaires due to error:', demoQuestionnaires);
+
       setAvailableQuestionnaires(demoQuestionnaires);
     } finally {
       setLoading(false);
@@ -670,7 +695,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Use the imported normalizeQuestionnaireStructure function from QuestionnaireResponseControllers
 
   const handleNext = () => {
-    console.log('Current step:', currentStep, 'Moving to:', currentStep + 1);
+
     
     const nextStep = currentStep + 1;
     
@@ -680,7 +705,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // Check if we're moving to the "Collect Answers" step (typically step 5)
       const nextStepConfig = WORKFLOW_STEPS[nextStep];
       if (nextStepConfig?.id === 'answers' && autoFillEnabled) {
-        console.log('🔄 Reached Collect Answers step - triggering auto-fill...');
+
         
         // Trigger auto-fill with a slight delay to allow step transition
         setTimeout(() => {
@@ -697,49 +722,45 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
   };
 
-  const handleClientSubmit = async () => {
-    console.log('Client submit called with data:', client);
-    
-    // Ensure client has a name with first and last name parts
-    if (!client.name || client.name.trim() === '') {
-      toast.error('Client name is required');
-      return;
-    }
-    
-    // Validate email
-    if (!client.email || !client.email.includes('@')) {
-      toast.error('Valid email address is required');
-      return;
-    }
-    
-    // Parse name to ensure we have first and last name components
-    let firstName = '', lastName = '';
-    const nameParts = client.name.trim().split(' ');
-    if (nameParts.length > 1) {
-      firstName = nameParts[0];
-      lastName = nameParts.slice(1).join(' ');
-    } else {
-      // If only one word in name, use it as firstName and default lastName
-      firstName = nameParts[0];
-      lastName = 'Client'; // Default last name
-    }
-    
-    // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
-    if (!client.password) {
-      console.log('⚠️ No password provided - user account creation will be skipped');
-      toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
-      return null;
-    }
-    
-    // Use the email and password from questionnaire assignment screen or generated password
-    const clientEmail = client.email;
-    const clientPassword = client.password;
-    
-    console.log('📧 Using email:', clientEmail);
-    console.log('🔑 Using password: [HIDDEN]');
-    
-    return await createClientAccountWithCredentials(clientEmail, clientPassword);
-  };
+ // Find the handleClientSubmit function and update it to check for existing clients
+
+const handleClientSubmit = async () => {
+
+  
+  // Ensure client has a name with first and last name parts
+  if (!client.name || client.name.trim() === '') {
+    toast.error('Client name is required');
+    return;
+  }
+  
+  // Validate email
+  if (!client.email || !client.email.includes('@')) {
+    toast.error('Valid email address is required');
+    return;
+  }
+  
+  // Parse name to ensure we have first and last name components
+  // Name parsing is handled within createClientAccountWithCredentials function
+  
+  // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
+  if (!client.password) {
+
+    toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
+    return null;
+  }
+  
+  // Use the email and password from questionnaire assignment screen or generated password
+  const clientEmail = client.email;
+  const clientPassword = client.password;
+  
+
+
+  
+  return await createClientAccountWithCredentials(clientEmail, clientPassword);
+};
+
+// Update the createClientAccountWithCredentials function to check for existing users
+
 
   // Helper function to create client account with provided credentials
   const createClientAccountWithCredentials = async (clientEmail: string, clientPassword: string) => {
@@ -755,173 +776,180 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       lastName = 'Client'; // Default last name
     }
     
-    // Generate a valid MongoDB ObjectId for the client
-    const clientId = generateObjectId();
-    const updatedClient = {
-      ...client,
-      id: clientId,
-      _id: clientId, // Add both id and _id for compatibility
-      firstName, // Add parsed name components
-      lastName,
-      email: clientEmail, // Use the specific email
-      password: clientPassword, // Use the specific password
-      createdAt: new Date().toISOString()
-    };
-    setClient(updatedClient);
-    
     try {
-      console.log('Creating client user account through correct backend endpoint...');
+
       
-      // ✅ Use the correct endpoint: /api/v1/auth/register/user
-      const response = await api.post('/api/v1/auth/register/user', {
-        firstName: updatedClient.firstName,
-        lastName: updatedClient.lastName,
-        email: clientEmail.toLowerCase().trim(),
-        password: clientPassword,
-        role: 'client', // ✅ Required: Specify user role
-        userType: 'individual', // ✅ Required: Enables individual client creation
-        sendPassword: false // ✅ Controls welcome email (set to true if you want emails)
-      });
-      
-      console.log('Backend registration response:', response.data);
-      
-      // ✅ Enhanced response handling - handle both response structures
-      const userData = response.data?.data || response.data?.user || response.data;
-      const apiClientId = userData?._id || userData?.id;
-      const token = response.data?.token || userData?.token;
-      
-      if (!apiClientId) {
-        throw new Error('No user ID returned from registration');
+      // First, check if user already exists by email
+      let existingUserId = null;
+      try {
+        const checkResponse = await api.get(`/api/v1/users/check-email/${encodeURIComponent(clientEmail.toLowerCase().trim())}`);
+        if (checkResponse.data && checkResponse.data.exists) {
+          existingUserId = checkResponse.data.userId;
+
+          
+          // Check if this user has the correct role
+          if (checkResponse.data.role === 'client' && checkResponse.data.userType === 'individual') {
+
+            
+            // Update client object with existing user ID
+            const updatedClient = {
+              ...client,
+              id: existingUserId,
+              _id: existingUserId,
+              firstName,
+              lastName,
+              email: clientEmail,
+              userId: existingUserId,
+              hasUserAccount: true,
+              existingUser: true
+            };
+            setClient(updatedClient);
+            
+            toast.success(`✅ Using existing client account for ${firstName} ${lastName}!`);
+            handleNext();
+            
+            return existingUserId;
+          } else {
+
+            toast.error(`A user with email ${clientEmail} already exists but has a different role. Please use a different email.`);
+            return null;
+          }
+        }
+      } catch (checkError: any) {
+        // If endpoint doesn't exist or returns 404, continue with creation
+        if (checkError.response?.status === 404) {
+
+        } else {
+
+        }
       }
       
-      console.log(`✅ Client user account created successfully with ID: ${apiClientId}`);
+      // If no existing user found, create new account
+
       
-      // Create comprehensive client object with all necessary fields
-      const apiClient = {
-        ...updatedClient,
-        id: apiClientId,
-        _id: apiClientId,
-        userId: apiClientId, // Store the user account ID
-        hasUserAccount: true,
-        email: client.email.toLowerCase().trim(),
-        // Include additional client profile data
-        phone: client.phone || '',
-        dateOfBirth: client.dateOfBirth || '',
-        nationality: client.nationality || '',
-        address: client.address || {
-          street: '',
-          city: '',
-          state: '',
-          zipCode: '',
-          country: 'United States'
-        },
-        status: 'active',
-        // Include JWT token for potential auto-login
-        ...(token && { token })
+      // Generate a valid MongoDB ObjectId for the client
+      const clientId = generateObjectId();
+      const updatedClient = {
+        ...client,
+        id: clientId,
+        _id: clientId, // Add both id and _id for compatibility
+        firstName, // Add parsed name components
+        lastName,
+        email: clientEmail, // Use the specific email
+        password: clientPassword, // Use the specific password
+        createdAt: new Date().toISOString()
       };
-      
-      setClient(apiClient);
-      
-      // Save to localStorage for future reference
-      const existingClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
-      existingClients.push(apiClient);
-      localStorage.setItem('legal-firm-clients', JSON.stringify(existingClients));
-      
-      // 🔑 Store client credentials for easy login access
-      const clientCredentials = {
-        email: clientEmail,
-        password: clientPassword,
-        userId: apiClientId
-      };
+      setClient(updatedClient);
       
       try {
-        const { storeClientCredentials } = await import('../utils/clientLoginHelper');
-        storeClientCredentials(clientCredentials);
-        console.log('✅ Client credentials stored for easy access');
-      } catch (helperError) {
-        console.warn('Could not store client credentials:', helperError);
-      }
-      
-      // ✅ Success toast with user's name and login credentials
-      toast.success(
-        <div>
-          <p>✅ Client account created successfully for {updatedClient.firstName} {updatedClient.lastName}!</p>
-          <p className="text-sm mt-1">🔐 Login credentials:</p>
-          <p className="text-xs">Email: {clientEmail}</p>
-          <p className="text-xs">Password: {clientPassword}</p>
-        </div>,
-        { duration: 8000 }
-      );
-      
-      console.log('✅ Client user registration completed successfully, proceeding to next step');
-      handleNext();
-      
-      // Return the real user account ID
-      return apiClientId;
-      
-    } catch (error: any) {
-      console.error('❌ Failed to create client user account:', error);
-      
-      // ✅ Enhanced error handling with specific messages
-      const errorData = error.response?.data;
-      const errorMessage = errorData?.error?.message || 
-                          errorData?.message || 
-                          errorData?.error || 
-                          error.message || 
-                          'Failed to create client account';
-      
-      console.error('Error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: errorData,
-        message: errorMessage
-      });
-      
-      // ✅ Handle specific error scenarios
-      if (error.response?.status === 400) {
-        toast.error(`Registration failed: ${errorMessage}`);
-      } else if (error.response?.status === 409 || errorMessage.toLowerCase().includes('already exists')) {
-        // ✅ Handle "user already exists" errors gracefully
-        console.log('🔄 User already exists, this may not be fatal...');
-        toast.error(`A user with email ${client.email} already exists. Please use a different email or contact support.`);
-      } else if (error.response?.status === 401) {
-        toast.error('Authentication required. Please log in to create client accounts.');
-      } else if (error.response?.status === 500) {
-        toast.error('Server error occurred. Please try again or contact support.');
-      } else {
-        toast.error(`Failed to create client account: ${errorMessage}`);
-      }
-      
-      // ✅ Prevent navigation to next step if registration fails
-      console.log('❌ Registration failed, not proceeding to next step');
-      
-      // Don't save to localStorage or proceed if registration completely failed
-      // Only proceed if it's a non-fatal error like "user exists"
-      if (errorMessage.toLowerCase().includes('already exists')) {
-        // For existing users, still save basic client info locally but mark as no new account
-        const localClient = {
+
+        
+        // ✅ Use the correct endpoint: /api/v1/auth/register/user
+        const response = await api.post('/api/v1/auth/register/user', {
+          firstName: updatedClient.firstName,
+          lastName: updatedClient.lastName,
+          email: clientEmail.toLowerCase().trim(),
+          password: clientPassword,
+          role: 'client', // ✅ Required: Specify user role
+          userType: 'individual', // ✅ Required: Enables individual client creation
+          sendPassword: false // ✅ Controls welcome email (set to true if you want emails)
+        });
+        
+
+        
+        // ✅ Enhanced response handling - handle both response structures
+        const userData = response.data?.data || response.data?.user || response.data;
+        const apiClientId = userData?._id || userData?.id;
+        const token = response.data?.token || userData?.token;
+        
+        if (!apiClientId) {
+          throw new Error('No user ID returned from registration');
+        }
+        
+
+        
+        // Create comprehensive client object with all necessary fields
+        const apiClient = {
           ...updatedClient,
-          hasUserAccount: false,
-          existingUser: true,
-          error: 'User already exists'
+          id: apiClientId,
+          _id: apiClientId,
+          userId: apiClientId,
+          hasUserAccount: true,
+          email: client.email.toLowerCase().trim(),
+          phone: client.phone || '',
+          dateOfBirth: client.dateOfBirth || '',
+          nationality: client.nationality || '',
+          address: client.address || {
+            street: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            country: 'United States'
+          },
+          status: 'active',
+          ...(token && { token })
         };
         
-        const existingClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
-        existingClients.push(localClient);
-        localStorage.setItem('legal-firm-clients', JSON.stringify(existingClients));
-        setClient(localClient);
+        setClient(apiClient);
         
-        // Still proceed in this case since client data is captured
+        toast.success(`✅ New client account created successfully for ${updatedClient.firstName} ${updatedClient.lastName}!`);
+        
+
         handleNext();
-      } else {
-        // For other errors, clear the password and don't proceed
-        const clientWithoutPassword = { ...client };
-        delete clientWithoutPassword.password;
-        setClient(clientWithoutPassword);
-        console.log('❌ Cleared password from client object due to registration failure');
+        
+        // Return the real user account ID
+        return apiClientId;
+        
+      } catch (error: any) {
+
+        
+        const errorData = error.response?.data;
+        const errorMessage = errorData?.error?.message || 
+                            errorData?.message || 
+                            errorData?.error || 
+                            error.message || 
+                            'Failed to create client account';
+        
+        if (error.response?.status === 400) {
+          toast.error(`Registration failed: ${errorMessage}`);
+        } else if (error.response?.status === 409 || errorMessage.toLowerCase().includes('already exists')) {
+
+          toast.error(`A user with email ${clientEmail} already exists. Please use a different email or contact support.`);
+          
+          // Try to get the existing user ID from the error response
+          const existingUserId = errorData?.userId || errorData?.data?.userId;
+          
+          if (existingUserId) {
+
+            
+            // Update client object with existing user ID
+            const existingClient = {
+              ...client,
+              id: existingUserId,
+              _id: existingUserId,
+              firstName,
+              lastName,
+              email: clientEmail,
+              userId: existingUserId,
+              hasUserAccount: true,
+              existingUser: true
+            };
+            setClient(existingClient);
+            
+            toast.success(`✅ Using existing client account for ${firstName} ${lastName}!`);
+            handleNext();
+            return existingUserId;
+          }
+        } else {
+          toast.error(`Failed to create client account: ${errorMessage}`);
+        }
+        
+        return null;
       }
       
-      // For other errors, don't proceed to next step
+    } catch (error: any) {
+
+      toast.error('Failed to create client account');
       return null;
     }
   };
@@ -938,27 +966,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     };
     setCaseData(updatedCase);
     
-    // Save to localStorage
-    const existingCases = JSON.parse(localStorage.getItem('legal-firm-cases') || '[]');
-    existingCases.push(updatedCase);
-    localStorage.setItem('legal-firm-cases', JSON.stringify(existingCases));
-    
-    // Save case data to backend (Step 2)
-    try {
-      await saveFormDetailsToBackend(2);
-      console.log('✅ Case data saved to backend');
-    } catch (error) {
-      console.warn('⚠️ Failed to save case data to backend:', error);
-    }
-    
-    // Save workflow progress after case creation
-    try {
-      await saveWorkflowProgress();
-      console.log('✅ Workflow progress saved after case creation');
-    } catch (error) {
-      console.warn('⚠️ Failed to save workflow progress after case creation:', error);
-    }
-    
+    // Just proceed to next step without saving
     handleNext();
   };
 
@@ -972,7 +980,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     
     try {
       // Generate case ID for the selected form
-      console.log('Generating case ID for form:', selectedForms);
+
       
       let caseIds: Record<string, string> = {};
       
@@ -981,7 +989,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         caseIds = await generateMultipleCaseIdsFromAPI(selectedForms);
         toast.success(`Generated case ID for ${selectedForms[0]} form`);
       } catch (error) {
-        console.warn('API case ID generation failed, using client-side fallback:', error);
+
         // Fallback to client-side generation
         caseIds = generateMultipleCaseIds(selectedForms);
         toast.success(`Generated case ID for ${selectedForms[0]} form (offline mode)`);
@@ -991,7 +999,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setFormCaseIds(caseIds);
       
       // Log the generated case ID for debugging
-      console.log('Generated case ID:', caseIds);
+
       
       // Update case with selected forms and case IDs
       const updatedCase = {
@@ -1001,81 +1009,33 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       };
       setCaseData(updatedCase);
       
-      // Save to localStorage
-      const existingCases = JSON.parse(localStorage.getItem('legal-firm-cases') || '[]');
-      const updatedCases = existingCases.map((c: any) => {
-        if (c.id === caseData.id) {
-          return updatedCase;
-        }
-        return c;
-      });
-      localStorage.setItem('legal-firm-cases', JSON.stringify(updatedCases));
-      
-      // Save form selection to backend (Step 3)
-      try {
-        await saveFormDetailsToBackend(3);
-        console.log('✅ Form selection saved to backend');
-      } catch (error) {
-        console.warn('⚠️ Failed to save form selection to backend:', error);
-      }
-      
-      // Save workflow progress after form selection
-      try {
-        await saveWorkflowProgress();
-        console.log('✅ Workflow progress saved after form selection');
-      } catch (error) {
-        console.warn('⚠️ Failed to save workflow progress after form selection:', error);
-      }
-      
+      // Just proceed to next step without saving
       handleNext();
     } catch (error) {
-      console.error('Error generating case IDs:', error);
+
       toast.error('Failed to generate case IDs. Please try again.');
     } finally {
       setGeneratingCaseIds(false);
     }
   };
 
-  // State for client credentials
-  const [clientCredentials, setClientCredentials] = useState({
-    email: '',  // Will be populated with client.email when needed
-    password: '',
-    createAccount: false
-  });
-
-  // State for form details ID (backend integration)
-  const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
-  
-  // State for auto-fill data from API
-  const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
-  const [autoFillEnabled, setAutoFillEnabled] = useState(false);
-  const [loadingWorkflows, setLoadingWorkflows] = useState(false);
-  
   // Function to fetch workflows from API for auto-fill
   const fetchWorkflowsFromAPI = async () => {
     try {
-      console.log('🔄 === STARTING API WORKFLOW FETCH ===');
+
       setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
       
-      console.log('🔐 Token check:', {
-        hasToken: !!token,
-        tokenLength: token ? token.length : 0,
-        tokenPreview: token ? token.substring(0, 20) + '...' : 'none'
-      });
+      // Check token availability
       
       if (!token) {
-        console.warn('❌ No authentication token found. Cannot fetch workflows from API.');
+        // No authentication token available
         toast('No authentication token - using local data only');
         return [];
       }
 
-      console.log('🌐 Making API request to /api/v1/workflows...');
-      console.log('📋 Request parameters:', {
-        status: 'in-progress',
-        page: 1,
-        limit: 50
-      });
+
+      // Request workflows from API
       
       const response = await api.get('/api/v1/workflows', {
         params: {
@@ -1085,63 +1045,36 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }
       });
 
-      console.log('📡 API Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        dataStructure: {
-          hasData: !!response.data,
-          hasSuccess: !!response.data?.success,
-          hasDataArray: !!response.data?.data,
-          dataCount: response.data?.data?.length || 0
-        }
-      });
-      console.log('📋 Full API response data:', response.data);
+      // Response status logged
       
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
         setAvailableWorkflows(workflows);
-        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
-        console.log('📋 Workflow summary:', workflows.map(w => ({
-          workflowId: w.workflowId,
-          clientEmail: w.client?.email,
-          status: w.status,
-          updatedAt: w.updatedAt,
-          currentStep: w.currentStep
-        })));
+        // Workflows loaded successfully
         return workflows;
       } else {
-        console.warn('⚠️ API response structure unexpected:', response.data);
+        // No workflow data available
         return [];
       }
       
     } catch (error: any) {
-      console.error('❌ API ERROR during workflow fetch:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers
-        }
-      });
+      // Handle API errors
       
       // If 404, the endpoint might not be available
       if (error.response?.status === 404) {
-        console.log('📝 Workflows API endpoint not available (404), using localStorage only');
+        // Server workflows endpoint not found
         toast('Server workflows not available - using local data');
       } else if (error.response?.status === 401) {
-        console.log('🔐 Authentication failed (401) - token may be expired');
+        // Authentication failed
         toast('Authentication failed - please login again');
       } else {
-        console.log('🔥 General API error:', error.response?.status);
+        // Other errors
         toast.error('Failed to load workflows from server', { duration: 3000 });
       }
       
       return [];
     } finally {
-      console.log('🏁 API workflow fetch completed');
+      // Cleanup loading state
       setLoadingWorkflows(false);
     }
   };
@@ -1149,26 +1082,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to auto-fill workflow data from saved workflows
   const autoFillFromSavedWorkflow = async (workflowData: any) => {
     try {
-      console.log('🔄 === STARTING AUTO-FILL FROM SAVED WORKFLOW ===');
-      console.log('📋 Workflow data to auto-fill:', {
-        workflowId: workflowData.workflowId,
-        hasClient: !!workflowData.client,
-        hasCase: !!workflowData.case,
-        hasResponses: !!workflowData.clientResponses,
-        currentStep: workflowData.currentStep,
-        responseCount: workflowData.clientResponses ? Object.keys(workflowData.clientResponses).length : 0
-      });
+      // Log workflow data for debugging
       
       // Auto-fill client data
       if (workflowData.client) {
-        console.log('📝 Auto-filling client data...');
-        console.log('👤 Current client before fill:', {
-          name: client.name,
-          email: client.email,
-          phone: client.phone,
-          address: client.address
-        });
-        console.log('👤 Workflow client data:', workflowData.client);
+        // Current client data
         
         const newClientData = {
           ...client,
@@ -1192,18 +1110,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           nationality: workflowData.client.nationality || client.nationality
         };
         
-        console.log('👤 Setting new client data:', newClientData);
+        // Client data updated
         setClient(newClientData);
-        console.log('✅ Client data auto-filled successfully');
+        // Client data auto-filled
       } else {
-        console.log('⚠️ No client data in workflow to auto-fill');
+        // No client data to auto-fill
       }
       
       // Auto-fill case data
       if (workflowData.case) {
-        console.log('📝 Auto-filling case data...');
-        console.log('📋 Current case before fill:', caseData);
-        console.log('📋 Workflow case data:', workflowData.case);
+        // Current and new case data
         
         const newCaseData = {
           ...caseData,
@@ -1220,34 +1136,34 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           dueDate: workflowData.case.dueDate || caseData.dueDate
         };
         
-        console.log('📋 Setting new case data:', newCaseData);
+        // Case data updated
         setCaseData(newCaseData);
-        console.log('✅ Case data auto-filled successfully');
+        // Case data auto-filled
       } else {
-        console.log('⚠️ No case data in workflow to auto-fill');
+        // No case data to auto-fill
       }
       
       // Auto-fill selected forms
       if (workflowData.selectedForms && Array.isArray(workflowData.selectedForms)) {
-        console.log('📝 Auto-filling selected forms:', workflowData.selectedForms);
+        // Forms auto-filled
         setSelectedForms(workflowData.selectedForms);
       }
       
       // Auto-fill form case IDs
       if (workflowData.formCaseIds) {
-        console.log('📝 Auto-filling form case IDs:', workflowData.formCaseIds);
+        // Form case IDs auto-filled
         setFormCaseIds(workflowData.formCaseIds);
       }
       
       // Auto-fill questionnaire selection
       if (workflowData.selectedQuestionnaire) {
-        console.log('📝 Auto-filling selected questionnaire:', workflowData.selectedQuestionnaire);
+        // Questionnaire auto-filled
         setSelectedQuestionnaire(workflowData.selectedQuestionnaire);
       }
       
       // Auto-fill client credentials (without password for security)
       if (workflowData.clientCredentials) {
-        console.log('📝 Auto-filling client credentials...');
+        // Client credentials auto-filled
         setClientCredentials({
           ...clientCredentials,
           email: workflowData.clientCredentials.email || clientCredentials.email,
@@ -1259,7 +1175,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       
       // Auto-fill client responses if available
       if (workflowData.clientResponses && Object.keys(workflowData.clientResponses).length > 0) {
-        console.log('📝 Auto-filling client responses:', workflowData.clientResponses);
+        // Client responses auto-filled
         setClientResponses({
           ...clientResponses,
           ...workflowData.clientResponses
@@ -1268,27 +1184,27 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       
       // Auto-fill questionnaire assignment if available
       if (workflowData.questionnaireAssignment) {
-        console.log('📝 Auto-filling questionnaire assignment:', workflowData.questionnaireAssignment);
+        // Questionnaire assignment auto-filled
         setQuestionnaireAssignment(workflowData.questionnaireAssignment);
       }
       
       // Auto-fill form details if available
       if (workflowData.formDetails && Array.isArray(workflowData.formDetails)) {
-        console.log('📝 Auto-filling form details:', workflowData.formDetails);
+        // Form details auto-filled
         setFormDetails(workflowData.formDetails);
       }
       
       // Auto-fill current step (but don't go backwards)
       if (workflowData.currentStep && workflowData.currentStep > currentStep) {
-        console.log(`📝 Auto-filling current step: ${workflowData.currentStep}`);
+        // Current step updated
         setCurrentStep(workflowData.currentStep);
       }
       
-      console.log('✅ Auto-fill completed successfully');
+      // Workflow auto-fill complete
       toast.success('Workflow data auto-filled from saved progress!', { duration: 4000 });
       
     } catch (error) {
-      console.error('❌ Error during auto-fill:', error);
+      // Auto-fill error
       toast.error('Failed to auto-fill workflow data');
     }
   };
@@ -1296,105 +1212,72 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to find and auto-fill matching workflow
   const findAndAutoFillWorkflow = async (clientEmail?: string) => {
     try {
-      console.log('🔄 === STARTING AUTO-FILL WORKFLOW SEARCH ===');
-      console.log('📧 Client email parameter:', clientEmail);
+      // Search for matching workflows
       
-      // First try to fetch from API
-      console.log('🌐 Fetching workflows from API...');
+      // Fetch workflows from API only
+      // Fetching workflows from API
       const apiWorkflows = await fetchWorkflowsFromAPI();
-      console.log('📊 API workflows fetched:', apiWorkflows.length, 'workflows');
-      console.log('📋 API workflow details:', apiWorkflows.map((w: any) => ({
-        workflowId: w.workflowId,
-        clientEmail: w.client?.email,
-        status: w.status,
-        updatedAt: w.updatedAt
-      })));
+      // API workflows summary
       
-      // Then get localStorage workflows as fallback
-      console.log('💾 Fetching workflows from localStorage...');
-      const localWorkflows = JSON.parse(localStorage.getItem('legal-firm-workflows') || '[]');
-      console.log('📊 LocalStorage workflows found:', localWorkflows.length, 'workflows');
-      console.log('📋 LocalStorage workflow details:', localWorkflows.map((w: any) => ({
-        workflowId: w.workflowId,
-        clientEmail: w.client?.email,
-        status: w.status,
-        updatedAt: w.updatedAt
-      })));
-      
-      // Combine both sources
-      const allWorkflows = [...apiWorkflows, ...localWorkflows];
-      console.log('📊 Total combined workflows:', allWorkflows.length);
+      // Use only API workflows
+      const allWorkflows = apiWorkflows;
+      // Total workflows available
       
       if (allWorkflows.length === 0) {
-        console.log('📝 No saved workflows found for auto-fill');
+        // No workflows found
         toast('No saved workflows found to auto-fill from');
         return false;
       }
       
-      console.log(`🔍 Searching ${allWorkflows.length} workflows for auto-fill match...`);
+      // Searching for matching workflow
+
       
       // Find matching workflow by client email or most recent
       let matchingWorkflow = null;
       
       if (clientEmail) {
-        console.log('🔍 Looking for workflow with client email:', clientEmail);
+        // Searching by client email
         // Find by client email
-        matchingWorkflow = allWorkflows.find(w => {
+        matchingWorkflow = allWorkflows.find((w: any) => {
           const workflowEmail = w.client?.email?.toLowerCase();
           const searchEmail = clientEmail.toLowerCase();
-          console.log(`   Comparing: "${workflowEmail}" vs "${searchEmail}"`);
+          // Email comparison
           return workflowEmail === searchEmail;
         });
         
         if (matchingWorkflow) {
-          console.log('✅ Found workflow by email match:', {
-            workflowId: matchingWorkflow.workflowId,
-            clientEmail: matchingWorkflow.client?.email,
-            status: matchingWorkflow.status
-          });
+          // Found matching workflow by email
         } else {
-          console.log('❌ No workflow found with matching email');
+          // No workflow found for this email
         }
       }
       
       if (!matchingWorkflow) {
-        console.log('🔍 Looking for most recent in-progress workflow...');
-        const inProgressWorkflows = allWorkflows.filter(w => w.status === 'in-progress');
-        console.log('📊 In-progress workflows found:', inProgressWorkflows.length);
+        // Looking for in-progress workflows
+        const inProgressWorkflows = allWorkflows.filter((w: any) => w.status === 'in-progress');
+        // Found in-progress workflows
         
         if (inProgressWorkflows.length > 0) {
           matchingWorkflow = inProgressWorkflows
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-          console.log('✅ Using most recent in-progress workflow:', {
-            workflowId: matchingWorkflow.workflowId,
-            updatedAt: matchingWorkflow.updatedAt
-          });
+            .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+          // Selected most recent workflow
         }
       }
       
       if (matchingWorkflow) {
-        console.log('🚀 Found matching workflow for auto-fill! Details:', {
-          workflowId: matchingWorkflow.workflowId,
-          clientName: matchingWorkflow.client?.name,
-          clientEmail: matchingWorkflow.client?.email,
-          currentStep: matchingWorkflow.currentStep,
-          status: matchingWorkflow.status,
-          hasClientData: !!matchingWorkflow.client,
-          hasCaseData: !!matchingWorkflow.case,
-          hasResponses: !!matchingWorkflow.clientResponses && Object.keys(matchingWorkflow.clientResponses).length > 0
-        });
+        // Found workflow to auto-fill
         
-        console.log('🔄 Calling autoFillFromSavedWorkflow...');
+        // Auto-filling workflow
         await autoFillFromSavedWorkflow(matchingWorkflow);
         return true;
       } else {
-        console.log('❌ No matching workflow found for auto-fill');
+        // No matching workflow found
         toast('No matching workflow found for this client');
         return false;
       }
       
     } catch (error) {
-      console.error('❌ Error finding workflow for auto-fill:', error);
+      // Auto-fill error
       toast.error('Error during auto-fill: ' + (error as Error).message);
       return false;
     }
@@ -1459,65 +1342,46 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }))
       };
       
-      console.log('💾 Saving workflow progress:', workflowData);
+
       
-      // Check if we should save to API or localStorage
+      // Check if we should save to API
       const token = localStorage.getItem('token');
-      let savedToAPI = false;
       
       if (token) {
         try {
-          // Try to save to API first
+          // Save to API only
           const response = await api.post('/api/v1/workflows/progress', workflowData);
-          console.log('✅ Workflow progress saved to API:', response.data);
+
           
           // Store the workflow ID from API response
           if (response.data?.workflowId) {
             workflowData.workflowId = response.data.workflowId;
           }
           
-          savedToAPI = true;
           toast.success('Workflow progress saved to server', { duration: 2000 });
           
         } catch (apiError: any) {
-          console.warn('⚠️ Failed to save workflow progress to API:', apiError);
+
           
           // Check if it's a 404 (endpoint doesn't exist)
           if (apiError.response?.status === 404) {
-            console.log('📝 Workflow API endpoint not available, using localStorage only');
+
+            toast.error('Workflow save endpoint not available', { duration: 3000 });
           } else {
-            toast.error('Failed to save to server, using local storage', { duration: 3000 });
+            toast.error('Failed to save workflow progress to server', { duration: 3000 });
           }
+          throw apiError; // Re-throw error since we're not saving locally anymore
         }
-      }
-      
-      // Always save to localStorage as backup
-      const existingWorkflows = JSON.parse(localStorage.getItem('legal-firm-workflows') || '[]');
-      
-      // Update existing workflow or add new one
-      const existingIndex = existingWorkflows.findIndex((w: any) => 
-        w.client?.email === workflowData.client.email || 
-        w.workflowId === workflowData.workflowId
-      );
-      
-      if (existingIndex >= 0) {
-        existingWorkflows[existingIndex] = { ...existingWorkflows[existingIndex], ...workflowData };
-        console.log('📝 Updated existing workflow in localStorage');
       } else {
-        existingWorkflows.push(workflowData);
-        console.log('📝 Added new workflow to localStorage');
-      }
-      
-      localStorage.setItem('legal-firm-workflows', JSON.stringify(existingWorkflows));
-      
-      if (!savedToAPI) {
-        toast.success('Workflow progress saved locally', { duration: 2000 });
+
+        toast.error('Authentication required to save workflow');
+        throw new Error('No authentication token available');
       }
       
       return workflowData;
       
     } catch (error) {
-      console.error('❌ Error saving workflow progress:', error);
+
       toast.error('Failed to save workflow progress');
       throw error;
     }
@@ -1526,11 +1390,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to save form details to backend (Steps 1-4)
   const saveFormDetailsToBackend = async (step: number, additionalData?: any) => {
     try {
-      console.log(`💾 Saving form details to backend for step ${step}...`);
+
       
       const token = localStorage.getItem('token');
       if (!token) {
-        console.warn('No authentication token found. Skipping backend save.');
+
         return null;
       }
 
@@ -1590,7 +1454,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             requestData.selectedForm = selectedForm;
             requestData.formTemplate = formTemplate ? {
               name: formTemplate.name,
-              title: formTemplate.title,
+              title: formTemplate.name, // Use name as title fallback
               description: formTemplate.description,
               category: formTemplate.category
             } : null;
@@ -1608,31 +1472,27 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         requestData = { ...requestData, ...additionalData };
       }
 
-      console.log('Form details request data:', requestData);
+
 
       // Make API call
       const response = await api.post('/api/v1/form-details', requestData);
       
-      console.log('✅ Form details saved to backend:', response.data);
+
       
       // Store form details ID for future updates
       if (response.data?.data?.id) {
         setFormDetailsId(response.data.data.id);
-        console.log('📝 Form details ID stored:', response.data.data.id);
+
       }
 
       toast.success(`Step ${step} data saved to server`, { duration: 2000 });
       return response.data;
 
     } catch (error: any) {
-      console.error('❌ Failed to save form details to backend:', error);
+      // Error saving to server
       
       const errorMessage = error.response?.data?.error || error.message || 'Failed to save to server';
-      console.error('Backend save error details:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: errorMessage
-      });
+      // Error details logged
 
       // Don't show error toast for non-critical failures
       if (error.response?.status !== 404) {
@@ -1647,15 +1507,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const assignQuestionnaireToFormDetails = async (questionnaireId: string, tempPassword?: string) => {
     try {
       if (!formDetailsId) {
-        console.warn('No form details ID available. Cannot assign questionnaire to backend.');
+
         return null;
       }
 
-      console.log(`💾 Assigning questionnaire to form details ${formDetailsId}...`);
+
       
       const token = localStorage.getItem('token');
       if (!token) {
-        console.warn('No authentication token found. Skipping backend assignment.');
+
         return null;
       }
 
@@ -1666,25 +1526,21 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         tempPassword
       };
 
-      console.log('Questionnaire assignment request data:', requestData);
+
 
       // Make API call to assign questionnaire
       const response = await api.post(`/api/v1/form-details/${formDetailsId}/assign-questionnaire`, requestData);
       
-      console.log('✅ Questionnaire assigned to form details:', response.data);
+
       
       toast.success('Questionnaire assigned and saved to server', { duration: 2000 });
       return response.data;
 
     } catch (error: any) {
-      console.error('❌ Failed to assign questionnaire to form details:', error);
+      // Error assigning questionnaire
       
       const errorMessage = error.response?.data?.error || error.message || 'Failed to assign questionnaire';
-      console.error('Questionnaire assignment error details:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: errorMessage
-      });
+      // Error details logged
 
       toast.error(`Failed to assign questionnaire: ${errorMessage}`, { duration: 3000 });
       return null;
@@ -1693,24 +1549,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   
   const handleQuestionnaireAssignment = async () => {
     if (!selectedQuestionnaire) return;
-    
-    // Save all workflow progress before proceeding
-    try {
-      console.log('💾 Saving workflow progress before questionnaire assignment...');
-      await saveWorkflowProgress();
-      console.log('✅ Workflow progress saved successfully');
-    } catch (saveError) {
-      console.error('❌ Failed to save workflow progress:', saveError);
-      
-      // Ask user if they want to continue without saving
-      const continueAnyway = window.confirm(
-        'Failed to save workflow progress. Do you want to continue with questionnaire assignment anyway?'
-      );
-      
-      if (!continueAnyway) {
-        return;
-      }
-    }
     
     // Check if client account creation is enabled
     if (!clientCredentials.createAccount) {
@@ -1733,10 +1571,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     try {
       // First, check if we need to create a client account
       if (clientCredentials.createAccount) {
-        console.log('🔄 Client account creation is enabled, ensuring password is set...');
+
         
         if (!clientCredentials.password) {
-          console.error('❌ Password missing from clientCredentials');
+
           toast.error('Password is required for client account creation. Please generate a password in the questionnaire assignment screen.');
           setLoading(false);
           return;
@@ -1749,9 +1587,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           email: clientCredentials.email || client.email
         };
         
-        console.log('🔑 Setting password in client object before handleClientSubmit');
-        console.log('📧 Email:', clientWithCredentials.email);
-        console.log('🔑 Password available:', !!clientWithCredentials.password);
+
+
+
         
         // Update both state and the direct object reference
         setClient(clientWithCredentials);
@@ -1759,17 +1597,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
       
       // Call handleClientSubmit to create the client account if needed
-      console.log('🔄 Calling handleClientSubmit...');
+
       const createdUserId = await handleClientSubmit();
-      console.log('✅ handleClientSubmit completed successfully');
+
       
       // If client account creation is enabled, use the returned user ID
       if (clientCredentials.createAccount && createdUserId) {
-        console.log('🔐 Client account creation was enabled, using returned user ID');
+
         clientUserId = createdUserId;
-        console.log('👤 Client user ID from created account:', clientUserId);
+
       } else {
-        console.log('👤 Client account creation disabled or failed, proceeding with questionnaire assignment only');
+
       }
       const selectedQ = availableQuestionnaires.find(q => {
         // Check all possible ID fields
@@ -1782,21 +1620,21 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         
         // For API questionnaires, prioritize matching the q_ prefixed ID
         if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
-          console.log(`handleAssignQuestionnaire: Found exact match for API questionnaire: ${q.id}`);
+
           return true;
         }
         
         // Check if any of the possible IDs match
         const matches = possibleIds.includes(selectedQuestionnaire);
         if (matches) {
-          console.log(`handleAssignQuestionnaire: Found matching questionnaire by ID: ${selectedQuestionnaire} matched with:`, possibleIds);
+
         }
         return matches;
       });
       
       if (!selectedQ) {
         toast.error('Could not find selected questionnaire');
-        console.warn(`Could not find questionnaire with ID ${selectedQuestionnaire}`);
+
         return;
       }
       
@@ -1804,14 +1642,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const normalizedQ = normalizeQuestionnaireStructure(selectedQ);
       
       // Log the normalized questionnaire for debugging
-      console.log('Normalized questionnaire for assignment:', normalizedQ);
+
       
       // Check for fields/questions in multiple locations
       let fields = normalizedQ.fields || normalizedQ.questions || [];
       
       // Special handling for API format questionnaires
       if (normalizedQ.id && normalizedQ.id.startsWith('q_') && Array.isArray(normalizedQ.fields)) {
-        console.log('API questionnaire format detected in assignment:', normalizedQ.id);
+
         fields = normalizedQ.fields;
       }
       
@@ -1830,7 +1668,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const isApiQuestionnaire = normalizedQ.apiQuestionnaire || (questionnaireId && questionnaireId.startsWith('q_'));
       
       if (!isApiQuestionnaire && !isValidMongoObjectId(questionnaireId)) {
-        console.error(`After normalization, ID is still invalid: ${questionnaireId}`);
+
         toast.error(`Cannot assign questionnaire with invalid ID format. Please contact support.`);
         setLoading(false);
         return;
@@ -1838,16 +1676,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       
       // Log the ID type for debugging
       if (isApiQuestionnaire) {
-        console.log(`Using API questionnaire ID: ${questionnaireId}`);
+
       } else {
-        console.log(`Using MongoDB questionnaire ID: ${questionnaireId}`);
+
         // Only validate as MongoDB ObjectId if it's not an API questionnaire
         validateMongoObjectId(questionnaireId, 'questionnaire');
       }
       
       // If we had to convert the ID, log this for debugging
       if (normalizedQ.originalId) {
-        console.log(`Using converted ID: Original=${normalizedQ.originalId}, Converted=${questionnaireId}`);
+
       }
       
       // Use the client ID (which should match the created user account ID)
@@ -1856,35 +1694,35 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (clientUserId) {
         // If we have a clientUserId (from account creation), use that as clientId too
         clientId = clientUserId;
-        console.log(`✅ Using clientId from created user account: ${clientId}`);
+
       } else {
         // If no user account was created, we should not create a questionnaire assignment
         if (clientCredentials.createAccount) {
           // User wanted account creation but it failed
-          console.error('❌ Client account creation was enabled but failed - cannot create assignment without user account');
+
           toast.error('Cannot create questionnaire assignment because client account creation failed. Please try again.');
           setLoading(false);
           return;
         } else {
           // User explicitly chose not to create account - this should not happen in normal flow
-          console.error('❌ No user account available and none was requested - questionnaire assignments require user accounts');
+
           toast.error('Questionnaire assignments require a client user account. Please enable "Create Account" option.');
           setLoading(false);
           return;
         }
       }
       
-      console.log(`Final clientId: ${clientId}`);
-      console.log(`ClientUserId: ${clientUserId || 'undefined'}`);
-      console.log(`IDs match: ${clientId === clientUserId ? '✅ YES' : '❌ NO'}`);
-      console.log(`Client account enabled: ${clientCredentials.createAccount ? '✅ YES' : '❌ NO'}`);
+
+
+
+
       
       // Final validation - ensure we have a valid MongoDB ObjectId from user account
       try {
         validateMongoObjectId(clientId, 'client');
-        console.log(`✅ Client ID validation passed: ${clientId}`);
+
       } catch (error) {
-        console.error('❌ Client ID validation failed:', error);
+
         toast.error('Invalid client ID - questionnaire assignment requires a valid user account ID.');
         setLoading(false);
         return;
@@ -1895,7 +1733,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (caseId) {
         // If the case ID isn't a valid ObjectId, convert it
         if (!isValidMongoObjectId(caseId)) {
-          console.warn(`Case ID ${caseId} is not a valid MongoDB ObjectId, converting...`);
+
           // Check if we already have a caseId._id that's valid
           if (caseData._id && isValidMongoObjectId(caseData._id)) {
             caseId = caseData._id;
@@ -1915,7 +1753,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             });
             localStorage.setItem('legal-firm-cases', JSON.stringify(updatedCases));
             
-            console.log(`Converted case ID from ${caseData.id} to valid MongoDB ObjectId: ${caseId}`);
+
           }
         }
         validateMongoObjectId(caseId, 'case');
@@ -1943,27 +1781,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       };
       
       // Debug log the validated data before making the API call
-      console.log('Creating questionnaire assignment with data:', JSON.stringify(assignmentData, null, 2));
-      console.log('🔍 Assignment debugging:', {
-        clientId,
-        clientUserId,
-        clientEmail: clientCredentials.email || client.email,
-        formType: assignmentData.formType,
-        formCaseIdGenerated: assignmentData.formCaseIdGenerated,
-        selectedForms: selectedForms,
-        formCaseIds: formCaseIds,
-        clientFromState: {
-          id: client.id,
-          _id: client._id,
-          userId: client.userId,
-          email: client.email
-        }
-      });
+      // Assignment data prepared
       
       // Check if we have an authentication token
       const token = localStorage.getItem('token');
       if (!token) {
-        console.warn('No authentication token found. Creating assignment in local storage only.');
+        // No authentication token
         toast.error('You must be logged in to assign questionnaires through the API. Will use local storage instead.');
         // Don't throw error, just set a flag to skip API call
         // Use both API and localStorage as needed
@@ -2020,14 +1843,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
       
       // Log the token (first 10 chars for security) to verify it exists
-      console.log(`Using authentication token: ${token.substring(0, 10)}...`);
+
       
       // Use the controller to check if the API endpoint is available
       const endpointPath = '/api/v1/questionnaire-assignments';
       const endpointAvailable = await isApiEndpointAvailable(endpointPath);
       
       // Log and notify user about API availability
-      console.log('Questionnaire assignments endpoint available:', endpointAvailable);
+
       
       if (!endpointAvailable) {
         toast.error('API endpoint not available. Assignment will be saved locally only.');
@@ -2040,9 +1863,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (endpointAvailable) {
         try {
           // Add debugging for the request
-          console.log(`Sending assignment to API: ${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`);
-          console.log('Assignment data:', JSON.stringify(assignmentData, null, 2));
-          console.log('Request headers:', { 'Authorization': `Bearer ${token.substring(0, 10)}...` });
+
+
+
           
           // Send directly with fetch for creating the assignment
           const fetchResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`, {
@@ -2054,11 +1877,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             body: JSON.stringify(assignmentData)
           });
           
-          console.log(`Fetch response: status=${fetchResponse.status}, ok=${fetchResponse.ok}`);
+
           
           if (!fetchResponse.ok) {
             const errorText = await fetchResponse.text();
-            console.error(`Fetch error response: ${errorText}`);
+
             throw new Error(`Assignment creation failed: ${fetchResponse.status} ${fetchResponse.statusText}\n${errorText}`);
           }
           
@@ -2067,7 +1890,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           
           // Handle the response which returns json directly
           const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
-          console.log('Got assignment ID from API:', responseId);
+
           
           assignment = {
             id: responseId,
@@ -2092,14 +1915,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           };
           
           // API save succeeded
-          console.log('Questionnaire successfully assigned through API');
+
         } catch (apiError: any) {
-          console.error('API call failed despite server being available:', apiError);
+
           throw apiError; // Re-throw to be caught by the main catch block
         }
       } else {
-        // API not available, fall back to localStorage immediately
-        console.warn('API server not available, using localStorage fallback');
+        // API not available, create assignment object but don't save to localStorage
+
         assignment = {
           id: `assignment_${Date.now()}`,
           caseId: caseData.id,
@@ -2124,11 +1947,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           formCaseIdGenerated: assignmentData.formCaseIdGenerated
         };
         
-        // Save assignment to localStorage as fallback
-        const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
-        existingAssignments.push(assignment);
-        localStorage.setItem('questionnaire-assignments', JSON.stringify(existingAssignments));
-        toast.success('API server not available. Assignment saved locally only.', { icon: <InfoIcon size={16} /> });
+        toast.error('API server not available. Assignment created but not saved.', { duration: 3000 });
       }
       
       setQuestionnaireAssignment(assignment);
@@ -2156,19 +1975,35 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         );
         
         if (backendResult) {
-          console.log('✅ Questionnaire assignment saved to backend');
+
         } else {
-          console.log('⚠️ Backend assignment skipped (offline mode or no form details ID)');
+
         }
       } catch (error) {
-        console.warn('⚠️ Failed to save questionnaire assignment to backend:', error);
+
         // Don't block the workflow for backend failures
+      }
+
+      // Save all accumulated workflow data to backend now
+      try {
+        
+        
+        
+        // Save workflow progress
+        await saveWorkflowProgress();
+
+        
+        toast.success('All workflow data saved to server successfully!', { duration: 3000 });
+        
+      } catch (error) {
+
+        toast.error('Questionnaire assigned but some data may not be saved to server', { duration: 3000 });
       }
       
       // Move to next step
       handleNext();
     } catch (error: any) {
-      console.error('Error assigning questionnaire:', error);
+
       
       // Display more specific error messages
       if (error?.message && error.message.includes('Invalid')) {
@@ -2181,7 +2016,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // navigate('/login');
       } else if (error?.response?.status === 404 || error?.message?.includes('not found')) {
         // API endpoint not found
-        console.error('API endpoint not found:', error.request?.responseURL || '/api/v1/questionnaire-assignments');
+
         
         // Create a helpful toast message
         toast.error(
@@ -2204,7 +2039,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           toast.success('Assignment saved locally. You can continue with your workflow.', { icon: <AlertCircle size={16} /> });
         }, 1000);
         
-        console.warn('API endpoint not found, using local storage fallback');
+
       } else if (error?.response?.data?.error) {
         // This is an API error with details
         toast.error(`API Error: ${error.response.data.error}`);
@@ -2219,7 +2054,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
       
       // Create a local assignment as fallback
-      console.log('Creating local assignment as fallback to API');
+
       // Enhanced flexible matching to find the selected questionnaire
       const selectedQ = availableQuestionnaires.find(q => {
         // Check all possible ID fields
@@ -2232,14 +2067,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         
         // For API questionnaires, prioritize matching the q_ prefixed ID
         if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
-          console.log(`localAssignment: Found exact match for API questionnaire: ${q.id}`);
+
           return true;
         }
         
         // Check if any of the possible IDs match
         const matches = possibleIds.includes(selectedQuestionnaire);
         if (matches) {
-          console.log(`localAssignment: Found matching questionnaire by ID: ${selectedQuestionnaire} matched with:`, possibleIds);
+
         }
         return matches;
       });
@@ -2269,16 +2104,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // Update the state with our local assignment
       setQuestionnaireAssignment(localAssignment);
       
-      // Save assignment to localStorage for persistence
-      const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
-      existingAssignments.push(localAssignment);
-      localStorage.setItem('questionnaire-assignments', JSON.stringify(existingAssignments));
-      
-      // Show success message to the user
+      // Show warning message to the user that data is not persisted
       if (clientCredentials.createAccount && clientUserId) {
-        toast.success(
+        toast.error(
           <div>
-            <p>✅ Questionnaire "{selectedQ?.title || selectedQ?.name}" assigned to client {client.name} (local storage)</p>
+            <p>⚠️ Questionnaire "{selectedQ?.title || selectedQ?.name}" assigned to client {client.name} (not saved to server)</p>
             <p className="text-sm mt-1">🔐 Client account created:</p>
             <p className="text-xs">Email: {clientCredentials.email || client.email}</p>
             <p className="text-xs">Password: {clientCredentials.password}</p>
@@ -2317,20 +2147,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       
       setQuestionnaireAssignment(updatedAssignment);
       
-      // Update locally regardless (for resilience)
-      const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
-      const updatedAssignments = existingAssignments.map((a: any) => {
-        if (a.id === questionnaireAssignment.id) {
-          return updatedAssignment;
-        }
-        return a;
-      });
-      localStorage.setItem('questionnaire-assignments', JSON.stringify(updatedAssignments));
+      // Note: Data is now only saved to backend via API, not localStorage
       
       toast.success('Questionnaire responses saved successfully');
       handleNext();
     } catch (error) {
-      console.error('Error submitting questionnaire responses:', error);
+
       toast.error('There was an error saving the responses. Please try again.');
     } finally {
       setLoading(false);
@@ -2371,9 +2193,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       };
 
       // Call backend API to save the workflow process (correct endpoint)
-      const response = await api.post('/api/v1/immigration/process', payload);
-
-      console.log("Workflow saved successfully:", response.data);
+      await api.post('/api/v1/immigration/process', payload);
+      // Workflow saved successfully
       alert('Workflow saved successfully!');
 
       // For I-130 form auto-fill (existing logic)
@@ -2404,7 +2225,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
       // Handle other forms similarly
     } catch (error) {
-      console.error('Error auto-filling forms or saving workflow:', error);
+
       alert('Error saving workflow or generating forms. Please try again.');
     } finally {
       setLoading(false);
@@ -2443,7 +2264,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       label="Select Client"
                       value={selectedExistingClientId}
                       onChange={e => {
-                        console.log('Selected existing client _id:', e.target.value);
+
                         setSelectedExistingClientId(e.target.value);
                       }}
                       options={[
@@ -2612,9 +2433,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   // Save client data to backend (Step 1)
                   try {
                     await saveFormDetailsToBackend(1);
-                    console.log('✅ Client data saved to backend');
+
                   } catch (error) {
-                    console.warn('⚠️ Failed to save client data to backend:', error);
+
                   }
                   
                   // Simply advance to next step without creating client account
@@ -2896,17 +2717,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 value={selectedQuestionnaire}
                 onChange={(e) => {
                   const selectedId = e.target.value;
-                  console.log('Selected questionnaire ID from dropdown:', selectedId);
                   
                   // Log all available questionnaires with their ID fields for debugging
-                  console.log('Available questionnaires with IDs:', availableQuestionnaires.map(q => ({
-                    _id: q._id,
-                    id: q.id,
-                    apiQuestionnaire: q.apiQuestionnaire,
-                    originalId: q.originalId,
-                    name: q.name,
-                    title: q.title
-                  })));
+                  // Available questionnaires logged
                   
                   // Enhanced flexible matching to find the selected questionnaire
                   const selected = availableQuestionnaires.find(q => {
@@ -2920,24 +2733,24 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     
                     // For API questionnaires, prioritize matching the q_ prefixed ID
                     if (q.apiQuestionnaire && q.id === selectedId) {
-                      console.log(`Found exact match for API questionnaire: ${q.id}`);
+                      // API questionnaire match found
                       return true;
                     }
                     
                     // Check if any of the possible IDs match
                     const matches = possibleIds.includes(selectedId);
                     if (matches) {
-                      console.log(`Found matching questionnaire by ID: ${selectedId} matched with:`, possibleIds);
+                      // Regular questionnaire match found
                     }
                     return matches;
                   });
                   
-                  console.log('Selected questionnaire details:', selected);
+                  // Selected questionnaire found
                   setSelectedQuestionnaire(selectedId);
                   
                   // If not found, log a warning
                   if (!selected) {
-                    console.warn(`Could not find questionnaire with ID ${selectedId} in available questionnaires`);
+                    // Selected questionnaire not found in available list
                   }
                 }}
                 options={[
@@ -2945,24 +2758,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   ...availableQuestionnaires
                     .filter(q => {
                       // Add debug for questionnaire categories
-                      console.log(`Questionnaire filter check:`, {
-                        id: q._id || q.id,
-                        title: q.title || q.name,
-                        questCategory: q.category,
-                        caseCategory: caseData.category
-                      });
+                      // Questionnaire category checking
                       
                       if (!caseData.category) return true;
                       if (!q.category) return true;
-                      const catMap: Record<string, string> = {
-                        'family-based': 'FAMILY_BASED',
-                        'employment-based': 'EMPLOYMENT_BASED',
-                        'citizenship': 'NATURALIZATION',
-                        'asylum': 'ASYLUM',
-                        'foia': 'FOIA',
-                        'other': 'OTHER',
-                        'assessment': 'ASSESSMENT',
-                      };
+                      // const catMap: Record<string, string> = {
+                      //   'family-based': 'FAMILY_BASED',
+                      //   'employment-based': 'EMPLOYMENT_BASED',
+                      //   'citizenship': 'NATURALIZATION',
+                      //   'asylum': 'ASYLUM',
+                      //   'foia': 'FOIA',
+                      //   'other': 'OTHER',
+                      //   'assessment': 'ASSESSMENT',
+                      // };
                       // Convert case category to questionnaire category if needed
                       // const mapped = catMap[caseData.category] || '';
                       // Make the category matching more lenient
@@ -2979,24 +2787,24 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       // For API format questionnaires, ALWAYS use the original q_ format ID
                       if (q.id && q.id.startsWith('q_')) {
                         idToUse = q.id;
-                        console.log(`Using original API questionnaire ID: ${idToUse}`);
+                        // Using API format ID
                       } 
                       // For questionnaires with an originalId, offer both options with preference for original
                       else if (normalizedQ.originalId) {
                         // Use the original ID for selection to maintain consistency with saved data
                         idToUse = normalizedQ.originalId;
                         wasConverted = true;
-                        console.log(`Using original questionnaire ID for selection: ${idToUse} (MongoDB ID: ${normalizedQ._id})`);
+                        // Using original ID
                       }
                       // For normalized IDs, use that format
                       else if (normalizedQ._id) {
                         idToUse = normalizedQ._id;
-                        console.log(`Using normalized questionnaire ID: ${idToUse}`);
+                        // Using normalized ID
                       }
                       // Fall back to any available ID
                       else {
                         idToUse = normalizedQ._id || normalizedQ.id || normalizedQ.name || `q_${Date.now()}`;
-                        console.log(`Using fallback questionnaire ID: ${idToUse}`);
+                        // Using fallback ID
                       }
                       
                       // Count questions
@@ -3004,7 +2812,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       const questionCount = fields.length;
                       
                       // Log what's being added to the dropdown
-                      console.log(`Adding questionnaire to dropdown: ${normalizedQ.title || normalizedQ.name || 'Untitled'} with ID ${idToUse} (${questionCount} questions)`);
+                      // Questionnaire option prepared
                       
                       return {
                         // Store all possible IDs to help with matching later
@@ -3033,20 +2841,20 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   
                   // For API questionnaires, prioritize matching the q_ prefixed ID
                   if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
-                    console.log(`Preview: Found exact match for API questionnaire: ${q.id}`);
+
                     return true;
                   }
                   
                   // Check if any of the possible IDs match
                   const matches = possibleIds.includes(selectedQuestionnaire);
                   if (matches) {
-                    console.log(`Preview: Found matching questionnaire by ID: ${selectedQuestionnaire} matched with:`, possibleIds);
+
                   }
                   return matches;
                 });
                 
                 if (!questionnaire) {
-                  console.warn(`Preview: Could not find questionnaire with ID ${selectedQuestionnaire}`);
+
                   return (
                     <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
                       <p className="text-yellow-700">Questionnaire not found. Please select a different questionnaire.</p>
@@ -3060,11 +2868,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 // Special handling for API format questionnaires
                 if (questionnaire.apiQuestionnaire || 
                    (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields))) {
-                  console.log('API questionnaire format detected in preview:', questionnaire.id);
+
                   fields = questionnaire.fields;
                 }
                 
-                console.log('Questionnaire preview fields:', fields);
+
                 
                 // Check if this is an API questionnaire or standard MongoDB questionnaire
                 const isApiQuestionnaire = questionnaire.apiQuestionnaire || 
@@ -3293,14 +3101,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   
                   // For API questionnaires, prioritize matching the q_ prefixed ID
                   if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
-                    console.log(`Client Review: Found exact match for API questionnaire: ${q.id}`);
+
                     return true;
                   }
                   
                   // Check if any of the possible IDs match
                   const matches = possibleIds.includes(selectedQuestionnaire);
                   if (matches) {
-                    console.log(`Client Review: Found matching questionnaire by ID: ${selectedQuestionnaire} matched with:`, possibleIds);
+
                   }
                   return matches;
                 });
@@ -3371,34 +3179,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 <div className="flex items-center space-x-3">
                   <button
                     onClick={() => {
-                      console.log('🔄 AUTO-FILL BUTTON CLICKED');
+                      // Auto-fill workflow triggered
                       const clientEmail = client.email || clientCredentials.email;
-                      console.log('📧 Client email for auto-fill:', clientEmail);
-                      console.log('👤 Current client state:', {
-                        name: client.name,
-                        email: client.email,
-                        phone: client.phone,
-                        address: client.address
-                      });
-                      console.log('🔑 Client credentials:', {
-                        email: clientCredentials.email,
-                        createAccount: clientCredentials.createAccount,
-                        hasPassword: !!clientCredentials.password
-                      });
-                      console.log('📊 Current workflow state:', {
-                        currentStep,
-                        availableWorkflowsCount: availableWorkflows.length,
-                        loadingWorkflows,
-                        autoFillEnabled
-                      });
+                      // Client data logged
+                      // Client credentials logged
+                      // Auto-fill state logged
                       
                       if (!clientEmail) {
-                        console.warn('⚠️ No client email available for auto-fill!');
+                        // No client email for auto-fill
                         toast.error('No client email available for auto-fill');
                         return;
                       }
                       
-                      console.log('🚀 Calling findAndAutoFillWorkflow with email:', clientEmail);
+                      // Starting auto-fill process
                       findAndAutoFillWorkflow(clientEmail);
                     }}
                     disabled={loadingWorkflows}
@@ -3428,65 +3221,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       Fetching workflows from server...
                     </div>
                   )}
-                  
-                  {/* Add test data button for development */}
-                  <button
-                    onClick={() => {
-                      console.log('🧪 Creating test workflow data...');
-                      const testWorkflow = {
-                        workflowId: `workflow_${Date.now()}`,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                        currentStep: 3,
-                        status: 'in-progress',
-                        client: {
-                          firstName: 'Test',
-                          lastName: 'Client',
-                          name: 'Test Client',
-                          email: client.email || 'test@example.com',
-                          phone: '555-0123',
-                          dateOfBirth: '1990-01-01',
-                          nationality: 'USA',
-                          address: {
-                            street: '123 Test Street',
-                            city: 'Test City',
-                            state: 'CA',
-                            zipCode: '90210',
-                            country: 'United States'
-                          }
-                        },
-                        case: {
-                          title: 'Test Family Case',
-                          description: 'Test case for auto-fill',
-                          category: 'family-based',
-                          subcategory: 'immediate-relative',
-                          status: 'in-progress',
-                          priority: 'high'
-                        },
-                        selectedForms: ['I-130'],
-                        selectedQuestionnaire: 'q_test_123',
-                        clientResponses: {
-                          'field_1752373985684': 'John Smith',
-                          'field_1752738016003': 'Jane Smith',
-                          'field_1752738040659': 'Robert Smith'
-                        }
-                      };
-                      
-                      // Save to localStorage
-                      const existingWorkflows = JSON.parse(localStorage.getItem('legal-firm-workflows') || '[]');
-                      existingWorkflows.push(testWorkflow);
-                      localStorage.setItem('legal-firm-workflows', JSON.stringify(existingWorkflows));
-                      
-                      // Update available workflows
-                      setAvailableWorkflows([...availableWorkflows, testWorkflow]);
-                      
-                      console.log('✅ Test workflow created:', testWorkflow);
-                      toast.success('Test workflow data created! Try auto-fill now.');
-                    }}
-                    className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                  >
-                    Create Test Data
-                  </button>
                 </div>
                 
                 {availableWorkflows.length > 1 && (
@@ -3567,10 +3301,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             </div>
             {questionnaireAssignment && (() => {
               // Enhanced flexible matching to find the assigned questionnaire
-              console.log('=== QUESTIONNAIRE MATCHING DEBUG ===');
-              console.log('questionnaireAssignment:', questionnaireAssignment);
-              console.log('Looking for questionnaire with ID:', questionnaireAssignment.questionnaireId);
-              console.log('Available questionnaires:', availableQuestionnaires);
+
+
+
+
               
               const questionnaire = availableQuestionnaires.find(q => {
                 // Check all possible ID fields
@@ -3581,19 +3315,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   q.name          // Fallback to name if used as ID
                 ].filter(Boolean); // Remove undefined/null values
                 
-                console.log('Checking questionnaire:', q);
-                console.log('Possible IDs for this questionnaire:', possibleIds);
+
+
                 
                 // For API questionnaires, prioritize matching the q_ prefixed ID
                 if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
-                  console.log(`Looking for fields: Found exact match for API questionnaire: ${q.id}`);
+
                   return true;
                 }
                 
                 // Try exact matches first
                 const exactMatch = possibleIds.includes(questionnaireAssignment.questionnaireId);
                 if (exactMatch) {
-                  console.log(`Looking for fields: Found exact match: ${questionnaireAssignment.questionnaireId}`);
+
                   return true;
                 }
                 
@@ -3609,7 +3343,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   // Check if they're very similar (allowing for small differences)
                   const similarity = cleanId.substring(0, 20) === cleanTargetId.substring(0, 20);
                   if (similarity) {
-                    console.log(`Fuzzy match found: ${id} ≈ ${targetId}`);
+
                     return true;
                   }
                   
@@ -3619,7 +3353,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 return fuzzyMatch;
               });
               
-              console.log('Found questionnaire:', questionnaire);
+
               
               if (!questionnaire) {
                 return (
@@ -3644,15 +3378,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                            questionnaire.form?.questions || 
                            [];
               
-              console.log('Raw questions found:', questions);
+
               
               // If API response format is detected
               if (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields)) {
-                console.log('API questionnaire format detected:', questionnaire.id);
+
                 questions = questionnaire.fields;
               }
                              
-              console.log('Questions found for rendering:', questions);
+
               
               if (!questions || questions.length === 0) {
                 return (
@@ -3678,7 +3412,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   <div className="space-y-4">
                     {questions.map((q: any, idx: number) => {
                       // Log each field for debugging
-                      console.log(`Rendering field ${idx}:`, q);
+
                       
                       // Ensure field has required properties
                       const fieldId = q.id || q._id || `field_${idx}`;
@@ -4049,14 +3783,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     
                     // For API questionnaires, prioritize matching the q_ prefixed ID
                     if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
-                      console.log(`Assignment: Found exact match for API questionnaire: ${q.id}`);
+
                       return true;
                     }
                     
                     // Check if any of the possible IDs match
                     const matches = possibleIds.includes(questionnaireAssignment.questionnaireId);
                     if (matches) {
-                      console.log(`Assignment: Found matching questionnaire by ID: ${questionnaireAssignment.questionnaireId} matched with:`, possibleIds);
+
                     }
                     return matches;
                   });
@@ -4190,7 +3924,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         );
 
       default:
-        return null;
+        return <div />;
     }
   };
 
@@ -4209,21 +3943,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               <h1 className="text-3xl font-bold text-gray-900">Legal Firm Workflow</h1>
               <p className="text-gray-600 mt-2">Complete immigration case management from client to forms</p>
             </div>
-            <div className="flex space-x-3">
-              <button
-                onClick={() => navigate('/questionnaires/responses')}
-                className="flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Responses
-              </button>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Dashboard
-              </button>
-            </div>
+           
           </div>
         </div>
 

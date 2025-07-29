@@ -23,6 +23,7 @@ interface QuestionnaireAssignment {
     title: string;
     category: string;
     description: string;
+    fields?: any[]; // Add this line to include the fields property
   };
   clientId: string; // This is just a string ID, not an object
   clientUserId?: {
