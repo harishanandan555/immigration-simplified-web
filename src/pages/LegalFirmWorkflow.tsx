@@ -27,6 +27,14 @@ import {
   isQuestionnaireApiAvailable, 
   getQuestionnaires 
 } from '../controllers/QuestionnaireControllers';
+import { 
+  renderFormWithData, 
+  prepareFormData, 
+  validateFormData,
+  downloadPdfFile,
+  createPdfBlobUrl,
+  revokePdfBlobUrl
+} from '../controllers/FormAutoFillControllers';
 import {
   // assignQuestionnaire, // Not used
   isApiEndpointAvailable
@@ -231,6 +239,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   
   // State to track if we're in view/edit mode from QuestionnaireResponses
   const [isViewEditMode, setIsViewEditMode] = useState(false);
+
+  // State for auto-generated forms
+  const [generatedForms, setGeneratedForms] = useState<Array<{
+    formName: string;
+    templateId: string;
+    blob: Blob;
+    downloadUrl: string;
+    fileName: string;
+    status: 'generating' | 'success' | 'error';
+    error?: string;
+  }>>([]);
+  const [generatingForms, setGeneratingForms] = useState(false);
+  const [showPreview, setShowPreview] = useState<Record<string, boolean>>({});
 
   // Load available questionnaires
   useEffect(() => {
@@ -2458,6 +2479,175 @@ const handleClientSubmit = async () => {
     }
   };
 
+  // New function to auto-generate forms using renderFormWithData
+  const handleAutoGenerateForms = async () => {
+    try {
+      setGeneratingForms(true);
+      setGeneratedForms([]);
+
+      // Prepare comprehensive form data from all collected information
+      const formData = {
+        // Client information
+        clientFirstName: client.firstName || '',
+        clientLastName: client.lastName || '',
+        clientEmail: client.email || '',
+        clientPhone: client.phone || '',
+        clientDateOfBirth: client.dateOfBirth || '',
+        clientNationality: client.nationality || '',
+        
+        // Client address
+        clientStreet: client.address?.street || '',
+        clientCity: client.address?.city || '',
+        clientState: client.address?.state || '',
+        clientZipCode: client.address?.zipCode || '',
+        clientCountry: client.address?.country || 'United States',
+        
+        // Case information
+        caseCategory: caseData.category || '',
+        caseSubcategory: caseData.subcategory || '',
+        visaType: caseData.visaType || '',
+        priorityDate: caseData.priorityDate || '',
+        caseNumber: caseData.caseNumber || '',
+        
+        // Client responses from questionnaire
+        ...clientResponses,
+        
+        // Form details
+        selectedForms: selectedForms || [],
+        questionnaireResponses: clientResponses || {},
+        
+        // Additional metadata
+        workflowStep: currentStep,
+        timestamp: new Date().toISOString(),
+        autoFillSource: 'LegalFirmWorkflow'
+      };
+
+      // Validate the form data
+      const validation = validateFormData(formData);
+      if (!validation.isValid) {
+        toast.error(`Validation errors: ${validation.errors.join(', ')}`);
+        return;
+      }
+
+      // Prepare the data for the API
+      const preparedData = prepareFormData(formData);
+      
+      console.log('Auto-generating forms with data:', preparedData);
+
+      // Generate forms for each selected form
+      const newGeneratedForms = [];
+      
+      for (const formName of selectedForms) {
+        try {
+          // For now, we'll use a template ID based on the form name
+          // In a real implementation, you'd map form names to actual template IDs
+          const templateId = formName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+          
+          console.log(`Generating form: ${formName} with template: ${templateId}`);
+          
+          // Add a placeholder for generating status
+          newGeneratedForms.push({
+            formName,
+            templateId,
+            blob: new Blob(),
+            downloadUrl: '',
+            fileName: `${formName}_${new Date().toISOString().split('T')[0]}.pdf`,
+            status: 'generating' as const
+          });
+
+          // Call renderFormWithData
+          const response = await renderFormWithData(templateId, preparedData);
+          
+          if (response.data) {
+            // Create download URL
+            const downloadUrl = createPdfBlobUrl(response.data);
+            const fileName = `${formName}_${new Date().toISOString().split('T')[0]}.pdf`;
+            
+            // Update the form with success status
+            const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
+            if (formIndex !== -1) {
+              newGeneratedForms[formIndex] = {
+                formName,
+                templateId,
+                blob: response.data,
+                downloadUrl,
+                fileName,
+                status: 'success' as const
+              };
+            }
+            
+            toast.success(`Generated ${formName} successfully`);
+          }
+        } catch (error) {
+          console.error(`Error generating ${formName}:`, error);
+          
+          // Update the form with error status
+          const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
+          if (formIndex !== -1) {
+            newGeneratedForms[formIndex] = {
+              formName,
+              templateId: '',
+              blob: new Blob(),
+              downloadUrl: '',
+              fileName: '',
+              status: 'error' as const,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            };
+          }
+          
+          toast.error(`Failed to generate ${formName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      setGeneratedForms(newGeneratedForms);
+      
+      if (newGeneratedForms.some(f => f.status === 'success')) {
+        toast.success('Forms generated successfully! You can now download or preview them.');
+      }
+      
+    } catch (error) {
+      console.error('Error in auto-generate forms:', error);
+      toast.error('Failed to generate forms. Please try again.');
+    } finally {
+      setGeneratingForms(false);
+    }
+  };
+
+  // Function to download a specific form
+  const handleDownloadForm = (formName: string) => {
+    const form = generatedForms.find(f => f.formName === formName);
+    if (form && form.status === 'success') {
+      downloadPdfFile(form.blob, form.fileName);
+    }
+  };
+
+  // Function to preview a specific form
+  const handlePreviewForm = (formName: string) => {
+    setShowPreview(prev => ({
+      ...prev,
+      [formName]: !prev[formName]
+    }));
+  };
+
+  // Function to close preview
+  const handleClosePreview = (formName: string) => {
+    setShowPreview(prev => ({
+      ...prev,
+      [formName]: false
+    }));
+  };
+
+  // Cleanup function for blob URLs
+  useEffect(() => {
+    return () => {
+      generatedForms.forEach(form => {
+        if (form.downloadUrl) {
+          revokePdfBlobUrl(form.downloadUrl);
+        }
+      });
+    };
+  }, [generatedForms]);
+
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -4229,6 +4419,149 @@ const handleClientSubmit = async () => {
                   </div>
                 </div>
               </div>
+
+              {/* Auto-Generate Forms Section */}
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h4 className="font-medium text-gray-900 mb-4">Auto-Generate Forms</h4>
+                <p className="text-gray-600 mb-4">
+                  Use the advanced auto-generation feature to create forms with all collected data using the renderFormWithData API.
+                </p>
+                
+                <div className="flex gap-3 mb-6">
+                  <Button 
+                    onClick={handleAutoGenerateForms}
+                    disabled={generatingForms || selectedForms.length === 0}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {generatingForms ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Auto-Generating Forms...
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck className="w-4 h-4 mr-2" />
+                        Auto Generate Forms
+                      </>
+                    )}
+                  </Button>
+                  
+                  {!isViewEditMode && (
+                    <Button 
+                      onClick={handleAutoFillForms}
+                      disabled={loading}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {loading ? (
+                        <>
+                          <Clock className="w-4 h-4 mr-2 animate-spin" />
+                          Generating Forms...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Legacy Generate & Download
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Generated Forms Display */}
+                {generatedForms.length > 0 && (
+                  <div className="space-y-4">
+                    <h5 className="font-medium text-gray-900">Generated Forms</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {generatedForms.map((form) => (
+                        <div key={form.formName} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center">
+                              <FileText className="w-5 h-5 text-blue-500 mr-2" />
+                              <span className="font-medium text-gray-900">{form.formName}</span>
+                            </div>
+                            <div className="flex items-center">
+                              {form.status === 'generating' && (
+                                <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                              )}
+                              {form.status === 'success' && (
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                              )}
+                              {form.status === 'error' && (
+                                <AlertCircle className="w-4 h-4 text-red-500" />
+                              )}
+                            </div>
+                          </div>
+                          
+                          {form.status === 'generating' && (
+                            <div className="text-sm text-blue-600">Generating...</div>
+                          )}
+                          
+                          {form.status === 'success' && (
+                            <div className="space-y-2">
+                              <div className="text-sm text-gray-600">{form.fileName}</div>
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => handleDownloadForm(form.formName)}
+                                  size="sm"
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                >
+                                  <Download className="w-4 h-4 mr-1" />
+                                  Download
+                                </Button>
+                                <Button
+                                  onClick={() => handlePreviewForm(form.formName)}
+                                  size="sm"
+                                  variant="outline"
+                                >
+                                  <FileText className="w-4 h-4 mr-1" />
+                                  Preview
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {form.status === 'error' && (
+                            <div className="text-sm text-red-600">
+                              Error: {form.error || 'Unknown error'}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* PDF Preview Modal */}
+                {Object.entries(showPreview).map(([formName, isVisible]) => {
+                  if (!isVisible) return null;
+                  const form = generatedForms.find(f => f.formName === formName);
+                  if (!form || form.status !== 'success') return null;
+                  
+                  return (
+                    <div key={formName} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                      <div className="bg-white rounded-lg p-4 max-w-4xl w-full h-5/6 flex flex-col">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold">Preview: {formName}</h3>
+                          <Button
+                            onClick={() => handleClosePreview(formName)}
+                            variant="outline"
+                            size="sm"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                        <div className="flex-1">
+                          <iframe
+                            src={form.downloadUrl}
+                            className="w-full h-full border-0"
+                            title={`Preview of ${formName}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             
             <div className="flex justify-between">
@@ -4246,24 +4579,42 @@ const handleClientSubmit = async () => {
                   <CheckCircle className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                // Original Generate & Download button in normal mode
-                <Button 
-                  onClick={handleAutoFillForms}
-                  disabled={loading}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {loading ? (
-                    <>
-                      <Clock className="w-4 h-4 mr-2 animate-spin" />
-                      Generating Forms...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4 mr-2" />
-                      Generate & Download Forms
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleAutoGenerateForms}
+                    disabled={generatingForms || selectedForms.length === 0}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {generatingForms ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Auto-Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck className="w-4 h-4 mr-2" />
+                        Auto Generate
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={handleAutoFillForms}
+                    disabled={loading}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {loading ? (
+                      <>
+                        <Clock className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Legacy Generate
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           </div>
