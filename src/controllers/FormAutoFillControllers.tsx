@@ -1,12 +1,109 @@
 import axios from 'axios';
 import api from '../utils/api';
-import { FORM_AUTO_FILL_END_POINTS } from '../utils/constants';
+import { FORM_AUTO_FILL_END_POINTS, FILLED_FORM_SUBMISSION_END_POINTS } from '../utils/constants';
 
 // Define common response type
-interface ApiResponse<T> {
+interface ApiResponseData<T> {
   data: T;
   status: number;
   statusText: string;
+}
+
+// API Response wrapper
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
+// TypeScript interfaces for filled form submissions
+export interface FilledFormSubmission {
+  _id: string;
+  submissionId: string;
+  templateId: string;
+  formData: Record<string, any>;
+  pdfMetadata: {
+    fileName: string;
+    fileSize: number;
+    contentType: string;
+    generatedAt: string;
+  };
+  submittedBy: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  clientId?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  caseId?: string;
+  formCaseId?: string;
+  status: 'draft' | 'submitted' | 'processed' | 'completed' | 'failed';
+  metadata: Record<string, any>;
+  processingInfo: {
+    processingTime: number;
+    success: boolean;
+    errorMessage?: string;
+  };
+  notes?: string;
+  submittedAt: string;
+  processedAt?: string;
+  completedAt?: string;
+  pdfDownloadUrl?: string;
+  ageInDays: number;
+}
+
+export interface PaginationInfo {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export interface FilledFormSubmissionsResponse {
+  submissions: FilledFormSubmission[];
+  pagination: PaginationInfo;
+}
+
+export interface FilledFormSubmissionFilters {
+  templateId?: string;
+  status?: string;
+  submittedBy?: string;
+  clientId?: string;
+  caseId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface CreateFilledFormSubmissionRequest {
+  templateId: string;
+  formData: Record<string, any>;
+  clientId?: string;
+  caseId?: string;
+  formCaseId?: string;
+  notes?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateFilledFormSubmissionRequest {
+  status?: string;
+  notes?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface FilledFormSubmissionStats {
+  total: number;
+  byStatus: Record<string, number>;
+  byTemplate: Record<string, number>;
+  byMonth: Record<string, number>;
+  averageProcessingTime: number;
 }
 
 const handleApiError = (error: any) => {
@@ -92,7 +189,7 @@ export interface DisplayNamesResponse {
 
 
 // 1. Render PDF Form Fields
-export const renderFormFields = async (templateId: string): Promise<ApiResponse<RenderFieldsResponse>> => {
+export const renderFormFields = async (templateId: string): Promise<ApiResponseData<RenderFieldsResponse>> => {
   try {
     const response = await api.post(
       FORM_AUTO_FILL_END_POINTS.RENDER_FIELDS.replace(':templateId', templateId)
@@ -112,7 +209,7 @@ export const renderFormFields = async (templateId: string): Promise<ApiResponse<
 export const updateFormFields = async (
   pdfTemplateName: string, 
   updateData: UpdateFieldsRequest
-): Promise<ApiResponse<MappedParameter[]>> => {
+): Promise<ApiResponseData<MappedParameter[]>> => {
   try {
     const response = await api.post(
       FORM_AUTO_FILL_END_POINTS.UPDATE_FIELDS.replace(':pdfTemplateName', pdfTemplateName),
@@ -133,7 +230,7 @@ export const updateFormFields = async (
 export const renderFormWithData = async (
   templateId: string, 
   formData: RenderFormDataRequest
-): Promise<ApiResponse<Blob>> => {
+): Promise<ApiResponseData<Blob>> => {
   try {
     const response = await api.post(
       FORM_AUTO_FILL_END_POINTS.RENDER_FORM_WITH_DATA.replace(':templateId', templateId),
@@ -156,7 +253,7 @@ export const renderFormWithData = async (
 // 4. Download Multiple PDF Forms
 export const downloadMultipleForms = async (
   downloadData: DownloadMultipleRequest
-): Promise<ApiResponse<Blob>> => {
+): Promise<ApiResponseData<Blob>> => {
   try {
     const response = await api.post(
       FORM_AUTO_FILL_END_POINTS.DOWNLOAD_MULTIPLE,
@@ -177,7 +274,7 @@ export const downloadMultipleForms = async (
 };
 
 // 5. Get Display Names by Template ID
-export const getDisplayNames = async (templateId: string): Promise<ApiResponse<DisplayNamesResponse>> => {
+export const getDisplayNames = async (templateId: string): Promise<ApiResponseData<DisplayNamesResponse>> => {
   try {
     const response = await api.get(
       FORM_AUTO_FILL_END_POINTS.GET_DISPLAY_NAMES.replace(':templateId', templateId)
@@ -193,36 +290,198 @@ export const getDisplayNames = async (templateId: string): Promise<ApiResponse<D
   }
 };
 
-// Utility functions for common operations
+/**
+ * Get filled form submissions with optional filtering
+ */
+export const getFilledFormSubmissions = async (
+  filters: FilledFormSubmissionFilters = {}
+): Promise<FilledFormSubmissionsResponse> => {
+  try {
+    const queryParams = new URLSearchParams();
+    
+    // Add filters to query parameters
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value.toString());
+      }
+    });
 
-// Helper function to create a PDF blob URL
-export const createPdfBlobUrl = (blob: Blob): string => {
-  return URL.createObjectURL(blob);
+    const url = `${FILLED_FORM_SUBMISSION_END_POINTS.GET_SUBMISSIONS}?${queryParams.toString()}`;
+    const response = await api.get(url);
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error fetching filled form submissions:', error);
+    throw new Error(error.response?.data?.message || 'Failed to fetch submissions');
+  }
 };
 
-// Helper function to download a PDF file
+/**
+ * Get a specific filled form submission by ID
+ */
+export const getFilledFormSubmissionById = async (
+  submissionId: string
+): Promise<FilledFormSubmission> => {
+  try {
+    const url = FILLED_FORM_SUBMISSION_END_POINTS.GET_SUBMISSION_BY_ID.replace(':id', submissionId);
+    const response = await api.get(url);
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error fetching filled form submission:', error);
+    throw new Error(error.response?.data?.message || 'Failed to fetch submission');
+  }
+};
+
+/**
+ * Download filled form PDF
+ */
+export const downloadFilledFormPDF = async (
+  submissionId: string
+): Promise<Blob> => {
+  try {
+    const url = FILLED_FORM_SUBMISSION_END_POINTS.DOWNLOAD_SUBMISSION_PDF.replace(':id', submissionId);
+    const response = await api.get(url, {
+      responseType: 'blob'
+    });
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error downloading filled form PDF:', error);
+    throw new Error(error.response?.data?.message || 'Failed to download PDF');
+  }
+};
+
+/**
+ * Create a new filled form submission
+ */
+export const createFilledFormSubmission = async (
+  submissionData: CreateFilledFormSubmissionRequest
+): Promise<FilledFormSubmission> => {
+  try {
+    const response = await api.post(FILLED_FORM_SUBMISSION_END_POINTS.CREATE_SUBMISSION, submissionData);
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error creating filled form submission:', error);
+    throw new Error(error.response?.data?.message || 'Failed to create submission');
+  }
+};
+
+/**
+ * Update a filled form submission
+ */
+export const updateFilledFormSubmission = async (
+  submissionId: string,
+  updateData: UpdateFilledFormSubmissionRequest
+): Promise<FilledFormSubmission> => {
+  try {
+    const url = FILLED_FORM_SUBMISSION_END_POINTS.UPDATE_SUBMISSION.replace(':id', submissionId);
+    const response = await api.put(url, updateData);
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error updating filled form submission:', error);
+    throw new Error(error.response?.data?.message || 'Failed to update submission');
+  }
+};
+
+/**
+ * Delete a filled form submission (admin only)
+ */
+export const deleteFilledFormSubmission = async (
+  submissionId: string
+): Promise<{ message: string }> => {
+  try {
+    const url = FILLED_FORM_SUBMISSION_END_POINTS.DELETE_SUBMISSION.replace(':id', submissionId);
+    const response = await api.delete(url);
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error deleting filled form submission:', error);
+    throw new Error(error.response?.data?.message || 'Failed to delete submission');
+  }
+};
+
+/**
+ * Get filled form submission statistics
+ */
+export const getFilledFormSubmissionStats = async (): Promise<FilledFormSubmissionStats> => {
+  try {
+    const response = await api.get(FILLED_FORM_SUBMISSION_END_POINTS.GET_SUBMISSION_STATS);
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error fetching filled form submission stats:', error);
+    throw new Error(error.response?.data?.message || 'Failed to fetch statistics');
+  }
+};
+
+/**
+ * Bulk download filled form submissions
+ */
+export const bulkDownloadFilledFormSubmissions = async (
+  submissionIds: string[]
+): Promise<Blob> => {
+  try {
+    const response = await api.post(
+      FILLED_FORM_SUBMISSION_END_POINTS.BULK_DOWNLOAD_SUBMISSIONS,
+      { submissionIds },
+      { responseType: 'blob' }
+    );
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error bulk downloading filled form submissions:', error);
+    throw new Error(error.response?.data?.message || 'Failed to bulk download submissions');
+  }
+};
+
+/**
+ * Bulk delete filled form submissions (admin only)
+ */
+export const bulkDeleteFilledFormSubmissions = async (
+  submissionIds: string[]
+): Promise<{ message: string; deletedCount: number }> => {
+  try {
+    const response = await api.post(FILLED_FORM_SUBMISSION_END_POINTS.BULK_DELETE_SUBMISSIONS, {
+      submissionIds
+    });
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('Error bulk deleting filled form submissions:', error);
+    throw new Error(error.response?.data?.message || 'Failed to bulk delete submissions');
+  }
+};
+
+/**
+ * Helper function to download PDF file
+ */
 export const downloadPdfFile = (blob: Blob, filename: string): void => {
-  const url = createPdfBlobUrl(blob);
+  const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
+  window.URL.revokeObjectURL(url);
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 };
 
-// Helper function to download a ZIP file
-export const downloadZipFile = (blob: Blob, filename: string = 'immigration-simplified-documents.zip'): void => {
-  const url = createPdfBlobUrl(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+/**
+ * Helper function to create PDF blob URL for preview
+ */
+export const createPdfBlobUrl = (blob: Blob): string => {
+  return window.URL.createObjectURL(blob);
 };
+
+/**
+ * Helper function to revoke PDF blob URL
+ */
+export const revokePdfBlobUrl = (url: string): void => {
+  window.URL.revokeObjectURL(url);
+}; 
 
 // Helper function to validate form data before submission
 export const validateFormData = (formData: RenderFormDataRequest): { isValid: boolean; errors: string[] } => {
@@ -260,121 +519,4 @@ export const prepareFormData = (rawData: any): RenderFormDataRequest => {
   });
   
   return preparedData;
-};
-
-// Helper function to get field type from display name
-export const getFieldTypeFromDisplayName = async (
-  templateId: string, 
-  displayName: string
-): Promise<string | null> => {
-  try {
-    const response = await getDisplayNames(templateId);
-    const displayNames = response.data.displayNames;
-    return displayNames[displayName] || null;
-  } catch (error) {
-    console.error('Error getting field type:', error);
-    return null;
-  }
-};
-
-// Helper function to check if a template has required fields
-export const getRequiredFields = async (templateId: string): Promise<string[]> => {
-  try {
-    const response = await renderFormFields(templateId);
-    const requiredFields = response.data.fields
-      .filter(field => field.required)
-      .map(field => field.parameter_name);
-    return requiredFields;
-  } catch (error) {
-    console.error('Error getting required fields:', error);
-    return [];
-  }
-};
-
-// Helper function to get all available fields for a template
-export const getAvailableFields = async (templateId: string): Promise<FormField[]> => {
-  try {
-    const response = await renderFormFields(templateId);
-    return response.data.fields;
-  } catch (error) {
-    console.error('Error getting available fields:', error);
-    return [];
-  }
-};
-
-// Helper function to create a complete form submission
-export const submitCompleteForm = async (
-  templateId: string,
-  formData: RenderFormDataRequest,
-  options?: {
-    download?: boolean;
-    filename?: string;
-  }
-): Promise<{ success: boolean; blob?: Blob; error?: string }> => {
-  try {
-    // Validate form data
-    const validation = validateFormData(formData);
-    if (!validation.isValid) {
-      return {
-        success: false,
-        error: `Validation failed: ${validation.errors.join(', ')}`
-      };
-    }
-    
-    // Prepare form data
-    const preparedData = prepareFormData(formData);
-    
-    // Render form with data
-    const response = await renderFormWithData(templateId, preparedData);
-    
-    // Download if requested
-    if (options?.download) {
-      const filename = options.filename || `${templateId}.pdf`;
-      downloadPdfFile(response.data, filename);
-    }
-    
-    return {
-      success: true,
-      blob: response.data
-    };
-  } catch (error) {
-    console.error('Error submitting complete form:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    };
-  }
-};
-
-// Helper function to batch download multiple forms
-export const batchDownloadForms = async (
-  templateIds: string[],
-  fieldParameters: { [key: string]: any },
-  options?: {
-    filename?: string;
-  }
-): Promise<{ success: boolean; blob?: Blob; error?: string }> => {
-  try {
-    const downloadData: DownloadMultipleRequest = {
-      template_ids: templateIds,
-      field_parameters: fieldParameters
-    };
-    
-    const response = await downloadMultipleForms(downloadData);
-    
-    // Download if requested
-    const filename = options?.filename || 'immigration-simplified-documents.zip';
-    downloadZipFile(response.data, filename);
-    
-    return {
-      success: true,
-      blob: response.data
-    };
-  } catch (error) {
-    console.error('Error batch downloading forms:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    };
-  }
 };

@@ -457,6 +457,33 @@ export const FORM_AUTO_FILL_END_POINTS = {
     GET_DISPLAY_NAMES: "/api/v1/forms/display-names/:templateId"
 } as const;
 
+export const FILLED_FORM_SUBMISSION_END_POINTS = {
+    // Get filled form submissions with filtering
+    GET_SUBMISSIONS: "/api/v1/forms/filled-forms",
+    
+    // Get specific filled form submission by ID
+    GET_SUBMISSION_BY_ID: "/api/v1/forms/filled-forms/:id",
+    
+    // Download filled form PDF
+    DOWNLOAD_SUBMISSION_PDF: "/api/v1/forms/filled-forms/:id/download",
+    
+    // Delete filled form submission (admin only)
+    DELETE_SUBMISSION: "/api/v1/forms/filled-forms/:id",
+    
+    // Create new filled form submission
+    CREATE_SUBMISSION: "/api/v1/forms/filled-forms",
+    
+    // Update filled form submission
+    UPDATE_SUBMISSION: "/api/v1/forms/filled-forms/:id",
+    
+    // Get submission statistics
+    GET_SUBMISSION_STATS: "/api/v1/forms/filled-forms/stats",
+    
+    // Bulk operations
+    BULK_DOWNLOAD_SUBMISSIONS: "/api/v1/forms/filled-forms/bulk-download",
+    BULK_DELETE_SUBMISSIONS: "/api/v1/forms/filled-forms/bulk-delete"
+} as const;
+
 // PDF Template Field Types
 export const PDF_FIELD_TYPES = {
     TEXT: 'text',
