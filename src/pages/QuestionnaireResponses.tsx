@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../controllers/AuthControllers';
 import { useQuestionnaireAssignments } from '../hooks/useQuestionnaireAssignments';
+import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 interface QuestionnaireAssignment {
@@ -87,6 +88,65 @@ const QuestionnaireResponses: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [loadingWorkflows, setLoadingWorkflows] = useState<boolean>(false);
+  
+  // Function to fetch workflows from API for auto-fill
+  const fetchWorkflowsFromAPI = async () => {
+    try {
+      console.log('🔄 Fetching workflows from API...');
+      setLoadingWorkflows(true);
+      const token = localStorage.getItem('token');
+      
+      // Check token availability
+      if (!token) {
+        console.log('❌ No authentication token available');
+        toast('No authentication token - please login first');
+        return [];
+      }
+
+      console.log('✅ Authentication token found, making API request...');
+
+      // Request workflows from API
+      const response = await api.get('/api/v1/workflows', {
+        params: {
+          status: 'in-progress',
+          page: 1,
+          limit: 50
+        }
+      });
+      
+      console.log('📥 Response from workflows API:', response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        const workflows = response.data.data;
+        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
+        return workflows;
+      } else {
+        console.log('⚠️ No workflow data available in API response');
+        return [];
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error fetching workflows from API:', error);
+      
+      // If 404, the endpoint might not be available
+      if (error.response?.status === 404) {
+        console.log('🔍 Server workflows endpoint not found');
+        toast('Server workflows endpoint not available');
+      } else if (error.response?.status === 401) {
+        console.log('🔐 Authentication failed');
+        toast('Authentication failed - please login again');
+      } else {
+        console.log('💥 Other API error:', error.response?.status || 'Unknown');
+        toast.error('Failed to load workflows from server');
+      }
+      
+      return [];
+    } finally {
+      setLoadingWorkflows(false);
+      console.log('🏁 Finished workflow API request');
+    }
+  };
   
   useEffect(() => {
     // Only attorneys, paralegals, and superadmins can access this page
@@ -262,7 +322,7 @@ const QuestionnaireResponses: React.FC = () => {
     });
   };
 
-  const handleClientClick = (assignment: QuestionnaireAssignment) => {
+  const handleClientClick = async (assignment: QuestionnaireAssignment) => {
     // Prepare the data to pass to the Legal Firm Workflow
     const clientInfo = assignment.actualClient || assignment.clientUserId;
     const questionnaireInfo = assignment.questionnaireId;
@@ -272,28 +332,144 @@ const QuestionnaireResponses: React.FC = () => {
       toast.error('Cannot navigate - missing client or questionnaire data');
       return;
     }
-    
-    const workflowData = {
-      clientId: clientInfo._id,
-      clientEmail: clientInfo.email,
-      clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
-      questionnaireId: questionnaireInfo._id,
-      questionnaireTitle: questionnaireInfo.title,
-      existingResponses: responseInfo?.responses || {},
-      fields: questionnaireInfo.fields || [],
-      mode: responseInfo?.responses ? 'edit' : 'new', // Edit if responses exist, new otherwise
-      originalAssignmentId: assignment._id
-    };
-    
-    console.log('Navigating to Legal Firm Workflow with data:', workflowData);
-    
-    // Store the workflow data in sessionStorage for the Legal Firm Workflow to pick up
-    sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));
-    
-    // Navigate to the Legal Firm Workflow page
-    navigate('/legal-firm-workflow');
-    
-    toast.success(`Navigating to ${responseInfo?.responses ? 'edit' : 'create'} ${clientInfo.firstName}'s responses`);
+
+    console.log('🔄 Starting enhanced workflow navigation...');
+    setLoadingWorkflows(true);
+
+    try {
+      // Fetch workflows from API to get complete workflow data
+      const apiWorkflows = await fetchWorkflowsFromAPI();
+      let matchingWorkflow = null;
+
+      if (apiWorkflows && apiWorkflows.length > 0) {
+        // Try to find a matching workflow by client email
+        matchingWorkflow = apiWorkflows.find((workflow: any) => {
+          const workflowEmail = workflow.client?.email?.toLowerCase();
+          const clientEmail = clientInfo.email?.toLowerCase();
+          return workflowEmail === clientEmail;
+        });
+
+        if (!matchingWorkflow) {
+          // If no exact match, try to find by client name
+          matchingWorkflow = apiWorkflows.find((workflow: any) => {
+            const workflowClientName = `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.toLowerCase();
+            const clientName = `${clientInfo.firstName} ${clientInfo.lastName}`.toLowerCase();
+            return workflowClientName === clientName;
+          });
+        }
+
+        if (!matchingWorkflow) {
+          // If still no match, get the most recent workflow
+          matchingWorkflow = apiWorkflows
+            .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+          console.log('⚠️ No exact match found, using most recent workflow');
+        } else {
+          console.log('✅ Found matching workflow for client');
+        }
+      }
+
+      // Prepare comprehensive workflow data
+      const workflowData = {
+        clientId: clientInfo._id,
+        clientEmail: clientInfo.email,
+        clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
+        questionnaireId: questionnaireInfo._id,
+        questionnaireTitle: questionnaireInfo.title,
+        existingResponses: responseInfo?.responses || {},
+        fields: questionnaireInfo.fields || [],
+        mode: responseInfo?.responses ? 'edit' : 'new',
+        originalAssignmentId: assignment._id,
+        
+        // Enhanced workflow data from API
+        ...(matchingWorkflow && {
+          // Client data from workflow
+          workflowClient: {
+            name: matchingWorkflow.client?.name || `${clientInfo.firstName} ${clientInfo.lastName}`,
+            firstName: matchingWorkflow.client?.firstName || clientInfo.firstName,
+            lastName: matchingWorkflow.client?.lastName || clientInfo.lastName,
+            email: matchingWorkflow.client?.email || clientInfo.email,
+            phone: matchingWorkflow.client?.phone || '',
+            dateOfBirth: matchingWorkflow.client?.dateOfBirth || '',
+            nationality: matchingWorkflow.client?.nationality || '',
+            address: matchingWorkflow.client?.address || {
+              street: '',
+              city: '',
+              state: '',
+              zipCode: '',
+              country: 'United States'
+            }
+          },
+          
+          // Case data from workflow
+          workflowCase: {
+            id: matchingWorkflow.case?.id || matchingWorkflow.case?._id,
+            _id: matchingWorkflow.case?._id || matchingWorkflow.case?.id,
+            title: matchingWorkflow.case?.title || 'Case',
+            caseNumber: matchingWorkflow.case?.caseNumber || '',
+            category: matchingWorkflow.case?.category || 'family-based',
+            subcategory: matchingWorkflow.case?.subcategory || '',
+            status: matchingWorkflow.case?.status || 'draft',
+            priority: matchingWorkflow.case?.priority || 'medium',
+            visaType: matchingWorkflow.case?.visaType || '',
+            description: matchingWorkflow.case?.description || '',
+            openDate: matchingWorkflow.case?.openDate || '',
+            priorityDate: matchingWorkflow.case?.priorityDate || '',
+            dueDate: matchingWorkflow.case?.dueDate || ''
+          },
+          
+          // Form data from workflow
+          selectedForms: matchingWorkflow.selectedForms || [],
+          formCaseIds: matchingWorkflow.formCaseIds || {},
+          selectedQuestionnaire: matchingWorkflow.selectedQuestionnaire || questionnaireInfo._id,
+          
+          // Client credentials from workflow
+          clientCredentials: {
+            email: matchingWorkflow.clientCredentials?.email || clientInfo.email,
+            createAccount: matchingWorkflow.clientCredentials?.createAccount || true
+          },
+          
+          // Set target step to Client Information (step 2) since we want to start from there
+          targetStep: 2,
+          autoFillMode: true, // Flag to indicate this is auto-fill mode (no saving)
+          currentStep: matchingWorkflow.currentStep || 1
+        })
+      };
+      
+      console.log('📦 Enhanced workflow data prepared:', workflowData);
+      
+      // Store the workflow data in sessionStorage for the Legal Firm Workflow to pick up
+      sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));
+      
+      toast.success(`🚀 Loading complete workflow data for ${clientInfo.firstName}`);
+      
+    } catch (error) {
+      console.error('❌ Error fetching workflow data:', error);
+      
+      // Fallback to basic data if API fails
+      const basicWorkflowData = {
+        clientId: clientInfo._id,
+        clientEmail: clientInfo.email,
+        clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
+        questionnaireId: questionnaireInfo._id,
+        questionnaireTitle: questionnaireInfo.title,
+        existingResponses: responseInfo?.responses || {},
+        fields: questionnaireInfo.fields || [],
+        mode: responseInfo?.responses ? 'edit' : 'new',
+        originalAssignmentId: assignment._id,
+        autoFillMode: true
+      };
+      
+      sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(basicWorkflowData));
+      toast('⚠️ Using basic client data (workflow API unavailable)');
+      
+    } finally {
+      setLoadingWorkflows(false);
+      
+      // Navigate to the Legal Firm Workflow page
+      navigate('/legal-firm-workflow');
+      
+      console.log('🎯 Navigated to Legal Firm Workflow with enhanced data');
+    }
   };
 
   const handleViewResponse = (assignmentId: string) => {
