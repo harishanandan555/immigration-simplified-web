@@ -227,6 +227,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
   const [autoFillEnabled, setAutoFillEnabled] = useState(false);
   const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+  const [autoFillingFormDetails, setAutoFillingFormDetails] = useState(false);
+  
+  // State to track if we're in view/edit mode from QuestionnaireResponses
+  const [isViewEditMode, setIsViewEditMode] = useState(false);
 
   // Load available questionnaires
   useEffect(() => {
@@ -246,6 +250,39 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     // Load workflows after a brief delay to allow other data to load first
     setTimeout(loadWorkflowsForAutoFill, 1000);
   }, []);
+  
+  // Auto-fill form details when user reaches step 6 (Form Details)
+  useEffect(() => {
+    const autoFillOnFormDetailsStep = async () => {
+      if (currentStep === 6) { // Form Details step
+        // Add a small delay to let the UI render first
+        setTimeout(async () => {
+          try {
+            console.log('Auto-filling form details for step 6...');
+            setAutoFillingFormDetails(true);
+            
+            // Fetch from actual API only
+            const apiWorkflows = await fetchWorkflowsFromAPI();
+            if (apiWorkflows && apiWorkflows.length > 0) {
+              console.log('Found API workflows, auto-filling with real data');
+              const response = { success: true, count: apiWorkflows.length, data: apiWorkflows };
+              autoFillFromAPIResponse(response);
+            } else {
+              console.log('No API workflows found');
+              toast('No saved workflows found to auto-fill');
+            }
+          } catch (error) {
+            console.error('Error auto-filling form details:', error);
+            toast('Form Details page loaded - no auto-fill data available');
+          } finally {
+            setAutoFillingFormDetails(false);
+          }
+        }, 500); // 500ms delay for smoother UX
+      }
+    };
+    
+    autoFillOnFormDetailsStep();
+  }, [currentStep]); // Trigger when currentStep changes
   
   // Function to resume workflow from saved progress
   const resumeWorkflow = async (workflowId: string) => {
@@ -362,6 +399,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       try {
         const data = JSON.parse(workflowData);
 
+        console.log('🔄 Processing workflow data for auto-fill...', data);
         
         // Check if we have the questionnaire in our available questionnaires
         let foundQuestionnaire = availableQuestionnaires.find(q => 
@@ -374,7 +412,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         
         // If not found and we have field data, create a temporary questionnaire
         if (!foundQuestionnaire) {
-
+          console.log('⚠️ Questionnaire not found, creating temporary one');
           
           // If we have fields from the response data, use them
           const fieldsToUse = data.fields && data.fields.length > 0 ? data.fields : [
@@ -399,64 +437,151 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             apiQuestionnaire: true
           };
           
-
+          console.log('📋 Created temporary questionnaire:', foundQuestionnaire);
           
           // Add it to available questionnaires
           setAvailableQuestionnaires(prev => [...prev, foundQuestionnaire]);
         } else {
-
+          console.log('✅ Found matching questionnaire:', foundQuestionnaire.title);
         }
-        
-        // Set client data
-        setClient((prev: any) => ({
-          ...prev,
-          id: data.clientId,
-          firstName: data.clientName.split(' ')[0] || '',
-          lastName: data.clientName.split(' ').slice(1).join(' ') || '',
-          email: data.clientEmail
-        }));
-        
-        // Set selected questionnaire
-        if (data.questionnaireId) {
-          setSelectedQuestionnaire(data.questionnaireId);
+
+        // Auto-fill workflow steps progressively from step 2 to targetStep
+        const autoFillSteps = async () => {
+          console.log('🚀 Starting progressive auto-fill from step 2...');
           
-          // Create a questionnaire assignment for the answers collection step
-          const assignment: QuestionnaireAssignment = {
-            id: data.originalAssignmentId || 'temp-assignment',
-            caseId: '',
-            clientId: data.clientId,
-            questionnaireId: data.questionnaireId,
-            questionnaireName: data.questionnaireTitle || 'Questionnaire',
-            status: 'in-progress',
-            assignedAt: new Date().toISOString(),
-            responses: data.existingResponses || {},
-            clientEmail: data.clientEmail
-          };
+          // Step 1: Client Information (index 1)
+          if (data.workflowClient) {
+            console.log('📝 Auto-filling client information...');
+            setClient({
+              id: data.clientId || '',
+              name: data.workflowClient.name || `${data.workflowClient.firstName || ''} ${data.workflowClient.lastName || ''}`.trim(),
+              firstName: data.workflowClient.firstName || data.clientName.split(' ')[0] || '',
+              lastName: data.workflowClient.lastName || data.clientName.split(' ').slice(1).join(' ') || '',
+              email: data.workflowClient.email || data.clientEmail,
+              phone: data.workflowClient.phone || '',
+              address: data.workflowClient.address || {
+                street: '',
+                city: '',
+                state: '',
+                zipCode: '',
+                country: 'United States'
+              },
+              dateOfBirth: data.workflowClient.dateOfBirth || '',
+              nationality: data.workflowClient.nationality || '',
+              status: 'active',
+              createdAt: new Date().toISOString()
+            });
+          } else {
+            // Fallback to basic client data
+            setClient((prev: any) => ({
+              ...prev,
+              id: data.clientId,
+              firstName: data.clientName.split(' ')[0] || '',
+              lastName: data.clientName.split(' ').slice(1).join(' ') || '',
+              email: data.clientEmail
+            }));
+          }
           
-
-          setQuestionnaireAssignment(assignment);
-        }
+          // Step 2: Case Information (index 2)
+          if (data.workflowCase) {
+            console.log('📝 Auto-filling case information...');
+            setCaseData({
+              id: data.workflowCase.id || data.workflowCase._id || generateObjectId(),
+              _id: data.workflowCase._id || data.workflowCase.id,
+              clientId: data.clientId,
+              title: data.workflowCase.title || 'Case',
+              description: data.workflowCase.description || '',
+              category: data.workflowCase.category || 'family-based',
+              subcategory: data.workflowCase.subcategory || '',
+              status: data.workflowCase.status || 'draft',
+              priority: data.workflowCase.priority || 'medium',
+              assignedForms: [],
+              questionnaires: [data.questionnaireId],
+              createdAt: new Date().toISOString(),
+              dueDate: data.workflowCase.dueDate || '',
+              visaType: data.workflowCase.visaType || '',
+              priorityDate: data.workflowCase.priorityDate || '',
+              caseNumber: data.workflowCase.caseNumber || '',
+              openDate: data.workflowCase.openDate || ''
+            });
+          }
+          
+          // Step 3: Form Selection (index 3)
+          if (data.selectedForms && data.selectedForms.length > 0) {
+            console.log('📝 Auto-filling selected forms...');
+            setSelectedForms(data.selectedForms);
+            
+            if (data.formCaseIds) {
+              setFormCaseIds(data.formCaseIds);
+            }
+          }
+          
+          // Step 4: Questionnaire Assignment (index 4) 
+          if (data.questionnaireId) {
+            console.log('📝 Auto-filling questionnaire selection...');
+            setSelectedQuestionnaire(data.questionnaireId);
+            
+            // Create a questionnaire assignment for the answers collection step
+            const assignment: QuestionnaireAssignment = {
+              id: data.originalAssignmentId || 'temp-assignment',
+              caseId: data.workflowCase?.id || data.workflowCase?._id || '',
+              clientId: data.clientId,
+              questionnaireId: data.questionnaireId,
+              questionnaireName: data.questionnaireTitle || 'Questionnaire',
+              status: 'in-progress',
+              assignedAt: new Date().toISOString(),
+              responses: data.existingResponses || {},
+              clientEmail: data.clientEmail,
+              selectedForms: data.selectedForms || [],
+              formCaseIds: data.formCaseIds || {}
+            };
+            
+            console.log('📋 Created questionnaire assignment:', assignment);
+            setQuestionnaireAssignment(assignment);
+          }
+          
+          // Step 5: Responses (index 5) - Set existing responses if in edit mode
+          if (data.mode === 'edit' && data.existingResponses) {
+            console.log('📝 Auto-filling existing responses...');
+            setClientResponses(data.existingResponses);
+          }
+          
+          // Set client credentials if available
+          if (data.clientCredentials) {
+            console.log('📝 Auto-filling client credentials...');
+            setClientCredentials({
+              email: data.clientCredentials.email || data.clientEmail,
+              password: '',
+              createAccount: data.clientCredentials.createAccount || true
+            });
+          }
+          
+          // Start from step 2 (Client Information) and let user progress through steps
+          const startStep = 1; // Client Information step
+          const targetStepIndex = data.targetStep || 6; // Default to Form Details if not specified
+          
+          console.log(`🎯 Starting at step ${startStep + 1}, targeting step ${targetStepIndex}`);
+          setCurrentStep(startStep);
+          
+          // Show success message
+          if (data.autoFillMode) {
+            setIsViewEditMode(true); // Set view/edit mode for simple navigation
+            toast.success(`🚀 Auto-filled workflow data for ${data.clientName} - review and continue`, { duration: 4000 });
+          } else if (data.mode === 'edit') {
+            toast.success(`Loaded existing responses for ${data.clientName}`);
+          } else {
+            toast.success(`Loaded client data for ${data.clientName}`);
+          }
+        };
         
-        // Set existing responses if in edit mode
-        if (data.mode === 'edit' && data.existingResponses) {
-          setClientResponses(data.existingResponses);
-
-        }
-        
-        // Jump to the answers collection step since we have responses
-        if (data.mode === 'edit') {
-          setCurrentStep(WORKFLOW_STEPS.findIndex(step => step.id === 'answers'));
-          toast.success(`Loaded existing responses for ${data.clientName}`);
-        } else {
-          setCurrentStep(WORKFLOW_STEPS.findIndex(step => step.id === 'questionnaire'));
-          toast.success(`Loaded client data for ${data.clientName}`);
-        }
+        // Execute auto-fill after a small delay to ensure UI is ready
+        setTimeout(autoFillSteps, 500);
         
         // Clear the session storage after using it
         sessionStorage.removeItem('legalFirmWorkflowData');
         
       } catch (error) {
-
+        console.error('❌ Error processing workflow data:', error);
         sessionStorage.removeItem('legalFirmWorkflowData');
       }
     }
@@ -1022,21 +1147,20 @@ const handleClientSubmit = async () => {
   // Function to fetch workflows from API for auto-fill
   const fetchWorkflowsFromAPI = async () => {
     try {
-
+      console.log('🔄 Fetching workflows from API...');
       setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
       
       // Check token availability
-      
       if (!token) {
-        // No authentication token available
-        toast('No authentication token - using local data only');
+        console.log('❌ No authentication token available');
+        toast('No authentication token - please login first');
         return [];
       }
 
+      console.log('✅ Authentication token found, making API request...');
 
       // Request workflows from API
-      
       const response = await api.get('/api/v1/workflows', {
         params: {
           status: 'in-progress',
@@ -1044,38 +1168,38 @@ const handleClientSubmit = async () => {
           limit: 50
         }
       });
-
-      // Response status logged
+      
+      console.log('📥 Response from workflows API:', response.data);
       
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
         setAvailableWorkflows(workflows);
-        // Workflows loaded successfully
+        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         return workflows;
       } else {
-        // No workflow data available
+        console.log('⚠️ No workflow data available in API response');
         return [];
       }
       
     } catch (error: any) {
-      // Handle API errors
+      console.error('❌ Error fetching workflows from API:', error);
       
       // If 404, the endpoint might not be available
       if (error.response?.status === 404) {
-        // Server workflows endpoint not found
-        toast('Server workflows not available - using local data');
+        console.log('🔍 Server workflows endpoint not found');
+        toast('Server workflows endpoint not available');
       } else if (error.response?.status === 401) {
-        // Authentication failed
+        console.log('🔐 Authentication failed');
         toast('Authentication failed - please login again');
       } else {
-        // Other errors
-        toast.error('Failed to load workflows from server', { duration: 3000 });
+        console.log('💥 Other API error:', error.response?.status || 'Unknown');
+        toast.error('Failed to load workflows from server');
       }
       
       return [];
     } finally {
-      // Cleanup loading state
       setLoadingWorkflows(false);
+      console.log('🏁 Finished workflow API request');
     }
   };
   
@@ -2163,6 +2287,108 @@ const handleClientSubmit = async () => {
     handleNext();
   };
 
+  // Function to auto-fill form details from API workflow response
+  const autoFillFromAPIResponse = (apiResponse: any) => {
+    try {
+      console.log('🔄 Processing API response for auto-fill:', apiResponse);
+      
+      if (!apiResponse || !apiResponse.data || apiResponse.data.length === 0) {
+        console.log('❌ No workflow data found in API response');
+        toast('No saved workflow data found to auto-fill');
+        return;
+      }
+
+      const workflowData = apiResponse.data[0]; // Get the first workflow
+      console.log('✅ Auto-filling from API workflow data:', workflowData);
+
+      // Auto-fill client data
+      if (workflowData.client) {
+        const clientData = {
+          ...client,
+          name: workflowData.client.name || client.name,
+          firstName: workflowData.client.firstName || client.firstName,
+          lastName: workflowData.client.lastName || client.lastName,
+          email: workflowData.client.email || client.email,
+          phone: workflowData.client.phone || client.phone,
+          dateOfBirth: workflowData.client.dateOfBirth || client.dateOfBirth,
+          nationality: workflowData.client.nationality || client.nationality,
+          address: {
+            ...client.address,
+            ...workflowData.client.address
+          }
+        };
+        setClient(clientData);
+        console.log('👤 Client data auto-filled:', clientData);
+      }
+
+      // Auto-fill case data
+      if (workflowData.case) {
+        const caseDataFromAPI = {
+          ...caseData,
+          id: workflowData.case.id || caseData.id,
+          _id: workflowData.case._id || caseData._id,
+          title: workflowData.case.title || caseData.title,
+          caseNumber: workflowData.case.caseNumber || caseData.caseNumber,
+          category: workflowData.case.category || caseData.category,
+          subcategory: workflowData.case.subcategory || caseData.subcategory,
+          status: workflowData.case.status || caseData.status,
+          priority: workflowData.case.priority || caseData.priority,
+          visaType: workflowData.case.visaType || caseData.visaType,
+          description: workflowData.case.description || caseData.description,
+          openDate: workflowData.case.openDate || caseData.openDate,
+          priorityDate: workflowData.case.priorityDate || caseData.priorityDate,
+          dueDate: workflowData.case.dueDate || caseData.dueDate
+        };
+        setCaseData(caseDataFromAPI);
+        console.log('📋 Case data auto-filled:', caseDataFromAPI);
+      }
+
+      // Auto-fill selected forms
+      if (workflowData.selectedForms && Array.isArray(workflowData.selectedForms)) {
+        setSelectedForms(workflowData.selectedForms);
+        console.log('📝 Selected forms auto-filled:', workflowData.selectedForms);
+      }
+
+      // Auto-fill form case IDs
+      if (workflowData.formCaseIds) {
+        setFormCaseIds(workflowData.formCaseIds);
+        console.log('🔢 Form case IDs auto-filled:', workflowData.formCaseIds);
+      }
+
+      // Auto-fill selected questionnaire
+      if (workflowData.selectedQuestionnaire) {
+        setSelectedQuestionnaire(workflowData.selectedQuestionnaire);
+        console.log('❓ Selected questionnaire auto-filled:', workflowData.selectedQuestionnaire);
+      }
+
+      // Auto-fill client credentials
+      if (workflowData.clientCredentials) {
+        setClientCredentials({
+          ...clientCredentials,
+          email: workflowData.clientCredentials.email || clientCredentials.email,
+          createAccount: workflowData.clientCredentials.createAccount || clientCredentials.createAccount
+        });
+        console.log('🔐 Client credentials auto-filled:', workflowData.clientCredentials);
+      }
+
+      // Auto-fill current step if specified
+      if (workflowData.currentStep !== undefined && workflowData.currentStep >= 0) {
+        setCurrentStep(Math.max(workflowData.currentStep, currentStep)); // Don't go backwards
+        console.log('📍 Current step updated to:', workflowData.currentStep);
+      }
+
+      toast.success(`✅ Form details auto-filled! Loaded: ${workflowData.client?.name || 'Client'} - ${workflowData.case?.title || 'Case'}`, { 
+        duration: 3000
+      });
+
+      console.log('🎉 Auto-fill from API response completed successfully');
+
+    } catch (error) {
+      console.error('❌ Error auto-filling from API response:', error);
+      toast.error('Failed to auto-fill form details from API data');
+    }
+  };
+
   // Save the workflow to backend when auto-filling forms (final step)
   const handleAutoFillForms = async () => {
     try {
@@ -2428,25 +2654,34 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button 
-                onClick={async () => {
-                  // Save client data to backend (Step 1)
-                  try {
-                    await saveFormDetailsToBackend(1);
+              {isViewEditMode ? (
+                // Simple Next button in view/edit mode
+                <Button onClick={handleNext} disabled={!client.name || !client.email}>
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                // Original Create Client button in normal mode
+                <Button 
+                  onClick={async () => {
+                    // Save client data to backend (Step 1)
+                    try {
+                      await saveFormDetailsToBackend(1);
 
-                  } catch (error) {
+                    } catch (error) {
 
-                  }
-                  
-                  // Simply advance to next step without creating client account
-                  // Client account will only be created later if password is provided from questionnaire assignment
-                  setCurrentStep(2);
-                }}
-                disabled={!client.name || !client.email}
-              >
-                Create Client & Continue
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+                    }
+                    
+                    // Simply advance to next step without creating client account
+                    // Client account will only be created later if password is provided from questionnaire assignment
+                    setCurrentStep(2);
+                  }}
+                  disabled={!client.name || !client.email}
+                >
+                  Create Client & Continue
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
             </div>
           </div>
         );
@@ -2574,20 +2809,39 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button
-                onClick={handleCaseSubmit}
-                disabled={
-                  !caseData.title ||
-                  !caseData.category ||
-                  !caseData.status ||
-                  !caseData.visaType ||
-                  !caseData.priorityDate ||
-                  !caseData.openDate
-                }
-              >
-                Create Case & Continue
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              {isViewEditMode ? (
+                // Simple Next button in view/edit mode
+                <Button
+                  onClick={handleNext}
+                  disabled={
+                    !caseData.title ||
+                    !caseData.category ||
+                    !caseData.status ||
+                    !caseData.visaType ||
+                    !caseData.priorityDate ||
+                    !caseData.openDate
+                  }
+                >
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                // Original Create Case button in normal mode
+                <Button
+                  onClick={handleCaseSubmit}
+                  disabled={
+                    !caseData.title ||
+                    !caseData.category ||
+                    !caseData.status ||
+                    !caseData.visaType ||
+                    !caseData.priorityDate ||
+                    !caseData.openDate
+                  }
+                >
+                  Create Case & Continue
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
             </div>
           </div>
         );
@@ -2665,22 +2919,34 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button 
-                onClick={handleFormsSubmit}
-                disabled={selectedForms.length === 0 || generatingCaseIds}
-              >
-                {generatingCaseIds ? (
-                  <>
-                    <Loader className="w-4 h-4 mr-2 animate-spin" />
-                    Generating Case ID...
-                  </>
-                ) : (
-                  <>
-                    Confirm Form & Continue
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </>
-                )}
-              </Button>
+              {isViewEditMode ? (
+                // Simple Next button in view/edit mode
+                <Button 
+                  onClick={handleNext}
+                  disabled={selectedForms.length === 0}
+                >
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                // Original Form submission button in normal mode
+                <Button 
+                  onClick={handleFormsSubmit}
+                  disabled={selectedForms.length === 0 || generatingCaseIds}
+                >
+                  {generatingCaseIds ? (
+                    <>
+                      <Loader className="w-4 h-4 mr-2 animate-spin" />
+                      Generating Case ID...
+                    </>
+                  ) : (
+                    <>
+                      Confirm Form & Continue
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         );
@@ -3088,66 +3354,77 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              {selectedQuestionnaire && (() => {
-                // Enhanced flexible matching to find the selected questionnaire
-                const questionnaire = availableQuestionnaires.find(q => {
-                  // Check all possible ID fields
-                  const possibleIds = [
-                    q._id,          // MongoDB ObjectId
-                    q.id,           // Original ID or API ID
-                    q.originalId,   // Original ID before conversion
-                    q.name          // Fallback to name if used as ID
-                  ].filter(Boolean); // Remove undefined/null values
-                  
-                  // For API questionnaires, prioritize matching the q_ prefixed ID
-                  if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+              {isViewEditMode ? (
+                // Simple Next button in view/edit mode
+                <Button 
+                  onClick={handleNext}
+                  disabled={!selectedQuestionnaire}
+                >
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                selectedQuestionnaire && (() => {
+                  // Enhanced flexible matching to find the selected questionnaire
+                  const questionnaire = availableQuestionnaires.find(q => {
+                    // Check all possible ID fields
+                    const possibleIds = [
+                      q._id,          // MongoDB ObjectId
+                      q.id,           // Original ID or API ID
+                      q.originalId,   // Original ID before conversion
+                      q.name          // Fallback to name if used as ID
+                    ].filter(Boolean); // Remove undefined/null values
+                    
+                    // For API questionnaires, prioritize matching the q_ prefixed ID
+                    if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
 
-                    return true;
+                      return true;
+                    }
+                    
+                    // Check if any of the possible IDs match
+                    const matches = possibleIds.includes(selectedQuestionnaire);
+                    if (matches) {
+
+                    }
+                    return matches;
+                  });
+                  const hasFields = questionnaire && 
+                                   (questionnaire.fields?.length > 0 || questionnaire.questions?.length > 0);
+                  
+                  if (!hasFields) {
+                    return (
+                      <div className="flex items-center">
+                        <Button 
+                          onClick={() => toast.error('This questionnaire has no questions defined. Please select another questionnaire.')}
+                          className="bg-yellow-500 hover:bg-yellow-600"
+                        >
+                          <AlertCircle className="w-4 h-4 mr-2" />
+                          No Questions Available
+                        </Button>
+                      </div>
+                    );
                   }
                   
-                  // Check if any of the possible IDs match
-                  const matches = possibleIds.includes(selectedQuestionnaire);
-                  if (matches) {
-
-                  }
-                  return matches;
-                });
-                const hasFields = questionnaire && 
-                                 (questionnaire.fields?.length > 0 || questionnaire.questions?.length > 0);
-                
-                if (!hasFields) {
                   return (
-                    <div className="flex items-center">
-                      <Button 
-                        onClick={() => toast.error('This questionnaire has no questions defined. Please select another questionnaire.')}
-                        className="bg-yellow-500 hover:bg-yellow-600"
-                      >
-                        <AlertCircle className="w-4 h-4 mr-2" />
-                        No Questions Availableilable
-                      </Button>
-                    </div>
-                                   );
-                }
-                
-                return (
-                  <Button 
-                    onClick={handleQuestionnaireAssignment}
-                    disabled={!selectedQuestionnaire}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader className="w-4 h-4 mr-2 animate-spin" />
-                        Assigning...
-                      </>
-                    ) : (
-                      <>
-                        Assign to Client & Continue
-                        <Send className="w-4 h-4 ml-2" />
-                      </>
-                    )}
-                  </Button>
-                );
-              })()}
+                    <Button 
+                      onClick={handleQuestionnaireAssignment}
+                      disabled={!selectedQuestionnaire}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader className="w-4 h-4 mr-2 animate-spin" />
+                          Assigning...
+                        </>
+                      ) : (
+                        <>
+                          Assign to Client & Continue
+                          <Send className="w-4 h-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  );
+                })()
+              )}
             </div>
           </div>
         );
@@ -3714,13 +3991,25 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button 
-                onClick={handleResponseSubmit}
-                disabled={Object.keys(clientResponses).length === 0}
-              >
-                Responses Complete & Continue
-                <CheckCircle className="w-4 h-4 ml-2" />
-              </Button>
+              {isViewEditMode ? (
+                // Simple Next button in view/edit mode
+                <Button 
+                  onClick={handleNext}
+                  disabled={Object.keys(clientResponses).length === 0}
+                >
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                // Original Response submission button in normal mode
+                <Button 
+                  onClick={handleResponseSubmit}
+                  disabled={Object.keys(clientResponses).length === 0}
+                >
+                  Responses Complete & Continue
+                  <CheckCircle className="w-4 h-4 ml-2" />
+                </Button>
+              )}
             </div>
           </div>
         );
@@ -3732,6 +4021,19 @@ const handleClientSubmit = async () => {
               <h3 className="text-lg font-semibold text-teal-900 mb-2">Form Details</h3>
               <p className="text-teal-700">Review all details filled so far before proceeding to auto-fill forms.</p>
             </div>
+
+            {/* Auto-filling Progress Indicator */}
+            {autoFillingFormDetails && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                  <h4 className="text-sm font-medium text-blue-900">Auto-filling form details...</h4>
+                </div>
+                <p className="text-sm text-blue-700 mt-1">
+                  Loading data from saved workflow API response.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900">Selected Forms Summary</h4>
@@ -3745,6 +4047,12 @@ const handleClientSubmit = async () => {
                     <p className="text-sm text-gray-500 mt-1">
                       Will be auto-filled with client and case data
                     </p>
+                    {formCaseIds[form] && (
+                      <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                        <div className="text-xs text-blue-600">Case ID:</div>
+                        <div className="text-sm font-mono text-blue-800">{formCaseIds[form]}</div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -3760,13 +4068,30 @@ const handleClientSubmit = async () => {
                   <div><strong>Address:</strong> {client.address?.street}, {client.address?.city}, {client.address?.state} {client.address?.zipCode}, {client.address?.country}</div>
                   <div><strong>Case Title:</strong> {caseData.title}</div>
                   <div><strong>Case Number:</strong> {caseData.caseNumber}</div>
-                  <div><strong>Case Type:</strong> {caseData.type}</div>
+                  <div><strong>Case Type:</strong> {caseData.type || caseData.visaType}</div>
                   <div><strong>Status:</strong> {caseData.status}</div>
-                  <div><strong>Assigned Attorney:</strong> {caseData.assignedTo}</div>
+                  <div><strong>Assigned Attorney:</strong> {caseData.assignedTo || 'Not assigned'}</div>
                   <div><strong>Open Date:</strong> {caseData.openDate}</div>
-                  <div><strong>Category:</strong> {IMMIGRATION_CATEGORIES.find(c => c.id === caseData.category)?.name}</div>
+                  <div><strong>Priority Date:</strong> {caseData.priorityDate}</div>
+                  <div><strong>Due Date:</strong> {caseData.dueDate || 'Not set'}</div>
+                  <div><strong>Priority:</strong> {caseData.priority}</div>
+                  <div><strong>Category:</strong> {IMMIGRATION_CATEGORIES.find(c => c.id === caseData.category)?.name || caseData.category}</div>
                   <div><strong>Subcategory:</strong> {caseData.subcategory}</div>
+                  <div><strong>Visa Type:</strong> {caseData.visaType}</div>
                   <div className="md:col-span-2"><strong>Description:</strong> {caseData.description}</div>
+                  {Object.keys(formCaseIds).length > 0 && (
+                    <div className="md:col-span-2">
+                      <strong>Form Case IDs:</strong>
+                      <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {Object.entries(formCaseIds).map(([form, caseId]) => (
+                          <div key={form} className="text-xs bg-gray-100 p-2 rounded">
+                            <div className="font-medium">{form}:</div>
+                            <div className="font-mono text-blue-600">{caseId}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Questionnaire responses summary */}
@@ -3837,10 +4162,19 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button onClick={handleFormDetailsSubmit}>
-                Proceed to Auto-Fill
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              {isViewEditMode ? (
+                // Simple Next button in view/edit mode
+                <Button onClick={handleNext}>
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                // Original Form Details submission button in normal mode
+                <Button onClick={handleFormDetailsSubmit}>
+                  Proceed to Auto-Fill
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
             </div>
           </div>
         );
@@ -3902,23 +4236,35 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button 
-                onClick={handleAutoFillForms}
-                disabled={loading}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {loading ? (
-                  <>
-                    <Clock className="w-4 h-4 mr-2 animate-spin" />
-                    Generating Forms...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-2" />
-                    Generate & Download Forms
-                  </>
-                )}
-              </Button>
+              {isViewEditMode ? (
+                // Simple completion message in view/edit mode
+                <Button 
+                  onClick={() => toast.success('Workflow review completed!')}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Complete Review
+                  <CheckCircle className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                // Original Generate & Download button in normal mode
+                <Button 
+                  onClick={handleAutoFillForms}
+                  disabled={loading}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {loading ? (
+                    <>
+                      <Clock className="w-4 h-4 mr-2 animate-spin" />
+                      Generating Forms...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Generate & Download Forms
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         );
