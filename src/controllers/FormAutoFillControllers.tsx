@@ -290,6 +290,30 @@ export const getDisplayNames = async (templateId: string): Promise<ApiResponseDa
   }
 };
 
+// 6. Preview PDF Form with Data
+export const previewPdfForm = async (
+  templateId: string, 
+  formData: RenderFormDataRequest
+): Promise<ApiResponseData<Blob>> => {
+  try {
+    const response = await api.post(
+      FORM_AUTO_FILL_END_POINTS.PREVIEW_FORM.replace(':templateId', templateId),
+      formData,
+      {
+        responseType: 'blob'
+      }
+    );
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error previewing PDF form:', error);
+    throw handleApiError(error);
+  }
+};
+
 /**
  * Get filled form submissions with optional filtering
  */

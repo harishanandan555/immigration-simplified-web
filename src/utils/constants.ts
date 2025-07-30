@@ -454,7 +454,10 @@ export const FORM_AUTO_FILL_END_POINTS = {
     DOWNLOAD_MULTIPLE: "/api/v1/forms/download",
     
     // Get display names by template ID
-    GET_DISPLAY_NAMES: "/api/v1/forms/display-names/:templateId"
+    GET_DISPLAY_NAMES: "/api/v1/forms/display-names/:templateId",
+    
+    // Preview PDF form with data
+    PREVIEW_FORM: "/api/v1/forms/:templateId/preview"
 } as const;
 
 export const FILLED_FORM_SUBMISSION_END_POINTS = {
