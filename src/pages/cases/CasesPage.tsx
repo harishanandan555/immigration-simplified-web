@@ -147,6 +147,9 @@ const CasesPage: React.FC = () => {
   const getWorkflowCaseNumber = (caseItem: Case) => {
     if (!availableWorkflows.length) return null;
     
+
+    console.log("availableWorkflows:", availableWorkflows);
+    console.log("caseItem:", caseItem);
     // Try to find a matching workflow by case title or client info
     const matchingWorkflow = availableWorkflows.find((workflow: any) => {
       // Match by case ID first (most reliable)
