@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 import { getCases } from '../../controllers/CaseControllers';
+import api from '../../utils/api';
 
 type Client = {
   _id: string;
@@ -45,6 +47,69 @@ const CasesPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // Workflow-related state
+  const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
+  const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+
+  // Function to fetch workflows from API
+  const fetchWorkflowsFromAPI = async () => {
+    try {
+      console.log('🔄 Fetching workflows from API...');
+      setLoadingWorkflows(true);
+      const token = localStorage.getItem('token');
+      
+      // Check token availability
+      if (!token) {
+        console.log('❌ No authentication token available');
+        toast('No authentication token - please login first');
+        return [];
+      }
+
+      console.log('✅ Authentication token found, making API request...');
+
+      // Request workflows from API
+      const response = await api.get('/api/v1/workflows', {
+        params: {
+          status: 'in-progress',
+          page: 1,
+          limit: 50
+        }
+      });
+      
+      console.log('📥 Response from workflows API:', response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        const workflows = response.data.data;
+        setAvailableWorkflows(workflows);
+        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
+        return workflows;
+      } else {
+        console.log('⚠️ No workflow data available in API response');
+        return [];
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error fetching workflows from API:', error);
+      
+      // If 404, the endpoint might not be available
+      if (error.response?.status === 404) {
+        console.log('🔍 Server workflows endpoint not found');
+        toast('Server workflows endpoint not available');
+      } else if (error.response?.status === 401) {
+        console.log('🔐 Authentication failed');
+        toast('Authentication failed - please login again');
+      } else {
+        console.log('💥 Other API error:', error.response?.status || 'Unknown');
+        toast.error('Failed to load workflows from server');
+      }
+      
+      return [];
+    } finally {
+      setLoadingWorkflows(false);
+      console.log('🏁 Finished workflow API request');
+    }
+  };
+
   useEffect(() => {
     const fetchCases = async () => {
       try {
@@ -68,6 +133,86 @@ const CasesPage: React.FC = () => {
     fetchCases();
   }, []);
 
+  // Fetch workflows when component loads
+  useEffect(() => {
+    const loadWorkflows = async () => {
+      await fetchWorkflowsFromAPI();
+    };
+    
+    // Load workflows after a brief delay to allow other data to load first
+    setTimeout(loadWorkflows, 1000);
+  }, []);
+
+  // Function to get workflow case number for a case
+  const getWorkflowCaseNumber = (caseItem: Case) => {
+    if (!availableWorkflows.length) return null;
+    
+    // Try to find a matching workflow by case title or client info
+    const matchingWorkflow = availableWorkflows.find((workflow: any) => {
+      // Match by case ID first (most reliable)
+      if (workflow.case?.id && caseItem._id) {
+        if (workflow.case.id === caseItem._id || workflow.case._id === caseItem._id) {
+          return true;
+        }
+      }
+      
+      // Match by case title/description
+      if (workflow.case?.title && caseItem.description) {
+        if (workflow.case.title.toLowerCase().includes(caseItem.description.toLowerCase()) ||
+            caseItem.description.toLowerCase().includes(workflow.case.title.toLowerCase())) {
+          return true;
+        }
+      }
+      
+      // Match by client email if available
+      if (workflow.client?.email && caseItem.clientId?.email) {
+        if (workflow.client.email.toLowerCase() === caseItem.clientId.email.toLowerCase()) {
+          return true;
+        }
+      }
+      
+      // Match by client name if available
+      if (workflow.client && caseItem.clientId?.name) {
+        const workflowClientName = workflow.client.name || 
+          `${workflow.client.firstName || ''} ${workflow.client.lastName || ''}`.trim();
+        if (workflowClientName.toLowerCase() === caseItem.clientId.name.toLowerCase()) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+    
+    return matchingWorkflow;
+  };
+
+  // Function to get workflow case numbers for display
+  const getWorkflowCaseNumbers = (workflow: any) => {
+    const caseNumbers = [];
+    
+    // Get case number from case object
+    if (workflow.case?.caseNumber) {
+      caseNumbers.push({
+        type: 'Case',
+        number: workflow.case.caseNumber,
+        source: 'case'
+      });
+    }
+    
+    // Get form case IDs
+    if (workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0) {
+      Object.entries(workflow.formCaseIds).forEach(([formName, caseId]) => {
+        caseNumbers.push({
+          type: formName,
+          number: caseId,
+          source: 'form'
+        });
+      });
+    }
+    
+    return caseNumbers;
+  };
+
   const handleSort = (field: SortField) => {
     if (field === sortField) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -77,15 +222,25 @@ const CasesPage: React.FC = () => {
     }
   };
 
-  const filteredCases = cases.filter(
-    (caseItem) =>
+  const filteredCases = cases.filter((caseItem) => {
+    const matchingWorkflow = getWorkflowCaseNumber(caseItem);
+    const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
+    
+    // Check if search term matches any workflow case numbers
+    const workflowMatches = workflowCaseNumbers.some(({ number }) => 
+      number && number.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    return (
       caseItem.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       caseItem.caseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      workflowMatches ||
       (caseItem.clientId && (
         caseItem.clientId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         caseItem.clientId.email.toLowerCase().includes(searchTerm.toLowerCase())
       ))
-  );
+    );
+  });
 
   const sortedCases = [...filteredCases].sort((a, b) => {
     const aValue = a[sortField] ?? '';
@@ -106,7 +261,17 @@ const CasesPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Cases</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Cases</h1>
+          {loadingWorkflows && (
+            <p className="text-sm text-blue-600 mt-1">Loading workflow data...</p>
+          )}
+          {availableWorkflows.length > 0 && !loadingWorkflows && (
+            <p className="text-sm text-green-600 mt-1">
+              ✅ {availableWorkflows.length} workflows loaded
+            </p>
+          )}
+        </div>
         <Link
           to="/cases/new"
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md transition-colors"
@@ -127,7 +292,7 @@ const CasesPage: React.FC = () => {
           <div className="relative flex-grow">
             <input
               type="text"
-              placeholder="Search cases..."
+              placeholder="Search cases, workflow numbers, clients..."
               className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -192,39 +357,98 @@ const CasesPage: React.FC = () => {
                   </td>
                 </tr>
               ) : paginatedCases.length > 0 ? (
-                paginatedCases.map((caseItem) => (
-                  <tr key={caseItem._id} className="hover:bg-gray-50 cursor-pointer">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">
-                      <Link to={`/cases/${caseItem._id}`}>{caseItem.caseNumber}</Link>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <Link to={`/cases/${caseItem._id}`}>{caseItem.description}</Link>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {caseItem.clientId ? (
-                        <div>
-                          <div className="font-medium">{caseItem.clientId.name}</div>
-                          <div className="text-xs text-gray-400">{caseItem.clientId.email}</div>
-                        </div>
-                      ) : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        caseItem.status === 'New' 
-                          ? 'bg-blue-100 text-blue-800'
-                          : caseItem.status === 'In Progress'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {caseItem.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{caseItem.type}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(caseItem.createdAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))
+                paginatedCases.map((caseItem) => {
+                  const matchingWorkflow = getWorkflowCaseNumber(caseItem);
+                  const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
+                  
+                  return (
+                    <tr key={caseItem._id} className="hover:bg-gray-50 cursor-pointer">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">
+                        <Link to={`/cases/${caseItem._id}`} className="block">
+                          <div>{caseItem.caseNumber}</div>
+                          {workflowCaseNumbers.length > 0 && (
+                            <div className="mt-1 space-y-1">
+                              {workflowCaseNumbers.map((caseNum, index) => (
+                                <div 
+                                  key={index}
+                                  className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
+                                    caseNum.source === 'case' 
+                                      ? 'text-blue-600 bg-blue-50' 
+                                      : 'text-green-600 bg-green-50'
+                                  }`}
+                                >
+                                  {caseNum.type}: {caseNum.number}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {matchingWorkflow && (
+                            <div className="text-xs text-purple-600 mt-1">
+                              📋 Workflow Status: {matchingWorkflow.status || 'in-progress'}
+                            </div>
+                          )}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <Link to={`/cases/${caseItem._id}`}>
+                          <div>{caseItem.description}</div>
+                          {matchingWorkflow?.case?.title && matchingWorkflow.case.title !== caseItem.description && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Workflow: {matchingWorkflow.case.title}
+                            </div>
+                          )}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {caseItem.clientId ? (
+                          <div>
+                            <div className="font-medium">{caseItem.clientId.name}</div>
+                            <div className="text-xs text-gray-400">{caseItem.clientId.email}</div>
+                            {matchingWorkflow?.client && (
+                              <div className="text-xs text-blue-600 mt-1">
+                                🔗 Linked to workflow
+                              </div>
+                            )}
+                          </div>
+                        ) : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          caseItem.status === 'New' 
+                            ? 'bg-blue-100 text-blue-800'
+                            : caseItem.status === 'In Progress'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {caseItem.status}
+                        </span>
+                        {matchingWorkflow && (
+                          <div className="mt-1">
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                              Step {matchingWorkflow.currentStep || 1}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div>{caseItem.type}</div>
+                        {matchingWorkflow?.selectedForms && matchingWorkflow.selectedForms.length > 0 && (
+                          <div className="text-xs text-green-600 mt-1">
+                            Forms: {matchingWorkflow.selectedForms.join(', ')}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div>{new Date(caseItem.createdAt).toLocaleDateString()}</div>
+                        {matchingWorkflow?.createdAt && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            Workflow: {new Date(matchingWorkflow.createdAt).toLocaleDateString()}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
