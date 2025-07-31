@@ -3622,97 +3622,10 @@ const handleClientSubmit = async () => {
       case 5: // Collect Answers (Dynamic client responses for selected questionnaire)
         return (
           <div className="space-y-6">
+            
             <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-indigo-900 mb-2">Client Responses</h3>
               <p className="text-indigo-700">Review and fill out the questionnaire as the client would.</p>
-              
-              {/* Auto-fill Controls */}
-              <div className="mt-4 p-3 bg-white border border-gray-200 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium text-gray-900">Auto-fill from Saved Data</h4>
-                  <div className="flex items-center space-x-2">
-                    <label className="inline-flex items-center">
-                      <input
-                        type="checkbox"
-                        className="form-checkbox h-4 w-4 text-primary-600"
-                        checked={autoFillEnabled}
-                        onChange={(e) => setAutoFillEnabled(e.target.checked)}
-                      />
-                      <span className="ml-2 text-sm text-gray-700">Auto-fill enabled</span>
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => {
-                      // Auto-fill workflow triggered
-                      const clientEmail = client.email || clientCredentials.email;
-                      // Client data logged
-                      // Client credentials logged
-                      // Auto-fill state logged
-                      
-                      if (!clientEmail) {
-                        // No client email for auto-fill
-                        toast.error('No client email available for auto-fill');
-                        return;
-                      }
-                      
-                      // Starting auto-fill process
-                      findAndAutoFillWorkflow(clientEmail);
-                    }}
-                    disabled={loadingWorkflows}
-                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:bg-gray-400 flex items-center"
-                  >
-                    {loadingWorkflows ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-1" />
-                        Auto-fill Now
-                      </>
-                    )}
-                  </button>
-                  
-                  {availableWorkflows.length > 0 && (
-                    <div className="text-xs text-gray-600">
-                      {availableWorkflows.length} saved workflow{availableWorkflows.length !== 1 ? 's' : ''} available
-                    </div>
-                  )}
-                  
-                  {loadingWorkflows && (
-                    <div className="text-xs text-blue-600">
-                      Fetching workflows from server...
-                    </div>
-                  )}
-                </div>
-                
-                {availableWorkflows.length > 1 && (
-                  <details className="mt-2">
-                    <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-800">
-                      Select specific workflow ({availableWorkflows.length} available)
-                    </summary>
-                    <div className="mt-2 max-h-32 overflow-y-auto">
-                      {availableWorkflows.map((workflow, index) => (
-                        <button
-                          key={workflow.workflowId || index}
-                          onClick={() => autoFillFromSavedWorkflow(workflow)}
-                          className="block w-full text-left px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded"
-                        >
-                          {workflow.client?.name || workflow.client?.email || `Workflow ${index + 1}`} 
-                          {workflow.client?.email && ` (${workflow.client.email})`}
-                          <span className="text-gray-500 ml-2">
-                            {workflow.updatedAt ? new Date(workflow.updatedAt).toLocaleDateString() : ''}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
               
               {Object.keys(clientResponses).length > 0 && (
                 <div className="mt-2 bg-green-50 border border-green-200 rounded p-2">
@@ -3765,14 +3678,12 @@ const handleClientSubmit = async () => {
                 }
                 return null;
               })()}
-            </div>
-            {questionnaireAssignment && (() => {
-              // Enhanced flexible matching to find the assigned questionnaire
-
-
-
-
               
+            </div>
+
+            {questionnaireAssignment && (() => {
+
+              // Enhanced flexible matching to find the assigned questionnaire
               const questionnaire = availableQuestionnaires.find(q => {
                 // Check all possible ID fields
                 const possibleIds = [
@@ -3781,10 +3692,7 @@ const handleClientSubmit = async () => {
                   q.originalId,   // Original ID before conversion
                   q.name          // Fallback to name if used as ID
                 ].filter(Boolean); // Remove undefined/null values
-                
 
-
-                
                 // For API questionnaires, prioritize matching the q_ prefixed ID
                 if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
 
@@ -3845,16 +3753,12 @@ const handleClientSubmit = async () => {
                            questionnaire.form?.questions || 
                            [];
               
-
-              
               // If API response format is detected
               if (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields)) {
 
                 questions = questionnaire.fields;
               }
                              
-
-              
               if (!questions || questions.length === 0) {
                 return (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -4201,6 +4105,7 @@ const handleClientSubmit = async () => {
                 </Button>
               )}
             </div>
+
           </div>
         );
 
@@ -4424,7 +4329,7 @@ const handleClientSubmit = async () => {
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h4 className="font-medium text-gray-900 mb-4">Auto-Generate Forms</h4>
                 <p className="text-gray-600 mb-4">
-                  Use the advanced auto-generation feature to create forms with all collected data using the renderFormWithData API.
+                  Use the advanced auto-generation feature to create forms with all collected data.
                 </p>
                 
                 <div className="flex gap-3 mb-6">
