@@ -523,13 +523,15 @@ const IndividualFormFiling: React.FC = () => {
                   <span className="text-sm text-gray-500">Required</span>
                 </div>
                 <FileUpload
-                  onFileUpload={(file, base64) => {
+                  id={`upload-${doc}`}
+                  label={`Upload ${doc.replace('-', ' ')}`}
+                  onChange={(file, base64) => {
                     setUploadedFiles(prev => ({
                       ...prev,
                       [doc]: [...(prev[doc] || []), file]
                     }));
                   }}
-                  accept="image/*,.pdf"
+                  acceptedTypes={['.pdf', '.jpg', '.jpeg', '.png']}
                 />
               </div>
             ))}
