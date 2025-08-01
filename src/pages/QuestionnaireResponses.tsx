@@ -428,10 +428,66 @@ const QuestionnaireResponses: React.FC = () => {
             createAccount: matchingWorkflow.clientCredentials?.createAccount || true
           },
           
-          // Set target step to Client Information (step 2) since we want to start from there
-          targetStep: 2,
+          // Set target step to Form Details (step 6) since we're editing existing responses
+          // Skip questionnaire assignment for existing clients
+          targetStep: 6, // Form Details step - appropriate for editing existing responses
           autoFillMode: true, // Flag to indicate this is auto-fill mode (no saving)
-          currentStep: matchingWorkflow.currentStep || 1
+          skipQuestionnaireAssignment: true, // Flag to skip questionnaire assignment step
+          editMode: true, // Flag to indicate we're editing existing data
+          existingClient: true, // Flag to indicate this is an existing client
+          currentStep: 6 // Start directly at Form Details step
+        }),
+        
+        // For cases without matching workflow, still set appropriate flags
+        ...(!matchingWorkflow && {
+          targetStep: 6, // Form Details step
+          skipQuestionnaireAssignment: true,
+          editMode: true,
+          existingClient: true,
+          currentStep: 6,
+          // Create basic client data from assignment info
+          workflowClient: {
+            name: `${clientInfo.firstName} ${clientInfo.lastName}`,
+            firstName: clientInfo.firstName,
+            lastName: clientInfo.lastName,
+            email: clientInfo.email,
+            phone: '',
+            dateOfBirth: '',
+            nationality: '',
+            address: {
+              street: '',
+              aptSuiteFlr: '',
+              aptNumber: '',
+              city: '',
+              state: '',
+              zipCode: '',
+              province: '',
+              postalCode: '',
+              country: 'United States'
+            }
+          },
+          // Create basic case data
+          workflowCase: {
+            id: assignment.caseId?._id || '',
+            _id: assignment.caseId?._id || '',
+            title: assignment.caseId?.title || 'Case',
+            category: assignment.caseId?.category || 'family-based',
+            subcategory: '',
+            status: assignment.caseId?.status || 'draft',
+            priority: 'medium',
+            visaType: '',
+            description: '',
+            openDate: '',
+            priorityDate: '',
+            dueDate: ''
+          },
+          selectedForms: [],
+          formCaseIds: {},
+          selectedQuestionnaire: questionnaireInfo._id,
+          clientCredentials: {
+            email: clientInfo.email,
+            createAccount: true
+          }
         })
       };
       
@@ -456,7 +512,56 @@ const QuestionnaireResponses: React.FC = () => {
         fields: questionnaireInfo.fields || [],
         mode: responseInfo?.responses ? 'edit' : 'new',
         originalAssignmentId: assignment._id,
-        autoFillMode: true
+        autoFillMode: true,
+        // Add flags for existing client editing
+        targetStep: 6, // Form Details step
+        skipQuestionnaireAssignment: true,
+        editMode: true,
+        existingClient: true,
+        currentStep: 6,
+        // Create basic client data from assignment info
+        workflowClient: {
+          name: `${clientInfo.firstName} ${clientInfo.lastName}`,
+          firstName: clientInfo.firstName,
+          lastName: clientInfo.lastName,
+          email: clientInfo.email,
+          phone: '',
+          dateOfBirth: '',
+          nationality: '',
+          address: {
+            street: '',
+            aptSuiteFlr: '',
+            aptNumber: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            province: '',
+            postalCode: '',
+            country: 'United States'
+          }
+        },
+        // Create basic case data
+        workflowCase: {
+          id: assignment.caseId?._id || '',
+          _id: assignment.caseId?._id || '',
+          title: assignment.caseId?.title || 'Case',
+          category: assignment.caseId?.category || 'family-based',
+          subcategory: '',
+          status: assignment.caseId?.status || 'draft',
+          priority: 'medium',
+          visaType: '',
+          description: '',
+          openDate: '',
+          priorityDate: '',
+          dueDate: ''
+        },
+        selectedForms: [],
+        formCaseIds: {},
+        selectedQuestionnaire: questionnaireInfo._id,
+        clientCredentials: {
+          email: clientInfo.email,
+          createAccount: true
+        }
       };
       
       sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(basicWorkflowData));

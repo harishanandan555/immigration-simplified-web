@@ -74,7 +74,6 @@ interface Case {
   dueDate: string;
   visaType?: string;
   priorityDate?: string;
-  caseNumber?: string;
   type?: string;
   // Additional optional properties that might be used in the UI
   assignedTo?: string;
@@ -104,6 +103,27 @@ interface QuestionnaireAssignment {
   accountCreated?: boolean; // Track whether user account was successfully created
   formType?: string; // Type of the primary form
   formCaseIdGenerated?: string; // Generated case ID for the primary form
+  // Client name fields
+  clientFirstName?: string;
+  clientMiddleName?: string;
+  clientLastName?: string;
+  clientFullName?: string;
+  // Client address information
+  clientAddress?: {
+    street?: string;
+    aptSuiteFlr?: string;
+    aptNumber?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    province?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  // Additional client information
+  clientPhone?: string;
+  clientDateOfBirth?: string;
+  clientNationality?: string;
 }
 
 interface FormData {
@@ -164,14 +184,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     id: '',
     name: '',
     firstName: '',
+    middleName: '',
     lastName: '',
     email: '',
     phone: '',
     address: {
       street: '',
+      aptSuiteFlr: '',
+      aptNumber: '',
       city: '',
       state: '',
       zipCode: '',
+      province: '',
+      postalCode: '',
       country: 'United States'
     },
     dateOfBirth: '',
@@ -522,7 +547,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               dueDate: data.workflowCase.dueDate || '',
               visaType: data.workflowCase.visaType || '',
               priorityDate: data.workflowCase.priorityDate || '',
-              caseNumber: data.workflowCase.caseNumber || '',
               openDate: data.workflowCase.openDate || ''
             });
           }
@@ -873,9 +897,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 const handleClientSubmit = async () => {
 
   
-  // Ensure client has a name with first and last name parts
-  if (!client.name || client.name.trim() === '') {
-    toast.error('Client name is required');
+  // Ensure client has first and last name
+  if (!client.firstName || client.firstName.trim() === '') {
+    toast.error('First name is required');
+    return;
+  }
+  
+  if (!client.lastName || client.lastName.trim() === '') {
+    toast.error('Last name is required');
     return;
   }
   
@@ -885,8 +914,30 @@ const handleClientSubmit = async () => {
     return;
   }
   
-  // Parse name to ensure we have first and last name components
-  // Name parsing is handled within createClientAccountWithCredentials function
+  // Validate required address fields
+  if (!client.address?.city || client.address.city.trim() === '') {
+    toast.error('City is required');
+    return;
+  }
+  
+  if (!client.address?.state || client.address.state.trim() === '') {
+    toast.error('State/Province is required');
+    return;
+  }
+  
+  if (!client.address?.zipCode || client.address.zipCode.trim() === '') {
+    toast.error('ZIP/Postal Code is required');
+    return;
+  }
+  
+  if (!client.address?.country || client.address.country.trim() === '') {
+    toast.error('Country is required');
+    return;
+  }
+  
+  // Update the name field from firstName, middleName, and lastName
+  const fullName = `${client.firstName} ${client.middleName || ''} ${client.lastName}`.trim().replace(/\s+/g, ' ');
+  setClient((prev: any) => ({ ...prev, name: fullName }));
   
   // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
   if (!client.password) {
@@ -910,17 +961,9 @@ const handleClientSubmit = async () => {
 
   // Helper function to create client account with provided credentials
   const createClientAccountWithCredentials = async (clientEmail: string, clientPassword: string) => {
-    // Parse name to ensure we have first and last name components
-    let firstName = '', lastName = '';
-    const nameParts = client.name.trim().split(' ');
-    if (nameParts.length > 1) {
-      firstName = nameParts[0];
-      lastName = nameParts.slice(1).join(' ');
-    } else {
-      // If only one word in name, use it as firstName and default lastName
-      firstName = nameParts[0];
-      lastName = 'Client'; // Default last name
-    }
+    // Use the firstName and lastName from the client state directly
+    const firstName = client.firstName.trim();
+    const lastName = client.lastName.trim();
     
     try {
 
@@ -942,8 +985,10 @@ const handleClientSubmit = async () => {
               ...client,
               id: existingUserId,
               _id: existingUserId,
-              firstName,
-              lastName,
+              firstName: client.firstName,
+              middleName: client.middleName || '',
+              lastName: client.lastName,
+              name: client.name,
               email: clientEmail,
               userId: existingUserId,
               hasUserAccount: true,
@@ -979,8 +1024,9 @@ const handleClientSubmit = async () => {
         ...client,
         id: clientId,
         _id: clientId, // Add both id and _id for compatibility
-        firstName, // Add parsed name components
-        lastName,
+        firstName: client.firstName, // Use the actual client fields
+        middleName: client.middleName || '',
+        lastName: client.lastName,
         email: clientEmail, // Use the specific email
         password: clientPassword, // Use the specific password
         createdAt: new Date().toISOString()
@@ -993,9 +1039,24 @@ const handleClientSubmit = async () => {
         // ✅ Use the correct endpoint: /api/v1/auth/register/user
         const response = await api.post('/api/v1/auth/register/user', {
           firstName: updatedClient.firstName,
+          middleName: updatedClient.middleName || '',
           lastName: updatedClient.lastName,
           email: clientEmail.toLowerCase().trim(),
           password: clientPassword,
+          phone: client.phone || '',
+          dateOfBirth: client.dateOfBirth || '',
+          nationality: client.nationality || '',
+          address: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
+          },
           role: 'client', // ✅ Required: Specify user role
           userType: 'individual', // ✅ Required: Enables individual client creation
           sendPassword: false // ✅ Controls welcome email (set to true if you want emails)
@@ -1021,16 +1082,24 @@ const handleClientSubmit = async () => {
           _id: apiClientId,
           userId: apiClientId,
           hasUserAccount: true,
+          firstName: client.firstName,
+          middleName: client.middleName || '',
+          lastName: client.lastName,
+          name: client.name, // Keep the full name
           email: client.email.toLowerCase().trim(),
           phone: client.phone || '',
           dateOfBirth: client.dateOfBirth || '',
           nationality: client.nationality || '',
-          address: client.address || {
-            street: '',
-            city: '',
-            state: '',
-            zipCode: '',
-            country: 'United States'
+          address: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
           },
           status: 'active',
           ...(token && { token })
@@ -1073,8 +1142,10 @@ const handleClientSubmit = async () => {
               ...client,
               id: existingUserId,
               _id: existingUserId,
-              firstName,
-              lastName,
+              firstName: client.firstName,
+              middleName: client.middleName || '',
+              lastName: client.lastName,
+              name: client.name,
               email: clientEmail,
               userId: existingUserId,
               hasUserAccount: true,
@@ -1240,13 +1311,22 @@ const handleClientSubmit = async () => {
           id: workflowData.client.id || client.id,
           _id: workflowData.client._id || client._id,
           name: workflowData.client.name || client.name,
+          // Explicitly handle separate name fields
+          firstName: workflowData.client.firstName || client.firstName,
+          middleName: workflowData.client.middleName || client.middleName || '',
+          lastName: workflowData.client.lastName || client.lastName,
           email: workflowData.client.email || client.email,
           phone: workflowData.client.phone || client.phone,
+          // Explicitly handle complete address information
           address: {
             street: '',
+            aptSuiteFlr: '',
+            aptNumber: '',
             city: '',
             state: '',
             zipCode: '',
+            province: '',
+            postalCode: '',
             country: 'United States',
             ...(client.address || {}),
             ...(workflowData.client.address || {})
@@ -1443,6 +1523,23 @@ const handleClientSubmit = async () => {
         // Client information
         client: {
           ...client,
+          // Explicitly include all name fields
+          firstName: client.firstName,
+          middleName: client.middleName || '',
+          lastName: client.lastName,
+          name: client.name, // Full name
+          // Explicitly include complete address information
+          address: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
+          },
           // Remove sensitive data from storage
           password: undefined,
           temporaryPassword: clientCredentials.createAccount ? clientCredentials.password : undefined
@@ -1560,13 +1657,24 @@ const handleClientSubmit = async () => {
           // Client information step
           requestData.clientInfo = {
             name: client.name,
-            firstName: client.firstName || client.name.split(' ')[0],
-            lastName: client.lastName || client.name.split(' ').slice(1).join(' ') || 'Client',
+            firstName: client.firstName,
+            middleName: client.middleName,
+            lastName: client.lastName,
             email: client.email,
             phone: client.phone,
             dateOfBirth: client.dateOfBirth,
             nationality: client.nationality,
-            address: client.address,
+            address: {
+              street: client.address?.street || '',
+              aptSuiteFlr: client.address?.aptSuiteFlr || '',
+              aptNumber: client.address?.aptNumber || '',
+              city: client.address?.city || '',
+              state: client.address?.state || '',
+              zipCode: client.address?.zipCode || '',
+              province: client.address?.province || '',
+              postalCode: client.address?.postalCode || '',
+              country: client.address?.country || 'United States'
+            },
             clientId: client.id || client._id,
             status: client.status || 'active'
           };
@@ -1576,7 +1684,6 @@ const handleClientSubmit = async () => {
           // Case information step
           requestData.caseInfo = {
             title: caseData.title,
-            caseNumber: caseData.caseNumber,
             description: caseData.description,
             category: caseData.category,
             subcategory: caseData.subcategory,
@@ -1957,7 +2064,28 @@ const handleClientSubmit = async () => {
           selectedForms: selectedForms,
           // Add form type and generated case ID for backend integration
           formType: selectedForms.length > 0 ? selectedForms[0] : undefined,
-          formCaseIdGenerated: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : undefined
+          formCaseIdGenerated: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : undefined,
+          // Include client name fields
+          clientFirstName: client.firstName,
+          clientMiddleName: client.middleName || '',
+          clientLastName: client.lastName,
+          clientFullName: client.name,
+          // Include client address
+          clientAddress: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
+          },
+          // Include other client info
+          clientPhone: client.phone || '',
+          clientDateOfBirth: client.dateOfBirth || '',
+          clientNationality: client.nationality || ''
         };
         
         // Save to localStorage
@@ -2349,7 +2477,6 @@ const handleClientSubmit = async () => {
           id: workflowData.case.id || caseData.id,
           _id: workflowData.case._id || caseData._id,
           title: workflowData.case.title || caseData.title,
-          caseNumber: workflowData.case.caseNumber || caseData.caseNumber,
           category: workflowData.case.category || caseData.category,
           subcategory: workflowData.case.subcategory || caseData.subcategory,
           status: workflowData.case.status || caseData.status,
@@ -2507,7 +2634,6 @@ const handleClientSubmit = async () => {
         caseSubcategory: caseData.subcategory || '',
         visaType: caseData.visaType || '',
         priorityDate: caseData.priorityDate || '',
-        caseNumber: caseData.caseNumber || '',
         
         // Client responses from questionnaire
         ...clientResponses,
@@ -2729,68 +2855,90 @@ const handleClientSubmit = async () => {
               <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
               <p className="text-blue-700">Enter the client's personal details to create their profile.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                id="name"
-                label="Full Name"
-                value={client.name}
-                onChange={(e) => {
-                  const fullName = e.target.value;
-                  // Parse name into firstName and lastName
-                  let firstName = '', lastName = '';
-                  if (fullName) {
-                    const nameParts = fullName.trim().split(' ');
-                    if (nameParts.length > 1) {
-                      firstName = nameParts[0];
-                      lastName = nameParts.slice(1).join(' ');
-                    } else {
-                      firstName = nameParts[0];
-                      lastName = 'Client'; // Default
-                    }
-                  }
-                  setClient({
-                    ...client, 
-                    name: fullName,
-                    firstName: firstName,
-                    lastName: lastName
-                  });
-                }}
-                required
-              />
-              <Input
-                id="email"
-                label="Email Address"
-                type="email"
-                value={client.email}
-                onChange={(e) => setClient({...client, email: e.target.value})}
-                required
-              />
-              <Input
-                id="phone"
-                label="Phone Number"
-                value={client.phone}
-                onChange={(e) => setClient({...client, phone: e.target.value})}
-                required
-              />
-              <Input
-                id="dateOfBirth"
-                label="Date of Birth"
-                type="date"
-                value={client.dateOfBirth}
-                onChange={(e) => setClient({...client, dateOfBirth: e.target.value})}
-                required
-              />
-              <Input
-                id="nationality"
-                label="Nationality"
-                value={client.nationality}
-                onChange={(e) => setClient({...client, nationality: e.target.value})}
-                required
-              />
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">Personal Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input
+                  id="firstName"
+                  label="First Name"
+                  value={client.firstName}
+                  onChange={(e) => {
+                    const firstName = e.target.value;
+                    const fullName = `${firstName} ${client.middleName || ''} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
+                    setClient({
+                      ...client, 
+                      firstName: firstName,
+                      name: fullName
+                    });
+                  }}
+                  required
+                />
+                <Input
+                  id="middleName"
+                  label="Middle Name"
+                  value={client.middleName}
+                  onChange={(e) => {
+                    const middleName = e.target.value;
+                    const fullName = `${client.firstName || ''} ${middleName} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
+                    setClient({
+                      ...client, 
+                      middleName: middleName,
+                      name: fullName
+                    });
+                  }}
+                />
+                <Input
+                  id="lastName"
+                  label="Last Name"
+                  value={client.lastName}
+                  onChange={(e) => {
+                    const lastName = e.target.value;
+                    const fullName = `${client.firstName || ''} ${client.middleName || ''} ${lastName}`.trim().replace(/\s+/g, ' ');
+                    setClient({
+                      ...client, 
+                      lastName: lastName,
+                      name: fullName
+                    });
+                  }}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  id="email"
+                  label="Email Address"
+                  type="email"
+                  value={client.email}
+                  onChange={(e) => setClient({...client, email: e.target.value})}
+                  required
+                />
+                <Input
+                  id="phone"
+                  label="Phone Number"
+                  value={client.phone}
+                  onChange={(e) => setClient({...client, phone: e.target.value})}
+                  required
+                />
+                <Input
+                  id="dateOfBirth"
+                  label="Date of Birth"
+                  type="date"
+                  value={client.dateOfBirth}
+                  onChange={(e) => setClient({...client, dateOfBirth: e.target.value})}
+                  required
+                />
+                <Input
+                  id="nationality"
+                  label="Nationality"
+                  value={client.nationality}
+                  onChange={(e) => setClient({...client, nationality: e.target.value})}
+                  required
+                />
+              </div>
             </div>
             <div className="space-y-4">
-              <h4 className="font-medium text-gray-900">Address</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <h4 className="font-medium text-gray-900">Address Information</h4>
+              <div className="grid grid-cols-1 gap-4">
                 <Input
                   id="street"
                   label="Street Address"
@@ -2799,44 +2947,82 @@ const handleClientSubmit = async () => {
                     ...client, 
                     address: {...(client.address || {}), street: e.target.value}
                   })}
-                  className="md:col-span-2"
+                  placeholder="Enter street address"
                 />
-                <Input
-                  id="city"
-                  label="City"
-                  value={client.address?.city || ''}
-                  onChange={(e) => setClient({
-                    ...client, 
-                    address: {...(client.address || {}), city: e.target.value}
-                  })}
-                />
-                <Input
-                  id="state"
-                  label="State"
-                  value={client.address?.state || ''}
-                  onChange={(e) => setClient({
-                    ...client, 
-                    address: {...(client.address || {}), state: e.target.value}
-                  })}
-                />
-                <Input
-                  id="zipCode"
-                  label="ZIP Code"
-                  value={client.address?.zipCode || ''}
-                  onChange={(e) => setClient({
-                    ...client, 
-                    address: {...(client.address || {}), zipCode: e.target.value}
-                  })}
-                />
-                <Input
-                  id="country"
-                  label="Country"
-                  value={client.address?.country || ''}
-                  onChange={(e) => setClient({
-                    ...client, 
-                    address: {...(client.address || {}), country: e.target.value}
-                  })}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Select
+                    id="aptSuiteFlr"
+                    label="Apt/Suite/Flr"
+                    value={client.address?.aptSuiteFlr || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), aptSuiteFlr: e.target.value}
+                    })}
+                    options={[
+                      { value: '', label: 'Select Type' },
+                      { value: 'Apt', label: 'Apartment' },
+                      { value: 'Suite', label: 'Suite' },
+                      { value: 'Flr', label: 'Floor' },
+                      { value: 'Unit', label: 'Unit' },
+                      { value: 'Room', label: 'Room' }
+                    ]}
+                  />
+                  <Input
+                    id="aptNumber"
+                    label="Apt/Suite Number"
+                    value={client.address?.aptNumber || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), aptNumber: e.target.value}
+                    })}
+                    placeholder="Enter number"
+                  />
+                  <div></div> {/* Empty div for spacing */}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    id="city"
+                    label="City"
+                    value={client.address?.city || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), city: e.target.value}
+                    })}
+                    required
+                  />
+                  <Input
+                    id="state"
+                    label="State/Province"
+                    value={client.address?.state || client.address?.province || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), state: e.target.value, province: e.target.value}
+                    })}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    id="zipCode"
+                    label="ZIP/Postal Code"
+                    value={client.address?.zipCode || client.address?.postalCode || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), zipCode: e.target.value, postalCode: e.target.value}
+                    })}
+                    required
+                  />
+                  <Input
+                    id="country"
+                    label="Country"
+                    value={client.address?.country || 'United States'}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), country: e.target.value}
+                    })}
+                    required
+                  />
+                </div>
               </div>
             </div>
             <div className="flex justify-between">
@@ -2892,13 +3078,6 @@ const handleClientSubmit = async () => {
                   value={caseData.title || ''}
                   onChange={e => setCaseData({ ...caseData, title: e.target.value })}
                   required
-                />
-                <Input
-                  id="caseNumber"
-                  label="Case Number"
-                  placeholder="Enter case number"
-                  value={caseData.caseNumber || ''}
-                  onChange={e => setCaseData({ ...caseData, caseNumber: e.target.value })}
                 />
                 <Select
                   id="category"
@@ -4162,7 +4341,6 @@ const handleClientSubmit = async () => {
                   <div><strong>Nationality:</strong> {client.nationality}</div>
                   <div><strong>Address:</strong> {client.address?.street}, {client.address?.city}, {client.address?.state} {client.address?.zipCode}, {client.address?.country}</div>
                   <div><strong>Case Title:</strong> {caseData.title}</div>
-                  <div><strong>Case Number:</strong> {caseData.caseNumber}</div>
                   <div><strong>Case Type:</strong> {caseData.type || caseData.visaType}</div>
                   <div><strong>Status:</strong> {caseData.status}</div>
                   <div><strong>Assigned Attorney:</strong> {caseData.assignedTo || 'Not assigned'}</div>
