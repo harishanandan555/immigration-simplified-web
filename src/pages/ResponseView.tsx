@@ -311,8 +311,8 @@ const ResponseView: React.FC = () => {
     // Store the workflow data in sessionStorage for the Legal Firm Workflow to pick up
     sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));
     
-    // Navigate to the Legal Firm Workflow page
-    navigate('/legal-firm-workflow');
+    // Navigate to the Legal Firm Workflow page with existing response parameter
+    navigate('/legal-firm-workflow?fromQuestionnaireResponses=true');
     
     toast.success(`Navigating to edit ${clientInfo.firstName}'s responses`);
   };
