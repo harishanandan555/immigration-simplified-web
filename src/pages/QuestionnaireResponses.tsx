@@ -465,10 +465,10 @@ const QuestionnaireResponses: React.FC = () => {
     } finally {
       setLoadingWorkflows(false);
       
-      // Navigate to the Legal Firm Workflow page
-      navigate('/legal-firm-workflow');
+      // Navigate to the Legal Firm Workflow page with existing response parameter
+      navigate('/legal-firm-workflow?fromQuestionnaireResponses=true');
       
-      console.log('🎯 Navigated to Legal Firm Workflow with enhanced data');
+      console.log('🎯 Navigated to Legal Firm Workflow with existing response data');
     }
   };
 

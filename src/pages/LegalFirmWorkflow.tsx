@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // import { useNavigate } from 'react-router-dom'; // Not used
-import { 
-  Users, FileText, ClipboardList, Send, Download, CheckCircle, 
+import {
+  Users, FileText, ClipboardList, Send, Download, CheckCircle,
   ArrowRight, ArrowLeft, User, Briefcase, FormInput,
   MessageSquare, FileCheck, AlertCircle, Clock, Info as InfoIcon,
   Loader, Loader2
@@ -11,10 +11,10 @@ import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '.
 // No debug utilities needed in production
 import api from '../utils/api';
 import { APPCONSTANTS } from '../utils/constants';
-import { 
-  generateMultipleCaseIdsFromAPI, 
-  generateMultipleCaseIds, 
-  formatCaseId 
+import {
+  generateMultipleCaseIdsFromAPI,
+  generateMultipleCaseIds,
+  formatCaseId
 } from '../utils/caseIdGenerator';
 
 import Button from '../components/common/Button';
@@ -23,13 +23,13 @@ import Select from '../components/common/Select';
 import TextArea from '../components/common/TextArea';
 // import FileUpload from '../components/common/FileUpload'; // Not used
 import { downloadFilledI130PDF } from '../utils/pdfUtils';
-import { 
-  isQuestionnaireApiAvailable, 
-  getQuestionnaires 
+import {
+  isQuestionnaireApiAvailable,
+  getQuestionnaires
 } from '../controllers/QuestionnaireControllers';
-import { 
-  renderFormWithData, 
-  prepareFormData, 
+import {
+  renderFormWithData,
+  prepareFormData,
   validateFormData,
   downloadPdfFile,
   createPdfBlobUrl,
@@ -52,7 +52,7 @@ import { getClients as fetchClientsFromAPI, getClientById, Client as APIClient }
 import { getFormTemplates, FormTemplate } from '../controllers/SettingsControllers';
 
 // Extend APIClient with optional _id field and name parts
-type Client = APIClient & { 
+type Client = APIClient & {
   _id?: string;
   firstName?: string;
   lastName?: string;
@@ -172,6 +172,13 @@ const WORKFLOW_STEPS = [
   { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
 ];
 
+// Workflow steps for existing client responses (coming from questionnaire responses)
+const EXIST_WORKFLOW_STEPS = [
+  { id: 'answers', title: 'Review Responses', icon: MessageSquare, description: 'Review existing client responses' },
+  { id: 'form-details', title: 'Form Details', icon: FormInput, description: 'Complete form information' },
+  { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
+];
+
 // Use generateSecurePassword from UserCreationController
 
 const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
@@ -244,7 +251,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Form details
   const [formDetails, setFormDetails] = useState<FormData[]>([]);
-  // const [currentFormIndex, setCurrentFormIndex] = useState(0); // Not used
 
   // State for client credentials
   const [clientCredentials, setClientCredentials] = useState({
@@ -255,15 +261,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // State for form details ID (backend integration)
   const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
-  
+
   // State for auto-fill data from API
   const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
   const [autoFillEnabled, setAutoFillEnabled] = useState(false);
   const [loadingWorkflows, setLoadingWorkflows] = useState(false);
   const [autoFillingFormDetails, setAutoFillingFormDetails] = useState(false);
-  
+
   // State to track if we're in view/edit mode from QuestionnaireResponses
   const [isViewEditMode, setIsViewEditMode] = useState(false);
+  
+  // State to track if this is a new response or existing response
+  const [isNewResponse, setIsNewResponse] = useState(true);
+  const [isExistResponse, setIsExistResponse] = useState(false);
 
   // State for auto-generated forms
   const [generatedForms, setGeneratedForms] = useState<Array<{
@@ -278,25 +288,33 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [generatingForms, setGeneratingForms] = useState(false);
   const [showPreview, setShowPreview] = useState<Record<string, boolean>>({});
 
+  // Function to get the appropriate workflow steps based on response type
+  const getWorkflowSteps = () => {
+    if (isExistResponse) {
+      return EXIST_WORKFLOW_STEPS;
+    }
+    return WORKFLOW_STEPS;
+  };
+
   // Load available questionnaires
   useEffect(() => {
     const loadQuestionnairesAndCheckPrefilledData = async () => {
       await loadQuestionnaires();
     };
-    
+
     loadQuestionnairesAndCheckPrefilledData();
   }, []);
-  
+
   // Load available workflows for auto-fill on component mount
   useEffect(() => {
     const loadWorkflowsForAutoFill = async () => {
       await fetchWorkflowsFromAPI();
     };
-    
+
     // Load workflows after a brief delay to allow other data to load first
     setTimeout(loadWorkflowsForAutoFill, 1000);
   }, []);
-  
+
   // Auto-fill form details when user reaches step 6 (Form Details)
   useEffect(() => {
     const autoFillOnFormDetailsStep = async () => {
@@ -306,7 +324,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           try {
             console.log('Auto-filling form details for step 6...');
             setAutoFillingFormDetails(true);
-            
+
             // Fetch from actual API only
             const apiWorkflows = await fetchWorkflowsFromAPI();
             if (apiWorkflows && apiWorkflows.length > 0) {
@@ -326,16 +344,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }, 500); // 500ms delay for smoother UX
       }
     };
-    
+
     autoFillOnFormDetailsStep();
   }, [currentStep]); // Trigger when currentStep changes
-  
+
   // Function to resume workflow from saved progress
   const resumeWorkflow = async (workflowId: string) => {
     try {
-      
+
       let workflowData = null;
-      
+
       // Try to load from API only
       const token = localStorage.getItem('token');
       if (token) {
@@ -349,33 +367,33 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       } else {
         toast.error('Authentication required to resume workflow');
       }
-      
+
       if (!workflowData) {
         toast.error('Workflow not found or failed to load');
         return false;
       }
-      
+
       // Restore workflow state
       if (workflowData.client) {
         setClient(workflowData.client);
       }
-      
+
       if (workflowData.case) {
         setCaseData(workflowData.case);
       }
-      
+
       if (workflowData.selectedForms) {
         setSelectedForms(workflowData.selectedForms);
       }
-      
+
       if (workflowData.formCaseIds) {
         setFormCaseIds(workflowData.formCaseIds);
       }
-      
+
       if (workflowData.selectedQuestionnaire) {
         setSelectedQuestionnaire(workflowData.selectedQuestionnaire);
       }
-      
+
       if (workflowData.clientCredentials) {
         setClientCredentials({
           ...clientCredentials,
@@ -384,39 +402,47 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Don't restore password for security
         });
       }
-      
+
       // Set current step
       if (typeof workflowData.currentStep === 'number') {
         setCurrentStep(workflowData.currentStep);
       }
-      
+
       toast.success(`Workflow resumed at step: ${WORKFLOW_STEPS[workflowData.currentStep]?.title || 'Unknown'}`);
-      
+
       return true;
-      
+
     } catch (error) {
       toast.error('Failed to resume workflow');
       return false;
     }
   };
-  
+
   // Check for workflow resumption on component mount
   useEffect(() => {
     const checkForWorkflowResumption = () => {
       // Check URL parameters for workflow resumption
       const urlParams = new URLSearchParams(window.location.search);
       const resumeWorkflowId = urlParams.get('resumeWorkflow');
-      
+      const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses');
+
+      // Check if coming from questionnaire responses (existing response)
+      if (fromQuestionnaireResponses === 'true') {
+        setIsExistResponse(true);
+        setIsNewResponse(false);
+        setCurrentStep(0); // Start at the first step of existing response workflow
+      }
+
       if (resumeWorkflowId) {
 
         resumeWorkflow(resumeWorkflowId);
-        
+
         // Clean up URL
         const url = new URL(window.location.href);
         url.searchParams.delete('resumeWorkflow');
         window.history.replaceState({}, '', url);
       }
-      
+
       // Check sessionStorage for workflow resumption
       const resumeData = sessionStorage.getItem('resumeWorkflow');
       if (resumeData) {
@@ -431,35 +457,35 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }
       }
     };
-    
+
     // Delay check to allow questionnaires to load first
     setTimeout(checkForWorkflowResumption, 1000);
   }, []);
-  
+
   // Separate effect to handle pre-filled data after questionnaires are loaded
   useEffect(() => {
     if (availableQuestionnaires.length === 0) return; // Wait for questionnaires to be loaded
-    
+
     const workflowData = sessionStorage.getItem('legalFirmWorkflowData');
     if (workflowData) {
       try {
         const data = JSON.parse(workflowData);
 
         console.log('🔄 Processing workflow data for auto-fill...', data);
-        
+
         // Check if we have the questionnaire in our available questionnaires
-        let foundQuestionnaire = availableQuestionnaires.find(q => 
-          q._id === data.questionnaireId || 
+        let foundQuestionnaire = availableQuestionnaires.find(q =>
+          q._id === data.questionnaireId ||
           q.id === data.questionnaireId ||
           q.originalId === data.questionnaireId ||
           // Fuzzy matching for similar IDs
           (q.id && q.id.replace(/^q_/, '').substring(0, 20) === data.questionnaireId.replace(/^q_/, '').substring(0, 20))
         );
-        
+
         // If not found and we have field data, create a temporary questionnaire
         if (!foundQuestionnaire) {
           console.log('⚠️ Questionnaire not found, creating temporary one');
-          
+
           // If we have fields from the response data, use them
           const fieldsToUse = data.fields && data.fields.length > 0 ? data.fields : [
             // Create basic fields from the existing responses
@@ -472,7 +498,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               options: []
             }))
           ];
-          
+
           foundQuestionnaire = {
             _id: data.questionnaireId,
             id: data.questionnaireId,
@@ -482,9 +508,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             fields: fieldsToUse,
             apiQuestionnaire: true
           };
-          
+
           console.log('📋 Created temporary questionnaire:', foundQuestionnaire);
-          
+
           // Add it to available questionnaires
           setAvailableQuestionnaires(prev => [...prev, foundQuestionnaire]);
         } else {
@@ -494,7 +520,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Auto-fill workflow steps progressively from step 2 to targetStep
         const autoFillSteps = async () => {
           console.log('🚀 Starting progressive auto-fill from step 2...');
-          
+
           // Step 1: Client Information (index 1)
           if (data.workflowClient) {
             console.log('📝 Auto-filling client information...');
@@ -527,7 +553,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               email: data.clientEmail
             }));
           }
-          
+
           // Step 2: Case Information (index 2)
           if (data.workflowCase) {
             console.log('📝 Auto-filling case information...');
@@ -550,22 +576,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               openDate: data.workflowCase.openDate || ''
             });
           }
-          
+
           // Step 3: Form Selection (index 3)
           if (data.selectedForms && data.selectedForms.length > 0) {
             console.log('📝 Auto-filling selected forms...');
             setSelectedForms(data.selectedForms);
-            
+
             if (data.formCaseIds) {
               setFormCaseIds(data.formCaseIds);
             }
           }
-          
+
           // Step 4: Questionnaire Assignment (index 4) 
           if (data.questionnaireId) {
             console.log('📝 Auto-filling questionnaire selection...');
             setSelectedQuestionnaire(data.questionnaireId);
-            
+
             // Create a questionnaire assignment for the answers collection step
             const assignment: QuestionnaireAssignment = {
               id: data.originalAssignmentId || 'temp-assignment',
@@ -580,17 +606,21 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               selectedForms: data.selectedForms || [],
               formCaseIds: data.formCaseIds || {}
             };
-            
+
             console.log('📋 Created questionnaire assignment:', assignment);
             setQuestionnaireAssignment(assignment);
           }
-          
+
           // Step 5: Responses (index 5) - Set existing responses if in edit mode
           if (data.mode === 'edit' && data.existingResponses) {
             console.log('📝 Auto-filling existing responses...');
             setClientResponses(data.existingResponses);
+            
+            // Set as existing response workflow
+            setIsExistResponse(true);
+            setIsNewResponse(false);
           }
-          
+
           // Set client credentials if available
           if (data.clientCredentials) {
             console.log('📝 Auto-filling client credentials...');
@@ -600,31 +630,35 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               createAccount: data.clientCredentials.createAccount || true
             });
           }
-          
+
           // Start from step 2 (Client Information) and let user progress through steps
           const startStep = 1; // Client Information step
           const targetStepIndex = data.targetStep || 6; // Default to Form Details if not specified
-          
+
           console.log(`🎯 Starting at step ${startStep + 1}, targeting step ${targetStepIndex}`);
           setCurrentStep(startStep);
-          
+
           // Show success message
           if (data.autoFillMode) {
             setIsViewEditMode(true); // Set view/edit mode for simple navigation
             toast.success(`🚀 Auto-filled workflow data for ${data.clientName} - review and continue`, { duration: 4000 });
           } else if (data.mode === 'edit') {
+            setIsExistResponse(true);
+            setIsNewResponse(false);
             toast.success(`Loaded existing responses for ${data.clientName}`);
           } else {
+            setIsNewResponse(true);
+            setIsExistResponse(false);
             toast.success(`Loaded client data for ${data.clientName}`);
           }
         };
-        
+
         // Execute auto-fill after a small delay to ensure UI is ready
         setTimeout(autoFillSteps, 500);
-        
+
         // Clear the session storage after using it
         sessionStorage.removeItem('legalFirmWorkflowData');
-        
+
       } catch (error) {
         console.error('❌ Error processing workflow data:', error);
         sessionStorage.removeItem('legalFirmWorkflowData');
@@ -655,22 +689,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setFetchingClients(true);
       try {
         const apiClients = await fetchClientsFromAPI();
-        
+
         // Filter clients to only include role "client" and userType "individual"
         const filteredClients = apiClients?.filter((client: any) => {
           const hasValidRole = client.role === 'client';
           const hasValidUserType = client.userType === 'individual';
-          
+
           if (!hasValidRole || !hasValidUserType) {
 
             return false;
           }
-          
+
           return true;
         }) || [];
-        
 
-        
+
+
         // Make sure each client has a valid MongoDB ObjectId
         const validatedClients = filteredClients.map((client: any) => {
           // If client already has a valid ObjectId, use it
@@ -680,7 +714,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               id: client._id // Ensure id is also set to the valid ObjectId
             };
           }
-          
+
           // If client has id but not _id, check if id is valid
           if (client.id && isValidMongoObjectId(client.id)) {
             return {
@@ -688,18 +722,18 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               _id: client.id // Set _id to the valid ObjectId
             };
           }
-          
+
           // Otherwise, generate a new valid ObjectId
           const validId = generateObjectId();
 
-          
+
           return {
             ...client,
             id: validId,
             _id: validId
           };
         });
-        
+
 
         setExistingClients(validatedClients);
       } catch (err) {
@@ -707,20 +741,20 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Load clients from localStorage as fallback
         try {
           const localClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
-          
+
           // Apply same filtering for localStorage clients
           const filteredLocalClients = localClients.filter((client: any) => {
             const hasValidRole = client.role === 'client';
             const hasValidUserType = client.userType === 'individual';
-            
+
             if (!hasValidRole || !hasValidUserType) {
 
               return false;
             }
-            
+
             return true;
           });
-          
+
 
 
           setExistingClients(filteredLocalClients);
@@ -739,20 +773,20 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     try {
       setLoading(true);
       const isAPIAvailable = await isQuestionnaireApiAvailable();
-      
+
       if (isAPIAvailable) {
         const response = await getQuestionnaires({
           is_active: true,
           limit: 50
         });
-        
 
-        
+
+
         // Questionnaires loaded successfully from API
         if (response.questionnaires && response.questionnaires.length > 0) {
           // Questionnaires loaded successfully from API
         }
-        
+
         // Normalize questionnaire data to ensure consistent structure
         const normalizedQuestionnaires = response.questionnaires.map((q: any) => {
           // Special handling for API response format
@@ -770,7 +804,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           const parsedQuestionnaires = JSON.parse(savedQuestionnaires);
           // Questionnaires loaded from localStorage
 
-          
+
           // Normalize questionnaire data from localStorage
           const normalizedQuestionnaires = parsedQuestionnaires.map((q: any) => {
             // First apply the standard normalization
@@ -791,8 +825,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 { id: 'fullName', type: 'text', label: 'Full Name', required: true },
                 { id: 'birthDate', type: 'date', label: 'Date of Birth', required: true },
                 { id: 'birthCountry', type: 'text', label: 'Country of Birth', required: true },
-                { id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true, 
-                  options: ['Spouse', 'Parent', 'Child', 'Sibling'] }
+                {
+                  id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true,
+                  options: ['Spouse', 'Parent', 'Child', 'Sibling']
+                }
               ]
             },
             {
@@ -814,8 +850,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               fields: [
                 { id: 'residenceYears', type: 'number', label: 'Years as Permanent Resident', required: true },
                 { id: 'absences', type: 'textarea', label: 'List all absences from the US', required: true },
-                { id: 'criminalHistory', type: 'radio', label: 'Do you have any criminal history?', required: true,
-                  options: ['Yes', 'No'] }
+                {
+                  id: 'criminalHistory', type: 'radio', label: 'Do you have any criminal history?', required: true,
+                  options: ['Yes', 'No']
+                }
               ]
             }
           ];
@@ -836,8 +874,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             { id: 'fullName', type: 'text', label: 'Full Name', required: true },
             { id: 'birthDate', type: 'date', label: 'Date of Birth', required: true },
             { id: 'birthCountry', type: 'text', label: 'Country of Birth', required: true },
-            { id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true, 
-              options: ['Spouse', 'Parent', 'Child', 'Sibling'] }
+            {
+              id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true,
+              options: ['Spouse', 'Parent', 'Child', 'Sibling']
+            }
           ]
         },
         {
@@ -858,25 +898,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setLoading(false);
     }
   };
-  
-  /**
-   * Normalizes questionnaire data structure to ensure consistent fields format
-   */
-  // Use the imported normalizeQuestionnaireStructure function from QuestionnaireResponseControllers
 
   const handleNext = () => {
-
-    
+    const workflowSteps = getWorkflowSteps();
     const nextStep = currentStep + 1;
-    
-    if (nextStep < WORKFLOW_STEPS.length) {
-      setCurrentStep(nextStep);
-      
-      // Check if we're moving to the "Collect Answers" step (typically step 5)
-      const nextStepConfig = WORKFLOW_STEPS[nextStep];
-      if (nextStepConfig?.id === 'answers' && autoFillEnabled) {
 
-        
+    if (nextStep < workflowSteps.length) {
+      setCurrentStep(nextStep);
+
+      // Check if we're moving to the "Collect Answers" step (typically step 5)
+      const nextStepConfig = workflowSteps[nextStep];
+      if (nextStepConfig?.id === 'answers' && autoFillEnabled) {
         // Trigger auto-fill with a slight delay to allow step transition
         setTimeout(() => {
           const clientEmail = client.email || clientCredentials.email;
@@ -892,8 +924,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
   };
 
- // Find the handleClientSubmit function and update it to check for existing clients
+  // Find the handleClientSubmit function and update it to check for existing clients
 
+<<<<<<< HEAD
 const handleClientSubmit = async () => {
 
   
@@ -950,24 +983,70 @@ const handleClientSubmit = async () => {
   const clientEmail = client.email;
   const clientPassword = client.password;
   
+=======
+  const handleClientSubmit = async () => {
+>>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
 
 
-  
-  return await createClientAccountWithCredentials(clientEmail, clientPassword);
-};
+    // Ensure client has a name with first and last name parts
+    if (!client.name || client.name.trim() === '') {
+      toast.error('Client name is required');
+      return;
+    }
 
-// Update the createClientAccountWithCredentials function to check for existing users
+    // Validate email
+    if (!client.email || !client.email.includes('@')) {
+      toast.error('Valid email address is required');
+      return;
+    }
+
+    // Parse name to ensure we have first and last name components
+    // Name parsing is handled within createClientAccountWithCredentials function
+
+    // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
+    if (!client.password) {
+
+      toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
+      return null;
+    }
+
+    // Use the email and password from questionnaire assignment screen or generated password
+    const clientEmail = client.email;
+    const clientPassword = client.password;
+
+
+
+
+    return await createClientAccountWithCredentials(clientEmail, clientPassword);
+  };
+
+  // Update the createClientAccountWithCredentials function to check for existing users
 
 
   // Helper function to create client account with provided credentials
   const createClientAccountWithCredentials = async (clientEmail: string, clientPassword: string) => {
+<<<<<<< HEAD
     // Use the firstName and lastName from the client state directly
     const firstName = client.firstName.trim();
     const lastName = client.lastName.trim();
     
+=======
+    // Parse name to ensure we have first and last name components
+    let firstName = '', lastName = '';
+    const nameParts = client.name.trim().split(' ');
+    if (nameParts.length > 1) {
+      firstName = nameParts[0];
+      lastName = nameParts.slice(1).join(' ');
+    } else {
+      // If only one word in name, use it as firstName and default lastName
+      firstName = nameParts[0];
+      lastName = 'Client'; // Default last name
+    }
+
+>>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
     try {
 
-      
+
       // First, check if user already exists by email
       let existingUserId = null;
       try {
@@ -975,11 +1054,11 @@ const handleClientSubmit = async () => {
         if (checkResponse.data && checkResponse.data.exists) {
           existingUserId = checkResponse.data.userId;
 
-          
+
           // Check if this user has the correct role
           if (checkResponse.data.role === 'client' && checkResponse.data.userType === 'individual') {
 
-            
+
             // Update client object with existing user ID
             const updatedClient = {
               ...client,
@@ -995,10 +1074,10 @@ const handleClientSubmit = async () => {
               existingUser: true
             };
             setClient(updatedClient);
-            
+
             toast.success(`✅ Using existing client account for ${firstName} ${lastName}!`);
             handleNext();
-            
+
             return existingUserId;
           } else {
 
@@ -1014,10 +1093,10 @@ const handleClientSubmit = async () => {
 
         }
       }
-      
+
       // If no existing user found, create new account
 
-      
+
       // Generate a valid MongoDB ObjectId for the client
       const clientId = generateObjectId();
       const updatedClient = {
@@ -1032,10 +1111,10 @@ const handleClientSubmit = async () => {
         createdAt: new Date().toISOString()
       };
       setClient(updatedClient);
-      
+
       try {
 
-        
+
         // ✅ Use the correct endpoint: /api/v1/auth/register/user
         const response = await api.post('/api/v1/auth/register/user', {
           firstName: updatedClient.firstName,
@@ -1061,20 +1140,20 @@ const handleClientSubmit = async () => {
           userType: 'individual', // ✅ Required: Enables individual client creation
           sendPassword: false // ✅ Controls welcome email (set to true if you want emails)
         });
-        
 
-        
+
+
         // ✅ Enhanced response handling - handle both response structures
         const userData = response.data?.data || response.data?.user || response.data;
         const apiClientId = userData?._id || userData?.id;
         const token = response.data?.token || userData?.token;
-        
+
         if (!apiClientId) {
           throw new Error('No user ID returned from registration');
         }
-        
 
-        
+
+
         // Create comprehensive client object with all necessary fields
         const apiClient = {
           ...updatedClient,
@@ -1104,39 +1183,39 @@ const handleClientSubmit = async () => {
           status: 'active',
           ...(token && { token })
         };
-        
+
         setClient(apiClient);
-        
+
         toast.success(`✅ New client account created successfully for ${updatedClient.firstName} ${updatedClient.lastName}!`);
-        
+
 
         handleNext();
-        
+
         // Return the real user account ID
         return apiClientId;
-        
+
       } catch (error: any) {
 
-        
+
         const errorData = error.response?.data;
-        const errorMessage = errorData?.error?.message || 
-                            errorData?.message || 
-                            errorData?.error || 
-                            error.message || 
-                            'Failed to create client account';
-        
+        const errorMessage = errorData?.error?.message ||
+          errorData?.message ||
+          errorData?.error ||
+          error.message ||
+          'Failed to create client account';
+
         if (error.response?.status === 400) {
           toast.error(`Registration failed: ${errorMessage}`);
         } else if (error.response?.status === 409 || errorMessage.toLowerCase().includes('already exists')) {
 
           toast.error(`A user with email ${clientEmail} already exists. Please use a different email or contact support.`);
-          
+
           // Try to get the existing user ID from the error response
           const existingUserId = errorData?.userId || errorData?.data?.userId;
-          
+
           if (existingUserId) {
 
-            
+
             // Update client object with existing user ID
             const existingClient = {
               ...client,
@@ -1152,7 +1231,7 @@ const handleClientSubmit = async () => {
               existingUser: true
             };
             setClient(existingClient);
-            
+
             toast.success(`✅ Using existing client account for ${firstName} ${lastName}!`);
             handleNext();
             return existingUserId;
@@ -1160,10 +1239,10 @@ const handleClientSubmit = async () => {
         } else {
           toast.error(`Failed to create client account: ${errorMessage}`);
         }
-        
+
         return null;
       }
-      
+
     } catch (error: any) {
 
       toast.error('Failed to create client account');
@@ -1182,7 +1261,7 @@ const handleClientSubmit = async () => {
       createdAt: new Date().toISOString()
     };
     setCaseData(updatedCase);
-    
+
     // Just proceed to next step without saving
     handleNext();
   };
@@ -1194,13 +1273,13 @@ const handleClientSubmit = async () => {
     }
 
     setGeneratingCaseIds(true);
-    
+
     try {
       // Generate case ID for the selected form
 
-      
+
       let caseIds: Record<string, string> = {};
-      
+
       try {
         // Try to generate case IDs from API first
         caseIds = await generateMultipleCaseIdsFromAPI(selectedForms);
@@ -1211,13 +1290,13 @@ const handleClientSubmit = async () => {
         caseIds = generateMultipleCaseIds(selectedForms);
         toast.success(`Generated case ID for ${selectedForms[0]} form (offline mode)`);
       }
-      
+
       // Store the generated case IDs
       setFormCaseIds(caseIds);
-      
+
       // Log the generated case ID for debugging
 
-      
+
       // Update case with selected forms and case IDs
       const updatedCase = {
         ...caseData,
@@ -1225,7 +1304,7 @@ const handleClientSubmit = async () => {
         formCaseIds: caseIds // Add case IDs to case data
       };
       setCaseData(updatedCase);
-      
+
       // Just proceed to next step without saving
       handleNext();
     } catch (error) {
@@ -1242,7 +1321,7 @@ const handleClientSubmit = async () => {
       console.log('🔄 Fetching workflows from API...');
       setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
-      
+
       // Check token availability
       if (!token) {
         console.log('❌ No authentication token available');
@@ -1260,9 +1339,9 @@ const handleClientSubmit = async () => {
           limit: 50
         }
       });
-      
+
       console.log('📥 Response from workflows API:', response.data);
-      
+
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
         setAvailableWorkflows(workflows);
@@ -1272,10 +1351,10 @@ const handleClientSubmit = async () => {
         console.log('⚠️ No workflow data available in API response');
         return [];
       }
-      
+
     } catch (error: any) {
       console.error('❌ Error fetching workflows from API:', error);
-      
+
       // If 404, the endpoint might not be available
       if (error.response?.status === 404) {
         console.log('🔍 Server workflows endpoint not found');
@@ -1287,23 +1366,23 @@ const handleClientSubmit = async () => {
         console.log('💥 Other API error:', error.response?.status || 'Unknown');
         toast.error('Failed to load workflows from server');
       }
-      
+
       return [];
     } finally {
       setLoadingWorkflows(false);
       console.log('🏁 Finished workflow API request');
     }
   };
-  
+
   // Function to auto-fill workflow data from saved workflows
   const autoFillFromSavedWorkflow = async (workflowData: any) => {
     try {
       // Log workflow data for debugging
-      
+
       // Auto-fill client data
       if (workflowData.client) {
         // Current client data
-        
+
         const newClientData = {
           ...client,
           ...workflowData.client,
@@ -1334,18 +1413,18 @@ const handleClientSubmit = async () => {
           dateOfBirth: workflowData.client.dateOfBirth || client.dateOfBirth,
           nationality: workflowData.client.nationality || client.nationality
         };
-        
+
         // Client data updated
         setClient(newClientData);
         // Client data auto-filled
       } else {
         // No client data to auto-fill
       }
-      
+
       // Auto-fill case data
       if (workflowData.case) {
         // Current and new case data
-        
+
         const newCaseData = {
           ...caseData,
           ...workflowData.case,
@@ -1360,32 +1439,32 @@ const handleClientSubmit = async () => {
           priority: workflowData.case.priority || caseData.priority,
           dueDate: workflowData.case.dueDate || caseData.dueDate
         };
-        
+
         // Case data updated
         setCaseData(newCaseData);
         // Case data auto-filled
       } else {
         // No case data to auto-fill
       }
-      
+
       // Auto-fill selected forms
       if (workflowData.selectedForms && Array.isArray(workflowData.selectedForms)) {
         // Forms auto-filled
         setSelectedForms(workflowData.selectedForms);
       }
-      
+
       // Auto-fill form case IDs
       if (workflowData.formCaseIds) {
         // Form case IDs auto-filled
         setFormCaseIds(workflowData.formCaseIds);
       }
-      
+
       // Auto-fill questionnaire selection
       if (workflowData.selectedQuestionnaire) {
         // Questionnaire auto-filled
         setSelectedQuestionnaire(workflowData.selectedQuestionnaire);
       }
-      
+
       // Auto-fill client credentials (without password for security)
       if (workflowData.clientCredentials) {
         // Client credentials auto-filled
@@ -1397,7 +1476,7 @@ const handleClientSubmit = async () => {
           password: clientCredentials.password
         });
       }
-      
+
       // Auto-fill client responses if available
       if (workflowData.clientResponses && Object.keys(workflowData.clientResponses).length > 0) {
         // Client responses auto-filled
@@ -1406,60 +1485,60 @@ const handleClientSubmit = async () => {
           ...workflowData.clientResponses
         });
       }
-      
+
       // Auto-fill questionnaire assignment if available
       if (workflowData.questionnaireAssignment) {
         // Questionnaire assignment auto-filled
         setQuestionnaireAssignment(workflowData.questionnaireAssignment);
       }
-      
+
       // Auto-fill form details if available
       if (workflowData.formDetails && Array.isArray(workflowData.formDetails)) {
         // Form details auto-filled
         setFormDetails(workflowData.formDetails);
       }
-      
+
       // Auto-fill current step (but don't go backwards)
       if (workflowData.currentStep && workflowData.currentStep > currentStep) {
         // Current step updated
         setCurrentStep(workflowData.currentStep);
       }
-      
+
       // Workflow auto-fill complete
       toast.success('Workflow data auto-filled from saved progress!', { duration: 4000 });
-      
+
     } catch (error) {
       // Auto-fill error
       toast.error('Failed to auto-fill workflow data');
     }
   };
-  
+
   // Function to find and auto-fill matching workflow
   const findAndAutoFillWorkflow = async (clientEmail?: string) => {
     try {
       // Search for matching workflows
-      
+
       // Fetch workflows from API only
       // Fetching workflows from API
       const apiWorkflows = await fetchWorkflowsFromAPI();
       // API workflows summary
-      
+
       // Use only API workflows
       const allWorkflows = apiWorkflows;
       // Total workflows available
-      
+
       if (allWorkflows.length === 0) {
         // No workflows found
         toast('No saved workflows found to auto-fill from');
         return false;
       }
-      
+
       // Searching for matching workflow
 
-      
+
       // Find matching workflow by client email or most recent
       let matchingWorkflow = null;
-      
+
       if (clientEmail) {
         // Searching by client email
         // Find by client email
@@ -1469,29 +1548,29 @@ const handleClientSubmit = async () => {
           // Email comparison
           return workflowEmail === searchEmail;
         });
-        
+
         if (matchingWorkflow) {
           // Found matching workflow by email
         } else {
           // No workflow found for this email
         }
       }
-      
+
       if (!matchingWorkflow) {
         // Looking for in-progress workflows
         const inProgressWorkflows = allWorkflows.filter((w: any) => w.status === 'in-progress');
         // Found in-progress workflows
-        
+
         if (inProgressWorkflows.length > 0) {
           matchingWorkflow = inProgressWorkflows
             .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
           // Selected most recent workflow
         }
       }
-      
+
       if (matchingWorkflow) {
         // Found workflow to auto-fill
-        
+
         // Auto-filling workflow
         await autoFillFromSavedWorkflow(matchingWorkflow);
         return true;
@@ -1500,14 +1579,14 @@ const handleClientSubmit = async () => {
         toast('No matching workflow found for this client');
         return false;
       }
-      
+
     } catch (error) {
       // Auto-fill error
       toast.error('Error during auto-fill: ' + (error as Error).message);
       return false;
     }
   };
-  
+
   // Function to save all workflow progress before questionnaire assignment
   const saveWorkflowProgress = async () => {
     try {
@@ -1519,7 +1598,7 @@ const handleClientSubmit = async () => {
         updatedAt: new Date().toISOString(),
         currentStep,
         status: 'in-progress',
-        
+
         // Client information
         client: {
           ...client,
@@ -1544,7 +1623,7 @@ const handleClientSubmit = async () => {
           password: undefined,
           temporaryPassword: clientCredentials.createAccount ? clientCredentials.password : undefined
         },
-        
+
         // Case details
         case: {
           ...caseData,
@@ -1552,12 +1631,12 @@ const handleClientSubmit = async () => {
           id: caseData.id || generateObjectId(),
           _id: caseData._id || caseData.id || generateObjectId()
         },
-        
+
         // Selected forms and case IDs
         selectedForms,
         formCaseIds,
         formTemplates: formTemplates.filter(template => selectedForms.includes(template.name)),
-        
+
         // Questionnaire selection
         selectedQuestionnaire,
         availableQuestionnairesSummary: availableQuestionnaires.map(q => ({
@@ -1566,7 +1645,7 @@ const handleClientSubmit = async () => {
           category: q.category,
           fieldsCount: (q.fields || q.questions || []).length
         })),
-        
+
         // Client credentials info (without password)
         clientCredentials: {
           email: clientCredentials.email || client.email,
@@ -1574,7 +1653,7 @@ const handleClientSubmit = async () => {
           // Don't store actual password
           hasPassword: !!clientCredentials.password
         },
-        
+
         // Workflow steps progress
         stepsProgress: WORKFLOW_STEPS.map((step, index) => ({
           ...step,
@@ -1583,28 +1662,28 @@ const handleClientSubmit = async () => {
           completedAt: index < currentStep ? new Date().toISOString() : undefined
         }))
       };
-      
 
-      
+
+
       // Check if we should save to API
       const token = localStorage.getItem('token');
-      
+
       if (token) {
         try {
           // Save to API only
           const response = await api.post('/api/v1/workflows/progress', workflowData);
 
-          
+
           // Store the workflow ID from API response
           if (response.data?.workflowId) {
             workflowData.workflowId = response.data.workflowId;
           }
-          
+
           toast.success('Workflow progress saved to server', { duration: 2000 });
-          
+
         } catch (apiError: any) {
 
-          
+
           // Check if it's a 404 (endpoint doesn't exist)
           if (apiError.response?.status === 404) {
 
@@ -1619,21 +1698,21 @@ const handleClientSubmit = async () => {
         toast.error('Authentication required to save workflow');
         throw new Error('No authentication token available');
       }
-      
+
       return workflowData;
-      
+
     } catch (error) {
 
       toast.error('Failed to save workflow progress');
       throw error;
     }
   };
-  
+
   // Function to save form details to backend (Steps 1-4)
   const saveFormDetailsToBackend = async (step: number, additionalData?: any) => {
     try {
 
-      
+
       const token = localStorage.getItem('token');
       if (!token) {
 
@@ -1702,7 +1781,7 @@ const handleClientSubmit = async () => {
           if (selectedForms.length > 0) {
             const selectedForm = selectedForms[0]; // Single form selection
             const formTemplate = formTemplates.find(t => t.name === selectedForm);
-            
+
             requestData.selectedForm = selectedForm;
             requestData.formTemplate = formTemplate ? {
               name: formTemplate.name,
@@ -1728,9 +1807,9 @@ const handleClientSubmit = async () => {
 
       // Make API call
       const response = await api.post('/api/v1/form-details', requestData);
-      
 
-      
+
+
       // Store form details ID for future updates
       if (response.data?.data?.id) {
         setFormDetailsId(response.data.data.id);
@@ -1742,7 +1821,7 @@ const handleClientSubmit = async () => {
 
     } catch (error: any) {
       // Error saving to server
-      
+
       const errorMessage = error.response?.data?.error || error.message || 'Failed to save to server';
       // Error details logged
 
@@ -1750,7 +1829,7 @@ const handleClientSubmit = async () => {
       if (error.response?.status !== 404) {
         toast.error(`Failed to save step ${step} to server: ${errorMessage}`, { duration: 3000 });
       }
-      
+
       return null;
     }
   };
@@ -1764,7 +1843,7 @@ const handleClientSubmit = async () => {
       }
 
 
-      
+
       const token = localStorage.getItem('token');
       if (!token) {
 
@@ -1782,15 +1861,15 @@ const handleClientSubmit = async () => {
 
       // Make API call to assign questionnaire
       const response = await api.post(`/api/v1/form-details/${formDetailsId}/assign-questionnaire`, requestData);
-      
 
-      
+
+
       toast.success('Questionnaire assigned and saved to server', { duration: 2000 });
       return response.data;
 
     } catch (error: any) {
       // Error assigning questionnaire
-      
+
       const errorMessage = error.response?.data?.error || error.message || 'Failed to assign questionnaire';
       // Error details logged
 
@@ -1798,61 +1877,61 @@ const handleClientSubmit = async () => {
       return null;
     }
   };
-  
+
   const handleQuestionnaireAssignment = async () => {
     if (!selectedQuestionnaire) return;
-    
+
     // Check if client account creation is enabled
     if (!clientCredentials.createAccount) {
       toast.error('Client account creation must be enabled to assign questionnaires. Please check "Create Account" option and set a password.');
       return;
     }
-    
+
     // Ensure password is available
     if (!clientCredentials.password) {
       toast.error('Password is required for client account creation. Please generate a password first.');
       return;
     }
-    
+
     setLoading(true);
-    
+
     // Declare assignmentData and clientUserId in outer scope so they're accessible in catch blocks
     let assignmentData: any = null;
     let clientUserId = undefined;
-    
+
     try {
       // First, check if we need to create a client account
       if (clientCredentials.createAccount) {
 
-        
+
         if (!clientCredentials.password) {
 
           toast.error('Password is required for client account creation. Please generate a password in the questionnaire assignment screen.');
           setLoading(false);
           return;
         }
-        
+
         // Ensure the client object has the password before calling handleClientSubmit
         const clientWithCredentials = {
           ...client,
           password: clientCredentials.password,
           email: clientCredentials.email || client.email
         };
-        
 
 
 
-        
+
+
         // Update both state and the direct object reference
         setClient(clientWithCredentials);
         Object.assign(client, clientWithCredentials);
       }
-      
+
       // Call handleClientSubmit to create the client account if needed
 
       const createdUserId = await handleClientSubmit();
 
-      
+
       // If client account creation is enabled, use the returned user ID
       if (clientCredentials.createAccount && createdUserId) {
 
@@ -1869,13 +1948,13 @@ const handleClientSubmit = async () => {
           q.originalId,   // Original ID before conversion
           q.name          // Fallback to name if used as ID
         ].filter(Boolean); // Remove undefined/null values
-        
+
         // For API questionnaires, prioritize matching the q_ prefixed ID
         if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
 
           return true;
         }
-        
+
         // Check if any of the possible IDs match
         const matches = possibleIds.includes(selectedQuestionnaire);
         if (matches) {
@@ -1883,49 +1962,49 @@ const handleClientSubmit = async () => {
         }
         return matches;
       });
-      
+
       if (!selectedQ) {
         toast.error('Could not find selected questionnaire');
 
         return;
       }
-      
+
       // Validate that questionnaire has fields/questions
       const normalizedQ = normalizeQuestionnaireStructure(selectedQ);
-      
+
       // Log the normalized questionnaire for debugging
 
-      
+
       // Check for fields/questions in multiple locations
       let fields = normalizedQ.fields || normalizedQ.questions || [];
-      
+
       // Special handling for API format questionnaires
       if (normalizedQ.id && normalizedQ.id.startsWith('q_') && Array.isArray(normalizedQ.fields)) {
 
         fields = normalizedQ.fields;
       }
-      
+
       if (!fields || fields.length === 0) {
         toast.error('This questionnaire has no questions defined. Please select another questionnaire.');
         setLoading(false);
         return;
       }
-      
+
       // Questionnaire is valid with fields
-      
+
       // Get questionnaire ID from normalized questionnaire
       const questionnaireId = normalizedQ._id;
-      
+
       // For API questionnaires (with q_ prefix), we don't validate as MongoDB ObjectId
       const isApiQuestionnaire = normalizedQ.apiQuestionnaire || (questionnaireId && questionnaireId.startsWith('q_'));
-      
+
       if (!isApiQuestionnaire && !isValidMongoObjectId(questionnaireId)) {
 
         toast.error(`Cannot assign questionnaire with invalid ID format. Please contact support.`);
         setLoading(false);
         return;
       }
-      
+
       // Log the ID type for debugging
       if (isApiQuestionnaire) {
 
@@ -1934,15 +2013,15 @@ const handleClientSubmit = async () => {
         // Only validate as MongoDB ObjectId if it's not an API questionnaire
         validateMongoObjectId(questionnaireId, 'questionnaire');
       }
-      
+
       // If we had to convert the ID, log this for debugging
       if (normalizedQ.originalId) {
 
       }
-      
+
       // Use the client ID (which should match the created user account ID)
       let clientId;
-      
+
       if (clientUserId) {
         // If we have a clientUserId (from account creation), use that as clientId too
         clientId = clientUserId;
@@ -1963,12 +2042,12 @@ const handleClientSubmit = async () => {
           return;
         }
       }
-      
 
 
 
 
-      
+
+
       // Final validation - ensure we have a valid MongoDB ObjectId from user account
       try {
         validateMongoObjectId(clientId, 'client');
@@ -1979,7 +2058,7 @@ const handleClientSubmit = async () => {
         setLoading(false);
         return;
       }
-      
+
       // Validate case ID if it exists and ensure it's a valid MongoDB ObjectId
       let caseId = caseData._id || caseData.id;
       if (caseId) {
@@ -1994,7 +2073,7 @@ const handleClientSubmit = async () => {
             caseId = generateObjectId();
             // Save it back to the case object for future use
             caseData._id = caseId;
-            
+
             // Update case in localStorage with the valid ID
             const cases = JSON.parse(localStorage.getItem('legal-firm-cases') || '[]');
             const updatedCases = cases.map((c: any) => {
@@ -2004,13 +2083,13 @@ const handleClientSubmit = async () => {
               return c;
             });
             localStorage.setItem('legal-firm-cases', JSON.stringify(updatedCases));
-            
+
 
           }
         }
         validateMongoObjectId(caseId, 'case');
       }
-      
+
       // Define the assignment data with client user information
       assignmentData = {
         questionnaireId,
@@ -2031,10 +2110,10 @@ const handleClientSubmit = async () => {
         formType: selectedForms.length > 0 ? selectedForms[0] : undefined, // Use the first selected form as primary form type
         formCaseIdGenerated: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : undefined // Use the case ID for the primary form
       };
-      
+
       // Debug log the validated data before making the API call
       // Assignment data prepared
-      
+
       // Check if we have an authentication token
       const token = localStorage.getItem('token');
       if (!token) {
@@ -2042,7 +2121,7 @@ const handleClientSubmit = async () => {
         toast.error('You must be logged in to assign questionnaires through the API. Will use local storage instead.');
         // Don't throw error, just set a flag to skip API call
         // Use both API and localStorage as needed
-        
+
         // Create and save assignment in localStorage
         const localAssignment: QuestionnaireAssignment = {
           id: `assignment_${Date.now()}`,
@@ -2087,15 +2166,15 @@ const handleClientSubmit = async () => {
           clientDateOfBirth: client.dateOfBirth || '',
           clientNationality: client.nationality || ''
         };
-        
+
         // Save to localStorage
         const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
         existingAssignments.push(localAssignment);
         localStorage.setItem('questionnaire-assignments', JSON.stringify(existingAssignments));
-        
+
         // Update state
         setQuestionnaireAssignment(localAssignment);
-        
+
         // Show success and proceed
         if (clientCredentials.createAccount && clientUserId) {
           toast.success(
@@ -2114,24 +2193,24 @@ const handleClientSubmit = async () => {
         handleNext();
         return;
       }
-      
+
       // Log the token (first 10 chars for security) to verify it exists
 
-      
+
       // Use the controller to check if the API endpoint is available
       const endpointPath = '/api/v1/questionnaire-assignments';
       const endpointAvailable = await isApiEndpointAvailable(endpointPath);
-      
+
       // Log and notify user about API availability
 
-      
+
       if (!endpointAvailable) {
         toast.error('API endpoint not available. Assignment will be saved locally only.');
       }
-      
+
       let assignment: QuestionnaireAssignment;
       // Track success state for future use
-      
+
       // Only attempt API call if the endpoint is available
       if (endpointAvailable) {
         try {
@@ -2139,7 +2218,7 @@ const handleClientSubmit = async () => {
 
 
 
-          
+
           // Send directly with fetch for creating the assignment
           const fetchResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`, {
             method: 'POST',
@@ -2149,22 +2228,22 @@ const handleClientSubmit = async () => {
             },
             body: JSON.stringify(assignmentData)
           });
-          
 
-          
+
+
           if (!fetchResponse.ok) {
             const errorText = await fetchResponse.text();
 
             throw new Error(`Assignment creation failed: ${fetchResponse.status} ${fetchResponse.statusText}\n${errorText}`);
           }
-          
+
           // Parse the successful response
           const response = await fetchResponse.json();
-          
+
           // Handle the response which returns json directly
           const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
 
-          
+
           assignment = {
             id: responseId,
             caseId: caseData.id,
@@ -2186,7 +2265,7 @@ const handleClientSubmit = async () => {
             formType: assignmentData.formType,
             formCaseIdGenerated: assignmentData.formCaseIdGenerated
           };
-          
+
           // API save succeeded
 
         } catch (apiError: any) {
@@ -2219,12 +2298,12 @@ const handleClientSubmit = async () => {
           formType: assignmentData.formType,
           formCaseIdGenerated: assignmentData.formCaseIdGenerated
         };
-        
+
         toast.error('API server not available. Assignment created but not saved.', { duration: 3000 });
       }
-      
+
       setQuestionnaireAssignment(assignment);
-      
+
       // Notify the user of success with client account information
       if (clientCredentials.createAccount && clientUserId) {
         toast.success(
@@ -2239,14 +2318,14 @@ const handleClientSubmit = async () => {
       } else {
         toast.success(`Questionnaire "${selectedQ?.title || selectedQ?.name}" has been assigned to client ${client.name}.`);
       }
-      
+
       // Save questionnaire assignment to backend (Step 4)
       try {
         const backendResult = await assignQuestionnaireToFormDetails(
           questionnaireId,
           clientCredentials.createAccount ? clientCredentials.password : undefined
         );
-        
+
         if (backendResult) {
 
         } else {
@@ -2259,25 +2338,25 @@ const handleClientSubmit = async () => {
 
       // Save all accumulated workflow data to backend now
       try {
-        
-        
-        
+
+
+
         // Save workflow progress
         await saveWorkflowProgress();
 
-        
+
         toast.success('All workflow data saved to server successfully!', { duration: 3000 });
-        
+
       } catch (error) {
 
         toast.error('Questionnaire assigned but some data may not be saved to server', { duration: 3000 });
       }
-      
+
       // Move to next step
       handleNext();
     } catch (error: any) {
 
-      
+
       // Display more specific error messages
       if (error?.message && error.message.includes('Invalid')) {
         // This is our validation error
@@ -2290,7 +2369,7 @@ const handleClientSubmit = async () => {
       } else if (error?.response?.status === 404 || error?.message?.includes('not found')) {
         // API endpoint not found
 
-        
+
         // Create a helpful toast message
         toast.error(
           <div>
@@ -2303,15 +2382,15 @@ const handleClientSubmit = async () => {
               <li>If you're running the API on a different port, update the API_BASE_URL</li>
             </ul>
             <p className="text-sm mt-2">A local copy of the assignment has been saved.</p>
-          </div>, 
+          </div>,
           { duration: 8000 }
         );
-        
+
         // Show simpler message after detailed one
         setTimeout(() => {
           toast.success('Assignment saved locally. You can continue with your workflow.', { icon: <AlertCircle size={16} /> });
         }, 1000);
-        
+
 
       } else if (error?.response?.data?.error) {
         // This is an API error with details
@@ -2320,12 +2399,12 @@ const handleClientSubmit = async () => {
         // Generic fallback error
         toast.error('Failed to assign questionnaire. Using local storage as fallback.');
       }
-      
+
       // Don't proceed to next step or save to localStorage if it's an ID validation error
       if (error?.message && error.message.includes('Invalid')) {
         return;
       }
-      
+
       // Create a local assignment as fallback
 
       // Enhanced flexible matching to find the selected questionnaire
@@ -2337,13 +2416,13 @@ const handleClientSubmit = async () => {
           q.originalId,   // Original ID before conversion
           q.name          // Fallback to name if used as ID
         ].filter(Boolean); // Remove undefined/null values
-        
+
         // For API questionnaires, prioritize matching the q_ prefixed ID
         if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
 
           return true;
         }
-        
+
         // Check if any of the possible IDs match
         const matches = possibleIds.includes(selectedQuestionnaire);
         if (matches) {
@@ -2351,7 +2430,7 @@ const handleClientSubmit = async () => {
         }
         return matches;
       });
-      
+
       // Create a local assignment with the same data format as the API would return
       const localAssignment: QuestionnaireAssignment = {
         id: `assignment_${Date.now()}`,
@@ -2373,10 +2452,10 @@ const handleClientSubmit = async () => {
         formCaseIds: assignmentData ? assignmentData.formCaseIds : formCaseIds,
         selectedForms: assignmentData ? assignmentData.selectedForms : selectedForms
       };
-      
+
       // Update the state with our local assignment
       setQuestionnaireAssignment(localAssignment);
-      
+
       // Show warning message to the user that data is not persisted
       if (clientCredentials.createAccount && clientUserId) {
         toast.error(
@@ -2391,7 +2470,7 @@ const handleClientSubmit = async () => {
       } else {
         toast.success(`Questionnaire "${selectedQ?.title || selectedQ?.name}" has been assigned to client ${client.name} (local storage mode).`);
       }
-      
+
       // Only proceed to next step if it's not an ID validation error
       handleNext();
     } finally {
@@ -2401,27 +2480,27 @@ const handleClientSubmit = async () => {
 
   const handleResponseSubmit = async () => {
     if (!questionnaireAssignment) return;
-    
+
     try {
       setLoading(true);
-      
+
       // Use controller to submit responses
       if (questionnaireAssignment.id && !questionnaireAssignment.id.startsWith('assignment_')) {
         // Submit using API for real server-generated IDs
         await submitQuestionnaireResponses(questionnaireAssignment.id, clientResponses);
       }
-      
+
       const updatedAssignment = {
         ...questionnaireAssignment,
         status: 'completed' as const,
         completedAt: new Date().toISOString(),
         responses: clientResponses
       };
-      
+
       setQuestionnaireAssignment(updatedAssignment);
-      
+
       // Note: Data is now only saved to backend via API, not localStorage
-      
+
       toast.success('Questionnaire responses saved successfully');
       handleNext();
     } catch (error) {
@@ -2440,7 +2519,7 @@ const handleClientSubmit = async () => {
   const autoFillFromAPIResponse = (apiResponse: any) => {
     try {
       console.log('🔄 Processing API response for auto-fill:', apiResponse);
-      
+
       if (!apiResponse || !apiResponse.data || apiResponse.data.length === 0) {
         console.log('❌ No workflow data found in API response');
         toast('No saved workflow data found to auto-fill');
@@ -2525,7 +2604,7 @@ const handleClientSubmit = async () => {
         console.log('📍 Current step updated to:', workflowData.currentStep);
       }
 
-      toast.success(`✅ Form details auto-filled! Loaded: ${workflowData.client?.name || 'Client'} - ${workflowData.case?.title || 'Case'}`, { 
+      toast.success(`✅ Form details auto-filled! Loaded: ${workflowData.client?.name || 'Client'} - ${workflowData.case?.title || 'Case'}`, {
         duration: 3000
       });
 
@@ -2621,27 +2700,32 @@ const handleClientSubmit = async () => {
         clientPhone: client.phone || '',
         clientDateOfBirth: client.dateOfBirth || '',
         clientNationality: client.nationality || '',
-        
+
         // Client address
         clientStreet: client.address?.street || '',
         clientCity: client.address?.city || '',
         clientState: client.address?.state || '',
         clientZipCode: client.address?.zipCode || '',
         clientCountry: client.address?.country || 'United States',
-        
+
         // Case information
         caseCategory: caseData.category || '',
         caseSubcategory: caseData.subcategory || '',
         visaType: caseData.visaType || '',
         priorityDate: caseData.priorityDate || '',
+<<<<<<< HEAD
         
+=======
+        caseNumber: caseData.caseNumber || '',
+
+>>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
         // Client responses from questionnaire
         ...clientResponses,
-        
+
         // Form details
         selectedForms: selectedForms || [],
         questionnaireResponses: clientResponses || {},
-        
+
         // Additional metadata
         workflowStep: currentStep,
         timestamp: new Date().toISOString(),
@@ -2657,20 +2741,20 @@ const handleClientSubmit = async () => {
 
       // Prepare the data for the API
       const preparedData = prepareFormData(formData);
-      
+
       console.log('Auto-generating forms with data:', preparedData);
 
       // Generate forms for each selected form
       const newGeneratedForms = [];
-      
+
       for (const formName of selectedForms) {
         try {
           // For now, we'll use a template ID based on the form name
           // In a real implementation, you'd map form names to actual template IDs
           const templateId = formName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-          
+
           console.log(`Generating form: ${formName} with template: ${templateId}`);
-          
+
           // Add a placeholder for generating status
           newGeneratedForms.push({
             formName,
@@ -2683,12 +2767,12 @@ const handleClientSubmit = async () => {
 
           // Call renderFormWithData
           const response = await renderFormWithData(templateId, preparedData);
-          
+
           if (response.data) {
             // Create download URL
             const downloadUrl = createPdfBlobUrl(response.data);
             const fileName = `${formName}_${new Date().toISOString().split('T')[0]}.pdf`;
-            
+
             // Update the form with success status
             const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
             if (formIndex !== -1) {
@@ -2701,12 +2785,12 @@ const handleClientSubmit = async () => {
                 status: 'success' as const
               };
             }
-            
+
             toast.success(`Generated ${formName} successfully`);
           }
         } catch (error) {
           console.error(`Error generating ${formName}:`, error);
-          
+
           // Update the form with error status
           const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
           if (formIndex !== -1) {
@@ -2720,17 +2804,17 @@ const handleClientSubmit = async () => {
               error: error instanceof Error ? error.message : 'Unknown error'
             };
           }
-          
+
           toast.error(`Failed to generate ${formName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
 
       setGeneratedForms(newGeneratedForms);
-      
+
       if (newGeneratedForms.some(f => f.status === 'success')) {
         toast.success('Forms generated successfully! You can now download or preview them.');
       }
-      
+
     } catch (error) {
       console.error('Error in auto-generate forms:', error);
       toast.error('Failed to generate forms. Please try again.');
@@ -2776,8 +2860,43 @@ const handleClientSubmit = async () => {
 
 
   const renderStepContent = () => {
-    switch (currentStep) {
+    const workflowSteps = getWorkflowSteps();
+    
+    // For existing responses, map the current step to the appropriate step in the workflow
+    let actualStep = currentStep;
+    if (isExistResponse) {
+      // Map existing response workflow steps to the actual step content
+      // EXIST_WORKFLOW_STEPS: ['answers', 'form-details', 'auto-fill']
+      // WORKFLOW_STEPS: ['start', 'client', 'case', 'forms', 'questionnaire', 'answers', 'form-details', 'auto-fill']
+      switch (currentStep) {
+        case 0: // Review Responses (answers)
+          actualStep = 5; // Map to answers step in full workflow
+          break;
+        case 1: // Form Details
+          actualStep = 6; // Map to form-details step in full workflow
+          break;
+        case 2: // Auto-fill Forms
+          actualStep = 7; // Map to auto-fill step in full workflow
+          break;
+        default:
+          actualStep = currentStep;
+      }
+    }
+    
+    switch (actualStep) {
       case 0: // Start: New or Existing Client
+        // Skip start step for existing responses
+        if (isExistResponse) {
+          return (
+            <div className="space-y-8">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Review Existing Responses</h3>
+                <p className="text-blue-700">Review and edit existing client responses before proceeding to form details.</p>
+              </div>
+            </div>
+          );
+        }
+        
         return (
           <div className="space-y-8">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -2849,12 +2968,25 @@ const handleClientSubmit = async () => {
           </div>
         );
       case 1: // Create Client
+        // Skip client creation for existing responses
+        if (isExistResponse) {
+          return (
+            <div className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
+                <p className="text-blue-700">Client information is already available from existing responses.</p>
+              </div>
+            </div>
+          );
+        }
+        
         return (
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
               <p className="text-blue-700">Enter the client's personal details to create their profile.</p>
             </div>
+<<<<<<< HEAD
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900">Personal Information</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2935,6 +3067,66 @@ const handleClientSubmit = async () => {
                   required
                 />
               </div>
+=======
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                id="name"
+                label="Full Name"
+                value={client.name}
+                onChange={(e) => {
+                  const fullName = e.target.value;
+                  // Parse name into firstName and lastName
+                  let firstName = '', lastName = '';
+                  if (fullName) {
+                    const nameParts = fullName.trim().split(' ');
+                    if (nameParts.length > 1) {
+                      firstName = nameParts[0];
+                      lastName = nameParts.slice(1).join(' ');
+                    } else {
+                      firstName = nameParts[0];
+                      lastName = 'Client'; // Default
+                    }
+                  }
+                  setClient({
+                    ...client,
+                    name: fullName,
+                    firstName: firstName,
+                    lastName: lastName
+                  });
+                }}
+                required
+              />
+              <Input
+                id="email"
+                label="Email Address"
+                type="email"
+                value={client.email}
+                onChange={(e) => setClient({ ...client, email: e.target.value })}
+                required
+              />
+              <Input
+                id="phone"
+                label="Phone Number"
+                value={client.phone}
+                onChange={(e) => setClient({ ...client, phone: e.target.value })}
+                required
+              />
+              <Input
+                id="dateOfBirth"
+                label="Date of Birth"
+                type="date"
+                value={client.dateOfBirth}
+                onChange={(e) => setClient({ ...client, dateOfBirth: e.target.value })}
+                required
+              />
+              <Input
+                id="nationality"
+                label="Nationality"
+                value={client.nationality}
+                onChange={(e) => setClient({ ...client, nationality: e.target.value })}
+                required
+              />
+>>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
             </div>
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900">Address Information</h4>
@@ -2944,10 +3136,50 @@ const handleClientSubmit = async () => {
                   label="Street Address"
                   value={client.address?.street || ''}
                   onChange={(e) => setClient({
-                    ...client, 
-                    address: {...(client.address || {}), street: e.target.value}
+                    ...client,
+                    address: { ...(client.address || {}), street: e.target.value }
                   })}
+<<<<<<< HEAD
                   placeholder="Enter street address"
+=======
+                  className="md:col-span-2"
+                />
+                <Input
+                  id="city"
+                  label="City"
+                  value={client.address?.city || ''}
+                  onChange={(e) => setClient({
+                    ...client,
+                    address: { ...(client.address || {}), city: e.target.value }
+                  })}
+                />
+                <Input
+                  id="state"
+                  label="State"
+                  value={client.address?.state || ''}
+                  onChange={(e) => setClient({
+                    ...client,
+                    address: { ...(client.address || {}), state: e.target.value }
+                  })}
+                />
+                <Input
+                  id="zipCode"
+                  label="ZIP Code"
+                  value={client.address?.zipCode || ''}
+                  onChange={(e) => setClient({
+                    ...client,
+                    address: { ...(client.address || {}), zipCode: e.target.value }
+                  })}
+                />
+                <Input
+                  id="country"
+                  label="Country"
+                  value={client.address?.country || ''}
+                  onChange={(e) => setClient({
+                    ...client,
+                    address: { ...(client.address || {}), country: e.target.value }
+                  })}
+>>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Select
@@ -3038,7 +3270,7 @@ const handleClientSubmit = async () => {
                 </Button>
               ) : (
                 // Original Create Client button in normal mode
-                <Button 
+                <Button
                   onClick={async () => {
                     // Save client data to backend (Step 1)
                     try {
@@ -3047,7 +3279,7 @@ const handleClientSubmit = async () => {
                     } catch (error) {
 
                     }
-                    
+
                     // Simply advance to next step without creating client account
                     // Client account will only be created later if password is provided from questionnaire assignment
                     setCurrentStep(2);
@@ -3063,6 +3295,18 @@ const handleClientSubmit = async () => {
         );
 
       case 2: // Create Case
+        // Skip case creation for existing responses
+        if (isExistResponse) {
+          return (
+            <div className="space-y-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-green-900 mb-2">Case Setup</h3>
+                <p className="text-green-700">Case information is already available from existing responses.</p>
+              </div>
+            </div>
+          );
+        }
+        
         return (
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -3100,13 +3344,13 @@ const handleClientSubmit = async () => {
                   onChange={e => setCaseData({ ...caseData, subcategory: e.target.value })}
                   options={[
                     { value: '', label: 'Select subcategory' },
-                    ...(caseData.category ? 
+                    ...(caseData.category ?
                       IMMIGRATION_CATEGORIES
                         .find(cat => cat.id === caseData.category)
                         ?.subcategories.map(sub => ({
                           value: sub.id,
                           label: sub.name
-                        })) || [] 
+                        })) || []
                       : []
                     )
                   ]}
@@ -3216,6 +3460,18 @@ const handleClientSubmit = async () => {
         );
 
       case 3: // Select Forms
+        // Skip forms selection for existing responses
+        if (isExistResponse) {
+          return (
+            <div className="space-y-6">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Form</h3>
+                <p className="text-purple-700">Forms are already selected from existing responses.</p>
+              </div>
+            </div>
+          );
+        }
+        
         return (
           <div className="space-y-6">
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
@@ -3290,7 +3546,7 @@ const handleClientSubmit = async () => {
               </Button>
               {isViewEditMode ? (
                 // Simple Next button in view/edit mode
-                <Button 
+                <Button
                   onClick={handleNext}
                   disabled={selectedForms.length === 0}
                 >
@@ -3299,7 +3555,7 @@ const handleClientSubmit = async () => {
                 </Button>
               ) : (
                 // Original Form submission button in normal mode
-                <Button 
+                <Button
                   onClick={handleFormsSubmit}
                   disabled={selectedForms.length === 0 || generatingCaseIds}
                 >
@@ -3321,6 +3577,18 @@ const handleClientSubmit = async () => {
         );
 
       case 4: // Assign Questionnaire (now using QuestionnaireBuilder/availableQuestionnaires)
+        // Skip questionnaire assignment for existing responses
+        if (isExistResponse) {
+          return (
+            <div className="space-y-6">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-orange-900 mb-2">Assign Questionnaire</h3>
+                <p className="text-orange-700">Questionnaire is already assigned and responses are available.</p>
+              </div>
+            </div>
+          );
+        }
+        
         return (
           <div className="space-y-6">
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
@@ -3352,10 +3620,10 @@ const handleClientSubmit = async () => {
                 value={selectedQuestionnaire}
                 onChange={(e) => {
                   const selectedId = e.target.value;
-                  
+
                   // Log all available questionnaires with their ID fields for debugging
                   // Available questionnaires logged
-                  
+
                   // Enhanced flexible matching to find the selected questionnaire
                   const selected = availableQuestionnaires.find(q => {
                     // Check all possible ID fields
@@ -3365,13 +3633,13 @@ const handleClientSubmit = async () => {
                       q.originalId,   // Original ID before conversion
                       q.name          // Fallback to name if used as ID
                     ].filter(Boolean); // Remove undefined/null values
-                    
+
                     // For API questionnaires, prioritize matching the q_ prefixed ID
                     if (q.apiQuestionnaire && q.id === selectedId) {
                       // API questionnaire match found
                       return true;
                     }
-                    
+
                     // Check if any of the possible IDs match
                     const matches = possibleIds.includes(selectedId);
                     if (matches) {
@@ -3379,10 +3647,10 @@ const handleClientSubmit = async () => {
                     }
                     return matches;
                   });
-                  
+
                   // Selected questionnaire found
                   setSelectedQuestionnaire(selectedId);
-                  
+
                   // If not found, log a warning
                   if (!selected) {
                     // Selected questionnaire not found in available list
@@ -3394,7 +3662,7 @@ const handleClientSubmit = async () => {
                     .filter(q => {
                       // Add debug for questionnaire categories
                       // Questionnaire category checking
-                      
+
                       if (!caseData.category) return true;
                       if (!q.category) return true;
                       // const catMap: Record<string, string> = {
@@ -3414,16 +3682,16 @@ const handleClientSubmit = async () => {
                     .map(q => {
                       // First normalize the questionnaire structure to ensure consistent fields
                       const normalizedQ = normalizeQuestionnaireStructure(q);
-                      
+
                       // Handle ID resolution with preference for the original API ID format
                       let idToUse;
                       let wasConverted = false;
-                      
+
                       // For API format questionnaires, ALWAYS use the original q_ format ID
                       if (q.id && q.id.startsWith('q_')) {
                         idToUse = q.id;
                         // Using API format ID
-                      } 
+                      }
                       // For questionnaires with an originalId, offer both options with preference for original
                       else if (normalizedQ.originalId) {
                         // Use the original ID for selection to maintain consistency with saved data
@@ -3441,14 +3709,14 @@ const handleClientSubmit = async () => {
                         idToUse = normalizedQ._id || normalizedQ.id || normalizedQ.name || `q_${Date.now()}`;
                         // Using fallback ID
                       }
-                      
+
                       // Count questions
                       const fields = normalizedQ.fields || [];
                       const questionCount = fields.length;
-                      
+
                       // Log what's being added to the dropdown
                       // Questionnaire option prepared
-                      
+
                       return {
                         // Store all possible IDs to help with matching later
                         value: idToUse, // Use the resolved ID as primary value for selection
@@ -3473,13 +3741,13 @@ const handleClientSubmit = async () => {
                     q.originalId,   // Original ID before conversion
                     q.name          // Fallback to name if used as ID
                   ].filter(Boolean); // Remove undefined/null values
-                  
+
                   // For API questionnaires, prioritize matching the q_ prefixed ID
                   if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
 
                     return true;
                   }
-                  
+
                   // Check if any of the possible IDs match
                   const matches = possibleIds.includes(selectedQuestionnaire);
                   if (matches) {
@@ -3487,7 +3755,7 @@ const handleClientSubmit = async () => {
                   }
                   return matches;
                 });
-                
+
                 if (!questionnaire) {
 
                   return (
@@ -3496,26 +3764,26 @@ const handleClientSubmit = async () => {
                     </div>
                   );
                 }
-                
+
                 // Questionnaire structure is valid
                 let fields = questionnaire.fields || questionnaire.questions || [];
-                
+
                 // Special handling for API format questionnaires
-                if (questionnaire.apiQuestionnaire || 
-                   (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields))) {
+                if (questionnaire.apiQuestionnaire ||
+                  (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields))) {
 
                   fields = questionnaire.fields;
                 }
-                
 
-                
+
+
                 // Check if this is an API questionnaire or standard MongoDB questionnaire
-                const isApiQuestionnaire = questionnaire.apiQuestionnaire || 
-                                         (questionnaire._id && questionnaire._id.startsWith('q_')) ||
-                                         (questionnaire.id && questionnaire.id.startsWith('q_'));
+                const isApiQuestionnaire = questionnaire.apiQuestionnaire ||
+                  (questionnaire._id && questionnaire._id.startsWith('q_')) ||
+                  (questionnaire.id && questionnaire.id.startsWith('q_'));
                 const hasValidId = isApiQuestionnaire || (questionnaire._id && isValidMongoObjectId(questionnaire._id));
                 const hasConvertedId = !!questionnaire.originalId;
-                
+
                 return (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
@@ -3531,14 +3799,14 @@ const handleClientSubmit = async () => {
                         </span>
                       )}
                     </div>
-                    
+
                     <p className="text-gray-700 mb-2">{questionnaire.description || 'No description provided.'}</p>
-                    
+
                     <div className="flex items-center text-sm text-gray-500 mb-2">
                       <ClipboardList className="w-4 h-4 mr-2" />
                       This questionnaire contains {fields.length} questions
                     </div>
-                    
+
                     {fields.length > 0 ? (
                       <div className="max-h-60 overflow-y-auto border border-gray-200 rounded bg-white p-2">
                         <ul className="space-y-2">
@@ -3546,7 +3814,7 @@ const handleClientSubmit = async () => {
                             const fieldId = field.id || field._id || `field_${idx}`;
                             const fieldLabel = field.label || field.question || `Question ${idx + 1}`;
                             const fieldType = field.type || 'text';
-                            
+
                             return (
                               <li key={fieldId} className="py-1 px-2 hover:bg-gray-50 rounded">
                                 <div className="flex items-center">
@@ -3584,7 +3852,7 @@ const handleClientSubmit = async () => {
                   type="date"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   value={caseData.dueDate || ''}
-                  onChange={(e) => setCaseData({...caseData, dueDate: e.target.value})}
+                  onChange={(e) => setCaseData({ ...caseData, dueDate: e.target.value })}
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   The client will be asked to complete the questionnaire by this date.
@@ -3634,12 +3902,12 @@ const handleClientSubmit = async () => {
                       if (e.target.checked && !clientCredentials.password) {
                         const generatedPassword = generateSecurePassword();
                         setClientCredentials({
-                          ...clientCredentials, 
+                          ...clientCredentials,
                           createAccount: e.target.checked,
                           password: generatedPassword
                         });
                       } else {
-                        setClientCredentials({...clientCredentials, createAccount: e.target.checked});
+                        setClientCredentials({ ...clientCredentials, createAccount: e.target.checked });
                       }
                     }}
                     className="h-4 w-4 text-primary-600 border-gray-300 rounded"
@@ -3648,7 +3916,7 @@ const handleClientSubmit = async () => {
                     Create client account for accessing questionnaires
                   </label>
                 </div>
-                
+
                 {clientCredentials.createAccount && (
                   <div className="space-y-4">
                     <p className="text-sm text-blue-700">
@@ -3666,12 +3934,12 @@ const handleClientSubmit = async () => {
                             if (e.target.value && !clientCredentials.password) {
                               const generatedPassword = generateSecurePassword();
                               setClientCredentials({
-                                ...clientCredentials, 
+                                ...clientCredentials,
                                 email: e.target.value,
                                 password: generatedPassword
                               });
                             } else {
-                              setClientCredentials({...clientCredentials, email: e.target.value});
+                              setClientCredentials({ ...clientCredentials, email: e.target.value });
                             }
                           }}
                           placeholder="client@example.com"
@@ -3682,7 +3950,7 @@ const handleClientSubmit = async () => {
                           Default is client's email from their profile
                         </p>
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                         <div className="relative">
@@ -3696,7 +3964,7 @@ const handleClientSubmit = async () => {
                             type="button"
                             onClick={() => {
                               const newPassword = generateSecurePassword();
-                              setClientCredentials({...clientCredentials, password: newPassword});
+                              setClientCredentials({ ...clientCredentials, password: newPassword });
                             }}
                             className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200"
                           >
@@ -3725,7 +3993,7 @@ const handleClientSubmit = async () => {
               </Button>
               {isViewEditMode ? (
                 // Simple Next button in view/edit mode
-                <Button 
+                <Button
                   onClick={handleNext}
                   disabled={!selectedQuestionnaire}
                 >
@@ -3743,13 +4011,13 @@ const handleClientSubmit = async () => {
                       q.originalId,   // Original ID before conversion
                       q.name          // Fallback to name if used as ID
                     ].filter(Boolean); // Remove undefined/null values
-                    
+
                     // For API questionnaires, prioritize matching the q_ prefixed ID
                     if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
 
                       return true;
                     }
-                    
+
                     // Check if any of the possible IDs match
                     const matches = possibleIds.includes(selectedQuestionnaire);
                     if (matches) {
@@ -3757,13 +4025,13 @@ const handleClientSubmit = async () => {
                     }
                     return matches;
                   });
-                  const hasFields = questionnaire && 
-                                   (questionnaire.fields?.length > 0 || questionnaire.questions?.length > 0);
-                  
+                  const hasFields = questionnaire &&
+                    (questionnaire.fields?.length > 0 || questionnaire.questions?.length > 0);
+
                   if (!hasFields) {
                     return (
                       <div className="flex items-center">
-                        <Button 
+                        <Button
                           onClick={() => toast.error('This questionnaire has no questions defined. Please select another questionnaire.')}
                           className="bg-yellow-500 hover:bg-yellow-600"
                         >
@@ -3773,9 +4041,9 @@ const handleClientSubmit = async () => {
                       </div>
                     );
                   }
-                  
+
                   return (
-                    <Button 
+                    <Button
                       onClick={handleQuestionnaireAssignment}
                       disabled={!selectedQuestionnaire}
                     >
@@ -3801,11 +4069,11 @@ const handleClientSubmit = async () => {
       case 5: // Collect Answers (Dynamic client responses for selected questionnaire)
         return (
           <div className="space-y-6">
-            
+
             <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-indigo-900 mb-2">Client Responses</h3>
               <p className="text-indigo-700">Review and fill out the questionnaire as the client would.</p>
-              
+
               {Object.keys(clientResponses).length > 0 && (
                 <div className="mt-2 bg-green-50 border border-green-200 rounded p-2">
                   <div className="flex items-center text-green-800">
@@ -3814,15 +4082,15 @@ const handleClientSubmit = async () => {
                   </div>
                 </div>
               )}
-              
+
               {/* Add filling status indicator */}
               {questionnaireAssignment && (() => {
                 const questionnaire = availableQuestionnaires.find(q => {
                   const possibleIds = [q._id, q.id, q.originalId, q.name].filter(Boolean);
-                  return q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId || 
-                         possibleIds.includes(questionnaireAssignment.questionnaireId);
+                  return q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId ||
+                    possibleIds.includes(questionnaireAssignment.questionnaireId);
                 });
-                
+
                 if (questionnaire) {
                   const questions = questionnaire.fields || questionnaire.questions || questionnaire.form?.fields || questionnaire.form?.questions || [];
                   const totalFields = questions.length;
@@ -3830,21 +4098,21 @@ const handleClientSubmit = async () => {
                     const fieldId = q.id || q._id || `field_${questions.indexOf(q)}`;
                     const fieldLabel = q.label || q.question || q.name;
                     const value = clientResponses[fieldId] || clientResponses[fieldLabel];
-                    return value !== undefined && value !== null && value !== '' && 
-                           (!Array.isArray(value) || value.length > 0);
+                    return value !== undefined && value !== null && value !== '' &&
+                      (!Array.isArray(value) || value.length > 0);
                   }).length;
-                  
+
                   return (
                     <div className="mt-3 flex items-center justify-between bg-white border border-gray-200 rounded p-3">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 w-3 h-3 rounded-full mr-3" 
-                             style={{backgroundColor: filledFields === totalFields ? '#10b981' : filledFields > 0 ? '#f59e0b' : '#ef4444'}}></div>
+                        <div className="flex-shrink-0 w-3 h-3 rounded-full mr-3"
+                          style={{ backgroundColor: filledFields === totalFields ? '#10b981' : filledFields > 0 ? '#f59e0b' : '#ef4444' }}></div>
                         <span className="text-sm font-medium text-gray-700">
                           Progress: {filledFields} of {totalFields} fields completed
                         </span>
                       </div>
                       <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div 
+                        <div
                           className="h-2 rounded-full transition-all duration-300"
                           style={{
                             width: `${totalFields > 0 ? (filledFields / totalFields) * 100 : 0}%`,
@@ -3857,7 +4125,7 @@ const handleClientSubmit = async () => {
                 }
                 return null;
               })()}
-              
+
             </div>
 
             {questionnaireAssignment && (() => {
@@ -3877,38 +4145,38 @@ const handleClientSubmit = async () => {
 
                   return true;
                 }
-                
+
                 // Try exact matches first
                 const exactMatch = possibleIds.includes(questionnaireAssignment.questionnaireId);
                 if (exactMatch) {
 
                   return true;
                 }
-                
+
                 // Try fuzzy matching for similar IDs (handle cases where IDs are very similar)
                 const targetId = questionnaireAssignment.questionnaireId;
                 const fuzzyMatch = possibleIds.some(id => {
                   if (!id || !targetId) return false;
-                  
+
                   // Remove 'q_' prefix if present and compare
                   const cleanId = id.replace(/^q_/, '');
                   const cleanTargetId = targetId.replace(/^q_/, '');
-                  
+
                   // Check if they're very similar (allowing for small differences)
                   const similarity = cleanId.substring(0, 20) === cleanTargetId.substring(0, 20);
                   if (similarity) {
 
                     return true;
                   }
-                  
+
                   return false;
                 });
-                
+
                 return fuzzyMatch;
               });
-              
 
-              
+
+
               if (!questionnaire) {
                 return (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -3924,20 +4192,20 @@ const handleClientSubmit = async () => {
                   </div>
                 );
               }
-              
+
               // Try to find questions/fields in multiple possible locations
-              let questions = questionnaire.fields || 
-                           questionnaire.questions || 
-                           questionnaire.form?.fields || 
-                           questionnaire.form?.questions || 
-                           [];
-              
+              let questions = questionnaire.fields ||
+                questionnaire.questions ||
+                questionnaire.form?.fields ||
+                questionnaire.form?.questions ||
+                [];
+
               // If API response format is detected
               if (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields)) {
 
                 questions = questionnaire.fields;
               }
-                             
+
               if (!questions || questions.length === 0) {
                 return (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -3963,19 +4231,19 @@ const handleClientSubmit = async () => {
                     {questions.map((q: any, idx: number) => {
                       // Log each field for debugging
 
-                      
+
                       // Ensure field has required properties
                       const fieldId = q.id || q._id || `field_${idx}`;
                       const fieldLabel = q.label || q.question || q.name || `Question ${idx + 1}`;
                       const fieldType = q.type || 'text';
                       const fieldOptions = q.options || [];
-                      
+
                       // Check if field is filled
                       const currentValue = clientResponses[fieldId] || clientResponses[fieldLabel];
-                      const isFilled = currentValue !== undefined && currentValue !== null && currentValue !== '' && 
-                                      (!Array.isArray(currentValue) || currentValue.length > 0);
+                      const isFilled = currentValue !== undefined && currentValue !== null && currentValue !== '' &&
+                        (!Array.isArray(currentValue) || currentValue.length > 0);
                       const isRequired = q.required === true;
-                      
+
                       // Determine field status styling
                       const getFieldStatusStyle = () => {
                         if (isFilled) {
@@ -3986,16 +4254,15 @@ const handleClientSubmit = async () => {
                           return 'border-gray-300 bg-gray-50 focus:border-blue-500 focus:ring-blue-200';
                         }
                       };
-                      
+
                       const fieldStatusStyle = getFieldStatusStyle();
-                      
+
                       // Common field wrapper with status indicator
                       const FieldWrapper = ({ children, label }: { children: React.ReactNode, label: string }) => (
                         <div className="relative">
                           <div className="flex items-center mb-1">
-                            <div className={`flex-shrink-0 w-2 h-2 rounded-full mr-2 ${
-                              isFilled ? 'bg-green-500' : isRequired ? 'bg-red-500' : 'bg-gray-400'
-                            }`}></div>
+                            <div className={`flex-shrink-0 w-2 h-2 rounded-full mr-2 ${isFilled ? 'bg-green-500' : isRequired ? 'bg-red-500' : 'bg-gray-400'
+                              }`}></div>
                             <label className="block text-sm font-medium text-gray-700">
                               {label}
                               {isRequired && <span className="text-red-500 ml-1">*</span>}
@@ -4012,7 +4279,7 @@ const handleClientSubmit = async () => {
                           </div>
                         </div>
                       );
-                      
+
                       // Render input based on type
                       if (fieldType === 'date') {
                         return (
@@ -4080,8 +4347,8 @@ const handleClientSubmit = async () => {
                                     type="checkbox"
                                     checked={Array.isArray(clientResponses[fieldId] || clientResponses[fieldLabel]) && (clientResponses[fieldId] || clientResponses[fieldLabel])?.includes(opt)}
                                     onChange={e => {
-                                      const prev = Array.isArray(clientResponses[fieldId] || clientResponses[fieldLabel]) 
-                                        ? (clientResponses[fieldId] || clientResponses[fieldLabel]) 
+                                      const prev = Array.isArray(clientResponses[fieldId] || clientResponses[fieldLabel])
+                                        ? (clientResponses[fieldId] || clientResponses[fieldLabel])
                                         : [];
                                       if (e.target.checked) {
                                         setClientResponses({
@@ -4166,33 +4433,33 @@ const handleClientSubmit = async () => {
                 </div>
               );
             })()}
-            
+
             {/* Response Summary Card */}
             {questionnaireAssignment && (() => {
               const questionnaire = availableQuestionnaires.find(q => {
                 const possibleIds = [q._id, q.id, q.originalId, q.name].filter(Boolean);
-                return q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId || 
-                       possibleIds.includes(questionnaireAssignment.questionnaireId);
+                return q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId ||
+                  possibleIds.includes(questionnaireAssignment.questionnaireId);
               });
-              
+
               if (questionnaire) {
                 const questions = questionnaire.fields || questionnaire.questions || questionnaire.form?.fields || questionnaire.form?.questions || [];
                 const filledFields = questions.filter((q: any) => {
                   const fieldId = q.id || q._id || `field_${questions.indexOf(q)}`;
                   const fieldLabel = q.label || q.question || q.name;
                   const value = clientResponses[fieldId] || clientResponses[fieldLabel];
-                  return value !== undefined && value !== null && value !== '' && 
-                         (!Array.isArray(value) || value.length > 0);
+                  return value !== undefined && value !== null && value !== '' &&
+                    (!Array.isArray(value) || value.length > 0);
                 });
                 const requiredFields = questions.filter((q: any) => q.required === true);
                 const filledRequiredFields = requiredFields.filter((q: any) => {
                   const fieldId = q.id || q._id || `field_${questions.indexOf(q)}`;
                   const fieldLabel = q.label || q.question || q.name;
                   const value = clientResponses[fieldId] || clientResponses[fieldLabel];
-                  return value !== undefined && value !== null && value !== '' && 
-                         (!Array.isArray(value) || value.length > 0);
+                  return value !== undefined && value !== null && value !== '' &&
+                    (!Array.isArray(value) || value.length > 0);
                 });
-                
+
                 return (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
                     <h4 className="font-medium text-gray-900 mb-3 flex items-center">
@@ -4217,7 +4484,7 @@ const handleClientSubmit = async () => {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Missing Required Fields Warning */}
                     {filledRequiredFields.length < requiredFields.length && (
                       <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
@@ -4230,8 +4497,8 @@ const handleClientSubmit = async () => {
                                 const fieldId = q.id || q._id || `field_${questions.indexOf(q)}`;
                                 const fieldLabel = q.label || q.question || q.name;
                                 const value = clientResponses[fieldId] || clientResponses[fieldLabel];
-                                return value === undefined || value === null || value === '' || 
-                                       (Array.isArray(value) && value.length === 0);
+                                return value === undefined || value === null || value === '' ||
+                                  (Array.isArray(value) && value.length === 0);
                               }).map((q: any, index: number) => (
                                 <li key={index} className="flex items-center">
                                   <div className="w-1 h-1 bg-red-500 rounded-full mr-2"></div>
@@ -4243,7 +4510,7 @@ const handleClientSubmit = async () => {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Completion Status */}
                     {filledRequiredFields.length === requiredFields.length && filledFields.length === questions.length && (
                       <div className="mt-3 bg-green-50 border border-green-200 rounded p-3">
@@ -4258,7 +4525,7 @@ const handleClientSubmit = async () => {
               }
               return null;
             })()}
-            
+
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -4266,7 +4533,7 @@ const handleClientSubmit = async () => {
               </Button>
               {isViewEditMode ? (
                 // Simple Next button in view/edit mode
-                <Button 
+                <Button
                   onClick={handleNext}
                   disabled={Object.keys(clientResponses).length === 0}
                 >
@@ -4275,7 +4542,7 @@ const handleClientSubmit = async () => {
                 </Button>
               ) : (
                 // Original Response submission button in normal mode
-                <Button 
+                <Button
                   onClick={handleResponseSubmit}
                   disabled={Object.keys(clientResponses).length === 0}
                 >
@@ -4378,13 +4645,13 @@ const handleClientSubmit = async () => {
                       q.originalId,   // Original ID before conversion
                       q.name          // Fallback to name if used as ID
                     ].filter(Boolean); // Remove undefined/null values
-                    
+
                     // For API questionnaires, prioritize matching the q_ prefixed ID
                     if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
 
                       return true;
                     }
-                    
+
                     // Check if any of the possible IDs match
                     const matches = possibleIds.includes(questionnaireAssignment.questionnaireId);
                     if (matches) {
@@ -4459,11 +4726,11 @@ const handleClientSubmit = async () => {
               <h3 className="text-lg font-semibold text-green-900 mb-2">Auto-Fill Forms</h3>
               <p className="text-green-700">Generate completed forms with all collected information.</p>
             </div>
-            
+
             <div className="space-y-4">
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h4 className="font-medium text-gray-900 mb-4">Ready to Generate Forms</h4>
-                
+
                 <div className="space-y-3">
                   {selectedForms.map(form => (
                     <div key={form} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -4483,7 +4750,7 @@ const handleClientSubmit = async () => {
                     </div>
                   ))}
                 </div>
-                
+
                 <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-start">
                     <AlertCircle className="w-5 h-5 text-blue-500 mr-3 mt-0.5" />
@@ -4509,9 +4776,9 @@ const handleClientSubmit = async () => {
                 <p className="text-gray-600 mb-4">
                   Use the advanced auto-generation feature to create forms with all collected data.
                 </p>
-                
+
                 <div className="flex gap-3 mb-6">
-                  <Button 
+                  <Button
                     onClick={handleAutoGenerateForms}
                     disabled={generatingForms || selectedForms.length === 0}
                     className="bg-purple-600 hover:bg-purple-700"
@@ -4528,9 +4795,9 @@ const handleClientSubmit = async () => {
                       </>
                     )}
                   </Button>
-                  
+
                   {!isViewEditMode && (
-                    <Button 
+                    <Button
                       onClick={handleAutoFillForms}
                       disabled={loading}
                       className="bg-green-600 hover:bg-green-700"
@@ -4574,11 +4841,11 @@ const handleClientSubmit = async () => {
                               )}
                             </div>
                           </div>
-                          
+
                           {form.status === 'generating' && (
                             <div className="text-sm text-blue-600">Generating...</div>
                           )}
-                          
+
                           {form.status === 'success' && (
                             <div className="space-y-2">
                               <div className="text-sm text-gray-600">{form.fileName}</div>
@@ -4602,7 +4869,7 @@ const handleClientSubmit = async () => {
                               </div>
                             </div>
                           )}
-                          
+
                           {form.status === 'error' && (
                             <div className="text-sm text-red-600">
                               Error: {form.error || 'Unknown error'}
@@ -4619,7 +4886,7 @@ const handleClientSubmit = async () => {
                   if (!isVisible) return null;
                   const form = generatedForms.find(f => f.formName === formName);
                   if (!form || form.status !== 'success') return null;
-                  
+
                   return (
                     <div key={formName} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                       <div className="bg-white rounded-lg p-4 max-w-4xl w-full h-5/6 flex flex-col">
@@ -4646,7 +4913,7 @@ const handleClientSubmit = async () => {
                 })}
               </div>
             </div>
-            
+
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -4654,7 +4921,7 @@ const handleClientSubmit = async () => {
               </Button>
               {isViewEditMode ? (
                 // Simple completion message in view/edit mode
-                <Button 
+                <Button
                   onClick={() => toast.success('Workflow review completed!')}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
@@ -4663,7 +4930,7 @@ const handleClientSubmit = async () => {
                 </Button>
               ) : (
                 <div className="flex gap-3">
-                  <Button 
+                  <Button
                     onClick={handleAutoGenerateForms}
                     disabled={generatingForms || selectedForms.length === 0}
                     className="bg-purple-600 hover:bg-purple-700"
@@ -4680,7 +4947,7 @@ const handleClientSubmit = async () => {
                       </>
                     )}
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleAutoFillForms}
                     disabled={loading}
                     className="bg-green-600 hover:bg-green-700"
@@ -4723,50 +4990,85 @@ const handleClientSubmit = async () => {
               <h1 className="text-3xl font-bold text-gray-900">Legal Firm Workflow</h1>
               <p className="text-gray-600 mt-2">Complete immigration case management from client to forms</p>
             </div>
-           
+
           </div>
         </div>
 
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            {WORKFLOW_STEPS.map((step, index) => {
-              const Icon = step.icon;
-              const isCompleted = index < currentStep;
-              const isCurrent = index === currentStep;
-              
-              return (
-                <div key={step.id} className="flex flex-col items-center">
-                  <div className={`
-                    w-12 h-12 rounded-full flex items-center justify-center border-2 mb-2
-                    ${isCompleted ? 'bg-green-500 border-green-500 text-white' : 
-                      isCurrent ? 'bg-blue-500 border-blue-500 text-white' : 
-                      'bg-white border-gray-300 text-gray-400'}
-                  `}>
-                    {isCompleted ? (
-                      <CheckCircle className="w-6 h-6" />
-                    ) : (
-                      <Icon className="w-6 h-6" />
-                    )}
-                  </div>
-                  <div className="text-center">
-                    <div className={`text-sm font-medium ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'}`}>
-                      {step.title}
+            {isExistResponse ? (
+              // Existing client response workflow
+              EXIST_WORKFLOW_STEPS.map((step, index) => {
+                const Icon = step.icon;
+                const isCompleted = index < currentStep;
+                const isCurrent = index === currentStep;
+
+                return (
+                  <div key={step.id} className="flex flex-col items-center">
+                    <div className={`
+                      w-12 h-12 rounded-full flex items-center justify-center border-2 mb-2
+                      ${isCompleted ? 'bg-green-500 border-green-500 text-white' :
+                        isCurrent ? 'bg-blue-500 border-blue-500 text-white' :
+                          'bg-white border-gray-300 text-gray-400'}
+                    `}>
+                      {isCompleted ? (
+                        <CheckCircle className="w-6 h-6" />
+                      ) : (
+                        <Icon className="w-6 h-6" />
+                      )}
                     </div>
-                    <div className="text-xs text-gray-400 max-w-20">
-                      {step.description}
+                    <div className="text-center">
+                      <div className={`text-sm font-medium ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'}`}>
+                        {step.title}
+                      </div>
+                      <div className="text-xs text-gray-400 max-w-20">
+                        {step.description}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              // New client response workflow
+              WORKFLOW_STEPS.map((step, index) => {
+                const Icon = step.icon;
+                const isCompleted = index < currentStep;
+                const isCurrent = index === currentStep;
+
+                return (
+                  <div key={step.id} className="flex flex-col items-center">
+                    <div className={`
+                      w-12 h-12 rounded-full flex items-center justify-center border-2 mb-2
+                      ${isCompleted ? 'bg-green-500 border-green-500 text-white' :
+                        isCurrent ? 'bg-blue-500 border-blue-500 text-white' :
+                          'bg-white border-gray-300 text-gray-400'}
+                    `}>
+                      {isCompleted ? (
+                        <CheckCircle className="w-6 h-6" />
+                      ) : (
+                        <Icon className="w-6 h-6" />
+                      )}
+                    </div>
+                    <div className="text-center">
+                      <div className={`text-sm font-medium ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'}`}>
+                        {step.title}
+                      </div>
+                      <div className="text-xs text-gray-400 max-w-20">
+                        {step.description}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
-          
+
           {/* Progress Bar */}
           <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
-            <div 
+            <div
               className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(currentStep / (WORKFLOW_STEPS.length - 1)) * 100}%` }}
+              style={{ width: `${(currentStep / (getWorkflowSteps().length - 1)) * 100}%` }}
             />
           </div>
         </div>
