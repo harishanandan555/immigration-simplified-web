@@ -926,7 +926,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Find the handleClientSubmit function and update it to check for existing clients
 
-<<<<<<< HEAD
 const handleClientSubmit = async () => {
 
   
@@ -983,40 +982,9 @@ const handleClientSubmit = async () => {
   const clientEmail = client.email;
   const clientPassword = client.password;
   
-=======
-  const handleClientSubmit = async () => {
->>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
 
 
-    // Ensure client has a name with first and last name parts
-    if (!client.name || client.name.trim() === '') {
-      toast.error('Client name is required');
-      return;
-    }
-
-    // Validate email
-    if (!client.email || !client.email.includes('@')) {
-      toast.error('Valid email address is required');
-      return;
-    }
-
-    // Parse name to ensure we have first and last name components
-    // Name parsing is handled within createClientAccountWithCredentials function
-
-    // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
-    if (!client.password) {
-
-      toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
-      return null;
-    }
-
-    // Use the email and password from questionnaire assignment screen or generated password
-    const clientEmail = client.email;
-    const clientPassword = client.password;
-
-
-
-
+    
     return await createClientAccountWithCredentials(clientEmail, clientPassword);
   };
 
@@ -1025,25 +993,10 @@ const handleClientSubmit = async () => {
 
   // Helper function to create client account with provided credentials
   const createClientAccountWithCredentials = async (clientEmail: string, clientPassword: string) => {
-<<<<<<< HEAD
     // Use the firstName and lastName from the client state directly
     const firstName = client.firstName.trim();
     const lastName = client.lastName.trim();
     
-=======
-    // Parse name to ensure we have first and last name components
-    let firstName = '', lastName = '';
-    const nameParts = client.name.trim().split(' ');
-    if (nameParts.length > 1) {
-      firstName = nameParts[0];
-      lastName = nameParts.slice(1).join(' ');
-    } else {
-      // If only one word in name, use it as firstName and default lastName
-      firstName = nameParts[0];
-      lastName = 'Client'; // Default last name
-    }
-
->>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
     try {
 
 
@@ -2713,12 +2666,7 @@ const handleClientSubmit = async () => {
         caseSubcategory: caseData.subcategory || '',
         visaType: caseData.visaType || '',
         priorityDate: caseData.priorityDate || '',
-<<<<<<< HEAD
         
-=======
-        caseNumber: caseData.caseNumber || '',
-
->>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
         // Client responses from questionnaire
         ...clientResponses,
 
@@ -2986,7 +2934,6 @@ const handleClientSubmit = async () => {
               <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
               <p className="text-blue-700">Enter the client's personal details to create their profile.</p>
             </div>
-<<<<<<< HEAD
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900">Personal Information</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -3067,66 +3014,6 @@ const handleClientSubmit = async () => {
                   required
                 />
               </div>
-=======
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                id="name"
-                label="Full Name"
-                value={client.name}
-                onChange={(e) => {
-                  const fullName = e.target.value;
-                  // Parse name into firstName and lastName
-                  let firstName = '', lastName = '';
-                  if (fullName) {
-                    const nameParts = fullName.trim().split(' ');
-                    if (nameParts.length > 1) {
-                      firstName = nameParts[0];
-                      lastName = nameParts.slice(1).join(' ');
-                    } else {
-                      firstName = nameParts[0];
-                      lastName = 'Client'; // Default
-                    }
-                  }
-                  setClient({
-                    ...client,
-                    name: fullName,
-                    firstName: firstName,
-                    lastName: lastName
-                  });
-                }}
-                required
-              />
-              <Input
-                id="email"
-                label="Email Address"
-                type="email"
-                value={client.email}
-                onChange={(e) => setClient({ ...client, email: e.target.value })}
-                required
-              />
-              <Input
-                id="phone"
-                label="Phone Number"
-                value={client.phone}
-                onChange={(e) => setClient({ ...client, phone: e.target.value })}
-                required
-              />
-              <Input
-                id="dateOfBirth"
-                label="Date of Birth"
-                type="date"
-                value={client.dateOfBirth}
-                onChange={(e) => setClient({ ...client, dateOfBirth: e.target.value })}
-                required
-              />
-              <Input
-                id="nationality"
-                label="Nationality"
-                value={client.nationality}
-                onChange={(e) => setClient({ ...client, nationality: e.target.value })}
-                required
-              />
->>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
             </div>
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900">Address Information</h4>
@@ -3139,47 +3026,7 @@ const handleClientSubmit = async () => {
                     ...client,
                     address: { ...(client.address || {}), street: e.target.value }
                   })}
-<<<<<<< HEAD
                   placeholder="Enter street address"
-=======
-                  className="md:col-span-2"
-                />
-                <Input
-                  id="city"
-                  label="City"
-                  value={client.address?.city || ''}
-                  onChange={(e) => setClient({
-                    ...client,
-                    address: { ...(client.address || {}), city: e.target.value }
-                  })}
-                />
-                <Input
-                  id="state"
-                  label="State"
-                  value={client.address?.state || ''}
-                  onChange={(e) => setClient({
-                    ...client,
-                    address: { ...(client.address || {}), state: e.target.value }
-                  })}
-                />
-                <Input
-                  id="zipCode"
-                  label="ZIP Code"
-                  value={client.address?.zipCode || ''}
-                  onChange={(e) => setClient({
-                    ...client,
-                    address: { ...(client.address || {}), zipCode: e.target.value }
-                  })}
-                />
-                <Input
-                  id="country"
-                  label="Country"
-                  value={client.address?.country || ''}
-                  onChange={(e) => setClient({
-                    ...client,
-                    address: { ...(client.address || {}), country: e.target.value }
-                  })}
->>>>>>> f3b202380661fb040748b415cb5b8cfcda2d5596
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Select
