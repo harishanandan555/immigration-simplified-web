@@ -74,7 +74,6 @@ interface Case {
   dueDate: string;
   visaType?: string;
   priorityDate?: string;
-  caseNumber?: string;
   type?: string;
   // Additional optional properties that might be used in the UI
   assignedTo?: string;
@@ -104,6 +103,27 @@ interface QuestionnaireAssignment {
   accountCreated?: boolean; // Track whether user account was successfully created
   formType?: string; // Type of the primary form
   formCaseIdGenerated?: string; // Generated case ID for the primary form
+  // Client name fields
+  clientFirstName?: string;
+  clientMiddleName?: string;
+  clientLastName?: string;
+  clientFullName?: string;
+  // Client address information
+  clientAddress?: {
+    street?: string;
+    aptSuiteFlr?: string;
+    aptNumber?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    province?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  // Additional client information
+  clientPhone?: string;
+  clientDateOfBirth?: string;
+  clientNationality?: string;
 }
 
 interface FormData {
@@ -141,7 +161,7 @@ const IMMIGRATION_CATEGORIES = [
   }
 ];
 
-const WORKFLOW_STEPS = [
+const NEW_WORKFLOW_STEPS = [
   { id: 'start', title: 'Start', icon: User, description: 'New or existing client' },
   { id: 'client', title: 'Create Client', icon: Users, description: 'Add new client information' },
   { id: 'case', title: 'Create Case', icon: Briefcase, description: 'Set up case details and category' },
@@ -171,14 +191,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     id: '',
     name: '',
     firstName: '',
+    middleName: '',
     lastName: '',
     email: '',
     phone: '',
     address: {
       street: '',
+      aptSuiteFlr: '',
+      aptNumber: '',
       city: '',
       state: '',
       zipCode: '',
+      province: '',
+      postalCode: '',
       country: 'United States'
     },
     dateOfBirth: '',
@@ -268,7 +293,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     if (isExistResponse) {
       return EXIST_WORKFLOW_STEPS;
     }
-    return WORKFLOW_STEPS;
+    return NEW_WORKFLOW_STEPS;
   };
 
   // Load available questionnaires
@@ -297,22 +322,18 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Add a small delay to let the UI render first
         setTimeout(async () => {
           try {
-            console.log('Auto-filling form details for step 6...');
             setAutoFillingFormDetails(true);
 
             // Fetch from actual API only
             const apiWorkflows = await fetchWorkflowsFromAPI();
             if (apiWorkflows && apiWorkflows.length > 0) {
-              console.log('Found API workflows, auto-filling with real data');
               const response = { success: true, count: apiWorkflows.length, data: apiWorkflows };
               autoFillFromAPIResponse(response);
             } else {
-              console.log('No API workflows found');
-              toast('No saved workflows found to auto-fill');
+              // No saved workflows found to auto-fill
             }
           } catch (error) {
-            console.error('Error auto-filling form details:', error);
-            toast('Form Details page loaded - no auto-fill data available');
+            // Error auto-filling form details
           } finally {
             setAutoFillingFormDetails(false);
           }
@@ -335,16 +356,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         try {
           const response = await api.get(`/api/v1/workflows/progress/${workflowId}`);
           workflowData = response.data.data || response.data;
-          toast.success('Workflow resumed from server', { duration: 2000 });
         } catch (apiError: any) {
-          toast.error('Failed to load workflow from server');
+          // Failed to load workflow from server
         }
       } else {
-        toast.error('Authentication required to resume workflow');
+        // Authentication required to resume workflow
       }
 
       if (!workflowData) {
-        toast.error('Workflow not found or failed to load');
         return false;
       }
 
@@ -383,12 +402,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         setCurrentStep(workflowData.currentStep);
       }
 
-      toast.success(`Workflow resumed at step: ${WORKFLOW_STEPS[workflowData.currentStep]?.title || 'Unknown'}`);
-
       return true;
 
     } catch (error) {
-      toast.error('Failed to resume workflow');
       return false;
     }
   };
@@ -446,8 +462,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       try {
         const data = JSON.parse(workflowData);
 
-        console.log('🔄 Processing workflow data for auto-fill...', data);
-
         // Check if we have the questionnaire in our available questionnaires
         let foundQuestionnaire = availableQuestionnaires.find(q =>
           q._id === data.questionnaireId ||
@@ -459,8 +473,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
         // If not found and we have field data, create a temporary questionnaire
         if (!foundQuestionnaire) {
-          console.log('⚠️ Questionnaire not found, creating temporary one');
-
           // If we have fields from the response data, use them
           const fieldsToUse = data.fields && data.fields.length > 0 ? data.fields : [
             // Create basic fields from the existing responses
@@ -484,21 +496,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             apiQuestionnaire: true
           };
 
-          console.log('📋 Created temporary questionnaire:', foundQuestionnaire);
-
           // Add it to available questionnaires
           setAvailableQuestionnaires(prev => [...prev, foundQuestionnaire]);
-        } else {
-          console.log('✅ Found matching questionnaire:', foundQuestionnaire.title);
         }
 
         // Auto-fill workflow steps progressively from step 2 to targetStep
         const autoFillSteps = async () => {
-          console.log('🚀 Starting progressive auto-fill from step 2...');
-
           // Step 1: Client Information (index 1)
           if (data.workflowClient) {
-            console.log('📝 Auto-filling client information...');
             setClient({
               id: data.clientId || '',
               name: data.workflowClient.name || `${data.workflowClient.firstName || ''} ${data.workflowClient.lastName || ''}`.trim(),
@@ -531,7 +536,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
           // Step 2: Case Information (index 2)
           if (data.workflowCase) {
-            console.log('📝 Auto-filling case information...');
             setCaseData({
               id: data.workflowCase.id || data.workflowCase._id || generateObjectId(),
               _id: data.workflowCase._id || data.workflowCase.id,
@@ -548,14 +552,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               dueDate: data.workflowCase.dueDate || '',
               visaType: data.workflowCase.visaType || '',
               priorityDate: data.workflowCase.priorityDate || '',
-              caseNumber: data.workflowCase.caseNumber || '',
               openDate: data.workflowCase.openDate || ''
             });
           }
 
           // Step 3: Form Selection (index 3)
           if (data.selectedForms && data.selectedForms.length > 0) {
-            console.log('📝 Auto-filling selected forms...');
             setSelectedForms(data.selectedForms);
 
             if (data.formCaseIds) {
@@ -565,7 +567,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
           // Step 4: Questionnaire Assignment (index 4) 
           if (data.questionnaireId) {
-            console.log('📝 Auto-filling questionnaire selection...');
             setSelectedQuestionnaire(data.questionnaireId);
 
             // Create a questionnaire assignment for the answers collection step
@@ -583,13 +584,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               formCaseIds: data.formCaseIds || {}
             };
 
-            console.log('📋 Created questionnaire assignment:', assignment);
             setQuestionnaireAssignment(assignment);
           }
 
           // Step 5: Responses (index 5) - Set existing responses if in edit mode
           if (data.mode === 'edit' && data.existingResponses) {
-            console.log('📝 Auto-filling existing responses...');
             setClientResponses(data.existingResponses);
             
             // Set as existing response workflow
@@ -599,7 +598,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
           // Set client credentials if available
           if (data.clientCredentials) {
-            console.log('📝 Auto-filling client credentials...');
             setClientCredentials({
               email: data.clientCredentials.email || data.clientEmail,
               password: '',
@@ -607,25 +605,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             });
           }
 
-          // Start from step 2 (Client Information) and let user progress through steps
-          const startStep = 1; // Client Information step
-          const targetStepIndex = data.targetStep || 6; // Default to Form Details if not specified
+          // For existing responses, start at step 0 (Review Responses)
+          // For new responses, start at step 1 (Client Information)
+          const startStep = data.mode === 'edit' ? 0 : 1; // Review Responses for edit mode, Client Information for new
+          const targetStepIndex = data.targetStep || (data.mode === 'edit' ? 2 : 6); // Default to Form Details for edit, Auto-fill for new
 
-          console.log(`🎯 Starting at step ${startStep + 1}, targeting step ${targetStepIndex}`);
           setCurrentStep(startStep);
 
           // Show success message
           if (data.autoFillMode) {
             setIsViewEditMode(true); // Set view/edit mode for simple navigation
-            toast.success(`🚀 Auto-filled workflow data for ${data.clientName} - review and continue`, { duration: 4000 });
           } else if (data.mode === 'edit') {
             setIsExistResponse(true);
             setIsNewResponse(false);
-            toast.success(`Loaded existing responses for ${data.clientName}`);
           } else {
             setIsNewResponse(true);
             setIsExistResponse(false);
-            toast.success(`Loaded client data for ${data.clientName}`);
           }
         };
 
@@ -636,7 +631,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         sessionStorage.removeItem('legalFirmWorkflowData');
 
       } catch (error) {
-        console.error('❌ Error processing workflow data:', error);
         sessionStorage.removeItem('legalFirmWorkflowData');
       }
     }
@@ -902,38 +896,65 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Find the handleClientSubmit function and update it to check for existing clients
 
-  const handleClientSubmit = async () => {
+const handleClientSubmit = async () => {
+
+  
+  // Ensure client has first and last name
+  if (!client.firstName || client.firstName.trim() === '') {
+    toast.error('First name is required');
+    return;
+  }
+  
+  if (!client.lastName || client.lastName.trim() === '') {
+    toast.error('Last name is required');
+    return;
+  }
+  
+  // Validate email
+  if (!client.email || !client.email.includes('@')) {
+    toast.error('Valid email address is required');
+    return;
+  }
+  
+  // Validate required address fields
+  if (!client.address?.city || client.address.city.trim() === '') {
+    toast.error('City is required');
+    return;
+  }
+  
+  if (!client.address?.state || client.address.state.trim() === '') {
+    toast.error('State/Province is required');
+    return;
+  }
+  
+  if (!client.address?.zipCode || client.address.zipCode.trim() === '') {
+    toast.error('ZIP/Postal Code is required');
+    return;
+  }
+  
+  if (!client.address?.country || client.address.country.trim() === '') {
+    toast.error('Country is required');
+    return;
+  }
+  
+  // Update the name field from firstName, middleName, and lastName
+  const fullName = `${client.firstName} ${client.middleName || ''} ${client.lastName}`.trim().replace(/\s+/g, ' ');
+  setClient((prev: any) => ({ ...prev, name: fullName }));
+  
+  // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
+  if (!client.password) {
+
+    toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
+    return null;
+  }
+  
+  // Use the email and password from questionnaire assignment screen or generated password
+  const clientEmail = client.email;
+  const clientPassword = client.password;
+  
 
 
-    // Ensure client has a name with first and last name parts
-    if (!client.name || client.name.trim() === '') {
-      toast.error('Client name is required');
-      return;
-    }
-
-    // Validate email
-    if (!client.email || !client.email.includes('@')) {
-      toast.error('Valid email address is required');
-      return;
-    }
-
-    // Parse name to ensure we have first and last name components
-    // Name parsing is handled within createClientAccountWithCredentials function
-
-    // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
-    if (!client.password) {
-
-      toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
-      return null;
-    }
-
-    // Use the email and password from questionnaire assignment screen or generated password
-    const clientEmail = client.email;
-    const clientPassword = client.password;
-
-
-
-
+    
     return await createClientAccountWithCredentials(clientEmail, clientPassword);
   };
 
@@ -942,18 +963,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Helper function to create client account with provided credentials
   const createClientAccountWithCredentials = async (clientEmail: string, clientPassword: string) => {
-    // Parse name to ensure we have first and last name components
-    let firstName = '', lastName = '';
-    const nameParts = client.name.trim().split(' ');
-    if (nameParts.length > 1) {
-      firstName = nameParts[0];
-      lastName = nameParts.slice(1).join(' ');
-    } else {
-      // If only one word in name, use it as firstName and default lastName
-      firstName = nameParts[0];
-      lastName = 'Client'; // Default last name
-    }
-
+    // Use the firstName and lastName from the client state directly
+    const firstName = client.firstName.trim();
+    const lastName = client.lastName.trim();
+    
     try {
 
 
@@ -974,8 +987,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               ...client,
               id: existingUserId,
               _id: existingUserId,
-              firstName,
-              lastName,
+              firstName: client.firstName,
+              middleName: client.middleName || '',
+              lastName: client.lastName,
+              name: client.name,
               email: clientEmail,
               userId: existingUserId,
               hasUserAccount: true,
@@ -983,7 +998,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             };
             setClient(updatedClient);
 
-            toast.success(`✅ Using existing client account for ${firstName} ${lastName}!`);
             handleNext();
 
             return existingUserId;
@@ -1011,8 +1025,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         ...client,
         id: clientId,
         _id: clientId, // Add both id and _id for compatibility
-        firstName, // Add parsed name components
-        lastName,
+        firstName: client.firstName, // Use the actual client fields
+        middleName: client.middleName || '',
+        lastName: client.lastName,
         email: clientEmail, // Use the specific email
         password: clientPassword, // Use the specific password
         createdAt: new Date().toISOString()
@@ -1025,9 +1040,24 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // ✅ Use the correct endpoint: /api/v1/auth/register/user
         const response = await api.post('/api/v1/auth/register/user', {
           firstName: updatedClient.firstName,
+          middleName: updatedClient.middleName || '',
           lastName: updatedClient.lastName,
           email: clientEmail.toLowerCase().trim(),
           password: clientPassword,
+          phone: client.phone || '',
+          dateOfBirth: client.dateOfBirth || '',
+          nationality: client.nationality || '',
+          address: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
+          },
           role: 'client', // ✅ Required: Specify user role
           userType: 'individual', // ✅ Required: Enables individual client creation
           sendPassword: false // ✅ Controls welcome email (set to true if you want emails)
@@ -1053,25 +1083,30 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           _id: apiClientId,
           userId: apiClientId,
           hasUserAccount: true,
+          firstName: client.firstName,
+          middleName: client.middleName || '',
+          lastName: client.lastName,
+          name: client.name, // Keep the full name
           email: client.email.toLowerCase().trim(),
           phone: client.phone || '',
           dateOfBirth: client.dateOfBirth || '',
           nationality: client.nationality || '',
-          address: client.address || {
-            street: '',
-            city: '',
-            state: '',
-            zipCode: '',
-            country: 'United States'
+          address: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
           },
           status: 'active',
           ...(token && { token })
         };
 
         setClient(apiClient);
-
-        toast.success(`✅ New client account created successfully for ${updatedClient.firstName} ${updatedClient.lastName}!`);
-
 
         handleNext();
 
@@ -1105,8 +1140,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               ...client,
               id: existingUserId,
               _id: existingUserId,
-              firstName,
-              lastName,
+              firstName: client.firstName,
+              middleName: client.middleName || '',
+              lastName: client.lastName,
+              name: client.name,
               email: clientEmail,
               userId: existingUserId,
               hasUserAccount: true,
@@ -1114,7 +1151,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             };
             setClient(existingClient);
 
-            toast.success(`✅ Using existing client account for ${firstName} ${lastName}!`);
             handleNext();
             return existingUserId;
           }
@@ -1165,12 +1201,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       try {
         // Try to generate case IDs from API first
         caseIds = await generateMultipleCaseIdsFromAPI(selectedForms);
-        toast.success(`Generated case ID for ${selectedForms[0]} form`);
+        // Generated case ID for form
       } catch (error) {
 
         // Fallback to client-side generation
         caseIds = generateMultipleCaseIds(selectedForms);
-        toast.success(`Generated case ID for ${selectedForms[0]} form (offline mode)`);
+        // Generated case ID for form (offline mode)
       }
 
       // Store the generated case IDs
@@ -1200,18 +1236,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to fetch workflows from API for auto-fill
   const fetchWorkflowsFromAPI = async () => {
     try {
-      console.log('🔄 Fetching workflows from API...');
       setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
 
       // Check token availability
       if (!token) {
-        console.log('❌ No authentication token available');
-        toast('No authentication token - please login first');
         return [];
       }
-
-      console.log('✅ Authentication token found, making API request...');
 
       // Request workflows from API
       const response = await api.get('/api/v1/workflows', {
@@ -1222,37 +1253,27 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }
       });
 
-      console.log('📥 Response from workflows API:', response.data);
-
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
         setAvailableWorkflows(workflows);
-        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         return workflows;
       } else {
-        console.log('⚠️ No workflow data available in API response');
         return [];
       }
 
     } catch (error: any) {
-      console.error('❌ Error fetching workflows from API:', error);
-
       // If 404, the endpoint might not be available
       if (error.response?.status === 404) {
-        console.log('🔍 Server workflows endpoint not found');
-        toast('Server workflows endpoint not available');
+        // Server workflows endpoint not found
       } else if (error.response?.status === 401) {
-        console.log('🔐 Authentication failed');
-        toast('Authentication failed - please login again');
+        // Authentication failed
       } else {
-        console.log('💥 Other API error:', error.response?.status || 'Unknown');
-        toast.error('Failed to load workflows from server');
+        // Other API error
       }
 
       return [];
     } finally {
       setLoadingWorkflows(false);
-      console.log('🏁 Finished workflow API request');
     }
   };
 
@@ -1272,13 +1293,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           id: workflowData.client.id || client.id,
           _id: workflowData.client._id || client._id,
           name: workflowData.client.name || client.name,
+          // Explicitly handle separate name fields
+          firstName: workflowData.client.firstName || client.firstName,
+          middleName: workflowData.client.middleName || client.middleName || '',
+          lastName: workflowData.client.lastName || client.lastName,
           email: workflowData.client.email || client.email,
           phone: workflowData.client.phone || client.phone,
+          // Explicitly handle complete address information
           address: {
             street: '',
+            aptSuiteFlr: '',
+            aptNumber: '',
             city: '',
             state: '',
             zipCode: '',
+            province: '',
+            postalCode: '',
             country: 'United States',
             ...(client.address || {}),
             ...(workflowData.client.address || {})
@@ -1378,7 +1408,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
 
       // Workflow auto-fill complete
-      toast.success('Workflow data auto-filled from saved progress!', { duration: 4000 });
+      // Workflow data auto-filled from saved progress
 
     } catch (error) {
       // Auto-fill error
@@ -1475,6 +1505,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Client information
         client: {
           ...client,
+          // Explicitly include all name fields
+          firstName: client.firstName,
+          middleName: client.middleName || '',
+          lastName: client.lastName,
+          name: client.name, // Full name
+          // Explicitly include complete address information
+          address: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
+          },
           // Remove sensitive data from storage
           password: undefined,
           temporaryPassword: clientCredentials.createAccount ? clientCredentials.password : undefined
@@ -1511,7 +1558,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         },
 
         // Workflow steps progress
-        stepsProgress: WORKFLOW_STEPS.map((step, index) => ({
+        stepsProgress: NEW_WORKFLOW_STEPS.map((step, index) => ({
           ...step,
           index,
           status: index < currentStep ? 'completed' : index === currentStep ? 'current' : 'pending',
@@ -1535,7 +1582,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             workflowData.workflowId = response.data.workflowId;
           }
 
-          toast.success('Workflow progress saved to server', { duration: 2000 });
+          // Workflow progress saved to server
 
         } catch (apiError: any) {
 
@@ -1592,13 +1639,24 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Client information step
           requestData.clientInfo = {
             name: client.name,
-            firstName: client.firstName || client.name.split(' ')[0],
-            lastName: client.lastName || client.name.split(' ').slice(1).join(' ') || 'Client',
+            firstName: client.firstName,
+            middleName: client.middleName,
+            lastName: client.lastName,
             email: client.email,
             phone: client.phone,
             dateOfBirth: client.dateOfBirth,
             nationality: client.nationality,
-            address: client.address,
+            address: {
+              street: client.address?.street || '',
+              aptSuiteFlr: client.address?.aptSuiteFlr || '',
+              aptNumber: client.address?.aptNumber || '',
+              city: client.address?.city || '',
+              state: client.address?.state || '',
+              zipCode: client.address?.zipCode || '',
+              province: client.address?.province || '',
+              postalCode: client.address?.postalCode || '',
+              country: client.address?.country || 'United States'
+            },
             clientId: client.id || client._id,
             status: client.status || 'active'
           };
@@ -1608,7 +1666,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Case information step
           requestData.caseInfo = {
             title: caseData.title,
-            caseNumber: caseData.caseNumber,
             description: caseData.description,
             category: caseData.category,
             subcategory: caseData.subcategory,
@@ -1662,7 +1719,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       }
 
-      toast.success(`Step ${step} data saved to server`, { duration: 2000 });
+      // Step data saved to server
       return response.data;
 
     } catch (error: any) {
@@ -1710,7 +1767,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
 
-      toast.success('Questionnaire assigned and saved to server', { duration: 2000 });
+      // Questionnaire assigned and saved to server
       return response.data;
 
     } catch (error: any) {
@@ -1989,7 +2046,28 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           selectedForms: selectedForms,
           // Add form type and generated case ID for backend integration
           formType: selectedForms.length > 0 ? selectedForms[0] : undefined,
-          formCaseIdGenerated: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : undefined
+          formCaseIdGenerated: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : undefined,
+          // Include client name fields
+          clientFirstName: client.firstName,
+          clientMiddleName: client.middleName || '',
+          clientLastName: client.lastName,
+          clientFullName: client.name,
+          // Include client address
+          clientAddress: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
+          },
+          // Include other client info
+          clientPhone: client.phone || '',
+          clientDateOfBirth: client.dateOfBirth || '',
+          clientNationality: client.nationality || ''
         };
 
         // Save to localStorage
@@ -2012,7 +2090,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             { duration: 8000 }
           );
         } else {
-          toast.success(`Questionnaire "${normalizedQ.title || normalizedQ.name}" has been assigned to client ${client.name} (local storage only).`);
+          // Questionnaire assigned to client (local storage only)
         }
         setLoading(false);
         handleNext();
@@ -2141,7 +2219,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           { duration: 8000 }
         );
       } else {
-        toast.success(`Questionnaire "${selectedQ?.title || selectedQ?.name}" has been assigned to client ${client.name}.`);
+        // Questionnaire assigned to client
       }
 
       // Save questionnaire assignment to backend (Step 4)
@@ -2170,7 +2248,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         await saveWorkflowProgress();
 
 
-        toast.success('All workflow data saved to server successfully!', { duration: 3000 });
+        // All workflow data saved to server successfully
 
       } catch (error) {
 
@@ -2213,7 +2291,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
         // Show simpler message after detailed one
         setTimeout(() => {
-          toast.success('Assignment saved locally. You can continue with your workflow.', { icon: <AlertCircle size={16} /> });
+          // Assignment saved locally
         }, 1000);
 
 
@@ -2293,7 +2371,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           { duration: 8000 }
         );
       } else {
-        toast.success(`Questionnaire "${selectedQ?.title || selectedQ?.name}" has been assigned to client ${client.name} (local storage mode).`);
+        // Questionnaire assigned to client (local storage mode)
       }
 
       // Only proceed to next step if it's not an ID validation error
@@ -2326,7 +2404,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Note: Data is now only saved to backend via API, not localStorage
 
-      toast.success('Questionnaire responses saved successfully');
+              // Questionnaire responses saved successfully
       handleNext();
     } catch (error) {
 
@@ -2343,16 +2421,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to auto-fill form details from API workflow response
   const autoFillFromAPIResponse = (apiResponse: any) => {
     try {
-      console.log('🔄 Processing API response for auto-fill:', apiResponse);
-
       if (!apiResponse || !apiResponse.data || apiResponse.data.length === 0) {
-        console.log('❌ No workflow data found in API response');
-        toast('No saved workflow data found to auto-fill');
         return;
       }
 
       const workflowData = apiResponse.data[0]; // Get the first workflow
-      console.log('✅ Auto-filling from API workflow data:', workflowData);
 
       // Auto-fill client data
       if (workflowData.client) {
@@ -2371,7 +2444,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           }
         };
         setClient(clientData);
-        console.log('👤 Client data auto-filled:', clientData);
       }
 
       // Auto-fill case data
@@ -2381,7 +2453,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           id: workflowData.case.id || caseData.id,
           _id: workflowData.case._id || caseData._id,
           title: workflowData.case.title || caseData.title,
-          caseNumber: workflowData.case.caseNumber || caseData.caseNumber,
           category: workflowData.case.category || caseData.category,
           subcategory: workflowData.case.subcategory || caseData.subcategory,
           status: workflowData.case.status || caseData.status,
@@ -2393,25 +2464,21 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           dueDate: workflowData.case.dueDate || caseData.dueDate
         };
         setCaseData(caseDataFromAPI);
-        console.log('📋 Case data auto-filled:', caseDataFromAPI);
       }
 
       // Auto-fill selected forms
       if (workflowData.selectedForms && Array.isArray(workflowData.selectedForms)) {
         setSelectedForms(workflowData.selectedForms);
-        console.log('📝 Selected forms auto-filled:', workflowData.selectedForms);
       }
 
       // Auto-fill form case IDs
       if (workflowData.formCaseIds) {
         setFormCaseIds(workflowData.formCaseIds);
-        console.log('🔢 Form case IDs auto-filled:', workflowData.formCaseIds);
       }
 
       // Auto-fill selected questionnaire
       if (workflowData.selectedQuestionnaire) {
         setSelectedQuestionnaire(workflowData.selectedQuestionnaire);
-        console.log('❓ Selected questionnaire auto-filled:', workflowData.selectedQuestionnaire);
       }
 
       // Auto-fill client credentials
@@ -2421,24 +2488,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           email: workflowData.clientCredentials.email || clientCredentials.email,
           createAccount: workflowData.clientCredentials.createAccount || clientCredentials.createAccount
         });
-        console.log('🔐 Client credentials auto-filled:', workflowData.clientCredentials);
       }
 
       // Auto-fill current step if specified
       if (workflowData.currentStep !== undefined && workflowData.currentStep >= 0) {
         setCurrentStep(Math.max(workflowData.currentStep, currentStep)); // Don't go backwards
-        console.log('📍 Current step updated to:', workflowData.currentStep);
       }
 
-      toast.success(`✅ Form details auto-filled! Loaded: ${workflowData.client?.name || 'Client'} - ${workflowData.case?.title || 'Case'}`, {
-        duration: 3000
-      });
-
-      console.log('🎉 Auto-fill from API response completed successfully');
-
     } catch (error) {
-      console.error('❌ Error auto-filling from API response:', error);
-      toast.error('Failed to auto-fill form details from API data');
+      // Error auto-filling from API response
     }
   };
 
@@ -2461,7 +2519,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         questionnaireAssignment: questionnaireAssignment || null,
         clientResponses: clientResponses || {},
         formDetails: formDetails || [],
-        steps: WORKFLOW_STEPS.map((step, idx) => ({
+        steps: NEW_WORKFLOW_STEPS.map((step, idx) => ({
           id: step.id,
           title: step.title,
           description: step.description,
@@ -2539,8 +2597,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         caseSubcategory: caseData.subcategory || '',
         visaType: caseData.visaType || '',
         priorityDate: caseData.priorityDate || '',
-        caseNumber: caseData.caseNumber || '',
-
+        
         // Client responses from questionnaire
         ...clientResponses,
 
@@ -2564,8 +2621,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // Prepare the data for the API
       const preparedData = prepareFormData(formData);
 
-      console.log('Auto-generating forms with data:', preparedData);
-
       // Generate forms for each selected form
       const newGeneratedForms = [];
 
@@ -2574,8 +2629,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // For now, we'll use a template ID based on the form name
           // In a real implementation, you'd map form names to actual template IDs
           const templateId = formName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-
-          console.log(`Generating form: ${formName} with template: ${templateId}`);
 
           // Add a placeholder for generating status
           newGeneratedForms.push({
@@ -2608,11 +2661,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               };
             }
 
-            toast.success(`Generated ${formName} successfully`);
+            // Generated form successfully
           }
         } catch (error) {
-          console.error(`Error generating ${formName}:`, error);
-
           // Update the form with error status
           const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
           if (formIndex !== -1) {
@@ -2634,11 +2685,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setGeneratedForms(newGeneratedForms);
 
       if (newGeneratedForms.some(f => f.status === 'success')) {
-        toast.success('Forms generated successfully! You can now download or preview them.');
+        // Forms generated successfully
       }
 
     } catch (error) {
-      console.error('Error in auto-generate forms:', error);
       toast.error('Failed to generate forms. Please try again.');
     } finally {
       setGeneratingForms(false);
@@ -2808,68 +2858,90 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
               <p className="text-blue-700">Enter the client's personal details to create their profile.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                id="name"
-                label="Full Name"
-                value={client.name}
-                onChange={(e) => {
-                  const fullName = e.target.value;
-                  // Parse name into firstName and lastName
-                  let firstName = '', lastName = '';
-                  if (fullName) {
-                    const nameParts = fullName.trim().split(' ');
-                    if (nameParts.length > 1) {
-                      firstName = nameParts[0];
-                      lastName = nameParts.slice(1).join(' ');
-                    } else {
-                      firstName = nameParts[0];
-                      lastName = 'Client'; // Default
-                    }
-                  }
-                  setClient({
-                    ...client,
-                    name: fullName,
-                    firstName: firstName,
-                    lastName: lastName
-                  });
-                }}
-                required
-              />
-              <Input
-                id="email"
-                label="Email Address"
-                type="email"
-                value={client.email}
-                onChange={(e) => setClient({ ...client, email: e.target.value })}
-                required
-              />
-              <Input
-                id="phone"
-                label="Phone Number"
-                value={client.phone}
-                onChange={(e) => setClient({ ...client, phone: e.target.value })}
-                required
-              />
-              <Input
-                id="dateOfBirth"
-                label="Date of Birth"
-                type="date"
-                value={client.dateOfBirth}
-                onChange={(e) => setClient({ ...client, dateOfBirth: e.target.value })}
-                required
-              />
-              <Input
-                id="nationality"
-                label="Nationality"
-                value={client.nationality}
-                onChange={(e) => setClient({ ...client, nationality: e.target.value })}
-                required
-              />
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">Personal Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input
+                  id="firstName"
+                  label="First Name"
+                  value={client.firstName}
+                  onChange={(e) => {
+                    const firstName = e.target.value;
+                    const fullName = `${firstName} ${client.middleName || ''} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
+                    setClient({
+                      ...client, 
+                      firstName: firstName,
+                      name: fullName
+                    });
+                  }}
+                  required
+                />
+                <Input
+                  id="middleName"
+                  label="Middle Name"
+                  value={client.middleName}
+                  onChange={(e) => {
+                    const middleName = e.target.value;
+                    const fullName = `${client.firstName || ''} ${middleName} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
+                    setClient({
+                      ...client, 
+                      middleName: middleName,
+                      name: fullName
+                    });
+                  }}
+                />
+                <Input
+                  id="lastName"
+                  label="Last Name"
+                  value={client.lastName}
+                  onChange={(e) => {
+                    const lastName = e.target.value;
+                    const fullName = `${client.firstName || ''} ${client.middleName || ''} ${lastName}`.trim().replace(/\s+/g, ' ');
+                    setClient({
+                      ...client, 
+                      lastName: lastName,
+                      name: fullName
+                    });
+                  }}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  id="email"
+                  label="Email Address"
+                  type="email"
+                  value={client.email}
+                  onChange={(e) => setClient({...client, email: e.target.value})}
+                  required
+                />
+                <Input
+                  id="phone"
+                  label="Phone Number"
+                  value={client.phone}
+                  onChange={(e) => setClient({...client, phone: e.target.value})}
+                  required
+                />
+                <Input
+                  id="dateOfBirth"
+                  label="Date of Birth"
+                  type="date"
+                  value={client.dateOfBirth}
+                  onChange={(e) => setClient({...client, dateOfBirth: e.target.value})}
+                  required
+                />
+                <Input
+                  id="nationality"
+                  label="Nationality"
+                  value={client.nationality}
+                  onChange={(e) => setClient({...client, nationality: e.target.value})}
+                  required
+                />
+              </div>
             </div>
             <div className="space-y-4">
-              <h4 className="font-medium text-gray-900">Address</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <h4 className="font-medium text-gray-900">Address Information</h4>
+              <div className="grid grid-cols-1 gap-4">
                 <Input
                   id="street"
                   label="Street Address"
@@ -2878,44 +2950,82 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     ...client,
                     address: { ...(client.address || {}), street: e.target.value }
                   })}
-                  className="md:col-span-2"
+                  placeholder="Enter street address"
                 />
-                <Input
-                  id="city"
-                  label="City"
-                  value={client.address?.city || ''}
-                  onChange={(e) => setClient({
-                    ...client,
-                    address: { ...(client.address || {}), city: e.target.value }
-                  })}
-                />
-                <Input
-                  id="state"
-                  label="State"
-                  value={client.address?.state || ''}
-                  onChange={(e) => setClient({
-                    ...client,
-                    address: { ...(client.address || {}), state: e.target.value }
-                  })}
-                />
-                <Input
-                  id="zipCode"
-                  label="ZIP Code"
-                  value={client.address?.zipCode || ''}
-                  onChange={(e) => setClient({
-                    ...client,
-                    address: { ...(client.address || {}), zipCode: e.target.value }
-                  })}
-                />
-                <Input
-                  id="country"
-                  label="Country"
-                  value={client.address?.country || ''}
-                  onChange={(e) => setClient({
-                    ...client,
-                    address: { ...(client.address || {}), country: e.target.value }
-                  })}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Select
+                    id="aptSuiteFlr"
+                    label="Apt/Suite/Flr"
+                    value={client.address?.aptSuiteFlr || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), aptSuiteFlr: e.target.value}
+                    })}
+                    options={[
+                      { value: '', label: 'Select Type' },
+                      { value: 'Apt', label: 'Apartment' },
+                      { value: 'Suite', label: 'Suite' },
+                      { value: 'Flr', label: 'Floor' },
+                      { value: 'Unit', label: 'Unit' },
+                      { value: 'Room', label: 'Room' }
+                    ]}
+                  />
+                  <Input
+                    id="aptNumber"
+                    label="Apt/Suite Number"
+                    value={client.address?.aptNumber || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), aptNumber: e.target.value}
+                    })}
+                    placeholder="Enter number"
+                  />
+                  <div></div> {/* Empty div for spacing */}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    id="city"
+                    label="City"
+                    value={client.address?.city || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), city: e.target.value}
+                    })}
+                    required
+                  />
+                  <Input
+                    id="state"
+                    label="State/Province"
+                    value={client.address?.state || client.address?.province || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), state: e.target.value, province: e.target.value}
+                    })}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    id="zipCode"
+                    label="ZIP/Postal Code"
+                    value={client.address?.zipCode || client.address?.postalCode || ''}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), zipCode: e.target.value, postalCode: e.target.value}
+                    })}
+                    required
+                  />
+                  <Input
+                    id="country"
+                    label="Country"
+                    value={client.address?.country || 'United States'}
+                    onChange={(e) => setClient({
+                      ...client, 
+                      address: {...(client.address || {}), country: e.target.value}
+                    })}
+                    required
+                  />
+                </div>
               </div>
             </div>
             <div className="flex justify-between">
@@ -2983,13 +3093,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   value={caseData.title || ''}
                   onChange={e => setCaseData({ ...caseData, title: e.target.value })}
                   required
-                />
-                <Input
-                  id="caseNumber"
-                  label="Case Number"
-                  placeholder="Enter case number"
-                  value={caseData.caseNumber || ''}
-                  onChange={e => setCaseData({ ...caseData, caseNumber: e.target.value })}
                 />
                 <Select
                   id="category"
@@ -4194,11 +4297,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               return null;
             })()}
 
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={handlePrevious}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
+            <div className="flex justify-end">
               {isViewEditMode ? (
                 // Simple Next button in view/edit mode
                 <Button
@@ -4276,7 +4375,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   <div><strong>Nationality:</strong> {client.nationality}</div>
                   <div><strong>Address:</strong> {client.address?.street}, {client.address?.city}, {client.address?.state} {client.address?.zipCode}, {client.address?.country}</div>
                   <div><strong>Case Title:</strong> {caseData.title}</div>
-                  <div><strong>Case Number:</strong> {caseData.caseNumber}</div>
                   <div><strong>Case Type:</strong> {caseData.type || caseData.visaType}</div>
                   <div><strong>Status:</strong> {caseData.status}</div>
                   <div><strong>Assigned Attorney:</strong> {caseData.assignedTo || 'Not assigned'}</div>
@@ -4303,66 +4401,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   )}
                 </div>
 
-                {/* Questionnaire responses summary */}
-                {questionnaireAssignment && (() => {
-                  // Enhanced flexible matching to find the assigned questionnaire
-                  const questionnaire = availableQuestionnaires.find(q => {
-                    // Check all possible ID fields
-                    const possibleIds = [
-                      q._id,          // MongoDB ObjectId
-                      q.id,           // Original ID or API ID
-                      q.originalId,   // Original ID before conversion
-                      q.name          // Fallback to name if used as ID
-                    ].filter(Boolean); // Remove undefined/null values
 
-                    // For API questionnaires, prioritize matching the q_ prefixed ID
-                    if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
-
-                      return true;
-                    }
-
-                    // Check if any of the possible IDs match
-                    const matches = possibleIds.includes(questionnaireAssignment.questionnaireId);
-                    if (matches) {
-
-                    }
-                    return matches;
-                  });
-                  const questions = questionnaire ? (questionnaire.fields || questionnaire.questions) : [];
-                  if (!questions || questions.length === 0) {
-                    return (
-                      <div className="mt-6">
-                        <strong className="font-medium text-gray-900 mb-2 block">Questionnaire Responses</strong>
-                        <div className="text-gray-500 italic">No questionnaire responses found.</div>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="mt-6">
-                      <strong className="font-medium text-gray-900 mb-2 block">Questionnaire Responses</strong>
-                      <div className="space-y-2">
-                        {questions.map((q: any, idx: number) => {
-                          const key = q.id || q.label || `q_${idx}`;
-                          const answer = clientResponses[key];
-                          let displayAnswer = '';
-                          if (Array.isArray(answer)) {
-                            displayAnswer = answer.join(', ');
-                          } else if (typeof answer === 'boolean') {
-                            displayAnswer = answer ? 'Yes' : 'No';
-                          } else {
-                            displayAnswer = answer || '-';
-                          }
-                          return (
-                            <div key={key} className="flex flex-col md:flex-row md:items-center md:gap-2">
-                              <span className="font-medium text-gray-700"><strong>{q.label || q.question}:</strong></span>
-                              <span className="text-gray-900">{displayAnswer}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
               </div>
             </div>
 
@@ -4591,7 +4630,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               {isViewEditMode ? (
                 // Simple completion message in view/edit mode
                 <Button
-                  onClick={() => toast.success('Workflow review completed!')}
+                  onClick={() => {
+                  // Workflow review completed
+                }}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   Complete Review
@@ -4700,7 +4741,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               })
             ) : (
               // New client response workflow
-              WORKFLOW_STEPS.map((step, index) => {
+              NEW_WORKFLOW_STEPS.map((step, index) => {
                 const Icon = step.icon;
                 const isCompleted = index < currentStep;
                 const isCurrent = index === currentStep;
