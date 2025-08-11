@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-// import { useNavigate } from 'react-router-dom'; // Not used
 import {
   Users, FileText, ClipboardList, Send, Download, CheckCircle,
   ArrowRight, ArrowLeft, User, Briefcase, FormInput,
@@ -7,8 +6,8 @@ import {
   Loader, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
 import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../utils/idValidation';
-// No debug utilities needed in production
 import api from '../utils/api';
 import { APPCONSTANTS } from '../utils/constants';
 import {
@@ -16,12 +15,10 @@ import {
   generateMultipleCaseIds,
   formatCaseId
 } from '../utils/caseIdGenerator';
-
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import TextArea from '../components/common/TextArea';
-// import FileUpload from '../components/common/FileUpload'; // Not used
 import { downloadFilledI130PDF } from '../utils/pdfUtils';
 import {
   isQuestionnaireApiAvailable,
@@ -36,7 +33,6 @@ import {
   revokePdfBlobUrl
 } from '../controllers/FormAutoFillControllers';
 import {
-  // assignQuestionnaire, // Not used
   isApiEndpointAvailable
 } from '../controllers/QuestionnaireAssignmentControllers';
 import {
@@ -45,9 +41,7 @@ import {
 } from '../controllers/QuestionnaireResponseControllers';
 import {
   generateSecurePassword
-  // createClientUserAccount no longer used - skipping user account creation
 } from '../controllers/UserCreationController';
-// Service imports have been moved to controllers
 import { getClients as fetchClientsFromAPI, getClientById, Client as APIClient } from '../controllers/ClientControllers';
 import { getFormTemplates, FormTemplate } from '../controllers/SettingsControllers';
 
@@ -166,11 +160,12 @@ const NEW_WORKFLOW_STEPS = [
   { id: 'client', title: 'Create Client', icon: Users, description: 'Add new client information' },
   { id: 'case', title: 'Create Case', icon: Briefcase, description: 'Set up case details and category' },
   { id: 'forms', title: 'Select Forms', icon: FileText, description: 'Choose required forms for filing' },
-  { id: 'questionnaire', title: 'Assign Questions', icon: ClipboardList, description: 'Send questionnaire to client' },
-  { id: 'answers', title: 'Collect Answers', icon: MessageSquare, description: 'Review client responses' },
-  { id: 'form-details', title: 'Form Details', icon: FormInput, description: 'Complete form information' },
-  { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
+  { id: 'questionnaire', title: 'Assign Questions', icon: ClipboardList, description: 'Send questionnaire to client' }
 ];
+
+// { id: 'answers', title: 'Collect Answers', icon: MessageSquare, description: 'Review client responses' },
+// { id: 'form-details', title: 'Form Details', icon: FormInput, description: 'Complete form information' },
+// { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
 
 // Workflow steps for existing client responses (coming from questionnaire responses)
 const EXIST_WORKFLOW_STEPS = [
@@ -270,7 +265,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // State to track if we're in view/edit mode from QuestionnaireResponses
   const [isViewEditMode, setIsViewEditMode] = useState(false);
-  
+
   // State to track if this is a new response or existing response
   const [isNewResponse, setIsNewResponse] = useState(true);
   const [isExistResponse, setIsExistResponse] = useState(false);
@@ -590,7 +585,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Step 5: Responses (index 5) - Set existing responses if in edit mode
           if (data.mode === 'edit' && data.existingResponses) {
             setClientResponses(data.existingResponses);
-            
+
             // Set as existing response workflow
             setIsExistResponse(true);
             setIsNewResponse(false);
@@ -896,65 +891,65 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Find the handleClientSubmit function and update it to check for existing clients
 
-const handleClientSubmit = async () => {
-
-  
-  // Ensure client has first and last name
-  if (!client.firstName || client.firstName.trim() === '') {
-    toast.error('First name is required');
-    return;
-  }
-  
-  if (!client.lastName || client.lastName.trim() === '') {
-    toast.error('Last name is required');
-    return;
-  }
-  
-  // Validate email
-  if (!client.email || !client.email.includes('@')) {
-    toast.error('Valid email address is required');
-    return;
-  }
-  
-  // Validate required address fields
-  if (!client.address?.city || client.address.city.trim() === '') {
-    toast.error('City is required');
-    return;
-  }
-  
-  if (!client.address?.state || client.address.state.trim() === '') {
-    toast.error('State/Province is required');
-    return;
-  }
-  
-  if (!client.address?.zipCode || client.address.zipCode.trim() === '') {
-    toast.error('ZIP/Postal Code is required');
-    return;
-  }
-  
-  if (!client.address?.country || client.address.country.trim() === '') {
-    toast.error('Country is required');
-    return;
-  }
-  
-  // Update the name field from firstName, middleName, and lastName
-  const fullName = `${client.firstName} ${client.middleName || ''} ${client.lastName}`.trim().replace(/\s+/g, ' ');
-  setClient((prev: any) => ({ ...prev, name: fullName }));
-  
-  // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
-  if (!client.password) {
-
-    toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
-    return null;
-  }
-  
-  // Use the email and password from questionnaire assignment screen or generated password
-  const clientEmail = client.email;
-  const clientPassword = client.password;
-  
+  const handleClientSubmit = async () => {
 
 
-    
+    // Ensure client has first and last name
+    if (!client.firstName || client.firstName.trim() === '') {
+      toast.error('First name is required');
+      return;
+    }
+
+    if (!client.lastName || client.lastName.trim() === '') {
+      toast.error('Last name is required');
+      return;
+    }
+
+    // Validate email
+    if (!client.email || !client.email.includes('@')) {
+      toast.error('Valid email address is required');
+      return;
+    }
+
+    // Validate required address fields
+    if (!client.address?.city || client.address.city.trim() === '') {
+      toast.error('City is required');
+      return;
+    }
+
+    if (!client.address?.state || client.address.state.trim() === '') {
+      toast.error('State/Province is required');
+      return;
+    }
+
+    if (!client.address?.zipCode || client.address.zipCode.trim() === '') {
+      toast.error('ZIP/Postal Code is required');
+      return;
+    }
+
+    if (!client.address?.country || client.address.country.trim() === '') {
+      toast.error('Country is required');
+      return;
+    }
+
+    // Update the name field from firstName, middleName, and lastName
+    const fullName = `${client.firstName} ${client.middleName || ''} ${client.lastName}`.trim().replace(/\s+/g, ' ');
+    setClient((prev: any) => ({ ...prev, name: fullName }));
+
+    // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
+    if (!client.password) {
+
+      toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
+      return null;
+    }
+
+    // Use the email and password from questionnaire assignment screen or generated password
+    const clientEmail = client.email;
+    const clientPassword = client.password;
+
+
+
+
     return await createClientAccountWithCredentials(clientEmail, clientPassword);
   };
 
@@ -966,7 +961,7 @@ const handleClientSubmit = async () => {
     // Use the firstName and lastName from the client state directly
     const firstName = client.firstName.trim();
     const lastName = client.lastName.trim();
-    
+
     try {
 
 
@@ -2404,7 +2399,7 @@ const handleClientSubmit = async () => {
 
       // Note: Data is now only saved to backend via API, not localStorage
 
-              // Questionnaire responses saved successfully
+      // Questionnaire responses saved successfully
       handleNext();
     } catch (error) {
 
@@ -2597,7 +2592,7 @@ const handleClientSubmit = async () => {
         caseSubcategory: caseData.subcategory || '',
         visaType: caseData.visaType || '',
         priorityDate: caseData.priorityDate || '',
-        
+
         // Client responses from questionnaire
         ...clientResponses,
 
@@ -2730,129 +2725,85 @@ const handleClientSubmit = async () => {
     };
   }, [generatedForms]);
 
-
-  const renderStepContent = () => {
-    const workflowSteps = getWorkflowSteps();
-    
-    // For existing responses, map the current step to the appropriate step in the workflow
-    let actualStep = currentStep;
-    if (isExistResponse) {
-      // Map existing response workflow steps to the actual step content
-      // EXIST_WORKFLOW_STEPS: ['answers', 'form-details', 'auto-fill']
-      // WORKFLOW_STEPS: ['start', 'client', 'case', 'forms', 'questionnaire', 'answers', 'form-details', 'auto-fill']
-      switch (currentStep) {
-        case 0: // Review Responses (answers)
-          actualStep = 5; // Map to answers step in full workflow
-          break;
-        case 1: // Form Details
-          actualStep = 6; // Map to form-details step in full workflow
-          break;
-        case 2: // Auto-fill Forms
-          actualStep = 7; // Map to auto-fill step in full workflow
-          break;
-        default:
-          actualStep = currentStep;
-      }
-    }
-    
-    switch (actualStep) {
+  // Handles steps for new responses
+  const renderNewResponseStep = (step: number) => {
+    switch (step) {
       case 0: // Start: New or Existing Client
-        // Skip start step for existing responses
-        if (isExistResponse) {
-          return (
-            <div className="space-y-8">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">Review Existing Responses</h3>
-                <p className="text-blue-700">Review and edit existing client responses before proceeding to form details.</p>
-              </div>
-            </div>
-          );
-        }
-        
         return (
+          // <div>Start: New or Existing Client</div>
           <div className="space-y-8">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-blue-900 mb-2">Start Workflow</h3>
-              <p className="text-blue-700">Choose to create a new client or select an existing client to begin the workflow.</p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-blue-900 mb-2">Start Workflow</h3>
+            <p className="text-blue-700">Choose to create a new client or select an existing client to begin the workflow.</p>
+          </div>
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* New Client */}
+            <div className="flex-1 bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-between">
+              <User className="w-10 h-10 text-blue-500 mb-2" />
+              <h4 className="font-medium text-gray-900 mb-2">New Client</h4>
+              <p className="text-gray-600 mb-4 text-center">Enter new client details and start a new case.</p>
+              <Button onClick={() => setCurrentStep(1)} className="w-full">Create New Client</Button>
             </div>
-            <div className="flex flex-col md:flex-row gap-8">
-              {/* New Client */}
-              <div className="flex-1 bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-between">
-                <User className="w-10 h-10 text-blue-500 mb-2" />
-                <h4 className="font-medium text-gray-900 mb-2">New Client</h4>
-                <p className="text-gray-600 mb-4 text-center">Enter new client details and start a new case.</p>
-                <Button onClick={() => setCurrentStep(1)} className="w-full">Create New Client</Button>
-              </div>
-              {/* Existing Client */}
-              <div className="flex-1 bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-between">
-                <Users className="w-10 h-10 text-green-500 mb-2" />
-                <h4 className="font-medium text-gray-900 mb-2">Existing Client</h4>
-                <p className="text-gray-600 mb-4 text-center">Select an existing client to auto-load their information.</p>
-                <div className="w-full mb-4">
-                  {fetchingClients ? (
-                    <div className="text-gray-500 text-center">Loading clients...</div>
-                  ) : (
-                    <Select
-                      id="existingClient"
-                      label="Select Client"
-                      value={selectedExistingClientId}
-                      onChange={e => {
+            {/* Existing Client */}
+            <div className="flex-1 bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-between">
+              <Users className="w-10 h-10 text-green-500 mb-2" />
+              <h4 className="font-medium text-gray-900 mb-2">Existing Client</h4>
+              <p className="text-gray-600 mb-4 text-center">Select an existing client to auto-load their information.</p>
+              <div className="w-full mb-4">
+                {fetchingClients ? (
+                  <div className="text-gray-500 text-center">Loading clients...</div>
+                ) : (
+                  <Select
+                    id="existingClient"
+                    label="Select Client"
+                    value={selectedExistingClientId}
+                    onChange={e => {
 
-                        setSelectedExistingClientId(e.target.value);
-                      }}
-                      options={[
-                        { value: '', label: 'Choose a client' },
-                        ...existingClients
-                          .filter(c => typeof (c as any)._id === 'string' && (c as any)._id.length === 24)
-                          .map(c => {
-                            const anyClient = c as any;
-                            return {
-                              value: anyClient._id,
-                              label: `${anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim()} (${anyClient.email || ''})`
-                            };
-                          })
-                      ]}
-                    />
-                  )}
-                </div>
-                <Button
-                  onClick={async () => {
-                    if (!selectedExistingClientId) return;
-                    setLoading(true);
-                    try {
-                      const fullClient = await getClientById(selectedExistingClientId);
-                      const anyClient = fullClient as any;
-                      const name = anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim();
-                      setClient({ ...fullClient, name });
-                      setCaseData(prev => ({ ...prev, clientId: selectedExistingClientId }));
-                      setCurrentStep(2); // Advance immediately after fetching
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                  disabled={!selectedExistingClientId || loading}
-                  className="w-full"
-                >
-                  {loading ? 'Loading...' : 'Use Selected Client'}
-                </Button>
+                      setSelectedExistingClientId(e.target.value);
+                    }}
+                    options={[
+                      { value: '', label: 'Choose a client' },
+                      ...existingClients
+                        .filter(c => typeof (c as any)._id === 'string' && (c as any)._id.length === 24)
+                        .map(c => {
+                          const anyClient = c as any;
+                          return {
+                            value: anyClient._id,
+                            label: `${anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim()} (${anyClient.email || ''})`
+                          };
+                        })
+                    ]}
+                  />
+                )}
               </div>
+              <Button
+                onClick={async () => {
+                  if (!selectedExistingClientId) return;
+                  setLoading(true);
+                  try {
+                    const fullClient = await getClientById(selectedExistingClientId);
+                    const anyClient = fullClient as any;
+                    const name = anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim();
+                    setClient({ ...fullClient, name });
+                    setCaseData(prev => ({ ...prev, clientId: selectedExistingClientId }));
+                    setCurrentStep(2); // Advance immediately after fetching
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={!selectedExistingClientId || loading}
+                className="w-full"
+              >
+                {loading ? 'Loading...' : 'Use Selected Client'}
+              </Button>
             </div>
           </div>
+        </div>
         );
+
       case 1: // Create Client
-        // Skip client creation for existing responses
-        if (isExistResponse) {
-          return (
-            <div className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
-                <p className="text-blue-700">Client information is already available from existing responses.</p>
-              </div>
-            </div>
-          );
-        }
-        
         return (
+          // <div>Create Client</div>
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
@@ -2869,7 +2820,7 @@ const handleClientSubmit = async () => {
                     const firstName = e.target.value;
                     const fullName = `${firstName} ${client.middleName || ''} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
                     setClient({
-                      ...client, 
+                      ...client,
                       firstName: firstName,
                       name: fullName
                     });
@@ -2884,7 +2835,7 @@ const handleClientSubmit = async () => {
                     const middleName = e.target.value;
                     const fullName = `${client.firstName || ''} ${middleName} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
                     setClient({
-                      ...client, 
+                      ...client,
                       middleName: middleName,
                       name: fullName
                     });
@@ -2898,7 +2849,7 @@ const handleClientSubmit = async () => {
                     const lastName = e.target.value;
                     const fullName = `${client.firstName || ''} ${client.middleName || ''} ${lastName}`.trim().replace(/\s+/g, ' ');
                     setClient({
-                      ...client, 
+                      ...client,
                       lastName: lastName,
                       name: fullName
                     });
@@ -2912,14 +2863,14 @@ const handleClientSubmit = async () => {
                   label="Email Address"
                   type="email"
                   value={client.email}
-                  onChange={(e) => setClient({...client, email: e.target.value})}
+                  onChange={(e) => setClient({ ...client, email: e.target.value })}
                   required
                 />
                 <Input
                   id="phone"
                   label="Phone Number"
                   value={client.phone}
-                  onChange={(e) => setClient({...client, phone: e.target.value})}
+                  onChange={(e) => setClient({ ...client, phone: e.target.value })}
                   required
                 />
                 <Input
@@ -2927,14 +2878,14 @@ const handleClientSubmit = async () => {
                   label="Date of Birth"
                   type="date"
                   value={client.dateOfBirth}
-                  onChange={(e) => setClient({...client, dateOfBirth: e.target.value})}
+                  onChange={(e) => setClient({ ...client, dateOfBirth: e.target.value })}
                   required
                 />
                 <Input
                   id="nationality"
                   label="Nationality"
                   value={client.nationality}
-                  onChange={(e) => setClient({...client, nationality: e.target.value})}
+                  onChange={(e) => setClient({ ...client, nationality: e.target.value })}
                   required
                 />
               </div>
@@ -2958,8 +2909,8 @@ const handleClientSubmit = async () => {
                     label="Apt/Suite/Flr"
                     value={client.address?.aptSuiteFlr || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), aptSuiteFlr: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), aptSuiteFlr: e.target.value }
                     })}
                     options={[
                       { value: '', label: 'Select Type' },
@@ -2975,8 +2926,8 @@ const handleClientSubmit = async () => {
                     label="Apt/Suite Number"
                     value={client.address?.aptNumber || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), aptNumber: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), aptNumber: e.target.value }
                     })}
                     placeholder="Enter number"
                   />
@@ -2988,8 +2939,8 @@ const handleClientSubmit = async () => {
                     label="City"
                     value={client.address?.city || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), city: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), city: e.target.value }
                     })}
                     required
                   />
@@ -2998,8 +2949,8 @@ const handleClientSubmit = async () => {
                     label="State/Province"
                     value={client.address?.state || client.address?.province || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), state: e.target.value, province: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), state: e.target.value, province: e.target.value }
                     })}
                     required
                   />
@@ -3010,8 +2961,8 @@ const handleClientSubmit = async () => {
                     label="ZIP/Postal Code"
                     value={client.address?.zipCode || client.address?.postalCode || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), zipCode: e.target.value, postalCode: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), zipCode: e.target.value, postalCode: e.target.value }
                     })}
                     required
                   />
@@ -3020,8 +2971,8 @@ const handleClientSubmit = async () => {
                     label="Country"
                     value={client.address?.country || 'United States'}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), country: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), country: e.target.value }
                     })}
                     required
                   />
@@ -3066,19 +3017,8 @@ const handleClientSubmit = async () => {
         );
 
       case 2: // Create Case
-        // Skip case creation for existing responses
-        if (isExistResponse) {
-          return (
-            <div className="space-y-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-green-900 mb-2">Case Setup</h3>
-                <p className="text-green-700">Case information is already available from existing responses.</p>
-              </div>
-            </div>
-          );
-        }
-        
         return (
+          // <div>Create Case</div>
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-green-900 mb-2">Case Setup</h3>
@@ -3231,20 +3171,9 @@ const handleClientSubmit = async () => {
         );
 
       case 3: // Select Forms
-        // Skip forms selection for existing responses
-        if (isExistResponse) {
-          return (
-            <div className="space-y-6">
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Form</h3>
-                <p className="text-purple-700">Forms are already selected from existing responses.</p>
-              </div>
-            </div>
-          );
-        }
-        
         return (
-          <div className="space-y-6">
+          // <div>Select Forms</div>
+           <div className="space-y-6">
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Form</h3>
               <p className="text-purple-700">Select the form required for this case based on the selected category.</p>
@@ -3347,20 +3276,9 @@ const handleClientSubmit = async () => {
           </div>
         );
 
-      case 4: // Assign Questionnaire (now using QuestionnaireBuilder/availableQuestionnaires)
-        // Skip questionnaire assignment for existing responses
-        if (isExistResponse) {
-          return (
-            <div className="space-y-6">
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-orange-900 mb-2">Assign Questionnaire</h3>
-                <p className="text-orange-700">Questionnaire is already assigned and responses are available.</p>
-              </div>
-            </div>
-          );
-        }
-        
+      case 4: // Assign Questionnaire
         return (
+          // <div>Assign Questionnaire</div>
           <div className="space-y-6">
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-orange-900 mb-2">Assign Questionnaire</h3>
@@ -3762,83 +3680,131 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              {isViewEditMode ? (
-                // Simple Next button in view/edit mode
+
+              {/* New button with disable/enable based on details entered */}
+              <div className="flex gap-3">
                 <Button
-                  onClick={handleNext}
+                  onClick={() => {
+                    // Check if questionnaire details are entered
+                    if (selectedQuestionnaire) {
+                      const questionnaire = availableQuestionnaires.find(q => {
+                        const possibleIds = [q._id, q.id, q.originalId, q.name].filter(Boolean);
+                        return q.apiQuestionnaire && q.id === selectedQuestionnaire || possibleIds.includes(selectedQuestionnaire);
+                      });
+
+                      if (questionnaire) {
+                        toast.success('Questionnaire details are complete!');
+                      } else {
+                        toast.error('Please select a valid questionnaire first.');
+                      }
+                    } else {
+                      toast.error('Please select a questionnaire first.');
+                    }
+                  }}
                   disabled={!selectedQuestionnaire}
+                  className={`${!selectedQuestionnaire ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
                 >
-                  Next
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                  {selectedQuestionnaire ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Details Complete
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-4 h-4 mr-2" />
+                      Details Required
+                    </>
+                  )}
                 </Button>
-              ) : (
-                selectedQuestionnaire && (() => {
-                  // Enhanced flexible matching to find the selected questionnaire
-                  const questionnaire = availableQuestionnaires.find(q => {
-                    // Check all possible ID fields
-                    const possibleIds = [
-                      q._id,          // MongoDB ObjectId
-                      q.id,           // Original ID or API ID
-                      q.originalId,   // Original ID before conversion
-                      q.name          // Fallback to name if used as ID
-                    ].filter(Boolean); // Remove undefined/null values
 
-                    // For API questionnaires, prioritize matching the q_ prefixed ID
-                    if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+                {isViewEditMode ? (
+                  // Simple Next button in view/edit mode
+                  <Button
+                    onClick={handleNext}
+                    disabled={!selectedQuestionnaire}
+                  >
+                    Next
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                ) : (
+                  selectedQuestionnaire && (() => {
+                    // Enhanced flexible matching to find the selected questionnaire
+                    const questionnaire = availableQuestionnaires.find(q => {
+                      // Check all possible ID fields
+                      const possibleIds = [
+                        q._id,          // MongoDB ObjectId
+                        q.id,           // Original ID or API ID
+                        q.originalId,   // Original ID before conversion
+                        q.name          // Fallback to name if used as ID
+                      ].filter(Boolean); // Remove undefined/null values
 
-                      return true;
+                      // For API questionnaires, prioritize matching the q_ prefixed ID
+                      if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+
+                        return true;
+                      }
+
+                      // Check if any of the possible IDs match
+                      const matches = possibleIds.includes(selectedQuestionnaire);
+                      if (matches) {
+
+                      }
+                      return matches;
+                    });
+                    const hasFields = questionnaire &&
+                      (questionnaire.fields?.length > 0 || questionnaire.questions?.length > 0);
+
+                    if (!hasFields) {
+                      return (
+                        <div className="flex items-center">
+                          <Button
+                            onClick={() => toast.error('This questionnaire has no questions defined. Please select another questionnaire.')}
+                            className="bg-yellow-500 hover:bg-yellow-600"
+                          >
+                            <AlertCircle className="w-4 h-4 mr-2" />
+                            No Questions Available
+                          </Button>
+                        </div>
+                      );
                     }
 
-                    // Check if any of the possible IDs match
-                    const matches = possibleIds.includes(selectedQuestionnaire);
-                    if (matches) {
-
-                    }
-                    return matches;
-                  });
-                  const hasFields = questionnaire &&
-                    (questionnaire.fields?.length > 0 || questionnaire.questions?.length > 0);
-
-                  if (!hasFields) {
                     return (
-                      <div className="flex items-center">
-                        <Button
-                          onClick={() => toast.error('This questionnaire has no questions defined. Please select another questionnaire.')}
-                          className="bg-yellow-500 hover:bg-yellow-600"
-                        >
-                          <AlertCircle className="w-4 h-4 mr-2" />
-                          No Questions Available
-                        </Button>
-                      </div>
+                      <Button
+                        onClick={handleQuestionnaireAssignment}
+                        disabled={!selectedQuestionnaire}
+                      >
+                        {loading ? (
+                          <>
+                            <Loader className="w-4 h-4 mr-2 animate-spin" />
+                            Assigning...
+                          </>
+                        ) : (
+                          <>
+                            Assign to Client & Continue
+                            <Send className="w-4 h-4 ml-2" />
+                          </>
+                        )}
+                      </Button>
                     );
-                  }
-
-                  return (
-                    <Button
-                      onClick={handleQuestionnaireAssignment}
-                      disabled={!selectedQuestionnaire}
-                    >
-                      {loading ? (
-                        <>
-                          <Loader className="w-4 h-4 mr-2 animate-spin" />
-                          Assigning...
-                        </>
-                      ) : (
-                        <>
-                          Assign to Client & Continue
-                          <Send className="w-4 h-4 ml-2" />
-                        </>
-                      )}
-                    </Button>
-                  );
-                })()
-              )}
+                  })()
+                )}
+              </div>
             </div>
           </div>
         );
 
-      case 5: // Collect Answers (Dynamic client responses for selected questionnaire)
+      default:
+        return null;
+    }
+  };
+
+
+  // Handles steps for existing responses
+  const renderExistResponseStep = (step: number) => {
+    switch (step) {
+      case 0: // Review Responses (answers)
         return (
+          // <div>Review Responses (answers)</div>
           <div className="space-y-6">
 
             <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
@@ -4321,9 +4287,9 @@ const handleClientSubmit = async () => {
 
           </div>
         );
-
-      case 6: // Form Details
+      case 1: // Form Details
         return (
+          // <div>Form Details</div>
           <div className="space-y-6">
             <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-teal-900 mb-2">Form Details</h3>
@@ -4426,9 +4392,9 @@ const handleClientSubmit = async () => {
             </div>
           </div>
         );
-
-      case 7: // Auto-fill Forms
+      case 2: // Auto-fill Forms
         return (
+          // <div>Auto-fill Forms</div>
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-green-900 mb-2">Auto-Fill Forms</h3>
@@ -4631,8 +4597,8 @@ const handleClientSubmit = async () => {
                 // Simple completion message in view/edit mode
                 <Button
                   onClick={() => {
-                  // Workflow review completed
-                }}
+                    // Workflow review completed
+                  }}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   Complete Review
@@ -4679,11 +4645,2013 @@ const handleClientSubmit = async () => {
             </div>
           </div>
         );
-
       default:
-        return <div />;
+        return null;
     }
   };
+
+
+  const renderStepContent = () => {
+    if (isExistResponse) {
+      return renderExistResponseStep(currentStep);
+    } else {
+      return renderNewResponseStep(currentStep);
+    }
+  };
+
+
+  // const renderStepContent = () => {
+  //   const workflowSteps = getWorkflowSteps();
+
+  //   // For existing responses, map the current step to the appropriate step in the workflow
+  //   let actualStep = currentStep;
+  //   if (isExistResponse) {
+  //     // Map existing response workflow steps to the actual step content
+  //     // EXIST_WORKFLOW_STEPS: ['answers', 'form-details', 'auto-fill']
+  //     // WORKFLOW_STEPS: ['start', 'client', 'case', 'forms', 'questionnaire', 'answers', 'form-details', 'auto-fill']
+  //     switch (currentStep) {
+  //       case 0: // Review Responses (answers)
+  //         actualStep = 5; // Map to answers step in full workflow
+  //         break;
+  //       case 1: // Form Details
+  //         actualStep = 6; // Map to form-details step in full workflow
+  //         break;
+  //       case 2: // Auto-fill Forms
+  //         actualStep = 7; // Map to auto-fill step in full workflow
+  //         break;
+  //       default:
+  //         actualStep = currentStep;
+  //     }
+  //   }
+
+  //   switch (actualStep) {
+  //     case 0: // Start: New or Existing Client
+  //       // Skip start step for existing responses
+  //       if (isExistResponse) {
+  //         return (
+  //           <div className="space-y-8">
+  //             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+  //               <h3 className="text-lg font-semibold text-blue-900 mb-2">Review Existing Responses</h3>
+  //               <p className="text-blue-700">Review and edit existing client responses before proceeding to form details.</p>
+  //             </div>
+  //           </div>
+  //         );
+  //       }
+
+  //       return (
+  //         <div className="space-y-8">
+  //           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+  //             <h3 className="text-lg font-semibold text-blue-900 mb-2">Start Workflow</h3>
+  //             <p className="text-blue-700">Choose to create a new client or select an existing client to begin the workflow.</p>
+  //           </div>
+  //           <div className="flex flex-col md:flex-row gap-8">
+  //             {/* New Client */}
+  //             <div className="flex-1 bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-between">
+  //               <User className="w-10 h-10 text-blue-500 mb-2" />
+  //               <h4 className="font-medium text-gray-900 mb-2">New Client</h4>
+  //               <p className="text-gray-600 mb-4 text-center">Enter new client details and start a new case.</p>
+  //               <Button onClick={() => setCurrentStep(1)} className="w-full">Create New Client</Button>
+  //             </div>
+  //             {/* Existing Client */}
+  //             <div className="flex-1 bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-between">
+  //               <Users className="w-10 h-10 text-green-500 mb-2" />
+  //               <h4 className="font-medium text-gray-900 mb-2">Existing Client</h4>
+  //               <p className="text-gray-600 mb-4 text-center">Select an existing client to auto-load their information.</p>
+  //               <div className="w-full mb-4">
+  //                 {fetchingClients ? (
+  //                   <div className="text-gray-500 text-center">Loading clients...</div>
+  //                 ) : (
+  //                   <Select
+  //                     id="existingClient"
+  //                     label="Select Client"
+  //                     value={selectedExistingClientId}
+  //                     onChange={e => {
+
+  //                       setSelectedExistingClientId(e.target.value);
+  //                     }}
+  //                     options={[
+  //                       { value: '', label: 'Choose a client' },
+  //                       ...existingClients
+  //                         .filter(c => typeof (c as any)._id === 'string' && (c as any)._id.length === 24)
+  //                         .map(c => {
+  //                           const anyClient = c as any;
+  //                           return {
+  //                             value: anyClient._id,
+  //                             label: `${anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim()} (${anyClient.email || ''})`
+  //                           };
+  //                         })
+  //                     ]}
+  //                   />
+  //                 )}
+  //               </div>
+  //               <Button
+  //                 onClick={async () => {
+  //                   if (!selectedExistingClientId) return;
+  //                   setLoading(true);
+  //                   try {
+  //                     const fullClient = await getClientById(selectedExistingClientId);
+  //                     const anyClient = fullClient as any;
+  //                     const name = anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim();
+  //                     setClient({ ...fullClient, name });
+  //                     setCaseData(prev => ({ ...prev, clientId: selectedExistingClientId }));
+  //                     setCurrentStep(2); // Advance immediately after fetching
+  //                   } finally {
+  //                     setLoading(false);
+  //                   }
+  //                 }}
+  //                 disabled={!selectedExistingClientId || loading}
+  //                 className="w-full"
+  //               >
+  //                 {loading ? 'Loading...' : 'Use Selected Client'}
+  //               </Button>
+  //             </div>
+  //           </div>
+  //         </div>
+  //       );
+        
+  //     case 1: // Create Client
+  //       // Skip client creation for existing responses
+  //       if (isExistResponse) {
+  //         return (
+  //           <div className="space-y-6">
+  //             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+  //               <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
+  //               <p className="text-blue-700">Client information is already available from existing responses.</p>
+  //             </div>
+  //           </div>
+  //         );
+  //       }
+
+  //       return (
+  //         <div className="space-y-6">
+  //           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+  //             <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
+  //             <p className="text-blue-700">Enter the client's personal details to create their profile.</p>
+  //           </div>
+  //           <div className="space-y-4">
+  //             <h4 className="font-medium text-gray-900">Personal Information</h4>
+  //             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  //               <Input
+  //                 id="firstName"
+  //                 label="First Name"
+  //                 value={client.firstName}
+  //                 onChange={(e) => {
+  //                   const firstName = e.target.value;
+  //                   const fullName = `${firstName} ${client.middleName || ''} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
+  //                   setClient({
+  //                     ...client,
+  //                     firstName: firstName,
+  //                     name: fullName
+  //                   });
+  //                 }}
+  //                 required
+  //               />
+  //               <Input
+  //                 id="middleName"
+  //                 label="Middle Name"
+  //                 value={client.middleName}
+  //                 onChange={(e) => {
+  //                   const middleName = e.target.value;
+  //                   const fullName = `${client.firstName || ''} ${middleName} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
+  //                   setClient({
+  //                     ...client,
+  //                     middleName: middleName,
+  //                     name: fullName
+  //                   });
+  //                 }}
+  //               />
+  //               <Input
+  //                 id="lastName"
+  //                 label="Last Name"
+  //                 value={client.lastName}
+  //                 onChange={(e) => {
+  //                   const lastName = e.target.value;
+  //                   const fullName = `${client.firstName || ''} ${client.middleName || ''} ${lastName}`.trim().replace(/\s+/g, ' ');
+  //                   setClient({
+  //                     ...client,
+  //                     lastName: lastName,
+  //                     name: fullName
+  //                   });
+  //                 }}
+  //                 required
+  //               />
+  //             </div>
+  //             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //               <Input
+  //                 id="email"
+  //                 label="Email Address"
+  //                 type="email"
+  //                 value={client.email}
+  //                 onChange={(e) => setClient({ ...client, email: e.target.value })}
+  //                 required
+  //               />
+  //               <Input
+  //                 id="phone"
+  //                 label="Phone Number"
+  //                 value={client.phone}
+  //                 onChange={(e) => setClient({ ...client, phone: e.target.value })}
+  //                 required
+  //               />
+  //               <Input
+  //                 id="dateOfBirth"
+  //                 label="Date of Birth"
+  //                 type="date"
+  //                 value={client.dateOfBirth}
+  //                 onChange={(e) => setClient({ ...client, dateOfBirth: e.target.value })}
+  //                 required
+  //               />
+  //               <Input
+  //                 id="nationality"
+  //                 label="Nationality"
+  //                 value={client.nationality}
+  //                 onChange={(e) => setClient({ ...client, nationality: e.target.value })}
+  //                 required
+  //               />
+  //             </div>
+  //           </div>
+  //           <div className="space-y-4">
+  //             <h4 className="font-medium text-gray-900">Address Information</h4>
+  //             <div className="grid grid-cols-1 gap-4">
+  //               <Input
+  //                 id="street"
+  //                 label="Street Address"
+  //                 value={client.address?.street || ''}
+  //                 onChange={(e) => setClient({
+  //                   ...client,
+  //                   address: { ...(client.address || {}), street: e.target.value }
+  //                 })}
+  //                 placeholder="Enter street address"
+  //               />
+  //               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  //                 <Select
+  //                   id="aptSuiteFlr"
+  //                   label="Apt/Suite/Flr"
+  //                   value={client.address?.aptSuiteFlr || ''}
+  //                   onChange={(e) => setClient({
+  //                     ...client,
+  //                     address: { ...(client.address || {}), aptSuiteFlr: e.target.value }
+  //                   })}
+  //                   options={[
+  //                     { value: '', label: 'Select Type' },
+  //                     { value: 'Apt', label: 'Apartment' },
+  //                     { value: 'Suite', label: 'Suite' },
+  //                     { value: 'Flr', label: 'Floor' },
+  //                     { value: 'Unit', label: 'Unit' },
+  //                     { value: 'Room', label: 'Room' }
+  //                   ]}
+  //                 />
+  //                 <Input
+  //                   id="aptNumber"
+  //                   label="Apt/Suite Number"
+  //                   value={client.address?.aptNumber || ''}
+  //                   onChange={(e) => setClient({
+  //                     ...client,
+  //                     address: { ...(client.address || {}), aptNumber: e.target.value }
+  //                   })}
+  //                   placeholder="Enter number"
+  //                 />
+  //                 <div></div> {/* Empty div for spacing */}
+  //               </div>
+  //               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //                 <Input
+  //                   id="city"
+  //                   label="City"
+  //                   value={client.address?.city || ''}
+  //                   onChange={(e) => setClient({
+  //                     ...client,
+  //                     address: { ...(client.address || {}), city: e.target.value }
+  //                   })}
+  //                   required
+  //                 />
+  //                 <Input
+  //                   id="state"
+  //                   label="State/Province"
+  //                   value={client.address?.state || client.address?.province || ''}
+  //                   onChange={(e) => setClient({
+  //                     ...client,
+  //                     address: { ...(client.address || {}), state: e.target.value, province: e.target.value }
+  //                   })}
+  //                   required
+  //                 />
+  //               </div>
+  //               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //                 <Input
+  //                   id="zipCode"
+  //                   label="ZIP/Postal Code"
+  //                   value={client.address?.zipCode || client.address?.postalCode || ''}
+  //                   onChange={(e) => setClient({
+  //                     ...client,
+  //                     address: { ...(client.address || {}), zipCode: e.target.value, postalCode: e.target.value }
+  //                   })}
+  //                   required
+  //                 />
+  //                 <Input
+  //                   id="country"
+  //                   label="Country"
+  //                   value={client.address?.country || 'United States'}
+  //                   onChange={(e) => setClient({
+  //                     ...client,
+  //                     address: { ...(client.address || {}), country: e.target.value }
+  //                   })}
+  //                   required
+  //                 />
+  //               </div>
+  //             </div>
+  //           </div>
+  //           <div className="flex justify-between">
+  //             <Button variant="outline" onClick={handlePrevious}>
+  //               <ArrowLeft className="w-4 h-4 mr-2" />
+  //               Back
+  //             </Button>
+  //             {isViewEditMode ? (
+  //               // Simple Next button in view/edit mode
+  //               <Button onClick={handleNext} disabled={!client.name || !client.email}>
+  //                 Next
+  //                 <ArrowRight className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             ) : (
+  //               // Original Create Client button in normal mode
+  //               <Button
+  //                 onClick={async () => {
+  //                   // Save client data to backend (Step 1)
+  //                   try {
+  //                     await saveFormDetailsToBackend(1);
+
+  //                   } catch (error) {
+
+  //                   }
+
+  //                   // Simply advance to next step without creating client account
+  //                   // Client account will only be created later if password is provided from questionnaire assignment
+  //                   setCurrentStep(2);
+  //                 }}
+  //                 disabled={!client.name || !client.email}
+  //               >
+  //                 Create Client & Continue
+  //                 <ArrowRight className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             )}
+  //           </div>
+  //         </div>
+  //       );
+
+  //     case 2: // Create Case
+  //       // Skip case creation for existing responses
+  //       if (isExistResponse) {
+  //         return (
+  //           <div className="space-y-6">
+  //             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+  //               <h3 className="text-lg font-semibold text-green-900 mb-2">Case Setup</h3>
+  //               <p className="text-green-700">Case information is already available from existing responses.</p>
+  //             </div>
+  //           </div>
+  //         );
+  //       }
+
+  //       return (
+  //         <div className="space-y-6">
+  //           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+  //             <h3 className="text-lg font-semibold text-green-900 mb-2">Case Setup</h3>
+  //             <p className="text-green-700">Create a new case for client: <strong>{client.name}</strong></p>
+  //           </div>
+  //           <div className="bg-white rounded-lg shadow-md p-6">
+  //             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  //               <Input
+  //                 id="title"
+  //                 label="Case Title"
+  //                 placeholder="Enter case title"
+  //                 value={caseData.title || ''}
+  //                 onChange={e => setCaseData({ ...caseData, title: e.target.value })}
+  //                 required
+  //               />
+  //               <Select
+  //                 id="category"
+  //                 label="Immigration Category"
+  //                 value={caseData.category || ''}
+  //                 onChange={e => setCaseData({ ...caseData, category: e.target.value })}
+  //                 options={[
+  //                   { value: '', label: 'Select category' },
+  //                   ...IMMIGRATION_CATEGORIES.map(cat => ({
+  //                     value: cat.id,
+  //                     label: cat.name
+  //                   }))
+  //                 ]}
+  //                 required
+  //               />
+  //               <Select
+  //                 id="subcategory"
+  //                 label="Subcategory"
+  //                 value={caseData.subcategory || ''}
+  //                 onChange={e => setCaseData({ ...caseData, subcategory: e.target.value })}
+  //                 options={[
+  //                   { value: '', label: 'Select subcategory' },
+  //                   ...(caseData.category ?
+  //                     IMMIGRATION_CATEGORIES
+  //                       .find(cat => cat.id === caseData.category)
+  //                       ?.subcategories.map(sub => ({
+  //                         value: sub.id,
+  //                         label: sub.name
+  //                       })) || []
+  //                     : []
+  //                   )
+  //                 ]}
+  //                 required
+  //               />
+  //               <Select
+  //                 id="priority"
+  //                 label="Priority"
+  //                 value={caseData.priority}
+  //                 onChange={e => setCaseData({ ...caseData, priority: e.target.value as "low" | "medium" | "high" })}
+  //                 options={[
+  //                   { value: 'low', label: 'Low' },
+  //                   { value: 'medium', label: 'Medium' },
+  //                   { value: 'high', label: 'High' },
+  //                 ]}
+  //                 required
+  //               />
+  //               <Select
+  //                 id="status"
+  //                 label="Status"
+  //                 value={caseData.status}
+  //                 onChange={e => setCaseData({ ...caseData, status: e.target.value as "draft" | "in-progress" | "review" | "completed" })}
+  //                 options={[
+  //                   { value: 'draft', label: 'Draft' },
+  //                   { value: 'in-progress', label: 'In Progress' },
+  //                   { value: 'review', label: 'Review' },
+  //                   { value: 'completed', label: 'Completed' }
+  //                 ]}
+  //                 required
+  //               />
+  //               <Input
+  //                 id="visaType"
+  //                 label="Visa Type"
+  //                 value={caseData.visaType || ''}
+  //                 onChange={e => setCaseData({ ...caseData, visaType: e.target.value })}
+  //                 placeholder="E.g., B-2, H-1B, L-1"
+  //                 required
+  //               />
+  //               <Input
+  //                 id="priorityDate"
+  //                 label="Priority Date"
+  //                 type="date"
+  //                 value={caseData.priorityDate || ''}
+  //                 onChange={e => setCaseData({ ...caseData, priorityDate: e.target.value })}
+  //                 required
+  //               />
+  //               <Input
+  //                 id="openDate"
+  //                 label="Open Date"
+  //                 type="date"
+  //                 value={caseData.openDate || ''}
+  //                 onChange={e => setCaseData({ ...caseData, openDate: e.target.value })}
+  //                 required
+  //               />
+  //             </div>
+  //             <div className="mt-4">
+  //               <TextArea
+  //                 id="description"
+  //                 label="Description"
+  //                 value={caseData.description}
+  //                 onChange={e => setCaseData({ ...caseData, description: e.target.value })}
+  //                 rows={4}
+  //                 placeholder="Enter case description"
+  //               />
+  //             </div>
+  //           </div>
+  //           <div className="flex justify-between">
+  //             <Button variant="outline" onClick={handlePrevious}>
+  //               <ArrowLeft className="w-4 h-4 mr-2" />
+  //               Back
+  //             </Button>
+  //             {isViewEditMode ? (
+  //               // Simple Next button in view/edit mode
+  //               <Button
+  //                 onClick={handleNext}
+  //                 disabled={
+  //                   !caseData.title ||
+  //                   !caseData.category ||
+  //                   !caseData.status ||
+  //                   !caseData.visaType ||
+  //                   !caseData.priorityDate ||
+  //                   !caseData.openDate
+  //                 }
+  //               >
+  //                 Next
+  //                 <ArrowRight className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             ) : (
+  //               // Original Create Case button in normal mode
+  //               <Button
+  //                 onClick={handleCaseSubmit}
+  //                 disabled={
+  //                   !caseData.title ||
+  //                   !caseData.category ||
+  //                   !caseData.status ||
+  //                   !caseData.visaType ||
+  //                   !caseData.priorityDate ||
+  //                   !caseData.openDate
+  //                 }
+  //               >
+  //                 Create Case & Continue
+  //                 <ArrowRight className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             )}
+  //           </div>
+  //         </div>
+  //       );
+
+  //     case 3: // Select Forms
+  //       // Skip forms selection for existing responses
+  //       if (isExistResponse) {
+  //         return (
+  //           <div className="space-y-6">
+  //             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+  //               <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Form</h3>
+  //               <p className="text-purple-700">Forms are already selected from existing responses.</p>
+  //             </div>
+  //           </div>
+  //         );
+  //       }
+
+  //       return (
+  //         <div className="space-y-6">
+  //           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+  //             <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Form</h3>
+  //             <p className="text-purple-700">Select the form required for this case based on the selected category.</p>
+  //           </div>
+
+  //           {/* Show form templates from backend */}
+  //           <div className="space-y-4">
+  //             <h4 className="font-medium text-gray-900">Available Form Templates</h4>
+  //             {loadingFormTemplates ? (
+  //               <div className="text-gray-500">Loading form templates...</div>
+  //             ) : (
+  //               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //                 {formTemplates.length === 0 ? (
+  //                   <div className="text-gray-400">No form templates available.</div>
+  //                 ) : (
+  //                   formTemplates.map(template => (
+  //                     <label key={template._id || template.name} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+  //                       <input
+  //                         type="radio"
+  //                         name="selectedForm"
+  //                         checked={selectedForms.includes(template.name)}
+  //                         onChange={(e) => {
+  //                           if (e.target.checked) {
+  //                             setSelectedForms([template.name]); // Only allow one form selection
+  //                           }
+  //                         }}
+  //                         className="mr-3"
+  //                       />
+  //                       <div>
+  //                         <div className="font-medium text-gray-900">{template.name}</div>
+  //                         <div className="text-sm text-gray-500">{template.description}</div>
+  //                         <div className="text-xs text-gray-400">Category: {template.category}</div>
+  //                         {/* Show case ID if form is selected and case ID exists */}
+  //                         {selectedForms.includes(template.name) && formCaseIds[template.name] && (
+  //                           <div className="text-xs text-green-600 font-medium mt-1">
+  //                             Case ID: {formatCaseId(formCaseIds[template.name])}
+  //                           </div>
+  //                         )}
+  //                       </div>
+  //                     </label>
+  //                   ))
+  //                 )}
+  //               </div>
+  //             )}
+  //           </div>
+
+  //           {/* Display generated case ID summary */}
+  //           {selectedForms.length > 0 && Object.keys(formCaseIds).length > 0 && (
+  //             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+  //               <h4 className="font-medium text-green-900 mb-2">Generated Case ID</h4>
+  //               <div className="space-y-2">
+  //                 {selectedForms.map(formName => (
+  //                   formCaseIds[formName] && (
+  //                     <div key={formName} className="flex justify-between items-center text-sm">
+  //                       <span className="text-green-700">{formName}:</span>
+  //                       <span className="font-mono text-green-800 bg-green-100 px-2 py-1 rounded">
+  //                         {formatCaseId(formCaseIds[formName])}
+  //                       </span>
+  //                     </div>
+  //                   )
+  //                 ))}
+  //               </div>
+  //             </div>
+  //           )}
+
+  //           <div className="flex justify-between">
+  //             <Button variant="outline" onClick={handlePrevious}>
+  //               <ArrowLeft className="w-4 h-4 mr-2" />
+  //               Back
+  //             </Button>
+  //             {isViewEditMode ? (
+  //               // Simple Next button in view/edit mode
+  //               <Button
+  //                 onClick={handleNext}
+  //                 disabled={selectedForms.length === 0}
+  //               >
+  //                 Next
+  //                 <ArrowRight className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             ) : (
+  //               // Original Form submission button in normal mode
+  //               <Button
+  //                 onClick={handleFormsSubmit}
+  //                 disabled={selectedForms.length === 0 || generatingCaseIds}
+  //               >
+  //                 {generatingCaseIds ? (
+  //                   <>
+  //                     <Loader className="w-4 h-4 mr-2 animate-spin" />
+  //                     Generating Case ID...
+  //                   </>
+  //                 ) : (
+  //                   <>
+  //                     Confirm Form & Continue
+  //                     <ArrowRight className="w-4 h-4 ml-2" />
+  //                   </>
+  //                 )}
+  //               </Button>
+  //             )}
+  //           </div>
+  //         </div>
+  //       );
+
+  //     case 4: // Assign Questionnaire (now using QuestionnaireBuilder/availableQuestionnaires)
+  //       // Skip questionnaire assignment for existing responses
+  //       if (isExistResponse) {
+  //         return (
+  //           <div className="space-y-6">
+  //             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+  //               <h3 className="text-lg font-semibold text-orange-900 mb-2">Assign Questionnaire</h3>
+  //               <p className="text-orange-700">Questionnaire is already assigned and responses are available.</p>
+  //             </div>
+  //           </div>
+  //         );
+  //       }
+
+  //       return (
+  //         <div className="space-y-6">
+  //           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+  //             <h3 className="text-lg font-semibold text-orange-900 mb-2">Assign Questionnaire</h3>
+  //             <p className="text-orange-700">Send a questionnaire to the client to collect required information.</p>
+  //           </div>
+
+  //           {/* Description of how questionnaires work */}
+  //           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+  //             <div className="flex items-start">
+  //               <div className="flex-shrink-0 mr-2">
+  //                 <InfoIcon className="h-5 w-5 text-blue-500" />
+  //               </div>
+  //               <div>
+  //                 <h4 className="font-medium text-blue-800 mb-1">How Client Questionnaires Work</h4>
+  //                 <p className="text-blue-700 text-sm">
+  //                   When you assign a questionnaire, the client will receive a notification and the questionnaire will
+  //                   appear in their dashboard. They can fill it out at their convenience, and you'll be notified
+  //                   once it's completed.
+  //                 </p>
+  //               </div>
+  //             </div>
+  //           </div>
+
+  //           <div className="space-y-4">
+  //             <Select
+  //               id="questionnaire"
+  //               label="Select Questionnaire"
+  //               value={selectedQuestionnaire}
+  //               onChange={(e) => {
+  //                 const selectedId = e.target.value;
+
+  //                 // Log all available questionnaires with their ID fields for debugging
+  //                 // Available questionnaires logged
+
+  //                 // Enhanced flexible matching to find the selected questionnaire
+  //                 const selected = availableQuestionnaires.find(q => {
+  //                   // Check all possible ID fields
+  //                   const possibleIds = [
+  //                     q._id,          // MongoDB ObjectId
+  //                     q.id,           // Original ID or API ID
+  //                     q.originalId,   // Original ID before conversion
+  //                     q.name          // Fallback to name if used as ID
+  //                   ].filter(Boolean); // Remove undefined/null values
+
+  //                   // For API questionnaires, prioritize matching the q_ prefixed ID
+  //                   if (q.apiQuestionnaire && q.id === selectedId) {
+  //                     // API questionnaire match found
+  //                     return true;
+  //                   }
+
+  //                   // Check if any of the possible IDs match
+  //                   const matches = possibleIds.includes(selectedId);
+  //                   if (matches) {
+  //                     // Regular questionnaire match found
+  //                   }
+  //                   return matches;
+  //                 });
+
+  //                 // Selected questionnaire found
+  //                 setSelectedQuestionnaire(selectedId);
+
+  //                 // If not found, log a warning
+  //                 if (!selected) {
+  //                   // Selected questionnaire not found in available list
+  //                 }
+  //               }}
+  //               options={[
+  //                 { value: '', label: 'Choose a questionnaire' },
+  //                 ...availableQuestionnaires
+  //                   .filter(q => {
+  //                     // Add debug for questionnaire categories
+  //                     // Questionnaire category checking
+
+  //                     if (!caseData.category) return true;
+  //                     if (!q.category) return true;
+  //                     // const catMap: Record<string, string> = {
+  //                     //   'family-based': 'FAMILY_BASED',
+  //                     //   'employment-based': 'EMPLOYMENT_BASED',
+  //                     //   'citizenship': 'NATURALIZATION',
+  //                     //   'asylum': 'ASYLUM',
+  //                     //   'foia': 'FOIA',
+  //                     //   'other': 'OTHER',
+  //                     //   'assessment': 'ASSESSMENT',
+  //                     // };
+  //                     // Convert case category to questionnaire category if needed
+  //                     // const mapped = catMap[caseData.category] || '';
+  //                     // Make the category matching more lenient
+  //                     return true; // Show all questionnaires for now regardless of category
+  //                   })
+  //                   .map(q => {
+  //                     // First normalize the questionnaire structure to ensure consistent fields
+  //                     const normalizedQ = normalizeQuestionnaireStructure(q);
+
+  //                     // Handle ID resolution with preference for the original API ID format
+  //                     let idToUse;
+  //                     let wasConverted = false;
+
+  //                     // For API format questionnaires, ALWAYS use the original q_ format ID
+  //                     if (q.id && q.id.startsWith('q_')) {
+  //                       idToUse = q.id;
+  //                       // Using API format ID
+  //                     }
+  //                     // For questionnaires with an originalId, offer both options with preference for original
+  //                     else if (normalizedQ.originalId) {
+  //                       // Use the original ID for selection to maintain consistency with saved data
+  //                       idToUse = normalizedQ.originalId;
+  //                       wasConverted = true;
+  //                       // Using original ID
+  //                     }
+  //                     // For normalized IDs, use that format
+  //                     else if (normalizedQ._id) {
+  //                       idToUse = normalizedQ._id;
+  //                       // Using normalized ID
+  //                     }
+  //                     // Fall back to any available ID
+  //                     else {
+  //                       idToUse = normalizedQ._id || normalizedQ.id || normalizedQ.name || `q_${Date.now()}`;
+  //                       // Using fallback ID
+  //                     }
+
+  //                     // Count questions
+  //                     const fields = normalizedQ.fields || [];
+  //                     const questionCount = fields.length;
+
+  //                     // Log what's being added to the dropdown
+  //                     // Questionnaire option prepared
+
+  //                     return {
+  //                       // Store all possible IDs to help with matching later
+  //                       value: idToUse, // Use the resolved ID as primary value for selection
+  //                       apiId: q.id && q.id.startsWith('q_') ? q.id : undefined,
+  //                       mongoId: normalizedQ._id,
+  //                       originalId: normalizedQ.originalId,
+  //                       label: `${normalizedQ.title || normalizedQ.name || 'Untitled'} (${questionCount} questions)${wasConverted ? ' 🔄' : ''}`,
+  //                       hasValidId: true, // Should always be valid now
+  //                       wasConverted, // Flag if ID was converted
+  //                       fields: fields.length > 0 // Flag to indicate if questions/fields exist
+  //                     };
+  //                   })
+  //               ]}
+  //               required
+  //             />                {selectedQuestionnaire && (() => {
+  //               // Enhanced flexible matching to find the selected questionnaire
+  //               const questionnaire = availableQuestionnaires.find(q => {
+  //                 // Check all possible ID fields
+  //                 const possibleIds = [
+  //                   q._id,          // MongoDB ObjectId
+  //                   q.id,           // Original ID or API ID
+  //                   q.originalId,   // Original ID before conversion
+  //                   q.name          // Fallback to name if used as ID
+  //                 ].filter(Boolean); // Remove undefined/null values
+
+  //                 // For API questionnaires, prioritize matching the q_ prefixed ID
+  //                 if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+
+  //                   return true;
+  //                 }
+
+  //                 // Check if any of the possible IDs match
+  //                 const matches = possibleIds.includes(selectedQuestionnaire);
+  //                 if (matches) {
+
+  //                 }
+  //                 return matches;
+  //               });
+
+  //               if (!questionnaire) {
+
+  //                 return (
+  //                   <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+  //                     <p className="text-yellow-700">Questionnaire not found. Please select a different questionnaire.</p>
+  //                   </div>
+  //                 );
+  //               }
+
+  //               // Questionnaire structure is valid
+  //               let fields = questionnaire.fields || questionnaire.questions || [];
+
+  //               // Special handling for API format questionnaires
+  //               if (questionnaire.apiQuestionnaire ||
+  //                 (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields))) {
+
+  //                 fields = questionnaire.fields;
+  //               }
+
+
+
+  //               // Check if this is an API questionnaire or standard MongoDB questionnaire
+  //               const isApiQuestionnaire = questionnaire.apiQuestionnaire ||
+  //                 (questionnaire._id && questionnaire._id.startsWith('q_')) ||
+  //                 (questionnaire.id && questionnaire.id.startsWith('q_'));
+  //               const hasValidId = isApiQuestionnaire || (questionnaire._id && isValidMongoObjectId(questionnaire._id));
+  //               const hasConvertedId = !!questionnaire.originalId;
+
+  //               return (
+  //                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+  //                   <div className="flex justify-between items-center mb-2">
+  //                     <h4 className="font-medium text-gray-900">Questionnaire Preview</h4>
+  //                     {!hasValidId && (
+  //                       <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full flex items-center">
+  //                         <AlertCircle size={12} className="mr-1" /> Invalid ID Format
+  //                       </span>
+  //                     )}
+  //                     {hasConvertedId && (
+  //                       <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full flex items-center">
+  //                         <CheckCircle size={12} className="mr-1" /> ID Converted for Backend
+  //                       </span>
+  //                     )}
+  //                   </div>
+
+  //                   <p className="text-gray-700 mb-2">{questionnaire.description || 'No description provided.'}</p>
+
+  //                   <div className="flex items-center text-sm text-gray-500 mb-2">
+  //                     <ClipboardList className="w-4 h-4 mr-2" />
+  //                     This questionnaire contains {fields.length} questions
+  //                   </div>
+
+  //                   {fields.length > 0 ? (
+  //                     <div className="max-h-60 overflow-y-auto border border-gray-200 rounded bg-white p-2">
+  //                       <ul className="space-y-2">
+  //                         {fields.map((field: any, idx: number) => {
+  //                           const fieldId = field.id || field._id || `field_${idx}`;
+  //                           const fieldLabel = field.label || field.question || `Question ${idx + 1}`;
+  //                           const fieldType = field.type || 'text';
+
+  //                           return (
+  //                             <li key={fieldId} className="py-1 px-2 hover:bg-gray-50 rounded">
+  //                               <div className="flex items-center">
+  //                                 <span className="text-primary-600 font-semibold mr-2">{idx + 1}.</span>
+  //                                 <span className="flex-grow">{fieldLabel}</span>
+  //                                 <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+  //                                   {fieldType}
+  //                                 </span>
+  //                               </div>
+  //                               {(field.description || field.help_text) && (
+  //                                 <p className="text-xs text-gray-500 mt-1 ml-6">{field.description || field.help_text}</p>
+  //                               )}
+  //                             </li>
+  //                           );
+  //                         })}
+  //                       </ul>
+  //                     </div>
+  //                   ) : (
+  //                     <div className="text-center py-6 border border-dashed border-gray-300 bg-white rounded">
+  //                       <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
+  //                       <p className="text-sm text-gray-500">No questions defined in this questionnaire.</p>
+  //                       <p className="text-xs text-gray-400 mt-1">
+  //                         This questionnaire may be incomplete or malformed.
+  //                       </p>
+  //                     </div>
+  //                   )}
+  //                 </div>
+  //               );
+  //             })()}
+
+  //             {/* Set due date (optional) */}
+  //             <div className="mt-4">
+  //               <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (Optional)</label>
+  //               <input
+  //                 type="date"
+  //                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+  //                 value={caseData.dueDate || ''}
+  //                 onChange={(e) => setCaseData({ ...caseData, dueDate: e.target.value })}
+  //               />
+  //               <p className="text-xs text-gray-500 mt-1">
+  //                 The client will be asked to complete the questionnaire by this date.
+  //               </p>
+  //             </div>
+
+  //             {/* Display case IDs for selected forms */}
+  //             {selectedForms.length > 0 && Object.keys(formCaseIds).length > 0 && (
+  //               <div className="mt-6 p-4 border border-green-200 rounded-lg bg-green-50">
+  //                 <h4 className="font-medium text-green-900 mb-3 flex items-center">
+  //                   <FileText className="w-4 h-4 mr-2" />
+  //                   Case IDs for Selected Forms
+  //                 </h4>
+  //                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  //                   {selectedForms.map(formName => (
+  //                     formCaseIds[formName] && (
+  //                       <div key={formName} className="flex justify-between items-center p-3 bg-white border border-green-200 rounded">
+  //                         <div>
+  //                           <div className="font-medium text-green-800">{formName}</div>
+  //                           <div className="text-sm text-green-600">Form Type</div>
+  //                         </div>
+  //                         <div className="text-right">
+  //                           <div className="font-mono text-green-900 bg-green-100 px-2 py-1 rounded text-sm">
+  //                             {formatCaseId(formCaseIds[formName])}
+  //                           </div>
+  //                           <div className="text-xs text-green-600 mt-1">Case ID</div>
+  //                         </div>
+  //                       </div>
+  //                     )
+  //                   ))}
+  //                 </div>
+  //                 <p className="text-sm text-green-700 mt-3">
+  //                   These case IDs will be associated with the questionnaire responses and can be used to track each form separately.
+  //                 </p>
+  //               </div>
+  //             )}
+
+  //             {/* Client account creation section */}
+  //             <div className="mt-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
+  //               <div className="flex items-center mb-4">
+  //                 <input
+  //                   type="checkbox"
+  //                   id="createClientAccount"
+  //                   checked={clientCredentials.createAccount}
+  //                   onChange={(e) => {
+  //                     // When enabling account creation, generate a password automatically
+  //                     if (e.target.checked && !clientCredentials.password) {
+  //                       const generatedPassword = generateSecurePassword();
+  //                       setClientCredentials({
+  //                         ...clientCredentials,
+  //                         createAccount: e.target.checked,
+  //                         password: generatedPassword
+  //                       });
+  //                     } else {
+  //                       setClientCredentials({ ...clientCredentials, createAccount: e.target.checked });
+  //                     }
+  //                   }}
+  //                   className="h-4 w-4 text-primary-600 border-gray-300 rounded"
+  //                 />
+  //                 <label htmlFor="createClientAccount" className="ml-2 text-sm font-medium text-blue-800">
+  //                   Create client account for accessing questionnaires
+  //                 </label>
+  //               </div>
+
+  //               {clientCredentials.createAccount && (
+  //                 <div className="space-y-4">
+  //                   <p className="text-sm text-blue-700">
+  //                     This will create a login account for your client so they can access and complete the questionnaire
+  //                     directly in the system.
+  //                   </p>
+  //                   <div className="grid grid-cols-1 gap-4">
+  //                     <div>
+  //                       <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+  //                       <input
+  //                         type="email"
+  //                         value={clientCredentials.email || client.email || ''}
+  //                         onChange={(e) => {
+  //                           // When email is entered and no password exists, generate one
+  //                           if (e.target.value && !clientCredentials.password) {
+  //                             const generatedPassword = generateSecurePassword();
+  //                             setClientCredentials({
+  //                               ...clientCredentials,
+  //                               email: e.target.value,
+  //                               password: generatedPassword
+  //                             });
+  //                           } else {
+  //                             setClientCredentials({ ...clientCredentials, email: e.target.value });
+  //                           }
+  //                         }}
+  //                         placeholder="client@example.com"
+  //                         className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+  //                         required={clientCredentials.createAccount}
+  //                       />
+  //                       <p className="text-xs text-gray-500 mt-1">
+  //                         Default is client's email from their profile
+  //                       </p>
+  //                     </div>
+
+  //                     <div>
+  //                       <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+  //                       <div className="relative">
+  //                         <input
+  //                           type="text"
+  //                           value={clientCredentials.password}
+  //                           readOnly
+  //                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+  //                         />
+  //                         <button
+  //                           type="button"
+  //                           onClick={() => {
+  //                             const newPassword = generateSecurePassword();
+  //                             setClientCredentials({ ...clientCredentials, password: newPassword });
+  //                           }}
+  //                           className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200"
+  //                         >
+  //                           Regenerate
+  //                         </button>
+  //                       </div>
+  //                       <p className="text-xs text-gray-500 mt-1">
+  //                         System-generated secure password for client access
+  //                       </p>
+  //                     </div>
+  //                   </div>
+  //                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+  //                     <p className="text-xs text-yellow-700">
+  //                       <strong>Note:</strong> The client will receive an email with these login details to access their questionnaire.
+  //                       Be sure to save this information as the password is encrypted and cannot be retrieved later.
+  //                     </p>
+  //                   </div>
+  //                 </div>
+  //               )}
+  //             </div>
+  //           </div>
+  //           <div className="flex justify-between">
+  //             <Button variant="outline" onClick={handlePrevious}>
+  //               <ArrowLeft className="w-4 h-4 mr-2" />
+  //               Back
+  //             </Button>
+
+  //             {/* New button with disable/enable based on details entered */}
+  //             <div className="flex gap-3">
+  //               <Button
+  //                 onClick={() => {
+  //                   // Check if questionnaire details are entered
+  //                   if (selectedQuestionnaire) {
+  //                     const questionnaire = availableQuestionnaires.find(q => {
+  //                       const possibleIds = [q._id, q.id, q.originalId, q.name].filter(Boolean);
+  //                       return q.apiQuestionnaire && q.id === selectedQuestionnaire || possibleIds.includes(selectedQuestionnaire);
+  //                     });
+
+  //                     if (questionnaire) {
+  //                       toast.success('Questionnaire details are complete!');
+  //                     } else {
+  //                       toast.error('Please select a valid questionnaire first.');
+  //                     }
+  //                   } else {
+  //                     toast.error('Please select a questionnaire first.');
+  //                   }
+  //                 }}
+  //                 disabled={!selectedQuestionnaire}
+  //                 className={`${!selectedQuestionnaire ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+  //               >
+  //                 {selectedQuestionnaire ? (
+  //                   <>
+  //                     <CheckCircle className="w-4 h-4 mr-2" />
+  //                     Details Complete
+  //                   </>
+  //                 ) : (
+  //                   <>
+  //                     <AlertCircle className="w-4 h-4 mr-2" />
+  //                     Details Required
+  //                   </>
+  //                 )}
+  //               </Button>
+
+  //               {isViewEditMode ? (
+  //                 // Simple Next button in view/edit mode
+  //                 <Button
+  //                   onClick={handleNext}
+  //                   disabled={!selectedQuestionnaire}
+  //                 >
+  //                   Next
+  //                   <ArrowRight className="w-4 h-4 ml-2" />
+  //                 </Button>
+  //               ) : (
+  //                 selectedQuestionnaire && (() => {
+  //                   // Enhanced flexible matching to find the selected questionnaire
+  //                   const questionnaire = availableQuestionnaires.find(q => {
+  //                     // Check all possible ID fields
+  //                     const possibleIds = [
+  //                       q._id,          // MongoDB ObjectId
+  //                       q.id,           // Original ID or API ID
+  //                       q.originalId,   // Original ID before conversion
+  //                       q.name          // Fallback to name if used as ID
+  //                     ].filter(Boolean); // Remove undefined/null values
+
+  //                     // For API questionnaires, prioritize matching the q_ prefixed ID
+  //                     if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+
+  //                       return true;
+  //                     }
+
+  //                     // Check if any of the possible IDs match
+  //                     const matches = possibleIds.includes(selectedQuestionnaire);
+  //                     if (matches) {
+
+  //                     }
+  //                     return matches;
+  //                   });
+  //                   const hasFields = questionnaire &&
+  //                     (questionnaire.fields?.length > 0 || questionnaire.questions?.length > 0);
+
+  //                   if (!hasFields) {
+  //                     return (
+  //                       <div className="flex items-center">
+  //                         <Button
+  //                           onClick={() => toast.error('This questionnaire has no questions defined. Please select another questionnaire.')}
+  //                           className="bg-yellow-500 hover:bg-yellow-600"
+  //                         >
+  //                           <AlertCircle className="w-4 h-4 mr-2" />
+  //                           No Questions Available
+  //                         </Button>
+  //                       </div>
+  //                     );
+  //                   }
+
+  //                   return (
+  //                     <Button
+  //                       onClick={handleQuestionnaireAssignment}
+  //                       disabled={!selectedQuestionnaire}
+  //                     >
+  //                       {loading ? (
+  //                         <>
+  //                           <Loader className="w-4 h-4 mr-2 animate-spin" />
+  //                           Assigning...
+  //                         </>
+  //                       ) : (
+  //                         <>
+  //                           Assign to Client & Continue
+  //                           <Send className="w-4 h-4 ml-2" />
+  //                         </>
+  //                       )}
+  //                     </Button>
+  //                   );
+  //                 })()
+  //               )}
+  //             </div>
+  //           </div>
+  //         </div>
+  //       );
+
+  //     case 5: // Collect Answers (Dynamic client responses for selected questionnaire)
+  //       return (
+  //         <div className="space-y-6">
+
+  //           <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+  //             <h3 className="text-lg font-semibold text-indigo-900 mb-2">Client Responses</h3>
+  //             <p className="text-indigo-700">Review and fill out the questionnaire as the client would.</p>
+
+  //             {Object.keys(clientResponses).length > 0 && (
+  //               <div className="mt-2 bg-green-50 border border-green-200 rounded p-2">
+  //                 <div className="flex items-center text-green-800">
+  //                   <CheckCircle className="w-4 h-4 mr-2" />
+  //                   <span className="text-sm">Pre-filled with existing client responses ({Object.keys(clientResponses).length} fields)</span>
+  //                 </div>
+  //               </div>
+  //             )}
+
+  //             {/* Add filling status indicator */}
+  //             {questionnaireAssignment && (() => {
+  //               const questionnaire = availableQuestionnaires.find(q => {
+  //                 const possibleIds = [q._id, q.id, q.originalId, q.name].filter(Boolean);
+  //                 return q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId ||
+  //                   possibleIds.includes(questionnaireAssignment.questionnaireId);
+  //               });
+
+  //               if (questionnaire) {
+  //                 const questions = questionnaire.fields || questionnaire.questions || questionnaire.form?.fields || questionnaire.form?.questions || [];
+  //                 const totalFields = questions.length;
+  //                 const filledFields = questions.filter((q: any) => {
+  //                   const fieldId = q.id || q._id || `field_${questions.indexOf(q)}`;
+  //                   const fieldLabel = q.label || q.question || q.name;
+  //                   const value = clientResponses[fieldId] || clientResponses[fieldLabel];
+  //                   return value !== undefined && value !== null && value !== '' &&
+  //                     (!Array.isArray(value) || value.length > 0);
+  //                 }).length;
+
+  //                 return (
+  //                   <div className="mt-3 flex items-center justify-between bg-white border border-gray-200 rounded p-3">
+  //                     <div className="flex items-center">
+  //                       <div className="flex-shrink-0 w-3 h-3 rounded-full mr-3"
+  //                         style={{ backgroundColor: filledFields === totalFields ? '#10b981' : filledFields > 0 ? '#f59e0b' : '#ef4444' }}></div>
+  //                       <span className="text-sm font-medium text-gray-700">
+  //                         Progress: {filledFields} of {totalFields} fields completed
+  //                       </span>
+  //                     </div>
+  //                     <div className="w-24 bg-gray-200 rounded-full h-2">
+  //                       <div
+  //                         className="h-2 rounded-full transition-all duration-300"
+  //                         style={{
+  //                           width: `${totalFields > 0 ? (filledFields / totalFields) * 100 : 0}%`,
+  //                           backgroundColor: filledFields === totalFields ? '#10b981' : filledFields > 0 ? '#f59e0b' : '#ef4444'
+  //                         }}
+  //                       ></div>
+  //                     </div>
+  //                   </div>
+  //                 );
+  //               }
+  //               return null;
+  //             })()}
+
+  //           </div>
+
+  //           {questionnaireAssignment && (() => {
+
+  //             // Enhanced flexible matching to find the assigned questionnaire
+  //             const questionnaire = availableQuestionnaires.find(q => {
+  //               // Check all possible ID fields
+  //               const possibleIds = [
+  //                 q._id,          // MongoDB ObjectId
+  //                 q.id,           // Original ID or API ID
+  //                 q.originalId,   // Original ID before conversion
+  //                 q.name          // Fallback to name if used as ID
+  //               ].filter(Boolean); // Remove undefined/null values
+
+  //               // For API questionnaires, prioritize matching the q_ prefixed ID
+  //               if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
+
+  //                 return true;
+  //               }
+
+  //               // Try exact matches first
+  //               const exactMatch = possibleIds.includes(questionnaireAssignment.questionnaireId);
+  //               if (exactMatch) {
+
+  //                 return true;
+  //               }
+
+  //               // Try fuzzy matching for similar IDs (handle cases where IDs are very similar)
+  //               const targetId = questionnaireAssignment.questionnaireId;
+  //               const fuzzyMatch = possibleIds.some(id => {
+  //                 if (!id || !targetId) return false;
+
+  //                 // Remove 'q_' prefix if present and compare
+  //                 const cleanId = id.replace(/^q_/, '');
+  //                 const cleanTargetId = targetId.replace(/^q_/, '');
+
+  //                 // Check if they're very similar (allowing for small differences)
+  //                 const similarity = cleanId.substring(0, 20) === cleanTargetId.substring(0, 20);
+  //                 if (similarity) {
+
+  //                   return true;
+  //                 }
+
+  //                 return false;
+  //               });
+
+  //               return fuzzyMatch;
+  //             });
+
+
+
+  //             if (!questionnaire) {
+  //               return (
+  //                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+  //                   <div className="text-yellow-800">
+  //                     <p className="font-medium">No questionnaire found</p>
+  //                     <p className="text-sm mt-1">
+  //                       Looking for ID: {questionnaireAssignment.questionnaireId}
+  //                     </p>
+  //                     <p className="text-sm">
+  //                       Available IDs: {availableQuestionnaires.map(q => q._id || q.id || q.name).join(', ')}
+  //                     </p>
+  //                   </div>
+  //                 </div>
+  //               );
+  //             }
+
+  //             // Try to find questions/fields in multiple possible locations
+  //             let questions = questionnaire.fields ||
+  //               questionnaire.questions ||
+  //               questionnaire.form?.fields ||
+  //               questionnaire.form?.questions ||
+  //               [];
+
+  //             // If API response format is detected
+  //             if (questionnaire.id && questionnaire.id.startsWith('q_') && Array.isArray(questionnaire.fields)) {
+
+  //               questions = questionnaire.fields;
+  //             }
+
+  //             if (!questions || questions.length === 0) {
+  //               return (
+  //                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+  //                   <div className="text-red-800">
+  //                     <p className="font-medium">No questions found in this questionnaire</p>
+  //                     <p className="text-sm mt-1">Questions array is empty or undefined</p>
+  //                     <pre className="text-xs mt-2 bg-red-100 p-2 rounded">
+  //                       {JSON.stringify(questionnaire, null, 2)}
+  //                     </pre>
+  //                   </div>
+  //                 </div>
+  //               );
+  //             }
+  //             return (
+  //               <div className="space-y-4 bg-white border border-gray-200 rounded-lg p-4">
+  //                 <div className="flex items-center justify-between mb-4">
+  //                   <h4 className="font-medium text-gray-900">{questionnaire.title || questionnaire.name}</h4>
+  //                   <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+  //                     {questionnaireAssignment.status}
+  //                   </span>
+  //                 </div>
+  //                 <div className="space-y-4">
+  //                   {questions.map((q: any, idx: number) => {
+  //                     // Log each field for debugging
+
+
+  //                     // Ensure field has required properties
+  //                     const fieldId = q.id || q._id || `field_${idx}`;
+  //                     const fieldLabel = q.label || q.question || q.name || `Question ${idx + 1}`;
+  //                     const fieldType = q.type || 'text';
+  //                     const fieldOptions = q.options || [];
+
+  //                     // Check if field is filled
+  //                     const currentValue = clientResponses[fieldId] || clientResponses[fieldLabel];
+  //                     const isFilled = currentValue !== undefined && currentValue !== null && currentValue !== '' &&
+  //                       (!Array.isArray(currentValue) || currentValue.length > 0);
+  //                     const isRequired = q.required === true;
+
+  //                     // Determine field status styling
+  //                     const getFieldStatusStyle = () => {
+  //                       if (isFilled) {
+  //                         return 'border-green-300 bg-green-50 focus:border-green-500 focus:ring-green-200';
+  //                       } else if (isRequired) {
+  //                         return 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-200';
+  //                       } else {
+  //                         return 'border-gray-300 bg-gray-50 focus:border-blue-500 focus:ring-blue-200';
+  //                       }
+  //                     };
+
+  //                     const fieldStatusStyle = getFieldStatusStyle();
+
+  //                     // Common field wrapper with status indicator
+  //                     const FieldWrapper = ({ children, label }: { children: React.ReactNode, label: string }) => (
+  //                       <div className="relative">
+  //                         <div className="flex items-center mb-1">
+  //                           <div className={`flex-shrink-0 w-2 h-2 rounded-full mr-2 ${isFilled ? 'bg-green-500' : isRequired ? 'bg-red-500' : 'bg-gray-400'
+  //                             }`}></div>
+  //                           <label className="block text-sm font-medium text-gray-700">
+  //                             {label}
+  //                             {isRequired && <span className="text-red-500 ml-1">*</span>}
+  //                             {isFilled && <span className="text-green-600 ml-2 text-xs">✓ Filled</span>}
+  //                           </label>
+  //                         </div>
+  //                         <div className="relative">
+  //                           {children}
+  //                           {isFilled && (
+  //                             <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+  //                               <CheckCircle className="w-3 h-3 text-white" />
+  //                             </div>
+  //                           )}
+  //                         </div>
+  //                       </div>
+  //                     );
+
+  //                     // Render input based on type
+  //                     if (fieldType === 'date') {
+  //                       return (
+  //                         <FieldWrapper key={fieldId} label={fieldLabel}>
+  //                           <Input
+  //                             id={fieldId}
+  //                             label=""
+  //                             type="date"
+  //                             value={clientResponses[fieldId] || clientResponses[fieldLabel] || ''}
+  //                             onChange={e => setClientResponses({
+  //                               ...clientResponses,
+  //                               [fieldId]: e.target.value
+  //                             })}
+  //                             className={fieldStatusStyle}
+  //                           />
+  //                         </FieldWrapper>
+  //                       );
+  //                     } else if (fieldType === 'select' && Array.isArray(fieldOptions)) {
+  //                       return (
+  //                         <FieldWrapper key={fieldId} label={fieldLabel}>
+  //                           <Select
+  //                             id={fieldId}
+  //                             label=""
+  //                             value={clientResponses[fieldId] || clientResponses[fieldLabel] || ''}
+  //                             onChange={e => setClientResponses({
+  //                               ...clientResponses,
+  //                               [fieldId]: e.target.value
+  //                             })}
+  //                             options={[
+  //                               { value: '', label: 'Select an option' },
+  //                               ...fieldOptions.map((opt: any) => ({ value: opt, label: opt }))
+  //                             ]}
+  //                             className={fieldStatusStyle}
+  //                           />
+  //                         </FieldWrapper>
+  //                       );
+  //                     } else if (fieldType === 'multiselect' && Array.isArray(fieldOptions)) {
+  //                       return (
+  //                         <FieldWrapper key={fieldId} label={fieldLabel}>
+  //                           <select
+  //                             multiple
+  //                             className={`w-full px-3 py-2 border rounded-md ${fieldStatusStyle}`}
+  //                             value={clientResponses[fieldId] || clientResponses[fieldLabel] || []}
+  //                             onChange={e => {
+  //                               const selected = Array.from(e.target.selectedOptions, option => option.value);
+  //                               setClientResponses({
+  //                                 ...clientResponses,
+  //                                 [fieldId]: selected
+  //                               });
+  //                             }}
+  //                           >
+  //                             {fieldOptions.map((opt: any) => (
+  //                               <option key={opt} value={opt}>{opt}</option>
+  //                             ))}
+  //                           </select>
+  //                         </FieldWrapper>
+  //                       );
+  //                     } else if (fieldType === 'checkbox' && Array.isArray(fieldOptions)) {
+  //                       return (
+  //                         <FieldWrapper key={fieldId} label={fieldLabel}>
+  //                           <div className={`flex flex-wrap gap-4 p-3 border rounded-md ${fieldStatusStyle}`}>
+  //                             {fieldOptions.map((opt: any) => (
+  //                               <label key={opt} className="flex items-center">
+  //                                 <input
+  //                                   type="checkbox"
+  //                                   checked={Array.isArray(clientResponses[fieldId] || clientResponses[fieldLabel]) && (clientResponses[fieldId] || clientResponses[fieldLabel])?.includes(opt)}
+  //                                   onChange={e => {
+  //                                     const prev = Array.isArray(clientResponses[fieldId] || clientResponses[fieldLabel])
+  //                                       ? (clientResponses[fieldId] || clientResponses[fieldLabel])
+  //                                       : [];
+  //                                     if (e.target.checked) {
+  //                                       setClientResponses({
+  //                                         ...clientResponses,
+  //                                         [fieldId]: [...prev, opt]
+  //                                       });
+  //                                     } else {
+  //                                       setClientResponses({
+  //                                         ...clientResponses,
+  //                                         [fieldId]: prev.filter((v: any) => v !== opt)
+  //                                       });
+  //                                     }
+  //                                   }}
+  //                                   className="mr-2"
+  //                                 />
+  //                                 {opt}
+  //                               </label>
+  //                             ))}
+  //                           </div>
+  //                         </FieldWrapper>
+  //                       );
+  //                     } else if (fieldType === 'radio' && Array.isArray(fieldOptions)) {
+  //                       return (
+  //                         <FieldWrapper key={fieldId} label={fieldLabel}>
+  //                           <div className={`flex flex-wrap gap-4 p-3 border rounded-md ${fieldStatusStyle}`}>
+  //                             {fieldOptions.map((opt: any) => (
+  //                               <label key={opt} className="flex items-center">
+  //                                 <input
+  //                                   type="radio"
+  //                                   name={fieldId}
+  //                                   value={opt}
+  //                                   checked={clientResponses[fieldId] === opt}
+  //                                   onChange={() => setClientResponses({
+  //                                     ...clientResponses,
+  //                                     [fieldId]: opt
+  //                                   })}
+  //                                   className="mr-2"
+  //                                 />
+  //                                 {opt}
+  //                               </label>
+  //                             ))}
+  //                           </div>
+  //                         </FieldWrapper>
+  //                       );
+  //                     } else if (fieldType === 'textarea') {
+  //                       return (
+  //                         <FieldWrapper key={fieldId} label={fieldLabel}>
+  //                           <TextArea
+  //                             id={fieldId}
+  //                             label=""
+  //                             value={clientResponses[fieldId] || clientResponses[fieldLabel] || ''}
+  //                             onChange={e => setClientResponses({
+  //                               ...clientResponses,
+  //                               [fieldId]: e.target.value
+  //                             })}
+  //                             rows={3}
+  //                             className={fieldStatusStyle}
+  //                           />
+  //                         </FieldWrapper>
+  //                       );
+  //                     } else {
+  //                       // Default to text input
+  //                       return (
+  //                         <FieldWrapper key={fieldId} label={fieldLabel}>
+  //                           <Input
+  //                             id={fieldId}
+  //                             label=""
+  //                             type={fieldType === 'email' ? 'email' : fieldType === 'number' ? 'number' : 'text'}
+  //                             value={clientResponses[fieldId] || clientResponses[fieldLabel] || ''}
+  //                             onChange={e => setClientResponses({
+  //                               ...clientResponses,
+  //                               [fieldId]: e.target.value
+  //                             })}
+  //                             placeholder={q.placeholder || ''}
+  //                             className={fieldStatusStyle}
+  //                           />
+  //                         </FieldWrapper>
+  //                       );
+  //                     }
+  //                   })}
+  //                 </div>
+  //               </div>
+  //             );
+  //           })()}
+
+  //           {/* Response Summary Card */}
+  //           {questionnaireAssignment && (() => {
+  //             const questionnaire = availableQuestionnaires.find(q => {
+  //               const possibleIds = [q._id, q.id, q.originalId, q.name].filter(Boolean);
+  //               return q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId ||
+  //                 possibleIds.includes(questionnaireAssignment.questionnaireId);
+  //             });
+
+  //             if (questionnaire) {
+  //               const questions = questionnaire.fields || questionnaire.questions || questionnaire.form?.fields || questionnaire.form?.questions || [];
+  //               const filledFields = questions.filter((q: any) => {
+  //                 const fieldId = q.id || q._id || `field_${questions.indexOf(q)}`;
+  //                 const fieldLabel = q.label || q.question || q.name;
+  //                 const value = clientResponses[fieldId] || clientResponses[fieldLabel];
+  //                 return value !== undefined && value !== null && value !== '' &&
+  //                   (!Array.isArray(value) || value.length > 0);
+  //               });
+  //               const requiredFields = questions.filter((q: any) => q.required === true);
+  //               const filledRequiredFields = requiredFields.filter((q: any) => {
+  //                 const fieldId = q.id || q._id || `field_${questions.indexOf(q)}`;
+  //                 const fieldLabel = q.label || q.question || q.name;
+  //                 const value = clientResponses[fieldId] || clientResponses[fieldLabel];
+  //                 return value !== undefined && value !== null && value !== '' &&
+  //                   (!Array.isArray(value) || value.length > 0);
+  //               });
+
+  //               return (
+  //                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+  //                   <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+  //                     <FileText className="w-4 h-4 mr-2" />
+  //                     Response Summary
+  //                   </h4>
+  //                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+  //                     <div className="bg-white rounded p-3 border">
+  //                       <div className="text-gray-600">Total Fields</div>
+  //                       <div className="text-lg font-medium text-gray-900">{questions.length}</div>
+  //                     </div>
+  //                     <div className="bg-white rounded p-3 border">
+  //                       <div className="text-gray-600">Filled Fields</div>
+  //                       <div className={`text-lg font-medium ${filledFields.length === questions.length ? 'text-green-600' : 'text-yellow-600'}`}>
+  //                         {filledFields.length}
+  //                       </div>
+  //                     </div>
+  //                     <div className="bg-white rounded p-3 border">
+  //                       <div className="text-gray-600">Required Fields</div>
+  //                       <div className={`text-lg font-medium ${filledRequiredFields.length === requiredFields.length ? 'text-green-600' : 'text-red-600'}`}>
+  //                         {filledRequiredFields.length} / {requiredFields.length}
+  //                       </div>
+  //                     </div>
+  //                   </div>
+
+  //                   {/* Missing Required Fields Warning */}
+  //                   {filledRequiredFields.length < requiredFields.length && (
+  //                     <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
+  //                       <div className="flex items-start">
+  //                         <AlertCircle className="w-4 h-4 text-red-500 mr-2 mt-0.5" />
+  //                         <div className="text-sm">
+  //                           <div className="font-medium text-red-800 mb-1">Missing Required Fields:</div>
+  //                           <ul className="text-red-700 space-y-1">
+  //                             {requiredFields.filter((q: any) => {
+  //                               const fieldId = q.id || q._id || `field_${questions.indexOf(q)}`;
+  //                               const fieldLabel = q.label || q.question || q.name;
+  //                               const value = clientResponses[fieldId] || clientResponses[fieldLabel];
+  //                               return value === undefined || value === null || value === '' ||
+  //                                 (Array.isArray(value) && value.length === 0);
+  //                             }).map((q: any, index: number) => (
+  //                               <li key={index} className="flex items-center">
+  //                                 <div className="w-1 h-1 bg-red-500 rounded-full mr-2"></div>
+  //                                 {q.label || q.question || q.name || 'Unnamed field'}
+  //                               </li>
+  //                             ))}
+  //                           </ul>
+  //                         </div>
+  //                       </div>
+  //                     </div>
+  //                   )}
+
+  //                   {/* Completion Status */}
+  //                   {filledRequiredFields.length === requiredFields.length && filledFields.length === questions.length && (
+  //                     <div className="mt-3 bg-green-50 border border-green-200 rounded p-3">
+  //                       <div className="flex items-center text-green-800">
+  //                         <CheckCircle className="w-4 h-4 mr-2" />
+  //                         <span className="text-sm font-medium">All fields completed! Ready to proceed.</span>
+  //                       </div>
+  //                     </div>
+  //                   )}
+  //                 </div>
+  //               );
+  //             }
+  //             return null;
+  //           })()}
+
+  //           <div className="flex justify-end">
+  //             {isViewEditMode ? (
+  //               // Simple Next button in view/edit mode
+  //               <Button
+  //                 onClick={handleNext}
+  //                 disabled={Object.keys(clientResponses).length === 0}
+  //               >
+  //                 Next
+  //                 <ArrowRight className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             ) : (
+  //               // Original Response submission button in normal mode
+  //               <Button
+  //                 onClick={handleResponseSubmit}
+  //                 disabled={Object.keys(clientResponses).length === 0}
+  //               >
+  //                 Responses Complete & Continue
+  //                 <CheckCircle className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             )}
+  //           </div>
+
+  //         </div>
+  //       );
+
+  //     case 6: // Form Details
+  //       return (
+  //         <div className="space-y-6">
+  //           <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+  //             <h3 className="text-lg font-semibold text-teal-900 mb-2">Form Details</h3>
+  //             <p className="text-teal-700">Review all details filled so far before proceeding to auto-fill forms.</p>
+  //           </div>
+
+  //           {/* Auto-filling Progress Indicator */}
+  //           {autoFillingFormDetails && (
+  //             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+  //               <div className="flex items-center">
+  //                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+  //                 <h4 className="text-sm font-medium text-blue-900">Auto-filling form details...</h4>
+  //               </div>
+  //               <p className="text-sm text-blue-700 mt-1">
+  //                 Loading data from saved workflow API response.
+  //               </p>
+  //             </div>
+  //           )}
+
+  //           <div className="space-y-4">
+  //             <h4 className="font-medium text-gray-900">Selected Forms Summary</h4>
+  //             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //               {selectedForms.map(form => (
+  //                 <div key={form} className="bg-white border border-gray-200 rounded-lg p-4">
+  //                   <div className="flex items-center justify-between">
+  //                     <h5 className="font-medium text-gray-900">{form}</h5>
+  //                     <CheckCircle className="w-5 h-5 text-green-500" />
+  //                   </div>
+  //                   <p className="text-sm text-gray-500 mt-1">
+  //                     Will be auto-filled with client and case data
+  //                   </p>
+  //                   {formCaseIds[form] && (
+  //                     <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+  //                       <div className="text-xs text-blue-600">Case ID:</div>
+  //                       <div className="text-sm font-mono text-blue-800">{formCaseIds[form]}</div>
+  //                     </div>
+  //                   )}
+  //                 </div>
+  //               ))}
+  //             </div>
+
+  //             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+  //               <h4 className="font-medium text-gray-900 mb-2">All Details Summary</h4>
+  //               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+  //                 <div><strong>Client Name:</strong> {client.name}</div>
+  //                 <div><strong>Email:</strong> {client.email}</div>
+  //                 <div><strong>Phone:</strong> {client.phone}</div>
+  //                 <div><strong>Date of Birth:</strong> {client.dateOfBirth}</div>
+  //                 <div><strong>Nationality:</strong> {client.nationality}</div>
+  //                 <div><strong>Address:</strong> {client.address?.street}, {client.address?.city}, {client.address?.state} {client.address?.zipCode}, {client.address?.country}</div>
+  //                 <div><strong>Case Title:</strong> {caseData.title}</div>
+  //                 <div><strong>Case Type:</strong> {caseData.type || caseData.visaType}</div>
+  //                 <div><strong>Status:</strong> {caseData.status}</div>
+  //                 <div><strong>Assigned Attorney:</strong> {caseData.assignedTo || 'Not assigned'}</div>
+  //                 <div><strong>Open Date:</strong> {caseData.openDate}</div>
+  //                 <div><strong>Priority Date:</strong> {caseData.priorityDate}</div>
+  //                 <div><strong>Due Date:</strong> {caseData.dueDate || 'Not set'}</div>
+  //                 <div><strong>Priority:</strong> {caseData.priority}</div>
+  //                 <div><strong>Category:</strong> {IMMIGRATION_CATEGORIES.find(c => c.id === caseData.category)?.name || caseData.category}</div>
+  //                 <div><strong>Subcategory:</strong> {caseData.subcategory}</div>
+  //                 <div><strong>Visa Type:</strong> {caseData.visaType}</div>
+  //                 <div className="md:col-span-2"><strong>Description:</strong> {caseData.description}</div>
+  //                 {Object.keys(formCaseIds).length > 0 && (
+  //                   <div className="md:col-span-2">
+  //                     <strong>Form Case IDs:</strong>
+  //                     <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+  //                       {Object.entries(formCaseIds).map(([form, caseId]) => (
+  //                         <div key={form} className="text-xs bg-gray-100 p-2 rounded">
+  //                           <div className="font-medium">{form}:</div>
+  //                           <div className="font-mono text-blue-600">{caseId}</div>
+  //                         </div>
+  //                       ))}
+  //                     </div>
+  //                   </div>
+  //                 )}
+  //               </div>
+
+
+  //             </div>
+  //           </div>
+
+  //           <div className="flex justify-between">
+  //             <Button variant="outline" onClick={handlePrevious}>
+  //               <ArrowLeft className="w-4 h-4 mr-2" />
+  //               Back
+  //             </Button>
+  //             {isViewEditMode ? (
+  //               // Simple Next button in view/edit mode
+  //               <Button onClick={handleNext}>
+  //                 Next
+  //                 <ArrowRight className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             ) : (
+  //               // Original Form Details submission button in normal mode
+  //               <Button onClick={handleFormDetailsSubmit}>
+  //                 Proceed to Auto-Fill
+  //                 <ArrowRight className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             )}
+  //           </div>
+  //         </div>
+  //       );
+
+  //     case 7: // Auto-fill Forms
+  //       return (
+  //         <div className="space-y-6">
+  //           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+  //             <h3 className="text-lg font-semibold text-green-900 mb-2">Auto-Fill Forms</h3>
+  //             <p className="text-green-700">Generate completed forms with all collected information.</p>
+  //           </div>
+
+  //           <div className="space-y-4">
+  //             <div className="bg-white border border-gray-200 rounded-lg p-6">
+  //               <h4 className="font-medium text-gray-900 mb-4">Ready to Generate Forms</h4>
+
+  //               <div className="space-y-3">
+  //                 {selectedForms.map(form => (
+  //                   <div key={form} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+  //                     <div className="flex items-center">
+  //                       <FileText className="w-5 h-5 text-blue-500 mr-3" />
+  //                       <div>
+  //                         <div className="font-medium text-gray-900">{form}</div>
+  //                         <div className="text-sm text-gray-500">
+  //                           Will be auto-filled with client and case data
+  //                         </div>
+  //                       </div>
+  //                     </div>
+  //                     <div className="flex items-center text-green-600">
+  //                       <CheckCircle className="w-5 h-5 mr-2" />
+  //                       <span className="text-sm font-medium">Ready</span>
+  //                     </div>
+  //                   </div>
+  //                 ))}
+  //               </div>
+
+  //               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+  //                 <div className="flex items-start">
+  //                   <AlertCircle className="w-5 h-5 text-blue-500 mr-3 mt-0.5" />
+  //                   <div>
+  //                     <h5 className="font-medium text-blue-900">Auto-Fill Process</h5>
+  //                     <p className="text-blue-700 text-sm mt-1">
+  //                       The forms will be automatically filled with:
+  //                     </p>
+  //                     <ul className="text-blue-700 text-sm mt-2 ml-4 space-y-1">
+  //                       <li>• Client personal information</li>
+  //                       <li>• Address and contact details</li>
+  //                       <li>• Questionnaire responses</li>
+  //                       <li>• Case-specific information</li>
+  //                     </ul>
+  //                   </div>
+  //                 </div>
+  //               </div>
+  //             </div>
+
+  //             {/* Auto-Generate Forms Section */}
+  //             <div className="bg-white border border-gray-200 rounded-lg p-6">
+  //               <h4 className="font-medium text-gray-900 mb-4">Auto-Generate Forms</h4>
+  //               <p className="text-gray-600 mb-4">
+  //                 Use the advanced auto-generation feature to create forms with all collected data.
+  //               </p>
+
+  //               <div className="flex gap-3 mb-6">
+  //                 <Button
+  //                   onClick={handleAutoGenerateForms}
+  //                   disabled={generatingForms || selectedForms.length === 0}
+  //                   className="bg-purple-600 hover:bg-purple-700"
+  //                 >
+  //                   {generatingForms ? (
+  //                     <>
+  //                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+  //                       Auto-Generating Forms...
+  //                     </>
+  //                   ) : (
+  //                     <>
+  //                       <FileCheck className="w-4 h-4 mr-2" />
+  //                       Auto Generate Forms
+  //                     </>
+  //                   )}
+  //                 </Button>
+
+  //                 {!isViewEditMode && (
+  //                   <Button
+  //                     onClick={handleAutoFillForms}
+  //                     disabled={loading}
+  //                     className="bg-green-600 hover:bg-green-700"
+  //                   >
+  //                     {loading ? (
+  //                       <>
+  //                         <Clock className="w-4 h-4 mr-2 animate-spin" />
+  //                         Generating Forms...
+  //                       </>
+  //                     ) : (
+  //                       <>
+  //                         <Download className="w-4 h-4 mr-2" />
+  //                         Legacy Generate & Download
+  //                       </>
+  //                     )}
+  //                   </Button>
+  //                 )}
+  //               </div>
+
+  //               {/* Generated Forms Display */}
+  //               {generatedForms.length > 0 && (
+  //                 <div className="space-y-4">
+  //                   <h5 className="font-medium text-gray-900">Generated Forms</h5>
+  //                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //                     {generatedForms.map((form) => (
+  //                       <div key={form.formName} className="border border-gray-200 rounded-lg p-4">
+  //                         <div className="flex items-center justify-between mb-3">
+  //                           <div className="flex items-center">
+  //                             <FileText className="w-5 h-5 text-blue-500 mr-2" />
+  //                             <span className="font-medium text-gray-900">{form.formName}</span>
+  //                           </div>
+  //                           <div className="flex items-center">
+  //                             {form.status === 'generating' && (
+  //                               <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+  //                             )}
+  //                             {form.status === 'success' && (
+  //                               <CheckCircle className="w-4 h-4 text-green-500" />
+  //                             )}
+  //                             {form.status === 'error' && (
+  //                               <AlertCircle className="w-4 h-4 text-red-500" />
+  //                             )}
+  //                           </div>
+  //                         </div>
+
+  //                         {form.status === 'generating' && (
+  //                           <div className="text-sm text-blue-600">Generating...</div>
+  //                         )}
+
+  //                         {form.status === 'success' && (
+  //                           <div className="space-y-2">
+  //                             <div className="text-sm text-gray-600">{form.fileName}</div>
+  //                             <div className="flex gap-2">
+  //                               <Button
+  //                                 onClick={() => handleDownloadForm(form.formName)}
+  //                                 size="sm"
+  //                                 className="bg-blue-600 hover:bg-blue-700"
+  //                               >
+  //                                 <Download className="w-4 h-4 mr-1" />
+  //                                 Download
+  //                               </Button>
+  //                               <Button
+  //                                 onClick={() => handlePreviewForm(form.formName)}
+  //                                 size="sm"
+  //                                 variant="outline"
+  //                               >
+  //                                 <FileText className="w-4 h-4 mr-1" />
+  //                                 Preview
+  //                               </Button>
+  //                             </div>
+  //                           </div>
+  //                         )}
+
+  //                         {form.status === 'error' && (
+  //                           <div className="text-sm text-red-600">
+  //                             Error: {form.error || 'Unknown error'}
+  //                           </div>
+  //                         )}
+  //                       </div>
+  //                     ))}
+  //                   </div>
+  //                 </div>
+  //               )}
+
+  //               {/* PDF Preview Modal */}
+  //               {Object.entries(showPreview).map(([formName, isVisible]) => {
+  //                 if (!isVisible) return null;
+  //                 const form = generatedForms.find(f => f.formName === formName);
+  //                 if (!form || form.status !== 'success') return null;
+
+  //                 return (
+  //                   <div key={formName} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  //                     <div className="bg-white rounded-lg p-4 max-w-4xl w-full h-5/6 flex flex-col">
+  //                       <div className="flex items-center justify-between mb-4">
+  //                         <h3 className="text-lg font-semibold">Preview: {formName}</h3>
+  //                         <Button
+  //                           onClick={() => handleClosePreview(formName)}
+  //                           variant="outline"
+  //                           size="sm"
+  //                         >
+  //                           ×
+  //                         </Button>
+  //                       </div>
+  //                       <div className="flex-1">
+  //                         <iframe
+  //                           src={form.downloadUrl}
+  //                           className="w-full h-full border-0"
+  //                           title={`Preview of ${formName}`}
+  //                         />
+  //                       </div>
+  //                     </div>
+  //                   </div>
+  //                 );
+  //               })}
+  //             </div>
+  //           </div>
+
+  //           <div className="flex justify-between">
+  //             <Button variant="outline" onClick={handlePrevious}>
+  //               <ArrowLeft className="w-4 h-4 mr-2" />
+  //               Back
+  //             </Button>
+  //             {isViewEditMode ? (
+  //               // Simple completion message in view/edit mode
+  //               <Button
+  //                 onClick={() => {
+  //                   // Workflow review completed
+  //                 }}
+  //                 className="bg-blue-600 hover:bg-blue-700"
+  //               >
+  //                 Complete Review
+  //                 <CheckCircle className="w-4 h-4 ml-2" />
+  //               </Button>
+  //             ) : (
+  //               <div className="flex gap-3">
+  //                 <Button
+  //                   onClick={handleAutoGenerateForms}
+  //                   disabled={generatingForms || selectedForms.length === 0}
+  //                   className="bg-purple-600 hover:bg-purple-700"
+  //                 >
+  //                   {generatingForms ? (
+  //                     <>
+  //                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+  //                       Auto-Generating...
+  //                     </>
+  //                   ) : (
+  //                     <>
+  //                       <FileCheck className="w-4 h-4 mr-2" />
+  //                       Auto Generate
+  //                     </>
+  //                   )}
+  //                 </Button>
+  //                 <Button
+  //                   onClick={handleAutoFillForms}
+  //                   disabled={loading}
+  //                   className="bg-green-600 hover:bg-green-700"
+  //                 >
+  //                   {loading ? (
+  //                     <>
+  //                       <Clock className="w-4 h-4 mr-2 animate-spin" />
+  //                       Generating...
+  //                     </>
+  //                   ) : (
+  //                     <>
+  //                       <Download className="w-4 h-4 mr-2" />
+  //                       Legacy Generate
+  //                     </>
+  //                   )}
+  //                 </Button>
+  //               </div>
+  //             )}
+  //           </div>
+  //         </div>
+  //       );
+
+  //     default:
+  //       return <div />;
+  //   }
+  // };
 
   // API connectivity is checked through regular application flows
 
