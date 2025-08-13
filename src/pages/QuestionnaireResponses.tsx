@@ -93,18 +93,13 @@ const QuestionnaireResponses: React.FC = () => {
   // Function to fetch workflows from API for auto-fill
   const fetchWorkflowsFromAPI = async () => {
     try {
-      console.log('🔄 Fetching workflows from API...');
       setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
       
       // Check token availability
       if (!token) {
-        console.log('❌ No authentication token available');
-        toast('No authentication token - please login first');
         return [];
       }
-
-      console.log('✅ Authentication token found, making API request...');
 
       // Request workflows from API
       const response = await api.get('/api/v1/workflows', {
@@ -115,36 +110,26 @@ const QuestionnaireResponses: React.FC = () => {
         }
       });
       
-      console.log('📥 Response from workflows API:', response.data);
-      
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         return workflows;
       } else {
-        console.log('⚠️ No workflow data available in API response');
         return [];
       }
       
     } catch (error: any) {
-      console.error('❌ Error fetching workflows from API:', error);
-      
       // If 404, the endpoint might not be available
       if (error.response?.status === 404) {
-        console.log('🔍 Server workflows endpoint not found');
-        toast('Server workflows endpoint not available');
+        // Server workflows endpoint not found
       } else if (error.response?.status === 401) {
-        console.log('🔐 Authentication failed');
-        toast('Authentication failed - please login again');
+        // Authentication failed
       } else {
-        console.log('💥 Other API error:', error.response?.status || 'Unknown');
-        toast.error('Failed to load workflows from server');
+        // Other API error
       }
       
       return [];
     } finally {
       setLoadingWorkflows(false);
-      console.log('🏁 Finished workflow API request');
     }
   };
   
@@ -161,10 +146,6 @@ const QuestionnaireResponses: React.FC = () => {
   useEffect(() => {
     // Apply filters
     let filtered = [...assignments];
-    
-    console.log('Applying filters - initial assignments:', assignments.length);
-    console.log('Search term:', searchTerm);
-    console.log('Status filter:', statusFilter);
     
     // Search term filter
     if (searchTerm) {
@@ -188,35 +169,18 @@ const QuestionnaireResponses: React.FC = () => {
                clientName.includes(term) || 
                caseTitle.includes(term);
         
-        console.log('Search filter check:', {
-          term,
-          questionnaireTitle,
-          clientName,
-          caseTitle,
-          matches
-        });
-        
         return matches;
       });
-      console.log('After search filter:', filtered.length);
     }
     
     // Status filter
     if (statusFilter !== 'all') {
-      const beforeStatusFilter = filtered.length;
       filtered = filtered.filter(assignment => {
         const matches = assignment.status === statusFilter;
-        console.log('Status filter check:', {
-          assignmentStatus: assignment.status,
-          filterStatus: statusFilter,
-          matches
-        });
         return matches;
       });
-      console.log(`After status filter (${statusFilter}):`, filtered.length, 'from', beforeStatusFilter);
     }
     
-    console.log('Final filtered assignments:', filtered.length);
     setFilteredAssignments(filtered);
   }, [assignments, searchTerm, statusFilter]);
 
@@ -232,8 +196,6 @@ const QuestionnaireResponses: React.FC = () => {
         limit: 50 // Get more results for better demo
       });
       
-      console.log('Raw API Response:', responseData);
-      
       const assignmentsData = responseData.data.assignments || [];
       
       // Filter to only show completed assignments in the UI
@@ -242,42 +204,17 @@ const QuestionnaireResponses: React.FC = () => {
         assignment.status === 'completed'
       );
       
-      // Debug the data structure and response data
-      console.log('All assignments data:', assignmentsData);
-      console.log('Completed assignments:', completedAssignments.length);
-      console.log('Assignments with missing response data:', 
-        completedAssignments.filter((a: any) => !a.responseId).length
-      );
-      
-      if (completedAssignments.length > 0) {
-        console.log('First assignment structure:', JSON.stringify(completedAssignments[0], null, 2));
-        // Check if we have response data
-        const first = completedAssignments[0];
-        console.log('clientId type:', typeof first.clientId, 'value:', first.clientId);
-        console.log('actualClient type:', typeof first.actualClient, 'value:', first.actualClient);
-        console.log('responseId data:', first.responseId);
-        console.log('response data available:', !!first.responseId?.responses);
-        if (first.responseId?.responses) {
-          console.log('Sample response fields:', Object.keys(first.responseId.responses).slice(0, 3));
-        }
-      }
-      
       setAssignments(completedAssignments);
       setError(null);
-      
-      console.log('State set - assignments:', completedAssignments.length, 'filtered will be set by useEffect');
       
       if (completedAssignments.length > 0) {
         const assignmentsWithResponses = completedAssignments.filter((a: any) => a.responseId?.responses);
         const assignmentsWithoutResponses = completedAssignments.length - assignmentsWithResponses.length;
         
-        toast.success(`Loaded ${completedAssignments.length} completed questionnaires` + 
-          (assignmentsWithoutResponses > 0 ? ` (${assignmentsWithoutResponses} missing response data)` : ''));
+        // Loaded completed questionnaires successfully
       }
     } catch (err) {
-      console.error('Error loading responses:', err);
       setError('Failed to load questionnaire responses. Please try again.');
-      toast.error('Error loading questionnaire responses');
     } finally {
       setLoading(false);
     }
@@ -333,7 +270,6 @@ const QuestionnaireResponses: React.FC = () => {
       return;
     }
 
-    console.log('🔄 Starting enhanced workflow navigation...');
     setLoadingWorkflows(true);
 
     try {
@@ -362,9 +298,8 @@ const QuestionnaireResponses: React.FC = () => {
           // If still no match, get the most recent workflow
           matchingWorkflow = apiWorkflows
             .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-          console.log('⚠️ No exact match found, using most recent workflow');
         } else {
-          console.log('✅ Found matching workflow for client');
+          // Found matching workflow for client
         }
       }
 
@@ -428,23 +363,17 @@ const QuestionnaireResponses: React.FC = () => {
             createAccount: matchingWorkflow.clientCredentials?.createAccount || true
           },
           
-          // Set target step to Client Information (step 2) since we want to start from there
-          targetStep: 2,
+          // Set target step to Form Details (step 1 in EXIST_WORKFLOW_STEPS) for edit mode
+          targetStep: responseInfo?.responses ? 1 : 2,
           autoFillMode: true, // Flag to indicate this is auto-fill mode (no saving)
           currentStep: matchingWorkflow.currentStep || 1
         })
       };
       
-      console.log('📦 Enhanced workflow data prepared:', workflowData);
-      
       // Store the workflow data in sessionStorage for the Legal Firm Workflow to pick up
       sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));
       
-      toast.success(`🚀 Loading complete workflow data for ${clientInfo.firstName}`);
-      
     } catch (error) {
-      console.error('❌ Error fetching workflow data:', error);
-      
       // Fallback to basic data if API fails
       const basicWorkflowData = {
         clientId: clientInfo._id,
@@ -460,15 +389,12 @@ const QuestionnaireResponses: React.FC = () => {
       };
       
       sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(basicWorkflowData));
-      toast('⚠️ Using basic client data (workflow API unavailable)');
       
     } finally {
       setLoadingWorkflows(false);
       
       // Navigate to the Legal Firm Workflow page with existing response parameter
       navigate('/legal-firm-workflow?fromQuestionnaireResponses=true');
-      
-      console.log('🎯 Navigated to Legal Firm Workflow with existing response data');
     }
   };
 
@@ -489,23 +415,12 @@ const QuestionnaireResponses: React.FC = () => {
     // Check if responseId exists and has response data
     if (!assignment.responseId) {
       toast.error('No response data available for this assignment');
-      console.warn('Assignment has no responseId:', assignmentId);
       return;
     }
     
     if (!assignment.responseId.responses) {
       toast.error('Response data is empty or corrupted');
-      console.warn('Assignment responseId exists but no response data:', assignmentId);
       return;
-    }
-    
-    // Log response data for debugging
-    console.log('📋 Viewing response for assignment:', assignmentId);
-    console.log('📝 Response data:', assignment.responseId.responses);
-    console.log('📊 Number of fields completed:', Object.keys(assignment.responseId.responses).length);
-    console.log('🗓️ Submitted at:', assignment.responseId.submittedAt);
-    if (assignment.responseId.notes) {
-      console.log('📝 Notes:', assignment.responseId.notes);
     }
     
     navigate(`/questionnaires/response/${assignmentId}`);
