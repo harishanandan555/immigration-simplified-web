@@ -623,12 +623,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             setIsViewEditMode(true); // Set view/edit mode for simple navigation
           } else if (data.mode === 'edit') {
             setIsExistResponse(true);
-<<<<<<< HEAD
             // setIsNewResponse(false);
             toast.success(`Loaded existing responses for ${data.clientName}`);
-=======
-            setIsNewResponse(false);
->>>>>>> b01690974d4f70c855a43ede0c30849b27bef8f2
           } else {
             // setIsNewResponse(true);
             setIsExistResponse(false);
@@ -1257,12 +1253,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to fetch workflows from API for auto-fill
   const fetchWorkflowsFromAPI = async () => {
     try {
-<<<<<<< HEAD
       console.log('🔄 Fetching workflows from API...');
       // setLoadingWorkflows(true);
-=======
-      setLoadingWorkflows(true);
->>>>>>> b01690974d4f70c855a43ede0c30849b27bef8f2
       const token = localStorage.getItem('token');
 
       // Check token availability
@@ -1281,12 +1273,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-<<<<<<< HEAD
         // setAvailableWorkflows(workflows);
         console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
-=======
-        setAvailableWorkflows(workflows);
->>>>>>> b01690974d4f70c855a43ede0c30849b27bef8f2
         return workflows;
       } else {
         return [];
@@ -1304,12 +1292,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       return [];
     } finally {
-<<<<<<< HEAD
       // setLoadingWorkflows(false);
       console.log('🏁 Finished workflow API request');
-=======
-      setLoadingWorkflows(false);
->>>>>>> b01690974d4f70c855a43ede0c30849b27bef8f2
     }
   };
 
@@ -2261,11 +2245,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             { duration: 8000 }
           );
         } else {
-<<<<<<< HEAD
           toast.success(`Questionnaire "${normalizedQ.title || normalizedQ.name}" has been assigned to client ${client.name}.`);
-=======
-          // Questionnaire assigned to client (local storage only)
->>>>>>> b01690974d4f70c855a43ede0c30849b27bef8f2
         }
         setLoading(false);
         handleNext();
@@ -4753,7 +4733,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   )}
                 </div>
 
-<<<<<<< HEAD
                 {/* Enhanced Questionnaire responses summary with debugging */}
                 {questionnaireAssignment && (() => {
                   console.log('🔍 Questionnaire Assignment found:', questionnaireAssignment);
@@ -5014,9 +4993,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     </div>
                   );
                 })()}
-=======
-
->>>>>>> b01690974d4f70c855a43ede0c30849b27bef8f2
               </div>
             </div>
 

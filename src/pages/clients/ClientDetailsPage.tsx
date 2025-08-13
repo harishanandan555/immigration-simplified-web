@@ -17,7 +17,7 @@ const ClientDetailsPage = () => {
   const fetchClientCasesFromWorkflows = async (clientId: string, clientData?: any) => {
     try {
       console.log('🔄 Fetching client cases from workflows for client:', clientId);
-      console.log('🔍 Client data to use for matching:', clientData);
+      console.log('🔍 Using client data:', clientData || client);
       setLoadingCases(true);
       const token = localStorage.getItem('token');
       
@@ -43,37 +43,75 @@ const ClientDetailsPage = () => {
         console.log(`✅ Successfully loaded ${workflows.length} workflows`);
         
         // Filter workflows for this specific client and extract cases
-        const currentClient = clientData || client; // Use passed clientData or fallback to state
+        const currentClient = clientData || client;
         const clientWorkflows = workflows.filter((workflow: any) => {
           const workflowClient = workflow.client || {};
           
+          // Debug: Log each workflow client for comparison
           console.log('🔍 Comparing workflow client:', {
             workflowId: workflow._id,
             workflowClientId: workflowClient.id || 'EMPTY',
             workflowClientEmail: workflowClient.email || 'NO EMAIL',
             workflowClientName: workflowClient.name || 'NO NAME',
+            workflowClientFirstName: workflowClient.firstName || '',
+            workflowClientLastName: workflowClient.lastName || '',
             searchingForClientId: clientId,
-            searchingForClientEmail: currentClient?.email || 'CLIENT EMAIL NOT AVAILABLE',
-            searchingForClientName: currentClient?.name || 'CLIENT NAME NOT AVAILABLE'
+            searchingForClientEmail: currentClient?.email || 'CLIENT NOT LOADED',
+            searchingForClientName: currentClient?.name || 'CLIENT NOT LOADED'
           });
           
-          // Try multiple matching criteria
-          const clientIdMatch = workflowClient.id === clientId || workflowClient._id === clientId;
-          const clientEmailMatch = currentClient && workflowClient.email && currentClient.email &&
-            workflowClient.email.toLowerCase().trim() === currentClient.email.toLowerCase().trim();
-          const clientNameMatch = currentClient && workflowClient.name && currentClient.name && 
-            workflowClient.name.toLowerCase().trim() === currentClient.name.toLowerCase().trim();
+          // Since workflow client IDs are empty, prioritize email and name matching
+          let isMatch = false;
+          let matchType = '';
           
-          // Also try matching with firstName + lastName combination
-          const fullNameMatch = currentClient && workflowClient.firstName && workflowClient.lastName && currentClient.name &&
-            `${workflowClient.firstName} ${workflowClient.lastName}`.toLowerCase().trim() === currentClient.name.toLowerCase().trim();
+          // 1. Try exact client ID match first (if both IDs exist and are not empty)
+          if (workflowClient.id && workflowClient.id !== '' && clientId && clientId !== '') {
+            if (workflowClient.id === clientId || workflowClient._id === clientId) {
+              isMatch = true;
+              matchType = 'ID';
+            }
+          }
           
-          const isMatch = clientIdMatch || clientEmailMatch || clientNameMatch || fullNameMatch;
+          // 2. Try email match (most reliable when IDs are empty)
+          if (!isMatch && currentClient && workflowClient.email && currentClient.email) {
+            if (workflowClient.email.toLowerCase().trim() === currentClient.email.toLowerCase().trim()) {
+              isMatch = true;
+              matchType = 'Email';
+            }
+          }
+          
+          // 3. Try exact name match
+          if (!isMatch && currentClient && workflowClient.name && currentClient.name) {
+            if (workflowClient.name.toLowerCase().trim() === currentClient.name.toLowerCase().trim()) {
+              isMatch = true;
+              matchType = 'Exact Name';
+            }
+          }
+          
+          // 4. Try firstName + lastName combination
+          if (!isMatch && currentClient && workflowClient.firstName && workflowClient.lastName && currentClient.name) {
+            const fullName = `${workflowClient.firstName} ${workflowClient.lastName}`.toLowerCase().trim();
+            if (fullName === currentClient.name.toLowerCase().trim()) {
+              isMatch = true;
+              matchType = 'Full Name (firstName + lastName)';
+            }
+          }
+          
+          // 5. Try partial name matches (be more flexible)
+          if (!isMatch && currentClient && currentClient.name && workflowClient.name) {
+            const clientNameLower = currentClient.name.toLowerCase().trim();
+            const workflowNameLower = workflowClient.name.toLowerCase().trim();
+            
+            if (clientNameLower.includes(workflowNameLower) || workflowNameLower.includes(clientNameLower)) {
+              isMatch = true;
+              matchType = 'Partial Name';
+            }
+          }
           
           if (isMatch) {
-            console.log('✅ FOUND MATCH! Workflow for client:', {
+            console.log('✅ FOUND MATCH! Workflow match for client:', {
               workflowId: workflow._id,
-              matchType: clientIdMatch ? 'ID' : clientEmailMatch ? 'Email' : clientNameMatch ? 'Name' : 'Full Name',
+              matchType: matchType,
               workflowClientData: {
                 id: workflowClient.id || 'EMPTY',
                 email: workflowClient.email,
@@ -101,18 +139,17 @@ const ClientDetailsPage = () => {
             const wfClient = workflow.client || {};
             console.log(`Workflow ${index + 1}:`, {
               workflowId: workflow._id,
-              clientId: wfClient.id || 'EMPTY',
-              clientEmail: wfClient.email || 'NO EMAIL',
-              clientName: wfClient.name || `${wfClient.firstName || ''} ${wfClient.lastName || ''}`.trim() || 'NO NAME',
-              clientPhone: wfClient.phone || 'NO PHONE'
+              clientId: wfClient.id || wfClient._id || 'No ID',
+              clientEmail: wfClient.email || 'No email',
+              clientName: wfClient.name || `${wfClient.firstName || ''} ${wfClient.lastName || ''}`.trim() || 'No name',
+              clientPhone: wfClient.phone || 'No phone'
             });
           });
           
-          console.log('💡 Search criteria was:', {
-            clientId: clientId,
-            clientEmail: currentClient?.email,
-            clientName: currentClient?.name
-          });
+          console.log('💡 Consider checking if:');
+          console.log('1. This client has any workflows created');
+          console.log('2. The client ID matches between the clients and workflows databases');
+          console.log('3. The client might be identified by email or name instead of ID');
         }
         
         // Extract cases from client workflows
@@ -175,11 +212,15 @@ const ClientDetailsPage = () => {
         setClient(clientData);
         console.log('✅ Client data loaded:', clientData);
         
-        // Fetch client cases from workflows, passing the client data
-        const casesData = await fetchClientCasesFromWorkflows(id, clientData);
-        setClientCases(casesData);
+        // Wait a moment to ensure client state is updated, then fetch workflows
+        setTimeout(async () => {
+          console.log('🔄 Starting workflow fetch with client data:', clientData);
+          const casesData = await fetchClientCasesFromWorkflows(id, clientData);
+          setClientCases(casesData);
+        }, 100);
         
       } catch (err) {
+        console.error('❌ Error in fetchClientData:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch client data');
       } finally {
         setLoading(false);
@@ -190,7 +231,14 @@ const ClientDetailsPage = () => {
   }, [id]);
 
   if (loading) {
-    return null;
+    return (
+      <div className="p-6">
+        <div className="flex justify-center items-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">Loading client details...</span>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -217,6 +265,23 @@ const ClientDetailsPage = () => {
     );
   }
 
+  // Ensure client has minimum required fields
+  const safeClient = {
+    name: client.name || 'Unknown Client',
+    email: client.email || 'No email provided',
+    phone: client.phone || 'No phone provided',
+    status: client.status || 'Unknown',
+    address: client.address || null,
+    dateOfBirth: client.dateOfBirth || null,
+    alienNumber: client.alienNumber || null,
+    nationality: client.nationality || null,
+    passportNumber: client.passportNumber || null,
+    entryDate: client.entryDate || null,
+    visaCategory: client.visaCategory || null,
+    notes: client.notes || null,
+    ...client
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -224,13 +289,13 @@ const ClientDetailsPage = () => {
           <Link to="/clients" className="mr-4 text-gray-600 hover:text-gray-900">
             <ArrowLeft size={20} />
           </Link>
-          <h1 className="text-2xl font-bold">{client.name}</h1>
+          <h1 className="text-2xl font-bold">{safeClient.name}</h1>
           <span className={`ml-4 px-3 py-1 text-sm font-medium rounded-full ${
-            client.status === 'Active' 
+            safeClient.status === 'Active' 
               ? 'bg-green-100 text-green-800'
               : 'bg-gray-100 text-gray-800'
           }`}>
-            {client.status}
+            {safeClient.status}
           </span>
         </div>
         <Link 
@@ -255,8 +320,8 @@ const ClientDetailsPage = () => {
                   <p className="text-sm text-gray-500">Email</p>
                   <div className="flex items-center mt-1">
                     <Mail size={16} className="text-gray-400 mr-2" />
-                    <a href={`mailto:${client.email}`} className="text-primary-600 hover:text-primary-700">
-                      {client.email}
+                    <a href={`mailto:${safeClient.email}`} className="text-primary-600 hover:text-primary-700">
+                      {safeClient.email}
                     </a>
                   </div>
                 </div>
@@ -264,8 +329,8 @@ const ClientDetailsPage = () => {
                   <p className="text-sm text-gray-500">Phone</p>
                   <div className="flex items-center mt-1">
                     <Phone size={16} className="text-gray-400 mr-2" />
-                    <a href={`tel:${client.phone}`} className="text-primary-600 hover:text-primary-700">
-                      {client.phone}
+                    <a href={`tel:${safeClient.phone}`} className="text-primary-600 hover:text-primary-700">
+                      {safeClient.phone}
                     </a>
                   </div>
                 </div>
@@ -274,8 +339,8 @@ const ClientDetailsPage = () => {
                   <div className="flex items-center mt-1">
                     <MapPin size={16} className="text-gray-400 mr-2" />
                     <span>
-                      {client.address ? 
-                        `${client.address.street || ''}, ${client.address.city || ''}, ${client.address.state || ''} ${client.address.zipCode || ''}, ${client.address.country || ''}`.replace(/,\s*,/g, ',').replace(/^\s*,\s*|\s*,\s*$/g, '') || 'No address provided'
+                      {safeClient.address ? 
+                        `${safeClient.address.street || ''}, ${safeClient.address.city || ''}, ${safeClient.address.state || ''} ${safeClient.address.zipCode || ''}, ${safeClient.address.country || ''}`.replace(/,\s*,/g, ',').replace(/^\s*,\s*|\s*,\s*$/g, '') || 'No address provided'
                         : 'No address provided'
                       }
                     </span>
@@ -285,7 +350,7 @@ const ClientDetailsPage = () => {
                   <p className="text-sm text-gray-500">Date of Birth</p>
                   <div className="flex items-center mt-1">
                     <Calendar size={16} className="text-gray-400 mr-2" />
-                    <span>{client.dateOfBirth ? new Date(client.dateOfBirth).toLocaleDateString() : 'Not provided'}</span>
+                    <span>{safeClient.dateOfBirth ? new Date(safeClient.dateOfBirth).toLocaleDateString() : 'Not provided'}</span>
                   </div>
                 </div>
               </div>
@@ -300,33 +365,33 @@ const ClientDetailsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500">Alien Number</p>
-                  <p className="font-medium mt-1">{client.alienNumber || 'Not provided'}</p>
+                  <p className="font-medium mt-1">{safeClient.alienNumber || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Nationality</p>
-                  <p className="font-medium mt-1">{client.nationality || 'Not provided'}</p>
+                  <p className="font-medium mt-1">{safeClient.nationality || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Passport Number</p>
-                  <p className="font-medium mt-1">{client.passportNumber || 'Not provided'}</p>
+                  <p className="font-medium mt-1">{safeClient.passportNumber || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Entry Date</p>
-                  <p className="font-medium mt-1">{client.entryDate ? new Date(client.entryDate).toLocaleDateString() : 'Not provided'}</p>
+                  <p className="font-medium mt-1">{safeClient.entryDate ? new Date(safeClient.entryDate).toLocaleDateString() : 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Visa Category</p>
-                  <p className="font-medium mt-1">{client.visaCategory || 'Not provided'}</p>
+                  <p className="font-medium mt-1">{safeClient.visaCategory || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Status</p>
-                  <p className="font-medium mt-1">{client.status || 'Not provided'}</p>
+                  <p className="font-medium mt-1">{safeClient.status || 'Not provided'}</p>
                 </div>
               </div>
-              {client.notes && (
+              {safeClient.notes && (
                 <div>
                   <p className="text-sm text-gray-500">Notes</p>
-                  <p className="font-medium mt-1">{client.notes}</p>
+                  <p className="font-medium mt-1">{safeClient.notes}</p>
                 </div>
               )}
             </div>
@@ -419,15 +484,32 @@ const ClientDetailsPage = () => {
                   <Briefcase className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">No cases found</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    No workflow cases found for this client. Create a new workflow to get started.
+                    No workflow cases found for this client.
                   </p>
+                  
+                  {/* Debug section - will be removed later */}
+                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md text-left">
+                    <h4 className="text-sm font-medium text-yellow-800 mb-2">Debug Information:</h4>
+                    <div className="text-xs text-yellow-700">
+                      <p><strong>Current Client ID:</strong> {id}</p>
+                      <p><strong>Client Name:</strong> {safeClient?.name || 'Not loaded'}</p>
+                      <p><strong>Client Email:</strong> {safeClient?.email || 'Not loaded'}</p>
+                      <p className="mt-2">
+                        <strong>Possible Solutions:</strong><br/>
+                        1. Create a new workflow for this client<br/>
+                        2. Check if client exists in workflow database<br/>
+                        3. Verify client ID consistency between databases
+                      </p>
+                    </div>
+                  </div>
+                  
                   <div className="mt-6">
                     <Link
                       to="/legal-firm-workflow"
                       className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
                     >
                       <PlusCircle className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-                      New Workflow
+                      Create New Workflow
                     </Link>
                   </div>
                 </div>
