@@ -4,7 +4,7 @@ import {
   Users, FileText, ClipboardList, Send, Download, CheckCircle,
   ArrowRight, ArrowLeft, User, Briefcase, FormInput,
   MessageSquare, FileCheck, AlertCircle, Clock, Info as InfoIcon,
-  Loader, Loader2
+  Loader, Loader2, Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../utils/idValidation';
@@ -66,8 +66,8 @@ interface Case {
   description: string;
   category: string;
   subcategory: string;
-  status: 'draft' | 'in-progress' | 'review' | 'completed';
-  priority: 'low' | 'medium' | 'high';
+  status: 'draft' | 'in-progress' | 'review' | 'completed' | 'Active' | 'Pending' | 'Closed' | 'On Hold';
+  priority: 'low' | 'medium' | 'high' | 'Low' | 'Medium' | 'High' | 'Urgent';
   assignedForms: string[];
   questionnaires: string[];
   createdAt: string;
@@ -77,9 +77,12 @@ interface Case {
   type?: string;
   // Additional optional properties that might be used in the UI
   assignedTo?: string;
+  assignedAttorney?: string;
   courtLocation?: string;
   judge?: string;
   openDate?: string;
+  startDate?: string;
+  expectedClosureDate?: string;
   formCaseIds?: Record<string, string>; // Map of form names to case IDs
 }
 
@@ -230,7 +233,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     assignedForms: [],
     questionnaires: [],
     createdAt: '',
-    dueDate: ''
+    dueDate: '',
+    startDate: '',
+    expectedClosureDate: '',
+    assignedAttorney: ''
   });
 
   // Selected forms and questionnaires
@@ -263,16 +269,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
 
   // State for auto-fill data from API
-  const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
-  const [autoFillEnabled, setAutoFillEnabled] = useState(false);
-  const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+  // const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
+  const [autoFillEnabled] = useState(false);
+  // const [loadingWorkflows, setLoadingWorkflows] = useState(false);
   const [autoFillingFormDetails, setAutoFillingFormDetails] = useState(false);
 
   // State to track if we're in view/edit mode from QuestionnaireResponses
   const [isViewEditMode, setIsViewEditMode] = useState(false);
-  
+
   // State to track if this is a new response or existing response
-  const [isNewResponse, setIsNewResponse] = useState(true);
+  // const [isNewResponse, setIsNewResponse] = useState(true);
   const [isExistResponse, setIsExistResponse] = useState(false);
 
   // State for auto-generated forms
@@ -429,7 +435,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // Check if coming from questionnaire responses (existing response)
       if (fromQuestionnaireResponses === 'true') {
         setIsExistResponse(true);
-        setIsNewResponse(false);
+        // setIsNewResponse(false);
         setCurrentStep(0); // Start at the first step of existing response workflow
       }
 
@@ -577,7 +583,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             });
           }
 
-          // Step 3: Form Selection (index 3)
+          // Step 1: Form Selection (index 1)
           if (data.selectedForms && data.selectedForms.length > 0) {
             console.log('📝 Auto-filling selected forms...');
             setSelectedForms(data.selectedForms);
@@ -587,7 +593,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             }
           }
 
-          // Step 4: Questionnaire Assignment (index 4) 
+          // Step 3: Questionnaire Assignment (index 3) 
           if (data.questionnaireId) {
             console.log('📝 Auto-filling questionnaire selection...');
             setSelectedQuestionnaire(data.questionnaireId);
@@ -611,14 +617,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             setQuestionnaireAssignment(assignment);
           }
 
-          // Step 5: Responses (index 5) - Set existing responses if in edit mode
+          // Step 4: Responses (index 4) - Set existing responses if in edit mode
           if (data.mode === 'edit' && data.existingResponses) {
             console.log('📝 Auto-filling existing responses...');
             setClientResponses(data.existingResponses);
-            
+
             // Set as existing response workflow
             setIsExistResponse(true);
-            setIsNewResponse(false);
+            // setIsNewResponse(false);
           }
 
           // Set client credentials if available
@@ -644,10 +650,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             toast.success(`🚀 Auto-filled workflow data for ${data.clientName} - review and continue`, { duration: 4000 });
           } else if (data.mode === 'edit') {
             setIsExistResponse(true);
-            setIsNewResponse(false);
+            // setIsNewResponse(false);
             toast.success(`Loaded existing responses for ${data.clientName}`);
           } else {
-            setIsNewResponse(true);
+            // setIsNewResponse(true);
             setIsExistResponse(false);
             toast.success(`Loaded client data for ${data.clientName}`);
           }
@@ -686,24 +692,71 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Load existing clients from API on mount (for start step)
   useEffect(() => {
     const loadClients = async () => {
+      console.log('🔄 Loading existing clients...');
       setFetchingClients(true);
+
+      // Test API connection first
+      const token = localStorage.getItem('token');
+      console.log('🔐 Auth token available:', !!token);
+
       try {
         const apiClients = await fetchClientsFromAPI();
+        console.log('📋 API Clients Response:', apiClients);
+        console.log('📊 Total clients from API:', apiClients?.length || 0);
 
-        // Filter clients to only include role "client" and userType "individual"
+        // If no clients returned from regular API, try to get them from workflows
+        if (!apiClients || apiClients.length === 0) {
+          console.log('⚠️ No clients returned from regular API, trying workflows collection...');
+          const workflowClients = await fetchClientsFromWorkflows();
+          console.log('📋 Clients from workflows:', workflowClients.length);
+
+          if (workflowClients.length > 0) {
+            setExistingClients(workflowClients);
+            console.log('✅ Using clients from workflows collection');
+            return;
+          } else {
+            console.log('⚠️ No clients found in workflows either');
+            setExistingClients([]);
+            return;
+          }
+        }
+
+        // Filter clients to only include role "client" (no userType check for now)
         const filteredClients = apiClients?.filter((client: any) => {
+          console.log('🔍 Checking client:', {
+            name: client.name || `${client.firstName} ${client.lastName}`,
+            email: client.email,
+            role: client.role,
+            userType: client.userType
+          });
+
+          // Must have exact role "client" only
           const hasValidRole = client.role === 'client';
-          const hasValidUserType = client.userType === 'individual';
 
-          if (!hasValidRole || !hasValidUserType) {
-
+          if (!hasValidRole) {
+            console.log('❌ Client filtered out - Role:', client.role);
             return false;
           }
 
+          console.log('✅ Client passed filter');
           return true;
         }) || [];
 
+        console.log('📊 Filtered clients count:', filteredClients.length);
+        console.log('📋 Filtered clients:', filteredClients);
 
+        // If no clients pass the filter, try workflows as backup
+        if (filteredClients.length === 0) {
+          console.log('⚠️ No clients passed filter, trying workflows as backup...');
+          const workflowClients = await fetchClientsFromWorkflows();
+          console.log('📋 Backup clients from workflows:', workflowClients.length);
+
+          if (workflowClients.length > 0) {
+            setExistingClients(workflowClients);
+            console.log('✅ Using backup clients from workflows collection');
+            return;
+          }
+        }
 
         // Make sure each client has a valid MongoDB ObjectId
         const validatedClients = filteredClients.map((client: any) => {
@@ -725,7 +778,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
           // Otherwise, generate a new valid ObjectId
           const validId = generateObjectId();
-
+          console.log('🆔 Generated new ID for client:', client.name || client.email, validId);
 
           return {
             ...client,
@@ -734,36 +787,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           };
         });
 
-
+        console.log('✅ Final validated clients count:', validatedClients.length);
         setExistingClients(validatedClients);
       } catch (err) {
+        console.error('❌ Error loading clients from API:', err);
 
-        // Load clients from localStorage as fallback
-        try {
-          const localClients = JSON.parse(localStorage.getItem('legal-firm-clients') || '[]');
-
-          // Apply same filtering for localStorage clients
-          const filteredLocalClients = localClients.filter((client: any) => {
-            const hasValidRole = client.role === 'client';
-            const hasValidUserType = client.userType === 'individual';
-
-            if (!hasValidRole || !hasValidUserType) {
-
-              return false;
-            }
-
-            return true;
-          });
-
-
-
-          setExistingClients(filteredLocalClients);
-        } catch (localErr) {
-
-          setExistingClients([]);
-        }
+        // No localStorage fallback - just set empty array
+        console.log('⚠️ Setting empty clients array due to API error');
+        setExistingClients([]);
       } finally {
         setFetchingClients(false);
+        console.log('🏁 Finished loading clients');
       }
     };
     loadClients();
@@ -798,69 +832,51 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
         setAvailableQuestionnaires(normalizedQuestionnaires);
       } else {
-        // Fallback to localStorage
-        const savedQuestionnaires = localStorage.getItem('immigration-questionnaires');
-        if (savedQuestionnaires) {
-          const parsedQuestionnaires = JSON.parse(savedQuestionnaires);
-          // Questionnaires loaded from localStorage
+        // Fallback to demo questionnaires if nothing is available
+        const demoQuestionnaires = [
+          {
+            _id: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId for demo
+            title: 'I-130 Family Petition Questionnaire',
+            category: 'FAMILY_BASED',
+            description: 'Basic information needed for family-based petitions',
+            fields: [
+              { id: 'fullName', type: 'text', label: 'Full Name', required: true },
+              { id: 'birthDate', type: 'date', label: 'Date of Birth', required: true },
+              { id: 'birthCountry', type: 'text', label: 'Country of Birth', required: true },
+              {
+                id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true,
+                options: ['Spouse', 'Parent', 'Child', 'Sibling']
+              }
+            ]
+          },
+          {
+            _id: '507f1f77bcf86cd799439012', // Valid MongoDB ObjectId for demo
+            title: 'I-485 Adjustment of Status',
+            category: 'FAMILY_BASED',
+            description: 'Information required for adjustment of status applications',
+            fields: [
+              { id: 'usEntry', type: 'date', label: 'Date of Last Entry to US', required: true },
+              { id: 'i94Number', type: 'text', label: 'I-94 Number', required: true },
+              { id: 'currentStatus', type: 'text', label: 'Current Immigration Status', required: true }
+            ]
+          },
+          {
+            _id: '507f1f77bcf86cd799439013', // Valid MongoDB ObjectId for demo
+            title: 'N-400 Naturalization Questionnaire',
+            category: 'NATURALIZATION',
+            description: 'Information needed for citizenship application',
+            fields: [
+              { id: 'residenceYears', type: 'number', label: 'Years as Permanent Resident', required: true },
+              { id: 'absences', type: 'textarea', label: 'List all absences from the US', required: true },
+              {
+                id: 'criminalHistory', type: 'radio', label: 'Do you have any criminal history?', required: true,
+                options: ['Yes', 'No']
+              }
+            ]
+          }
+        ];
 
-
-          // Normalize questionnaire data from localStorage
-          const normalizedQuestionnaires = parsedQuestionnaires.map((q: any) => {
-            // First apply the standard normalization
-            const normalizedQ = normalizeQuestionnaireStructure(q);
-            // Normalization complete
-            return normalizedQ;
-          });
-          setAvailableQuestionnaires(normalizedQuestionnaires);
-        } else {
-          // Load demo questionnaires if nothing is available
-          const demoQuestionnaires = [
-            {
-              _id: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId for demo
-              title: 'I-130 Family Petition Questionnaire',
-              category: 'FAMILY_BASED',
-              description: 'Basic information needed for family-based petitions',
-              fields: [
-                { id: 'fullName', type: 'text', label: 'Full Name', required: true },
-                { id: 'birthDate', type: 'date', label: 'Date of Birth', required: true },
-                { id: 'birthCountry', type: 'text', label: 'Country of Birth', required: true },
-                {
-                  id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true,
-                  options: ['Spouse', 'Parent', 'Child', 'Sibling']
-                }
-              ]
-            },
-            {
-              _id: '507f1f77bcf86cd799439012', // Valid MongoDB ObjectId for demo
-              title: 'I-485 Adjustment of Status',
-              category: 'FAMILY_BASED',
-              description: 'Information required for adjustment of status applications',
-              fields: [
-                { id: 'usEntry', type: 'date', label: 'Date of Last Entry to US', required: true },
-                { id: 'i94Number', type: 'text', label: 'I-94 Number', required: true },
-                { id: 'currentStatus', type: 'text', label: 'Current Immigration Status', required: true }
-              ]
-            },
-            {
-              _id: '507f1f77bcf86cd799439013', // Valid MongoDB ObjectId for demo
-              title: 'N-400 Naturalization Questionnaire',
-              category: 'NATURALIZATION',
-              description: 'Information needed for citizenship application',
-              fields: [
-                { id: 'residenceYears', type: 'number', label: 'Years as Permanent Resident', required: true },
-                { id: 'absences', type: 'textarea', label: 'List all absences from the US', required: true },
-                {
-                  id: 'criminalHistory', type: 'radio', label: 'Do you have any criminal history?', required: true,
-                  options: ['Yes', 'No']
-                }
-              ]
-            }
-          ];
-
-          setAvailableQuestionnaires(demoQuestionnaires);
-          localStorage.setItem('immigration-questionnaires', JSON.stringify(demoQuestionnaires));
-        }
+        setAvailableQuestionnaires(demoQuestionnaires);
       }
     } catch (error) {
       // Load demo questionnaires in case of error
@@ -906,7 +922,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     if (nextStep < workflowSteps.length) {
       setCurrentStep(nextStep);
 
-      // Check if we're moving to the "Collect Answers" step (typically step 5)
+      // Check if we're moving to the "Collect Answers" step (typically step 4)
       const nextStepConfig = workflowSteps[nextStep];
       if (nextStepConfig?.id === 'answers' && autoFillEnabled) {
         // Trigger auto-fill with a slight delay to allow step transition
@@ -926,65 +942,65 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Find the handleClientSubmit function and update it to check for existing clients
 
-const handleClientSubmit = async () => {
-
-  
-  // Ensure client has first and last name
-  if (!client.firstName || client.firstName.trim() === '') {
-    toast.error('First name is required');
-    return;
-  }
-  
-  if (!client.lastName || client.lastName.trim() === '') {
-    toast.error('Last name is required');
-    return;
-  }
-  
-  // Validate email
-  if (!client.email || !client.email.includes('@')) {
-    toast.error('Valid email address is required');
-    return;
-  }
-  
-  // Validate required address fields
-  if (!client.address?.city || client.address.city.trim() === '') {
-    toast.error('City is required');
-    return;
-  }
-  
-  if (!client.address?.state || client.address.state.trim() === '') {
-    toast.error('State/Province is required');
-    return;
-  }
-  
-  if (!client.address?.zipCode || client.address.zipCode.trim() === '') {
-    toast.error('ZIP/Postal Code is required');
-    return;
-  }
-  
-  if (!client.address?.country || client.address.country.trim() === '') {
-    toast.error('Country is required');
-    return;
-  }
-  
-  // Update the name field from firstName, middleName, and lastName
-  const fullName = `${client.firstName} ${client.middleName || ''} ${client.lastName}`.trim().replace(/\s+/g, ' ');
-  setClient((prev: any) => ({ ...prev, name: fullName }));
-  
-  // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
-  if (!client.password) {
-
-    toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
-    return null;
-  }
-  
-  // Use the email and password from questionnaire assignment screen or generated password
-  const clientEmail = client.email;
-  const clientPassword = client.password;
-  
+  const handleClientSubmit = async () => {
 
 
-    
+    // Ensure client has first and last name
+    if (!client.firstName || client.firstName.trim() === '') {
+      toast.error('First name is required');
+      return;
+    }
+
+    if (!client.lastName || client.lastName.trim() === '') {
+      toast.error('Last name is required');
+      return;
+    }
+
+    // Validate email
+    if (!client.email || !client.email.includes('@')) {
+      toast.error('Valid email address is required');
+      return;
+    }
+
+    // Validate required address fields
+    if (!client.address?.city || client.address.city.trim() === '') {
+      toast.error('City is required');
+      return;
+    }
+
+    if (!client.address?.state || client.address.state.trim() === '') {
+      toast.error('State/Province is required');
+      return;
+    }
+
+    if (!client.address?.zipCode || client.address.zipCode.trim() === '') {
+      toast.error('ZIP/Postal Code is required');
+      return;
+    }
+
+    if (!client.address?.country || client.address.country.trim() === '') {
+      toast.error('Country is required');
+      return;
+    }
+
+    // Update the name field from firstName, middleName, and lastName
+    const fullName = `${client.firstName} ${client.middleName || ''} ${client.lastName}`.trim().replace(/\s+/g, ' ');
+    setClient((prev: any) => ({ ...prev, name: fullName }));
+
+    // Only proceed with user account creation if password is provided (from questionnaire assignment screen)
+    if (!client.password) {
+
+      toast.error('Password is required for user account creation. Please set a password in the questionnaire assignment screen.');
+      return null;
+    }
+
+    // Use the email and password from questionnaire assignment screen or generated password
+    const clientEmail = client.email;
+    const clientPassword = client.password;
+
+
+
+
     return await createClientAccountWithCredentials(clientEmail, clientPassword);
   };
 
@@ -996,7 +1012,7 @@ const handleClientSubmit = async () => {
     // Use the firstName and lastName from the client state directly
     const firstName = client.firstName.trim();
     const lastName = client.lastName.trim();
-    
+
     try {
 
 
@@ -1203,21 +1219,21 @@ const handleClientSubmit = async () => {
     }
   };
 
-  const handleCaseSubmit = async () => {
-    // Generate valid MongoDB ObjectId for the case
-    const caseId = generateObjectId();
-    const updatedCase = {
-      ...caseData,
-      id: caseId,
-      _id: caseId, // Add both id and _id for compatibility
-      clientId: client.id || client._id, // Use either id or _id
-      createdAt: new Date().toISOString()
-    };
-    setCaseData(updatedCase);
+  // const handleCaseSubmit = async () => {
+  //   // Generate valid MongoDB ObjectId for the case
+  //   const caseId = generateObjectId();
+  //   const updatedCase = {
+  //     ...caseData,
+  //     id: caseId,
+  //     _id: caseId, // Add both id and _id for compatibility
+  //     clientId: client.id || client._id, // Use either id or _id
+  //     createdAt: new Date().toISOString()
+  //   };
+  //   setCaseData(updatedCase);
 
-    // Just proceed to next step without saving
-    handleNext();
-  };
+  //   // Just proceed to next step without saving
+  //   handleNext();
+  // };
 
   const handleFormsSubmit = async () => {
     if (selectedForms.length === 0) {
@@ -1272,7 +1288,7 @@ const handleClientSubmit = async () => {
   const fetchWorkflowsFromAPI = async () => {
     try {
       console.log('🔄 Fetching workflows from API...');
-      setLoadingWorkflows(true);
+      // setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
 
       // Check token availability
@@ -1297,7 +1313,7 @@ const handleClientSubmit = async () => {
 
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        setAvailableWorkflows(workflows);
+        // setAvailableWorkflows(workflows);
         console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         return workflows;
       } else {
@@ -1322,8 +1338,159 @@ const handleClientSubmit = async () => {
 
       return [];
     } finally {
-      setLoadingWorkflows(false);
+      // setLoadingWorkflows(false);
       console.log('🏁 Finished workflow API request');
+    }
+  };
+
+  // Function to fetch existing clients from workflows collection
+  const fetchClientsFromWorkflows = async (searchQuery?: string) => {
+    try {
+      console.log('🔄 Fetching clients from workflows collection...');
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        console.log('❌ No authentication token available');
+        return [];
+      }
+
+      console.log('✅ Authentication token found, fetching workflows for client data...');
+
+      // Get all workflows to extract client information
+      const response = await api.get('/api/v1/workflows', {
+        params: {
+          page: 1,
+          limit: 100 // Get more workflows to find more clients
+        }
+      });
+
+      console.log('📥 Workflows response for client extraction:', response.data);
+
+      if (response.data?.success && response.data?.data) {
+        const workflows = response.data.data;
+        console.log(`📊 Processing ${workflows.length} workflows for client data`);
+
+        // Log the structure of the first workflow for debugging
+        if (workflows.length > 0) {
+          console.log('🔍 Sample workflow structure:', {
+            id: workflows[0]._id || workflows[0].id,
+            hasClient: !!workflows[0].client,
+            clientStructure: workflows[0].client ? Object.keys(workflows[0].client) : 'No client',
+            clientSample: workflows[0].client,
+            workflowKeys: Object.keys(workflows[0])
+          });
+        }
+
+        // Extract unique clients from workflows
+        const clientsMap = new Map();
+
+        workflows.forEach((workflow: any, index: number) => {
+          console.log(`🔍 Processing workflow ${index + 1}:`, {
+            workflowId: workflow._id || workflow.id,
+            hasClient: !!workflow.client,
+            clientEmail: workflow.client?.email,
+            clientName: workflow.client?.name || `${workflow.client?.firstName} ${workflow.client?.lastName}`.trim()
+          });
+
+          if (workflow.client) {
+            const client = workflow.client;
+            const clientEmail = client.email?.toLowerCase();
+
+            // Create a unique key using email or name
+            const clientKey = clientEmail || `${client.firstName}_${client.lastName}`.toLowerCase();
+
+            console.log(`📝 Processing client from workflow:`, {
+              clientKey,
+              originalClient: client,
+              hasEmail: !!client.email,
+              hasName: !!(client.firstName || client.lastName)
+            });
+
+            if (clientKey && !clientsMap.has(clientKey)) {
+              // Ensure client has proper structure
+              const processedClient = {
+                _id: client.id || client._id || generateObjectId(),
+                id: client.id || client._id || generateObjectId(),
+                firstName: client.firstName || '',
+                lastName: client.lastName || '',
+                name: client.name || `${client.firstName || ''} ${client.lastName || ''}`.trim(),
+                email: client.email || '',
+                phone: client.phone || '',
+                dateOfBirth: client.dateOfBirth || '',
+                nationality: client.nationality || '',
+                address: client.address || {
+                  street: '',
+                  city: '',
+                  state: '',
+                  zipCode: '',
+                  country: 'United States'
+                },
+                role: 'client', // Set role as client since these are from workflows
+                userType: 'individual', // Set userType for consistency
+                status: client.status || 'active',
+                createdAt: client.createdAt || new Date().toISOString(),
+                // Add workflow context
+                fromWorkflow: true,
+                workflowId: workflow._id || workflow.id
+              };
+
+              console.log(`✅ Adding client to map:`, {
+                clientKey,
+                processedClient: {
+                  id: processedClient.id,
+                  name: processedClient.name,
+                  email: processedClient.email,
+                  fromWorkflow: processedClient.fromWorkflow,
+                  workflowId: processedClient.workflowId
+                }
+              });
+
+              // Filter by search query if provided
+              if (searchQuery) {
+                const query = searchQuery.toLowerCase();
+                const matchesEmail = processedClient.email.toLowerCase().includes(query);
+                const matchesName = processedClient.name.toLowerCase().includes(query);
+                const matchesFirstName = processedClient.firstName.toLowerCase().includes(query);
+                const matchesLastName = processedClient.lastName.toLowerCase().includes(query);
+
+                if (matchesEmail || matchesName || matchesFirstName || matchesLastName) {
+                  clientsMap.set(clientKey, processedClient);
+                }
+              } else {
+                clientsMap.set(clientKey, processedClient);
+              }
+            } else {
+              console.log(`⏭️ Skipping workflow client (duplicate):`, {
+                clientKey,
+                existingClient: {
+                  id: client.id,
+                  name: client.name,
+                  email: client.email
+                }
+              });
+            }
+          }
+        });
+
+        const uniqueClients = Array.from(clientsMap.values());
+        console.log(`✅ Extracted ${uniqueClients.length} unique clients from workflows`);
+        console.log('📋 Extracted clients summary:', uniqueClients.map(client => ({
+          id: client.id,
+          name: client.name,
+          email: client.email,
+          fromWorkflow: client.fromWorkflow,
+          workflowId: client.workflowId
+        })));
+
+        return uniqueClients;
+      } else {
+        console.log('⚠️ No workflow data available for client extraction');
+        return [];
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error fetching clients from workflows:', error);
+      return [];
     }
   };
 
@@ -1787,7 +1954,7 @@ const handleClientSubmit = async () => {
     }
   };
 
-  // Function to assign questionnaire to form details (Step 4)
+  // Function to assign questionnaire to form details (Step 3)
   const assignQuestionnaireToFormDetails = async (questionnaireId: string, tempPassword?: string) => {
     try {
       if (!formDetailsId) {
@@ -2026,18 +2193,7 @@ const handleClientSubmit = async () => {
             caseId = generateObjectId();
             // Save it back to the case object for future use
             caseData._id = caseId;
-
-            // Update case in localStorage with the valid ID
-            const cases = JSON.parse(localStorage.getItem('legal-firm-cases') || '[]');
-            const updatedCases = cases.map((c: any) => {
-              if (c.id === caseData.id) {
-                return { ...c, _id: caseId };
-              }
-              return c;
-            });
-            localStorage.setItem('legal-firm-cases', JSON.stringify(updatedCases));
-
-
+            console.log('🆔 Generated new case ID:', caseId);
           }
         }
         validateMongoObjectId(caseId, 'case');
@@ -2073,9 +2229,9 @@ const handleClientSubmit = async () => {
         // No authentication token
         toast.error('You must be logged in to assign questionnaires through the API. Will use local storage instead.');
         // Don't throw error, just set a flag to skip API call
-        // Use both API and localStorage as needed
+        // Use API only - no localStorage fallback
 
-        // Create and save assignment in localStorage
+        // Create assignment object (API only mode)
         const localAssignment: QuestionnaireAssignment = {
           id: `assignment_${Date.now()}`,
           caseId: caseData.id,
@@ -2120,19 +2276,14 @@ const handleClientSubmit = async () => {
           clientNationality: client.nationality || ''
         };
 
-        // Save to localStorage
-        const existingAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
-        existingAssignments.push(localAssignment);
-        localStorage.setItem('questionnaire-assignments', JSON.stringify(existingAssignments));
-
-        // Update state
+        // Update state (no localStorage saving)
         setQuestionnaireAssignment(localAssignment);
 
         // Show success and proceed
         if (clientCredentials.createAccount && clientUserId) {
           toast.success(
             <div>
-              <p>✅ Questionnaire "{normalizedQ.title || normalizedQ.name}" assigned to client {client.name} (local storage)</p>
+              <p>✅ Questionnaire "{normalizedQ.title || normalizedQ.name}" assigned to client {client.name}</p>
               <p className="text-sm mt-1">🔐 Client account created:</p>
               <p className="text-xs">Email: {clientCredentials.email || client.email}</p>
               <p className="text-xs">Password: {clientCredentials.password}</p>
@@ -2140,7 +2291,7 @@ const handleClientSubmit = async () => {
             { duration: 8000 }
           );
         } else {
-          toast.success(`Questionnaire "${normalizedQ.title || normalizedQ.name}" has been assigned to client ${client.name} (local storage only).`);
+          toast.success(`Questionnaire "${normalizedQ.title || normalizedQ.name}" has been assigned to client ${client.name}.`);
         }
         setLoading(false);
         handleNext();
@@ -2226,7 +2377,7 @@ const handleClientSubmit = async () => {
           throw apiError; // Re-throw to be caught by the main catch block
         }
       } else {
-        // API not available, create assignment object but don't save to localStorage
+        // API not available, create assignment object only
 
         assignment = {
           id: `assignment_${Date.now()}`,
@@ -2272,7 +2423,7 @@ const handleClientSubmit = async () => {
         toast.success(`Questionnaire "${selectedQ?.title || selectedQ?.name}" has been assigned to client ${client.name}.`);
       }
 
-      // Save questionnaire assignment to backend (Step 4)
+      // Save questionnaire assignment to backend (Step 3)
       try {
         const backendResult = await assignQuestionnaireToFormDetails(
           questionnaireId,
@@ -2353,7 +2504,7 @@ const handleClientSubmit = async () => {
         toast.error('Failed to assign questionnaire. Using local storage as fallback.');
       }
 
-      // Don't proceed to next step or save to localStorage if it's an ID validation error
+      // Don't proceed to next step if it's an ID validation error
       if (error?.message && error.message.includes('Invalid')) {
         return;
       }
@@ -2452,7 +2603,7 @@ const handleClientSubmit = async () => {
 
       setQuestionnaireAssignment(updatedAssignment);
 
-      // Note: Data is now only saved to backend via API, not localStorage
+      // Note: Data is now only saved to backend via API
 
       toast.success('Questionnaire responses saved successfully');
       handleNext();
@@ -2666,7 +2817,7 @@ const handleClientSubmit = async () => {
         caseSubcategory: caseData.subcategory || '',
         visaType: caseData.visaType || '',
         priorityDate: caseData.priorityDate || '',
-        
+
         // Client responses from questionnaire
         ...clientResponses,
 
@@ -2808,14 +2959,12 @@ const handleClientSubmit = async () => {
 
 
   const renderStepContent = () => {
-    const workflowSteps = getWorkflowSteps();
-    
+    // const workflowSteps = getWorkflowSteps();
+
     // For existing responses, map the current step to the appropriate step in the workflow
     let actualStep = currentStep;
     if (isExistResponse) {
-      // Map existing response workflow steps to the actual step content
-      // EXIST_WORKFLOW_STEPS: ['answers', 'form-details', 'auto-fill']
-      // WORKFLOW_STEPS: ['start', 'client', 'case', 'forms', 'questionnaire', 'answers', 'form-details', 'auto-fill']
+
       switch (currentStep) {
         case 0: // Review Responses (answers)
           actualStep = 5; // Map to answers step in full workflow
@@ -2830,7 +2979,7 @@ const handleClientSubmit = async () => {
           actualStep = currentStep;
       }
     }
-    
+
     switch (actualStep) {
       case 0: // Start: New or Existing Client
         // Skip start step for existing responses
@@ -2844,7 +2993,7 @@ const handleClientSubmit = async () => {
             </div>
           );
         }
-        
+
         return (
           <div className="space-y-8">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -2867,43 +3016,252 @@ const handleClientSubmit = async () => {
                 <div className="w-full mb-4">
                   {fetchingClients ? (
                     <div className="text-gray-500 text-center">Loading clients...</div>
+                  ) : existingClients.length === 0 ? (
+                    <div className="text-gray-500 text-center">
+                      <p>No clients found</p>
+                    </div>
                   ) : (
-                    <Select
-                      id="existingClient"
-                      label="Select Client"
-                      value={selectedExistingClientId}
-                      onChange={e => {
+                    <>
+                      <div className="text-xs text-gray-500 mb-2">
+                        Found {existingClients.length} client(s)
+                      </div>
+                      <Select
+                        id="existingClient"
+                        label="Select Client"
+                        value={selectedExistingClientId}
+                        onChange={e => {
+                          const selectedId = e.target.value;
+                          console.log('🔄 Client selection changed:', selectedId);
 
-                        setSelectedExistingClientId(e.target.value);
-                      }}
-                      options={[
-                        { value: '', label: 'Choose a client' },
-                        ...existingClients
-                          .filter(c => typeof (c as any)._id === 'string' && (c as any)._id.length === 24)
-                          .map(c => {
-                            const anyClient = c as any;
-                            return {
-                              value: anyClient._id,
-                              label: `${anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim()} (${anyClient.email || ''})`
-                            };
-                          })
-                      ]}
-                    />
+                          if (selectedId) {
+                            // Find the selected client in the existing clients array
+                            const selectedClient = existingClients.find(c => {
+                              const anyClient = c as any;
+                              const clientId = anyClient._id || anyClient.id;
+                              return clientId === selectedId;
+                            });
+
+                            if (selectedClient) {
+                              console.log('✅ Found selected client:', {
+                                id: (selectedClient as any)._id || (selectedClient as any).id,
+                                name: (selectedClient as any).name,
+                                firstName: (selectedClient as any).firstName,
+                                lastName: (selectedClient as any).lastName,
+                                email: (selectedClient as any).email,
+                                role: (selectedClient as any).role,
+                                userType: (selectedClient as any).userType,
+                                fullObject: selectedClient
+                              });
+                            } else {
+                              console.log('❌ Selected client not found in existing clients array');
+                            }
+                          } else {
+                            console.log('🔄 Client selection cleared');
+                          }
+
+                          setSelectedExistingClientId(selectedId);
+                        }}
+                        options={[
+                          { value: '', label: 'Choose a client' },
+                          ...existingClients
+                            .filter(c => (c as any)._id || (c as any).id) // Accept any client with an ID
+                            .map(c => {
+                              const anyClient = c as any;
+                              const clientId = anyClient._id || anyClient.id;
+                              const clientName = anyClient.name ||
+                                ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim() ||
+                                'Unnamed Client';
+                              const clientEmail = anyClient.email || 'No email';
+
+                              console.log('📋 Client option created:', {
+                                id: clientId,
+                                name: clientName,
+                                email: clientEmail,
+                                role: anyClient.role,
+                                userType: anyClient.userType
+                              });
+
+                              return {
+                                value: clientId,
+                                label: `${clientName} (${clientEmail})`
+                              };
+                            })
+                        ]}
+                      />
+                    </>
                   )}
                 </div>
                 <Button
                   onClick={async () => {
-                    if (!selectedExistingClientId) return;
+                    if (!selectedExistingClientId) {
+                      console.log('❌ No client selected');
+                      toast.error('Please select a client first');
+                      return;
+                    }
+
+                    console.log('🚀 Starting workflow-based client details fetch for ID:', selectedExistingClientId);
                     setLoading(true);
+
+                    // Declare localClient outside try block so it's accessible in catch block
+                    let localClient: any = null;
+
                     try {
-                      const fullClient = await getClientById(selectedExistingClientId);
-                      const anyClient = fullClient as any;
-                      const name = anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim();
-                      setClient({ ...fullClient, name });
+                      // First, get the selected client's email from the local dropdown data
+                      localClient = existingClients.find(c => {
+                        const anyClient = c as any;
+                        const clientId = anyClient._id || anyClient.id;
+                        return clientId === selectedExistingClientId;
+                      });
+
+                      console.log('🗂️ Local client data from dropdown:', localClient);
+
+                      if (!localClient?.email) {
+                        throw new Error('Client email not found in dropdown data');
+                      }
+
+                      const clientEmail = localClient.email;
+                      console.log('📧 Using client email for workflow lookup:', clientEmail);
+
+                      // Fetch workflows and find the one matching this client's email
+                      console.log('📞 Calling /api/v1/workflows to find client details by email:', clientEmail);
+                      
+                      const response = await api.get('/api/v1/workflows', {
+                        params: {
+                          page: 1,
+                          limit: 100 // Get more workflows to find more clients
+                        }
+                      });
+
+                      console.log('� Workflows API response:', response);
+
+                     
+
+                      const workflowsData = response.data;
+                      console.log('� Workflows data structure:', {
+                        hasData: !!workflowsData.data,
+                        dataCount: workflowsData.data?.length || 0,
+                        totalCount: workflowsData.count,
+                        sampleWorkflow: workflowsData.data?.[0] ? {
+                          id: workflowsData.data[0]._id,
+                          hasClient: !!workflowsData.data[0].client,
+                          clientEmail: workflowsData.data[0].client?.email
+                        } : null
+                      });
+
+                      // Find the workflow with matching client email  
+                      const workflows = workflowsData.data || [];
+                      console.log(`🔍 Searching through ${workflows.length} workflows for email: ${clientEmail}`);
+
+                      const matchingWorkflow = workflows.find((workflow: any) => {
+                        const workflowClient = workflow.client;
+                        if (workflowClient && workflowClient.email) {
+                          const isMatch = workflowClient.email.toLowerCase() === clientEmail.toLowerCase();
+                          console.log(`📋 Checking workflow ${workflow._id || workflow.id}: ${workflowClient.email} === ${clientEmail} ? ${isMatch}`);
+                          return isMatch;
+                        }
+                        console.log(`⏭️ Skipping workflow ${workflow._id || workflow.id}: no client or email`);
+                        return false;
+                      });
+
+                      if (!matchingWorkflow) {
+                        console.log('❌ No workflow found matching client email:', clientEmail);
+                        throw new Error(`No workflow found for client email: ${clientEmail}`);
+                      }
+
+                      console.log('✅ Found matching workflow:', matchingWorkflow);
+                      const workflowClient = matchingWorkflow.client;
+                      const workflowCase = matchingWorkflow.case || {};
+                      console.log('📥 Workflow client details:', workflowClient);
+                      console.log('📋 Workflow case details:', workflowCase);
+
+                      // Process the workflow client data to match our client structure
+                      const processedClient = {
+                        id: workflowClient._id || workflowClient.id || selectedExistingClientId,
+                        _id: workflowClient._id || workflowClient.id || selectedExistingClientId,
+                        name: workflowClient.name || ((workflowClient.firstName || '') + ' ' + (workflowClient.lastName || '')).trim(),
+                        firstName: workflowClient.firstName || '',
+                        lastName: workflowClient.lastName || '',
+                        middleName: workflowClient.middleName || '',
+                        email: workflowClient.email || '',
+                        phone: workflowClient.phone || '',
+                        dateOfBirth: workflowClient.dateOfBirth || '',
+                        nationality: workflowClient.nationality || '',
+                        address: workflowClient.address || {},
+                        role: workflowClient.role || 'client',
+                        userType: workflowClient.userType || 'client',
+                        status: workflowClient.status || 'active',
+                        createdAt: workflowClient.createdAt || new Date().toISOString(),
+                        // Add workflow context
+                        fromWorkflow: true,
+                        workflowId: matchingWorkflow._id || matchingWorkflow.id
+                      };
+
+                      // Process the workflow case data to match our case structure
+                      const processedCase = {
+                        id: workflowCase.id || workflowCase._id || generateObjectId(),
+                        _id: workflowCase._id || workflowCase.id || generateObjectId(),
+                        clientId: processedClient.id,
+                        title: workflowCase.title || '',
+                        description: workflowCase.description || '',
+                        category: workflowCase.category || '',
+                        subcategory: workflowCase.subcategory || '',
+                        status: workflowCase.status || 'in-progress',
+                        priority: workflowCase.priority || 'medium',
+                        assignedForms: workflowCase.assignedForms || [],
+                        formCaseIds: workflowCase.formCaseIds || {},
+                        questionnaires: workflowCase.questionnaires || [],
+                        dueDate: workflowCase.dueDate || '',
+                        openDate: workflowCase.openDate || '',
+                        priorityDate: workflowCase.priorityDate || '',
+                        visaType: workflowCase.visaType || '',
+                        createdAt: workflowCase.createdAt || new Date().toISOString(),
+                        // Add workflow context
+                        fromWorkflow: true,
+                        workflowId: matchingWorkflow._id || matchingWorkflow.id
+                      };
+
+                      console.log('🔄 Processed client from workflow:', processedClient);
+                      console.log('� Client state details:', {
+                        id: processedClient.id,
+                        name: processedClient.name,
+                        firstName: processedClient.firstName,
+                        lastName: processedClient.lastName,
+                        email: processedClient.email,
+                        phone: processedClient.phone,
+                        address: processedClient.address,
+                        role: processedClient.role,
+                        userType: processedClient.userType,
+                        fromWorkflow: processedClient.fromWorkflow,
+                        workflowId: processedClient.workflowId,
+                        allKeys: Object.keys(processedClient)
+                      });
+
+                      setClient(processedClient);
+
+                      console.log('🗂️ Updating case data with client ID:', selectedExistingClientId);
                       setCaseData(prev => ({ ...prev, clientId: selectedExistingClientId }));
-                      setCurrentStep(2); // Advance immediately after fetching
+
+                      console.log('➡️ Advancing to step 3 (skipping forms for existing clients)');
+                      setCurrentStep(3); // Skip forms, go directly to case creation for existing clients
+
+                      // Log client state after step change
+                      setTimeout(() => {
+                        console.log('🔍 Client state after step change:', client);
+                      }, 100);
+
+                      toast.success(`✅ Loaded client from workflow: ${processedClient.name}`);
+                    } catch (error) {
+                      console.error('❌ Error fetching client details from workflows:', error);
+                      console.error('🔍 Error details:', {
+                        message: error instanceof Error ? error.message : 'Unknown error',
+                        stack: error instanceof Error ? error.stack : undefined,
+                        selectedId: selectedExistingClientId,
+                        localClientEmail: localClient?.email
+                      });
+                      toast.error('Failed to load client details from workflows. Please try again.');
                     } finally {
                       setLoading(false);
+                      console.log('🏁 Workflow-based client loading process completed');
                     }
                   }}
                   disabled={!selectedExistingClientId || loading}
@@ -2927,7 +3285,7 @@ const handleClientSubmit = async () => {
             </div>
           );
         }
-        
+
         return (
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -2945,7 +3303,7 @@ const handleClientSubmit = async () => {
                     const firstName = e.target.value;
                     const fullName = `${firstName} ${client.middleName || ''} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
                     setClient({
-                      ...client, 
+                      ...client,
                       firstName: firstName,
                       name: fullName
                     });
@@ -2960,7 +3318,7 @@ const handleClientSubmit = async () => {
                     const middleName = e.target.value;
                     const fullName = `${client.firstName || ''} ${middleName} ${client.lastName || ''}`.trim().replace(/\s+/g, ' ');
                     setClient({
-                      ...client, 
+                      ...client,
                       middleName: middleName,
                       name: fullName
                     });
@@ -2974,7 +3332,7 @@ const handleClientSubmit = async () => {
                     const lastName = e.target.value;
                     const fullName = `${client.firstName || ''} ${client.middleName || ''} ${lastName}`.trim().replace(/\s+/g, ' ');
                     setClient({
-                      ...client, 
+                      ...client,
                       lastName: lastName,
                       name: fullName
                     });
@@ -2988,14 +3346,14 @@ const handleClientSubmit = async () => {
                   label="Email Address"
                   type="email"
                   value={client.email}
-                  onChange={(e) => setClient({...client, email: e.target.value})}
+                  onChange={(e) => setClient({ ...client, email: e.target.value })}
                   required
                 />
                 <Input
                   id="phone"
                   label="Phone Number"
                   value={client.phone}
-                  onChange={(e) => setClient({...client, phone: e.target.value})}
+                  onChange={(e) => setClient({ ...client, phone: e.target.value })}
                   required
                 />
                 <Input
@@ -3003,14 +3361,14 @@ const handleClientSubmit = async () => {
                   label="Date of Birth"
                   type="date"
                   value={client.dateOfBirth}
-                  onChange={(e) => setClient({...client, dateOfBirth: e.target.value})}
+                  onChange={(e) => setClient({ ...client, dateOfBirth: e.target.value })}
                   required
                 />
                 <Input
                   id="nationality"
                   label="Nationality"
                   value={client.nationality}
-                  onChange={(e) => setClient({...client, nationality: e.target.value})}
+                  onChange={(e) => setClient({ ...client, nationality: e.target.value })}
                   required
                 />
               </div>
@@ -3034,8 +3392,8 @@ const handleClientSubmit = async () => {
                     label="Apt/Suite/Flr"
                     value={client.address?.aptSuiteFlr || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), aptSuiteFlr: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), aptSuiteFlr: e.target.value }
                     })}
                     options={[
                       { value: '', label: 'Select Type' },
@@ -3051,8 +3409,8 @@ const handleClientSubmit = async () => {
                     label="Apt/Suite Number"
                     value={client.address?.aptNumber || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), aptNumber: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), aptNumber: e.target.value }
                     })}
                     placeholder="Enter number"
                   />
@@ -3064,8 +3422,8 @@ const handleClientSubmit = async () => {
                     label="City"
                     value={client.address?.city || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), city: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), city: e.target.value }
                     })}
                     required
                   />
@@ -3074,8 +3432,8 @@ const handleClientSubmit = async () => {
                     label="State/Province"
                     value={client.address?.state || client.address?.province || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), state: e.target.value, province: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), state: e.target.value, province: e.target.value }
                     })}
                     required
                   />
@@ -3086,8 +3444,8 @@ const handleClientSubmit = async () => {
                     label="ZIP/Postal Code"
                     value={client.address?.zipCode || client.address?.postalCode || ''}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), zipCode: e.target.value, postalCode: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), zipCode: e.target.value, postalCode: e.target.value }
                     })}
                     required
                   />
@@ -3096,8 +3454,8 @@ const handleClientSubmit = async () => {
                     label="Country"
                     value={client.address?.country || 'United States'}
                     onChange={(e) => setClient({
-                      ...client, 
-                      address: {...(client.address || {}), country: e.target.value}
+                      ...client,
+                      address: { ...(client.address || {}), country: e.target.value }
                     })}
                     required
                   />
@@ -3153,7 +3511,7 @@ const handleClientSubmit = async () => {
             </div>
           );
         }
-        
+
         return (
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -3204,63 +3562,65 @@ const handleClientSubmit = async () => {
                   required
                 />
                 <Select
-                  id="priority"
-                  label="Priority"
-                  value={caseData.priority}
-                  onChange={e => setCaseData({ ...caseData, priority: e.target.value as "low" | "medium" | "high" })}
+                  id="status"
+                  label="Case Status"
+                  value={caseData.status || 'Active'}
+                  onChange={e => setCaseData({ ...caseData, status: e.target.value as Case['status'] })}
                   options={[
-                    { value: 'low', label: 'Low' },
-                    { value: 'medium', label: 'Medium' },
-                    { value: 'high', label: 'High' },
+                    { value: 'Active', label: 'Active' },
+                    { value: 'Pending', label: 'Pending' },
+                    { value: 'Closed', label: 'Closed' },
+                    { value: 'On Hold', label: 'On Hold' }
                   ]}
                   required
                 />
                 <Select
-                  id="status"
-                  label="Status"
-                  value={caseData.status}
-                  onChange={e => setCaseData({ ...caseData, status: e.target.value as "draft" | "in-progress" | "review" | "completed" })}
+                  id="priority"
+                  label="Priority Level"
+                  value={caseData.priority || 'Medium'}
+                  onChange={e => setCaseData({ ...caseData, priority: e.target.value as Case['priority'] })}
                   options={[
-                    { value: 'draft', label: 'Draft' },
-                    { value: 'in-progress', label: 'In Progress' },
-                    { value: 'review', label: 'Review' },
-                    { value: 'completed', label: 'Completed' }
+                    { value: 'Low', label: 'Low' },
+                    { value: 'Medium', label: 'Medium' },
+                    { value: 'High', label: 'High' },
+                    { value: 'Urgent', label: 'Urgent' }
                   ]}
                   required
                 />
                 <Input
-                  id="visaType"
-                  label="Visa Type"
-                  value={caseData.visaType || ''}
-                  onChange={e => setCaseData({ ...caseData, visaType: e.target.value })}
-                  placeholder="E.g., B-2, H-1B, L-1"
+                  id="startDate"
+                  label="Start Date"
+                  type="date"
+                  value={caseData.startDate || ''}
+                  onChange={e => setCaseData({ ...caseData, startDate: e.target.value })}
                   required
                 />
                 <Input
-                  id="priorityDate"
-                  label="Priority Date"
+                  id="expectedClosureDate"
+                  label="Expected Closure Date"
                   type="date"
-                  value={caseData.priorityDate || ''}
-                  onChange={e => setCaseData({ ...caseData, priorityDate: e.target.value })}
-                  required
+                  value={caseData.expectedClosureDate || ''}
+                  onChange={e => setCaseData({ ...caseData, expectedClosureDate: e.target.value })}
                 />
                 <Input
-                  id="openDate"
-                  label="Open Date"
-                  type="date"
-                  value={caseData.openDate || ''}
-                  onChange={e => setCaseData({ ...caseData, openDate: e.target.value })}
-                  required
+                  id="assignedAttorney"
+                  label="Assigned Attorney"
+                  placeholder="Enter attorney name"
+                  value={caseData.assignedAttorney || ''}
+                  onChange={e => setCaseData({ ...caseData, assignedAttorney: e.target.value })}
                 />
               </div>
-              <div className="mt-4">
-                <TextArea
+              <div className="mt-6">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+                  Case Description
+                </label>
+                <textarea
                   id="description"
-                  label="Description"
-                  value={caseData.description}
-                  onChange={e => setCaseData({ ...caseData, description: e.target.value })}
                   rows={4}
-                  placeholder="Enter case description"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter case description or notes..."
+                  value={caseData.description || ''}
+                  onChange={e => setCaseData({ ...caseData, description: e.target.value })}
                 />
               </div>
             </div>
@@ -3269,39 +3629,21 @@ const handleClientSubmit = async () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              {isViewEditMode ? (
-                // Simple Next button in view/edit mode
-                <Button
-                  onClick={handleNext}
-                  disabled={
-                    !caseData.title ||
-                    !caseData.category ||
-                    !caseData.status ||
-                    !caseData.visaType ||
-                    !caseData.priorityDate ||
-                    !caseData.openDate
+              <Button
+                onClick={async () => {
+                  // Save case data to backend (Step 2)
+                  try {
+                    await saveFormDetailsToBackend(2);
+                  } catch (error) {
+
                   }
-                >
-                  Next
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              ) : (
-                // Original Create Case button in normal mode
-                <Button
-                  onClick={handleCaseSubmit}
-                  disabled={
-                    !caseData.title ||
-                    !caseData.category ||
-                    !caseData.status ||
-                    !caseData.visaType ||
-                    !caseData.priorityDate ||
-                    !caseData.openDate
-                  }
-                >
-                  Create Case & Continue
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              )}
+                  setCurrentStep(3);
+                }}
+                disabled={!caseData.title || !caseData.category}
+              >
+                Create Case & Continue
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             </div>
           </div>
         );
@@ -3311,114 +3653,100 @@ const handleClientSubmit = async () => {
         if (isExistResponse) {
           return (
             <div className="space-y-6">
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Form</h3>
-                <p className="text-purple-700">Forms are already selected from existing responses.</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Forms Selection</h3>
+                <p className="text-blue-700">Forms are already selected from existing responses.</p>
               </div>
             </div>
           );
         }
-        
+
         return (
           <div className="space-y-6">
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Form</h3>
-              <p className="text-purple-700">Select the form required for this case based on the selected category.</p>
-            </div>
-
-            {/* Show form templates from backend */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-gray-900">Available Form Templates</h4>
-              {loadingFormTemplates ? (
-                <div className="text-gray-500">Loading form templates...</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {formTemplates.length === 0 ? (
-                    <div className="text-gray-400">No form templates available.</div>
-                  ) : (
-                    formTemplates.map(template => (
-                      <label key={template._id || template.name} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="selectedForm"
-                          checked={selectedForms.includes(template.name)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedForms([template.name]); // Only allow one form selection
-                            }
-                          }}
-                          className="mr-3"
-                        />
-                        <div>
-                          <div className="font-medium text-gray-900">{template.name}</div>
-                          <div className="text-sm text-gray-500">{template.description}</div>
-                          <div className="text-xs text-gray-400">Category: {template.category}</div>
-                          {/* Show case ID if form is selected and case ID exists */}
-                          {selectedForms.includes(template.name) && formCaseIds[template.name] && (
-                            <div className="text-xs text-green-600 font-medium mt-1">
-                              Case ID: {formatCaseId(formCaseIds[template.name])}
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Display generated case ID summary */}
-            {selectedForms.length > 0 && Object.keys(formCaseIds).length > 0 && (
+            {/* Client Information Display */}
+            {client.name && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h4 className="font-medium text-green-900 mb-2">Generated Case ID</h4>
-                <div className="space-y-2">
-                  {selectedForms.map(formName => (
-                    formCaseIds[formName] && (
-                      <div key={formName} className="flex justify-between items-center text-sm">
-                        <span className="text-green-700">{formName}:</span>
-                        <span className="font-mono text-green-800 bg-green-100 px-2 py-1 rounded">
-                          {formatCaseId(formCaseIds[formName])}
-                        </span>
-                      </div>
-                    )
-                  ))}
+                <h3 className="text-lg font-semibold text-green-900 mb-2">Selected Client Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-green-800">Name:</span> {client.name}
+                  </div>
+                  <div>
+                    <span className="font-medium text-green-800">Email:</span> {client.email}
+                  </div>
+                  {client.phone && (
+                    <div>
+                      <span className="font-medium text-green-800">Phone:</span> {client.phone}
+                    </div>
+                  )}
+                  {client.address?.city && (
+                    <div>
+                      <span className="font-medium text-green-800">Location:</span> {client.address.city}, {client.address.state || client.address.province}
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-medium text-green-800">Client ID:</span> {client.id || client._id}
+                  </div>
+                  {client.role && (
+                    <div>
+                      <span className="font-medium text-green-800">Role:</span> {client.role}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">Select Immigration Form</h3>
+              <p className="text-blue-700">Choose one immigration form needed for this case.</p>
+            </div>
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">Available Forms (Select One)</h4>
+              {loadingFormTemplates ? (
+                <div className="text-gray-500">Loading forms...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {formTemplates.map((template) => (
+                    <div
+                      key={template.name}
+                      onClick={() => {
+                        if (selectedForms.includes(template.name)) {
+                          setSelectedForms([]); // Deselect if clicking the same form
+                        } else {
+                          setSelectedForms([template.name]); // Select only this form
+                        }
+                      }}
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${selectedForms.includes(template.name)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h5 className="font-medium text-gray-900">{template.name}</h5>
+                          {template.description && (
+                            <p className="text-sm text-gray-600 mt-1">{template.description}</p>
+                          )}
+                          <div className="text-xs text-gray-400 mt-1">Category: {template.category}</div>
+                        </div>
+                        {selectedForms.includes(template.name) && (
+                          <Check className="w-5 h-5 text-blue-500" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              {isViewEditMode ? (
-                // Simple Next button in view/edit mode
-                <Button
-                  onClick={handleNext}
-                  disabled={selectedForms.length === 0}
-                >
-                  Next
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              ) : (
-                // Original Form submission button in normal mode
-                <Button
-                  onClick={handleFormsSubmit}
-                  disabled={selectedForms.length === 0 || generatingCaseIds}
-                >
-                  {generatingCaseIds ? (
-                    <>
-                      <Loader className="w-4 h-4 mr-2 animate-spin" />
-                      Generating Case ID...
-                    </>
-                  ) : (
-                    <>
-                      Confirm Form & Continue
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </>
-                  )}
-                </Button>
-              )}
+              <Button onClick={handleFormsSubmit} disabled={selectedForms.length === 0 || generatingCaseIds}>
+                {generatingCaseIds ? 'Generating Case IDs...' : 'Continue with Selected Forms'}
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             </div>
           </div>
         );
@@ -3435,7 +3763,7 @@ const handleClientSubmit = async () => {
             </div>
           );
         }
-        
+
         return (
           <div className="space-y-6">
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
@@ -4481,8 +4809,12 @@ const handleClientSubmit = async () => {
                   )}
                 </div>
 
-                {/* Questionnaire responses summary */}
+                {/* Enhanced Questionnaire responses summary with debugging */}
                 {questionnaireAssignment && (() => {
+                  console.log('🔍 Questionnaire Assignment found:', questionnaireAssignment);
+                  console.log('🔍 Available Questionnaires:', availableQuestionnaires);
+                  console.log('🔍 Client Responses:', clientResponses);
+
                   // Enhanced flexible matching to find the assigned questionnaire
                   const questionnaire = availableQuestionnaires.find(q => {
                     // Check all possible ID fields
@@ -4493,51 +4825,247 @@ const handleClientSubmit = async () => {
                       q.name          // Fallback to name if used as ID
                     ].filter(Boolean); // Remove undefined/null values
 
-                    // For API questionnaires, prioritize matching the q_ prefixed ID
-                    if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
-
+                    // Direct match first
+                    if (possibleIds.includes(questionnaireAssignment.questionnaireId)) {
                       return true;
                     }
 
-                    // Check if any of the possible IDs match
-                    const matches = possibleIds.includes(questionnaireAssignment.questionnaireId);
-                    if (matches) {
-
+                    // For API questionnaires, prioritize matching the q_ prefixed ID
+                    if (q.apiQuestionnaire && q.id === questionnaireAssignment.questionnaireId) {
+                      return true;
                     }
-                    return matches;
+
+                    // Handle case where assignment has ID without q_ prefix but questionnaire has q_ prefix
+                    if (q.id && q.id.startsWith('q_')) {
+                      const idWithoutPrefix = q.id.substring(2); // Remove 'q_' prefix
+                      if (idWithoutPrefix === questionnaireAssignment.questionnaireId) {
+                        return true;
+                      }
+                      // Check if IDs are very similar (within 1-2 character difference)
+                      if (Math.abs(idWithoutPrefix.length - questionnaireAssignment.questionnaireId.length) <= 2) {
+                        const similarity = calculateStringSimilarity(idWithoutPrefix, questionnaireAssignment.questionnaireId);
+                        if (similarity > 0.9) { // 90% similarity
+                          console.log(`🔍 Found similar questionnaire: ${q.id} (${Math.round(similarity * 100)}% match)`);
+                          return true;
+                        }
+                      }
+                    }
+
+                    // Handle case where assignment has ID with q_ prefix but questionnaire has no prefix
+                    if (questionnaireAssignment.questionnaireId.startsWith('q_')) {
+                      const assignmentIdWithoutPrefix = questionnaireAssignment.questionnaireId.substring(2);
+                      if (possibleIds.includes(assignmentIdWithoutPrefix)) {
+                        return true;
+                      }
+                    }
+
+                    // Check by questionnaire name if it matches the assignment name
+                    if (questionnaireAssignment.questionnaireName && (q.title || q.name)) {
+                      const qName = (q.title || q.name).toLowerCase();
+                      const assignmentName = questionnaireAssignment.questionnaireName.toLowerCase();
+                      if (qName === assignmentName || qName.includes(assignmentName) || assignmentName.includes(qName)) {
+                        console.log(`🔍 Found questionnaire by name match: ${q.title || q.name}`);
+                        return true;
+                      }
+                    }
+
+                    return false;
                   });
+
+                  // Helper function to calculate string similarity
+                  function calculateStringSimilarity(str1: string, str2: string): number {
+                    const longer = str1.length > str2.length ? str1 : str2;
+                    const shorter = str1.length > str2.length ? str2 : str1;
+                    const editDistance = getEditDistance(longer, shorter);
+                    return (longer.length - editDistance) / longer.length;
+                  }
+
+                  // Helper function to calculate edit distance
+                  function getEditDistance(str1: string, str2: string): number {
+                    const matrix = [];
+                    for (let i = 0; i <= str2.length; i++) {
+                      matrix[i] = [i];
+                    }
+                    for (let j = 0; j <= str1.length; j++) {
+                      matrix[0][j] = j;
+                    }
+                    for (let i = 1; i <= str2.length; i++) {
+                      for (let j = 1; j <= str1.length; j++) {
+                        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                          matrix[i][j] = matrix[i - 1][j - 1];
+                        } else {
+                          matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j] + 1
+                          );
+                        }
+                      }
+                    }
+                    return matrix[str2.length][str1.length];
+                  }
+
+                  console.log('🔍 Found Questionnaire:', questionnaire);
+
                   const questions = questionnaire ? (questionnaire.fields || questionnaire.questions) : [];
-                  if (!questions || questions.length === 0) {
+                  const hasResponses = Object.keys(clientResponses).length > 0;
+
+                  console.log('🔍 Questions:', questions);
+                  console.log('🔍 Has Responses:', hasResponses);
+
+                  // If no questionnaire found but we have an assignment, show debug info
+                  if (!questionnaire) {
                     return (
-                      <div className="mt-6">
-                        <strong className="font-medium text-gray-900 mb-2 block">Questionnaire Responses</strong>
-                        <div className="text-gray-500 italic">No questionnaire responses found.</div>
+                      <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <strong className="font-medium text-red-900 mb-2 block flex items-center">
+                          <AlertCircle className="w-5 h-5 mr-2" />
+                          Questionnaire Not Found
+                        </strong>
+                        <div className="text-red-700 space-y-2">
+                          <div>Assignment ID: {questionnaireAssignment.questionnaireId}</div>
+                          <div>Assignment Name: {questionnaireAssignment.questionnaireName}</div>
+                          <div>Available Questionnaires: {availableQuestionnaires.length}</div>
+                          {hasResponses && (
+                            <div>Client Responses: {Object.keys(clientResponses).length} answers found</div>
+                          )}
+                          <div className="mt-3">
+                            <strong>Debug: Available Questionnaire IDs:</strong>
+                            <ul className="list-disc list-inside mt-1 text-sm">
+                              {availableQuestionnaires.map((q, idx) => (
+                                <li key={idx}>
+                                  {q.title || q.name} - ID: {q.id || q._id || 'No ID'}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
                       </div>
                     );
                   }
+
+                  if (!questions || questions.length === 0) {
+                    return (
+                      <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <strong className="font-medium text-yellow-900 mb-2 block flex items-center">
+                          <AlertCircle className="w-5 h-5 mr-2" />
+                          Questionnaire Information
+                        </strong>
+                        <div className="text-yellow-700 space-y-1">
+                          <div>Questionnaire found: {questionnaire?.title || questionnaire?.name}</div>
+                          <div>But no questions/fields defined.</div>
+                          {hasResponses && (
+                            <div className="mt-2 text-yellow-800">
+                              <strong>However, {Object.keys(clientResponses).length} responses were found:</strong>
+                              <div className="mt-1 max-h-32 overflow-y-auto bg-yellow-100 p-2 rounded text-sm">
+                                {Object.entries(clientResponses).map(([key, value]) => (
+                                  <div key={key} className="mb-1">
+                                    <strong>{key}:</strong> {typeof value === 'object' ? JSON.stringify(value) : value}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div className="mt-6">
-                      <strong className="font-medium text-gray-900 mb-2 block">Questionnaire Responses</strong>
-                      <div className="space-y-2">
-                        {questions.map((q: any, idx: number) => {
-                          const key = q.id || q.label || `q_${idx}`;
-                          const answer = clientResponses[key];
-                          let displayAnswer = '';
-                          if (Array.isArray(answer)) {
-                            displayAnswer = answer.join(', ');
-                          } else if (typeof answer === 'boolean') {
-                            displayAnswer = answer ? 'Yes' : 'No';
-                          } else {
-                            displayAnswer = answer || '-';
-                          }
-                          return (
-                            <div key={key} className="flex flex-col md:flex-row md:items-center md:gap-2">
-                              <span className="font-medium text-gray-700"><strong>{q.label || q.question}:</strong></span>
-                              <span className="text-gray-900">{displayAnswer}</span>
-                            </div>
-                          );
-                        })}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <strong className="font-medium text-blue-900 mb-2 block flex items-center">
+                          <ClipboardList className="w-5 h-5 mr-2" />
+                          Questionnaire Responses
+                          {isViewEditMode && (
+                            <span className="ml-2 text-sm font-normal text-blue-700">(Edit Mode)</span>
+                          )}
+                        </strong>
+                        <div className="text-blue-700 text-sm">
+                          {questionnaire?.title || questionnaire?.name || 'Questionnaire'} - {questions.length} questions
+                          {questionnaireAssignment.completedAt && (
+                            <span className="ml-2 text-green-700">✓ Completed on {new Date(questionnaireAssignment.completedAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
                       </div>
+
+                      {!hasResponses && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                          <div className="text-gray-500 italic flex items-center">
+                            <AlertCircle className="w-4 h-4 mr-2" />
+                            No responses submitted yet. Client can access questionnaire to provide answers.
+                          </div>
+                        </div>
+                      )}
+
+                      {hasResponses && (
+                        <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium text-gray-900">Response Details</h5>
+                            <span className="text-sm text-green-600 flex items-center">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              {Object.keys(clientResponses).length} of {questions.length} answered
+                            </span>
+                          </div>
+
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {questions.map((q: any, idx: number) => {
+                              const key = q.id || q.label || `q_${idx}`;
+                              const answer = clientResponses[key];
+                              const hasAnswer = answer !== undefined && answer !== null && answer !== '';
+
+                              let displayAnswer = '';
+                              let answerClass = 'text-gray-900';
+
+                              if (!hasAnswer) {
+                                displayAnswer = 'Not answered';
+                                answerClass = 'text-gray-400 italic';
+                              } else if (Array.isArray(answer)) {
+                                displayAnswer = answer.length > 0 ? answer.join(', ') : 'Not answered';
+                                answerClass = answer.length > 0 ? 'text-gray-900' : 'text-gray-400 italic';
+                              } else if (typeof answer === 'boolean') {
+                                displayAnswer = answer ? 'Yes' : 'No';
+                                answerClass = 'text-gray-900';
+                              } else {
+                                displayAnswer = answer.toString();
+                                answerClass = 'text-gray-900';
+                              }
+
+                              return (
+                                <div key={key} className="border-l-4 border-gray-200 pl-4 py-2 hover:border-blue-300 transition-colors">
+                                  <div className="flex flex-col space-y-1">
+                                    <div className="flex items-start justify-between">
+                                      <span className="font-medium text-gray-700 text-sm">
+                                        Q{idx + 1}: {q.label || q.question}
+                                      </span>
+                                      {hasAnswer && (
+                                        <span className="text-green-500 ml-2">
+                                          <CheckCircle className="w-4 h-4" />
+                                        </span>
+                                      )}
+                                    </div>
+                                    {q.description && (
+                                      <p className="text-xs text-gray-500 italic">{q.description}</p>
+                                    )}
+                                    <div className="mt-1">
+                                      <span className={`${answerClass} ${hasAnswer ? 'font-medium' : ''}`}>
+                                        {displayAnswer}
+                                      </span>
+                                      {q.type && (
+                                        <span className="ml-2 text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                                          {q.type}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Summary stats */}
+
+                        </div>
+                      )}
                     </div>
                   );
                 })()}

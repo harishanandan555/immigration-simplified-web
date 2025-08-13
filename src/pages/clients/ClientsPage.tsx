@@ -134,7 +134,7 @@ const ClientsPage = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{client.name || 'N/A'}</div>
-                          <div className="text-sm text-gray-500">{client.address || 'N/A'}</div>
+                          {/* <div className="text-sm text-gray-500">{client.address || 'N/A'}</div> */}
                         </div>
                       </Link>
                     </td>

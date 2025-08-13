@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../controllers/AuthControllers';
 import { mockCases, mockTasks, mockClients } from '../utils/mockData';
 import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
+import api from '../utils/api';
 import {
   BarChart,
   Bar,
@@ -37,6 +38,16 @@ const Dashboard = () => {
   const [loadingAttorneyQuestionnaires, setLoadingAttorneyQuestionnaires] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  
+  // Workflow states
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+  const [workflowStats, setWorkflowStats] = useState({
+    total: 0,
+    inProgress: 0,
+    completed: 0,
+    draft: 0
+  });
 
   // Load questionnaire assignments for clients
   useEffect(() => {
@@ -48,7 +59,7 @@ const Dashboard = () => {
           setAssignments(data);
           
           // Check for pending questionnaires to show notification
-          const pendingAssignments = data.filter(a => a.status === 'pending');
+          const pendingAssignments = data.filter((a: any) => a.status === 'pending');
           setPendingCount(pendingAssignments.length);
           setShowNotification(pendingAssignments.length > 0);
         } catch (error) {
@@ -83,6 +94,84 @@ const Dashboard = () => {
       loadAttorneyAssignments();
     }
   }, [isAttorney, isSuperAdmin]);
+
+  // Load workflows data
+  useEffect(() => {
+    const loadWorkflows = async () => {
+      if (!isAttorney && !isSuperAdmin) return; // Only load for attorneys/admins
+      
+      try {
+        setLoadingWorkflows(true);
+        const workflowData = await fetchWorkflowsFromAPI();
+        setWorkflows(workflowData);
+        
+        // Calculate workflow stats
+        const stats = {
+          total: workflowData.length,
+          inProgress: workflowData.filter((w: any) => w.status === 'in-progress').length,
+          completed: workflowData.filter((w: any) => w.status === 'completed').length,
+          draft: workflowData.filter((w: any) => w.status === 'draft').length
+        };
+        setWorkflowStats(stats);
+        
+      } catch (error) {
+        console.error('Error loading workflows:', error);
+      } finally {
+        setLoadingWorkflows(false);
+      }
+    };
+
+    loadWorkflows();
+  }, [isAttorney, isSuperAdmin]);
+
+  // Fetch workflows from API function
+  const fetchWorkflowsFromAPI = async () => {
+    try {
+      console.log('🔄 Fetching workflows from API...');
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        console.log('❌ No authentication token available');
+        return [];
+      }
+
+      console.log('✅ Authentication token found, making API request...');
+
+      const response = await api.get('/api/v1/workflows', {
+        params: {
+          status: 'in-progress',
+          page: 1,
+          limit: 50
+        }
+      });
+
+      console.log('📥 Response from workflows API:', response.data);
+
+      if (response.data?.success && response.data?.data) {
+        const workflows = response.data.data;
+        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
+        return workflows;
+      } else {
+        console.log('⚠️ No workflow data available in API response');
+        return [];
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error fetching workflows from API:', error);
+
+      if (error.response?.status === 404) {
+        console.log('🔍 Server workflows endpoint not found');
+      } else if (error.response?.status === 401) {
+        console.log('🔐 Authentication failed');
+      } else {
+        console.log('💥 Other API error:', error.response?.status || 'Unknown');
+      }
+
+      return [];
+    } finally {
+      console.log('🏁 Finished workflow API request');
+    }
+  };
 
   // Filter cases if user is a client
   const filteredCases = isClient
@@ -170,7 +259,7 @@ const Dashboard = () => {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="card">
+        {/* <div className="card">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-gray-500 text-sm">Active Cases</p>
@@ -185,7 +274,7 @@ const Dashboard = () => {
               View all cases →
             </Link>
           </div>
-        </div>
+        </div> */}
 
         <div className="card">
           <div className="flex items-start justify-between">
@@ -237,6 +326,28 @@ const Dashboard = () => {
             <div className="mt-4">
               <Link to="/clients" className="text-sm text-purple-600 hover:text-purple-700 font-medium">
                 View clients →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Workflows Stats for Attorneys/Admins */}
+        {(isAttorney || isSuperAdmin) && (
+          <div className="card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">Active Workflows</p>
+                <p className="text-2xl font-bold mt-1">
+                  {loadingWorkflows ? '...' : workflowStats.inProgress}
+                </p>
+              </div>
+              <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                <FileText size={20} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to="/workflows" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                Manage workflows →
               </Link>
             </div>
           </div>
@@ -341,6 +452,35 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Workflow Status Chart for Attorneys/Admins */}
+          {(isAttorney || isSuperAdmin) && (
+            <div className="card">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-medium">Workflow Status Overview</h2>
+                <div className="text-sm text-gray-500">
+                  Total: {workflowStats.total} workflows
+                </div>
+              </div>
+
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[
+                    { name: 'In Progress', count: workflowStats.inProgress },
+                    { name: 'Completed', count: workflowStats.completed },
+                    { name: 'Draft', count: workflowStats.draft }
+                  ]} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="count" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
           {/* Recent Cases */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
@@ -434,6 +574,55 @@ const Dashboard = () => {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* Workflow Progress for Attorneys/Admins */}
+          {(isAttorney || isSuperAdmin) && (
+            <div className="card">
+              <h2 className="text-lg font-medium mb-4">Workflow Progress</h2>
+              <div className="space-y-4">
+                {loadingWorkflows ? (
+                  <div className="py-4 text-center text-gray-500">
+                    <p className="text-sm">Loading workflow data...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                      <div className="flex items-center">
+                        <Clock className="h-5 w-5 text-blue-600 mr-2" />
+                        <span className="text-sm font-medium text-blue-900">In Progress</span>
+                      </div>
+                      <span className="text-lg font-bold text-blue-600">{workflowStats.inProgress}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                      <div className="flex items-center">
+                        <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                        <span className="text-sm font-medium text-green-900">Completed</span>
+                      </div>
+                      <span className="text-lg font-bold text-green-600">{workflowStats.completed}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center">
+                        <FileText className="h-5 w-5 text-gray-600 mr-2" />
+                        <span className="text-sm font-medium text-gray-900">Draft</span>
+                      </div>
+                      <span className="text-lg font-bold text-gray-600">{workflowStats.draft}</span>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <Link 
+                        to="/workflows" 
+                        className="block w-full text-center py-2 px-4 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 font-medium"
+                      >
+                        Manage All Workflows
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Upcoming Deadlines */}
           <div className="card">
@@ -558,6 +747,86 @@ const Dashboard = () => {
             </div>
           )}
 
+          {/* Recent Workflows for Attorneys/Superadmins */}
+          {(isAttorney || isSuperAdmin) && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium">Recent Workflows</h2>
+                <Link to="/workflows" className="text-sm text-primary-600 hover:text-primary-700">
+                  View all
+                </Link>
+              </div>
+
+              <div className="space-y-4">
+                {loadingWorkflows ? (
+                  <div className="py-4 text-center text-gray-500">
+                    <p className="text-sm">Loading workflows...</p>
+                  </div>
+                ) : workflows.length > 0 ? (
+                  workflows.slice(0, 5).map(workflow => (
+                    <div
+                      key={workflow._id || workflow.id}
+                      className="p-3 rounded-lg border border-gray-200 bg-white"
+                    >
+                      <div className="flex items-start">
+                        <div className={`flex-shrink-0 ${
+                          workflow.status === 'in-progress' ? 'text-blue-500' : 
+                          workflow.status === 'completed' ? 'text-green-500' : 
+                          'text-gray-400'
+                        }`}>
+                          {workflow.status === 'in-progress' ? <Clock size={18} /> : 
+                           workflow.status === 'completed' ? <CheckCircle size={18} /> : 
+                           <FileText size={18} />}
+                        </div>
+                        <div className="ml-3 flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-900">
+                              {workflow.case?.title || 'Untitled Case'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Step {workflow.currentStep || 1}
+                            </p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Client: {workflow.client?.firstName} {workflow.client?.lastName}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="text-xs text-gray-500">
+                              Category: {workflow.case?.category || 'Unknown'}
+                            </p>
+                            <div>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                ${workflow.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                  workflow.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                {workflow.status || 'draft'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end mt-2">
+                            <Link
+                              to={`/workflow/${workflow._id || workflow.id}`}
+                              className="inline-flex items-center px-3 py-1 text-xs rounded-md bg-primary-100 text-primary-700 hover:bg-primary-200"
+                            >
+                              {workflow.status === 'completed' ? 'View Details' : 'Continue Workflow'}
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-4 text-center text-gray-500">
+                    <FileText className="mx-auto h-8 w-8 text-gray-400" />
+                    <p className="mt-2 text-sm">No workflows found</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Recent Questionnaire Responses for Attorneys/Superadmins */}
           {(isAttorney || isSuperAdmin) && (
             <div className="card">
@@ -627,6 +896,15 @@ const Dashboard = () => {
               >
                 Create New Case
               </Link>
+
+              {(isAttorney || isSuperAdmin) && (
+                <Link
+                  to="/legal-firm-workflow"
+                  className="block w-full btn btn-secondary text-center"
+                >
+                  Start New Workflow
+                </Link>
+              )}
 
               <Link
                 to="/forms"

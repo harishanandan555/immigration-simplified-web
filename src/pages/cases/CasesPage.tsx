@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-import { getCases } from '../../controllers/CaseControllers';
 import api from '../../utils/api';
 
 type Client = {
@@ -40,8 +39,6 @@ type SortDirection = 'asc' | 'desc';
 const CasesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [cases, setCases] = useState<Case[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,12 +64,11 @@ const CasesPage: React.FC = () => {
 
       console.log('✅ Authentication token found, making API request...');
 
-      // Request workflows from API
+      // Request ALL workflows from API (not just in-progress)
       const response = await api.get('/api/v1/workflows', {
         params: {
-          status: 'in-progress',
           page: 1,
-          limit: 50
+          limit: 100 // Get more workflows
         }
       });
       
@@ -82,6 +78,17 @@ const CasesPage: React.FC = () => {
         const workflows = response.data.data;
         setAvailableWorkflows(workflows);
         console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
+        
+        // Log some workflow details for debugging
+        if (workflows.length > 0) {
+          console.log('📋 Sample workflow data:', {
+            sampleWorkflow: workflows[0],
+            formCaseIds: workflows[0].formCaseIds,
+            caseInfo: workflows[0].case,
+            clientInfo: workflows[0].client
+          });
+        }
+        
         return workflows;
       } else {
         console.log('⚠️ No workflow data available in API response');
@@ -111,81 +118,209 @@ const CasesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchCases = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const casesData = await getCases();
-
-        if (casesData?.data) {
-          setCases(casesData.data);
-        } else {
-          setCases([]);
-        }
-      } catch (error) {
-        console.error('Error fetching cases:', error);
-        setError('Failed to fetch cases. Please try again later.');
-      } finally {
-        setLoading(false);
+    const loadWorkflows = async () => {
+      const workflows = await fetchWorkflowsFromAPI();
+      
+      // Extract cases from workflows instead of calling separate cases API
+      if (workflows && workflows.length > 0) {
+        console.log('🔄 Extracting cases from workflows...');
+        
+        const extractedCases: Case[] = workflows.map((workflow: any) => {
+          const workflowCase = workflow.case || {};
+          const workflowClient = workflow.client || {};
+          
+          // Create a case object from workflow data
+          const extractedCase: Case = {
+            _id: workflowCase.id || workflowCase._id || workflow._id,
+            caseNumber: workflowCase.caseNumber || 
+                       (workflow.formCaseIds && Object.values(workflow.formCaseIds)[0]) || 
+                       `WF-${workflow._id?.slice(-8)}`,
+            type: workflowCase.category || workflowCase.subcategory || 'Immigration',
+            status: workflowCase.status || workflow.status || 'In Progress',
+            clientId: workflowClient ? {
+              _id: workflowClient.id || workflowClient._id || workflow._id,
+              name: workflowClient.name || 
+                    `${workflowClient.firstName || ''} ${workflowClient.lastName || ''}`.trim() || 
+                    'Unknown Client',
+              email: workflowClient.email || 'No email'
+            } : null,
+            assignedTo: workflow.createdBy?.firstName ? 
+                       `${workflow.createdBy.firstName} ${workflow.createdBy.lastName}` : 
+                       null,
+            description: workflowCase.title || workflowCase.description || 'Workflow Case',
+            timeline: [],
+            documents: [],
+            tasks: [],
+            createdAt: workflow.createdAt || new Date().toISOString(),
+            updatedAt: workflow.updatedAt || workflow.createdAt || new Date().toISOString(),
+            __v: 0
+          };
+          
+          return extractedCase;
+        }).filter((case_: any) => case_.clientId); // Only include cases with valid client data
+        
+        console.log(`✅ Extracted ${extractedCases.length} cases from workflows`);
+        console.log('📋 Sample extracted case:', extractedCases[0]);
+        
+        setCases(extractedCases);
+      } else {
+        console.log('⚠️ No workflows available to extract cases from');
+        setCases([]);
       }
     };
     
-    fetchCases();
-  }, []);
-
-  // Fetch workflows when component loads
-  useEffect(() => {
-    const loadWorkflows = async () => {
-      await fetchWorkflowsFromAPI();
-    };
-    
-    // Load workflows after a brief delay to allow other data to load first
-    setTimeout(loadWorkflows, 1000);
+    // Load workflows and extract cases
+    loadWorkflows();
   }, []);
 
   // Function to get workflow case number for a case
   const getWorkflowCaseNumber = (caseItem: Case) => {
-    if (!availableWorkflows.length) return null;
-    
+    if (!availableWorkflows.length) {
+      console.log("❌ No workflows available for matching");
+      return null;
+    }
 
-    console.log("availableWorkflows:", availableWorkflows);
-    console.log("caseItem:", caseItem);
-    // Try to find a matching workflow by case title or client info
-    const matchingWorkflow = availableWorkflows.find((workflow: any) => {
+    console.log("🔍 Searching for workflow match:");
+    console.log("📋 Available workflows count:", availableWorkflows.length);
+    console.log("📄 Case item to match:", {
+      id: caseItem._id,
+      caseNumber: caseItem.caseNumber,
+      description: caseItem.description,
+      clientId: caseItem.clientId?._id,
+      clientName: caseItem.clientId?.name,
+      clientEmail: caseItem.clientId?.email,
+      type: caseItem.type,
+      status: caseItem.status
+    });
+
+    // Log first few workflow structures for debugging
+    if (availableWorkflows.length > 0) {
+      console.log("📝 Sample workflow structures:");
+      availableWorkflows.slice(0, 2).forEach((workflow, idx) => {
+        console.log(`Workflow ${idx + 1}:`, {
+          workflowId: workflow._id,
+          hasCase: !!workflow.case,
+          caseId: workflow.case?.id || workflow.case?._id,
+          caseTitle: workflow.case?.title,
+          caseCategory: workflow.case?.category,
+          caseStatus: workflow.case?.status,
+          hasClient: !!workflow.client,
+          clientId: workflow.client?.id || workflow.client?._id,
+          clientEmail: workflow.client?.email,
+          clientName: workflow.client?.name || `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.trim(),
+          formCaseIds: workflow.formCaseIds,
+          selectedForms: workflow.selectedForms
+        });
+      });
+    }
+
+    // Try to find a matching workflow by various criteria
+    const matchingWorkflow = availableWorkflows.find((workflow: any, index: number) => {
+      console.log(`🔎 Checking workflow ${index + 1}/${availableWorkflows.length}:`, {
+        workflowId: workflow._id || workflow.id,
+        caseId: workflow.case?.id || workflow.case?._id,
+        caseTitle: workflow.case?.title,
+        clientEmail: workflow.client?.email,
+        clientName: workflow.client?.name || `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.trim(),
+        formCaseIds: workflow.formCaseIds
+      });
+
       // Match by case ID first (most reliable)
       if (workflow.case?.id && caseItem._id) {
-        if (workflow.case.id === caseItem._id || workflow.case._id === caseItem._id) {
+        const idMatch = workflow.case.id === caseItem._id || workflow.case._id === caseItem._id;
+        if (idMatch) {
+          console.log("✅ Found match by case ID");
           return true;
         }
       }
-      
+
+      // Match by case number if available
+      if (workflow.case?.caseNumber && caseItem.caseNumber) {
+        const caseNumberMatch = workflow.case.caseNumber === caseItem.caseNumber;
+        if (caseNumberMatch) {
+          console.log("✅ Found match by case number");
+          return true;
+        }
+      }
+
+      // Match by form case IDs (check if case number matches any form case ID)
+      if (workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0) {
+        const formCaseIdMatch = Object.values(workflow.formCaseIds).some(formCaseId => 
+          formCaseId === caseItem.caseNumber
+        );
+        if (formCaseIdMatch) {
+          console.log("✅ Found match by form case ID matching case number:", {
+            caseNumber: caseItem.caseNumber,
+            matchingFormCaseId: Object.entries(workflow.formCaseIds).find(([, id]) => id === caseItem.caseNumber)
+          });
+          return true;
+        }
+      }
+
       // Match by case title/description
       if (workflow.case?.title && caseItem.description) {
-        if (workflow.case.title.toLowerCase().includes(caseItem.description.toLowerCase()) ||
-            caseItem.description.toLowerCase().includes(workflow.case.title.toLowerCase())) {
+        const titleMatch = workflow.case.title.toLowerCase().includes(caseItem.description.toLowerCase()) ||
+            caseItem.description.toLowerCase().includes(workflow.case.title.toLowerCase());
+        if (titleMatch) {
+          console.log("✅ Found match by case title/description");
           return true;
         }
       }
-      
+
       // Match by client email if available
       if (workflow.client?.email && caseItem.clientId?.email) {
-        if (workflow.client.email.toLowerCase() === caseItem.clientId.email.toLowerCase()) {
+        const emailMatch = workflow.client.email.toLowerCase() === caseItem.clientId.email.toLowerCase();
+        if (emailMatch) {
+          console.log("✅ Found match by client email");
           return true;
         }
       }
-      
+
       // Match by client name if available
       if (workflow.client && caseItem.clientId?.name) {
         const workflowClientName = workflow.client.name || 
           `${workflow.client.firstName || ''} ${workflow.client.lastName || ''}`.trim();
-        if (workflowClientName.toLowerCase() === caseItem.clientId.name.toLowerCase()) {
+        const nameMatch = workflowClientName.toLowerCase() === caseItem.clientId.name.toLowerCase();
+        if (nameMatch) {
+          console.log("✅ Found match by client name");
           return true;
         }
       }
-      
+
+      // Match by client ID if available
+      if (workflow.client?.id && caseItem.clientId?._id) {
+        const clientIdMatch = workflow.client.id === caseItem.clientId._id || workflow.client._id === caseItem.clientId._id;
+        if (clientIdMatch) {
+          console.log("✅ Found match by client ID");
+          return true;
+        }
+      }
+
+      // Fuzzy match by case type/category
+      if (workflow.case?.category && caseItem.type) {
+        const categoryMatch = workflow.case.category.toLowerCase().includes(caseItem.type.toLowerCase()) ||
+            caseItem.type.toLowerCase().includes(workflow.case.category.toLowerCase());
+        if (categoryMatch) {
+          console.log("✅ Found match by case type/category");
+          return true;
+        }
+      }
+
       return false;
     });
-    
+
+    if (matchingWorkflow) {
+      console.log("🎯 Found matching workflow:", {
+        workflowId: matchingWorkflow._id,
+        caseTitle: matchingWorkflow.case?.title,
+        formCaseIds: matchingWorkflow.formCaseIds,
+        assignedForms: matchingWorkflow.selectedForms
+      });
+    } else {
+      console.log("❌ No matching workflow found for case:", caseItem._id);
+      console.log("💡 Consider creating a workflow for this case or check if the case data matches any workflow criteria");
+    }
+
     return matchingWorkflow;
   };
 
@@ -284,12 +419,6 @@ const CasesPage: React.FC = () => {
         </Link>
       </div>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
-
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="relative flex-grow">
@@ -353,10 +482,10 @@ const CasesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
+              {loadingWorkflows ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                    Loading cases...
+                    Loading cases from workflows...
                   </td>
                 </tr>
               ) : paginatedCases.length > 0 ? (

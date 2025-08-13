@@ -36,7 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
     { name: 'My Questionnaires', href: '/my-questionnaires', icon: FileText, visible: isClient },
     { name: 'Legal Firm Workflow', href: '/legal-firm-workflow', icon: Briefcase, visible: isAttorney },
     { name: 'Questionnaire Responses', href: '/questionnaires/responses', icon: FileText, visible: isAttorney || isParalegal || isSuperAdmin },
-    // { name: 'Cases', href: '/cases', icon: Briefcase, visible: !isClient || isSuperAdmin },
+    { name: 'Cases', href: '/cases', icon: Briefcase, visible: !isClient || isSuperAdmin },
     { name: 'Cases Tracker', href: '/cases/tracker', icon: Briefcase, visible: !isClient || isSuperAdmin },
     { name: 'FOIA Cases', href: '/foia-cases', icon: FileSearch, visible: !isClient || isSuperAdmin },
     { name: 'Clients', href: '/clients', icon: Users, visible: !isClient || isSuperAdmin },
