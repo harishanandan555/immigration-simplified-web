@@ -11,7 +11,6 @@ import {
   X,
   BarChart,
   FileSearch,
-  ClipboardList,
   UserCheck,
   Star
 } from 'lucide-react';
@@ -26,13 +25,13 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
   const location = useLocation();
-  const { isClient, isAttorney, isParalegal, isSuperAdmin } = useAuth();
+  const { user, isClient, isAttorney, isParalegal, isSuperAdmin } = useAuth();
 
   const navigationItems = [
     { name: 'Dashboard', href: '/dashboard', icon: Home, visible: true },
     // { name: 'Immigration Process', href: '/immigration-process', icon: ClipboardList, visible: true },
     { name: 'Enhanced Filing', href: '/enhanced-individual-filing', icon: Star, visible: isClient || isSuperAdmin },
-    { name: 'Individual Process', href: '/immigration-process/individual', icon: UserCheck, visible: isClient || isSuperAdmin },
+    { name: 'Individual Process', href: '/immigration-process/individual', icon: UserCheck, visible: isClient && user?.userType === 'individual' },
     { name: 'My Questionnaires', href: '/my-questionnaires', icon: FileText, visible: isClient },
     { name: 'Legal Firm Workflow', href: '/legal-firm-workflow', icon: Briefcase, visible: isAttorney },
     { name: 'Questionnaire Responses', href: '/questionnaires/responses', icon: FileText, visible: isAttorney || isParalegal || isSuperAdmin },

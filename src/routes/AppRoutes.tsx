@@ -63,9 +63,13 @@ const AppRoutes = () => {
           } />
 
           <Route path="/immigration-process/individual" element={
-            <Suspense fallback={null}>
-              <IndividualImmigrationProcess />
-            </Suspense>
+            (user?.role === 'client' && user?.userType === 'individual') ? (
+              <Suspense fallback={null}>
+                <IndividualImmigrationProcess />
+              </Suspense>
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
           } />
 
           <Route path="/enhanced-individual-filing" element={
