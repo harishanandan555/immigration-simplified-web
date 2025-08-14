@@ -308,60 +308,13 @@ const DocumentsPage = () => {
     }
   };
 
-  // Helper function to format file size
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
-
-  // Helper function to format date
-  const formatDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString();
-    } catch (error) {
-      return dateString; // Return original if parsing fails
-    }
-  };
-
-  // Helper function to process documents and add missing fields
-  const processDocuments = (documents: any[]): Document[] => {
-    console.log("processDocuments input:", documents);
-    console.log("documents length:", documents.length);
-    
-    const processed = documents.map(doc => {
-      console.log("Processing document:", doc);
-      return {
-        ...doc,
-        sizeFormatted: formatFileSize(doc.size || 0),
-        uploadedAt: formatDate(doc.uploadedAt || doc.createdAt),
-        uploadedBy: doc.uploadedBy || 'Unknown User'
-      };
-    });
-    
-    console.log("Processed result:", processed);
-    return processed;
-  };
-
   useEffect(() => {
     const fetchDocuments = async () => {
       try {
         const response = await getDocuments();
-        console.log("documents response:", response);
-        console.log("response.data:", response.data);
-        
+        console.log("documents clean", response)
         if (response.success) {
-          // Handle the actual API response structure
-          // The API seems to return response.data.data.documents instead of response.data.documents
-          const responseData = response.data as any;
-          const rawDocuments = responseData.data?.documents || responseData.documents || [];
-          console.log("raw documents before processing:", rawDocuments);
-          const processedDocuments = processDocuments(rawDocuments);
-          console.log("processed documents after processing:", processedDocuments);
-          setDocuments(processedDocuments);
+          setDocuments(response.data.documents || []);
         } else {
           console.error("Failed to fetch documents", response.message);
           setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
@@ -440,12 +393,6 @@ const DocumentsPage = () => {
     fetchWorkflowData();
   }, []);
 
-  // Debug effect to monitor documents state
-  useEffect(() => {
-    console.log("Documents state updated:", documents);
-    console.log("Documents state length:", documents.length);
-  }, [documents]);
-
   // Debug effect to log case filtering
   useEffect(() => {
     if (availableCases.length > 0) {
@@ -475,11 +422,6 @@ const DocumentsPage = () => {
   const documentTypes = ['all', ...new Set((documents || []).map(doc => doc.type))];
   const statusTypes = ['all', 'Verified', 'Pending Review', 'Needs Update', 'Rejected', 'Archived'];
 
-  // Temporarily disable filtering for debugging
-  const filteredDocuments = documents; // Show all documents without filtering
-  
-  // Original filtering logic (commented out for debugging)
-  /*
   const filteredDocuments = documents.filter(doc => {
     const docName = doc.name || '';
     const caseNum = doc.caseNumber || '';
@@ -490,22 +432,6 @@ const DocumentsPage = () => {
     const matchesClient = selectedClient === 'all' || doc.clientId === selectedClient;
     return matchesSearch && matchesType && matchesStatus && matchesClient;
   });
-  */
-
-  // Debug filtered documents
-  useEffect(() => {
-    console.log("Filter values:", {
-      searchTerm,
-      selectedType,
-      selectedStatus,
-      selectedClient,
-      documentsLength: documents.length,
-      filteredLength: filteredDocuments.length
-    });
-    if (documents.length > 0) {
-      console.log("Sample document for filtering:", documents[0]);
-    }
-  }, [documents, searchTerm, selectedType, selectedStatus, selectedClient, filteredDocuments.length]);
 
   // Helper function to get client name by ID
   const getClientNameById = (clientId: string): string => {
@@ -803,13 +729,12 @@ const DocumentsPage = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Document
                 </th>
- 
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Client
+                </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Type
                 </th>
@@ -835,12 +760,6 @@ const DocumentsPage = () => {
                 <tr key={doc._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <Users className="flex-shrink-0 h-4 w-4 text-gray-400 mr-2" />
-                      <div className="text-sm text-gray-900">{getClientNameById(doc.clientId)}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
                       <FileText className="flex-shrink-0 h-5 w-5 text-gray-400" />
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{doc.name}</div>
@@ -848,7 +767,12 @@ const DocumentsPage = () => {
                       </div>
                     </div>
                   </td>
-                  
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <Users className="flex-shrink-0 h-4 w-4 text-gray-400 mr-2" />
+                      <div className="text-sm text-gray-900">{getClientNameById(doc.clientId)}</div>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{doc.type}</div>
                   </td>

@@ -4,8 +4,8 @@ import { DOCUMENT_END_POINTS } from '../utils/constants';
 // Set to false to skip the method
 const IS_DOCUMENTS_ENABLED = true;
 const IS_DOCUMENT_CRUD_ENABLED = true;
-const IS_DOCUMENT_DOWNLOAD_ENABLED = false;
-const IS_DOCUMENT_PREVIEW_ENABLED = false;
+const IS_DOCUMENT_DOWNLOAD_ENABLED = true;
+const IS_DOCUMENT_PREVIEW_ENABLED = true;
 const IS_DOCUMENT_VERIFICATION_ENABLED = false;
 const IS_DOCUMENT_SEARCH_ENABLED = false;
 const IS_DOCUMENT_BULK_OPERATIONS_ENABLED = false;
@@ -180,7 +180,7 @@ export const getDocuments = async (params?: DocumentSearchParams): Promise<ApiRe
     });
 
     return {
-      data: response.data.data,
+      data: response.data,
       success: true,
       status: response.status
     };
@@ -348,14 +348,23 @@ export const downloadDocument = async (documentId: string, documentName: string)
   }
 
   try {
+    console.log(`🔽 Starting download for document ID: ${documentId}, Name: ${documentName}`);
+    
     const response = await api.get(
       DOCUMENT_END_POINTS.DOWNLOADDOCUMENT.replace(':id', documentId),
       {
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 30000 // 30 second timeout
       }
     );
 
-    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    console.log('📥 Download response received:', {
+      status: response.status,
+      contentType: response.headers['content-type'],
+      size: response.data.size
+    });
+
+    const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -364,10 +373,12 @@ export const downloadDocument = async (documentId: string, documentName: string)
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
+    
+    console.log('✅ Download completed successfully');
 
   } catch (error) {
+    console.error('❌ Download failed:', error);
     if (error instanceof Error) {
-      console.error('Error downloading document:', error.message);
       throw new Error(`Failed to download document: ${error.message}`);
     }
     throw new Error('Failed to download document due to an unknown error');
@@ -381,15 +392,64 @@ export const previewDocument = async (documentId: string): Promise<void> => {
   }
 
   try {
-    const response = await api.get<{ previewUrl: string }>(
-      DOCUMENT_END_POINTS.PREVIEWDOCUMENT.replace(':id', documentId)
+    console.log(`👁️ Starting preview for document ID: ${documentId}`);
+    
+    const response = await api.get(
+      DOCUMENT_END_POINTS.PREVIEWDOCUMENT.replace(':id', documentId),
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     );
 
-    window.open(response.data.previewUrl, '_blank');
+    console.log('📄 Preview response received:', response.data);
+
+    // Handle different response formats
+    let previewUrl = null;
     
-  } catch (error) {
+    if (response.data?.success && response.data?.data?.previewUrl) {
+      previewUrl = response.data.data.previewUrl;
+    } else if (response.data?.previewUrl) {
+      previewUrl = response.data.previewUrl;
+    } else if (response.data?.fileUrl) {
+      previewUrl = response.data.fileUrl;
+    } else if (response.data?.data?.fileUrl) {
+      previewUrl = response.data.data.fileUrl;
+    }
+
+    if (previewUrl) {
+      console.log(`🔗 Opening preview URL: ${previewUrl}`);
+      
+      // Check if it's a dummy URL
+      if (previewUrl.includes('storage.example.com')) {
+        alert('Preview not available: This is a demo document with a placeholder URL. Please upload a real document to test preview functionality.');
+        return;
+      }
+      
+      window.open(previewUrl, '_blank');
+    } else {
+      console.warn('⚠️ No preview URL found in response, trying alternative method');
+      // Fallback: try to serve the file directly through the API
+      const fallbackUrl = `${window.location.origin}/api/v1/documents/${documentId}/download`;
+      window.open(fallbackUrl, '_blank');
+    }
+    
+    console.log('✅ Preview opened successfully');
+    
+  } catch (error: any) {
+    console.error('❌ Preview failed:', error);
+    
+    // More specific error handling
+    if (error.response?.status === 404) {
+      alert('Document not found or preview not available.');
+    } else if (error.response?.status === 403) {
+      alert('You do not have permission to preview this document.');
+    } else {
+      alert(`Preview failed: ${error.message || 'Unknown error'}`);
+    }
+    
     if (error instanceof Error) {
-      console.error('Error getting document preview:', error.message);
       throw new Error(`Failed to get document preview: ${error.message}`);
     }
     throw new Error('Failed to get document preview due to an unknown error');

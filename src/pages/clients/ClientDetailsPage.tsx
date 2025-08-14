@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, FileText, Briefcase, PlusCircle } from 'lucide-react';
-import { getClientById } from '../../controllers/ClientControllers';
+import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, FileText, Briefcase, PlusCircle, Download, Eye, Clock } from 'lucide-react';
+import { 
+  Document, 
+  getDocuments,
+  downloadDocument,
+  previewDocument
+} from '../../controllers/DocumentControllers';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
@@ -11,192 +16,225 @@ const ClientDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [clientCases, setClientCases] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loadingCases, setLoadingCases] = useState(false);
+  
+  // Document-related state
+  const [clientDocuments, setClientDocuments] = useState<Document[]>([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  
+  // Activity-related state
+  const [activities, setActivities] = useState<any[]>([]);
 
-  // Function to fetch workflows and extract client cases
-  const fetchClientCasesFromWorkflows = async (clientId: string, clientData?: any) => {
+  // Function to fetch client documents
+  const fetchClientDocuments = async (clientId: string, clientData?: any) => {
     try {
-      console.log('🔄 Fetching client cases from workflows for client:', clientId);
-      console.log('🔍 Using client data:', clientData || client);
-      setLoadingCases(true);
-      const token = localStorage.getItem('token');
+      console.log('📄 Fetching documents for client:', clientId);
+      setLoadingDocuments(true);
       
-      if (!token) {
-        console.log('❌ No authentication token available');
-        toast('No authentication token - please login first');
-        return [];
-      }
-
-      console.log('✅ Authentication token found, fetching workflows...');
-
-      const response = await api.get('/api/v1/workflows', {
-        params: {
-          page: 1,
-          limit: 100
-        }
-      });
+      const response = await getDocuments();
+      console.log('📄 Documents API response:', response);
+      console.log('📄 Response data:', response.data);
       
-      console.log('📥 Response from workflows API:', response.data);
-      
-      if (response.data?.success && response.data?.data) {
-        const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows`);
+      if (response.success) {
+        // Handle the actual API response structure - same fix as DocumentsPage
+        const responseData = response.data as any;
+        const allDocuments = responseData.data?.documents || responseData.documents || [];
+        console.log('📄 All documents fetched:', allDocuments.length);
+        console.log('📄 Sample document:', allDocuments[0]);
         
-        // Filter workflows for this specific client and extract cases
+        // Filter documents for this specific client
         const currentClient = clientData || client;
-        const clientWorkflows = workflows.filter((workflow: any) => {
-          const workflowClient = workflow.client || {};
+        console.log('📄 Current client for document filtering:', currentClient);
+        console.log('📄 Client ID parameter:', clientId);
+        
+        const filteredDocuments = allDocuments.filter((doc: Document) => {
+          // Normalize values for comparison
+          const docClientId = doc.clientId?.toString().trim().toLowerCase() || '';
+          const docUploadedBy = doc.uploadedBy?.toString().trim().toLowerCase() || '';
           
-          // Debug: Log each workflow client for comparison
-          console.log('🔍 Comparing workflow client:', {
-            workflowId: workflow._id,
-            workflowClientId: workflowClient.id || 'EMPTY',
-            workflowClientEmail: workflowClient.email || 'NO EMAIL',
-            workflowClientName: workflowClient.name || 'NO NAME',
-            workflowClientFirstName: workflowClient.firstName || '',
-            workflowClientLastName: workflowClient.lastName || '',
-            searchingForClientId: clientId,
-            searchingForClientEmail: currentClient?.email || 'CLIENT NOT LOADED',
-            searchingForClientName: currentClient?.name || 'CLIENT NOT LOADED'
-          });
+          const searchClientId = clientId?.toString().trim().toLowerCase() || '';
+          const clientEmail = currentClient?.email?.trim().toLowerCase() || '';
+          const clientWorkflowId = currentClient?.workflowId?.toString().trim().toLowerCase() || '';
+          const clientActualId = currentClient?._id?.toString().trim().toLowerCase() || '';
+          const clientName = currentClient?.name?.trim().toLowerCase() || '';
           
-          // Since workflow client IDs are empty, prioritize email and name matching
-          let isMatch = false;
-          let matchType = '';
+          // Try multiple matching strategies with normalized values
+          const matchesClientId = docClientId === searchClientId;
+          const matchesClientEmail = clientEmail && docClientId === clientEmail;
+          const matchesWorkflowId = clientWorkflowId && docClientId === clientWorkflowId;
+          const matchesActualId = clientActualId && docClientId === clientActualId;
+          const matchesUploadedByEmail = clientEmail && docUploadedBy === clientEmail;
+          const matchesUploadedById = docUploadedBy === searchClientId;
           
-          // 1. Try exact client ID match first (if both IDs exist and are not empty)
-          if (workflowClient.id && workflowClient.id !== '' && clientId && clientId !== '') {
-            if (workflowClient.id === clientId || workflowClient._id === clientId) {
-              isMatch = true;
-              matchType = 'ID';
-            }
-          }
+          // Additional fuzzy matching
+          const docNameContainsEmail = clientEmail && doc.name?.toLowerCase().includes(clientEmail);
+          const docNameContainsName = clientName && doc.name?.toLowerCase().includes(clientName);
           
-          // 2. Try email match (most reliable when IDs are empty)
-          if (!isMatch && currentClient && workflowClient.email && currentClient.email) {
-            if (workflowClient.email.toLowerCase().trim() === currentClient.email.toLowerCase().trim()) {
-              isMatch = true;
-              matchType = 'Email';
-            }
-          }
-          
-          // 3. Try exact name match
-          if (!isMatch && currentClient && workflowClient.name && currentClient.name) {
-            if (workflowClient.name.toLowerCase().trim() === currentClient.name.toLowerCase().trim()) {
-              isMatch = true;
-              matchType = 'Exact Name';
-            }
-          }
-          
-          // 4. Try firstName + lastName combination
-          if (!isMatch && currentClient && workflowClient.firstName && workflowClient.lastName && currentClient.name) {
-            const fullName = `${workflowClient.firstName} ${workflowClient.lastName}`.toLowerCase().trim();
-            if (fullName === currentClient.name.toLowerCase().trim()) {
-              isMatch = true;
-              matchType = 'Full Name (firstName + lastName)';
-            }
-          }
-          
-          // 5. Try partial name matches (be more flexible)
-          if (!isMatch && currentClient && currentClient.name && workflowClient.name) {
-            const clientNameLower = currentClient.name.toLowerCase().trim();
-            const workflowNameLower = workflowClient.name.toLowerCase().trim();
-            
-            if (clientNameLower.includes(workflowNameLower) || workflowNameLower.includes(clientNameLower)) {
-              isMatch = true;
-              matchType = 'Partial Name';
-            }
-          }
+          const isMatch = matchesClientId || matchesClientEmail || matchesWorkflowId || 
+                         matchesActualId || matchesUploadedByEmail || matchesUploadedById ||
+                         docNameContainsEmail || docNameContainsName;
           
           if (isMatch) {
-            console.log('✅ FOUND MATCH! Workflow match for client:', {
-              workflowId: workflow._id,
-              matchType: matchType,
-              workflowClientData: {
-                id: workflowClient.id || 'EMPTY',
-                email: workflowClient.email,
-                name: workflowClient.name,
-                firstName: workflowClient.firstName,
-                lastName: workflowClient.lastName
-              },
-              searchCriteria: {
-                clientId: clientId,
-                clientEmail: currentClient?.email,
-                clientName: currentClient?.name
-              }
+            console.log('📄 Document matched:', {
+              docName: doc.name,
+              docClientId: doc.clientId,
+              docUploadedBy: doc.uploadedBy,
+              matchType: matchesClientId ? 'clientId' : 
+                        matchesClientEmail ? 'email' : 
+                        matchesWorkflowId ? 'workflowId' : 
+                        matchesActualId ? 'actualId' : 
+                        matchesUploadedByEmail ? 'uploadedByEmail' :
+                        matchesUploadedById ? 'uploadedById' :
+                        docNameContainsEmail ? 'nameContainsEmail' :
+                        'nameContainsName'
             });
           }
           
           return isMatch;
         });
-
-        console.log(`📋 Found ${clientWorkflows.length} workflows for client ${clientId}`);
         
-        // If no workflows found, log all available workflow clients for debugging
-        if (clientWorkflows.length === 0) {
-          console.log('❌ No workflows found for this client. Available workflow clients:');
-          workflows.forEach((workflow: any, index: number) => {
-            const wfClient = workflow.client || {};
-            console.log(`Workflow ${index + 1}:`, {
-              workflowId: workflow._id,
-              clientId: wfClient.id || wfClient._id || 'No ID',
-              clientEmail: wfClient.email || 'No email',
-              clientName: wfClient.name || `${wfClient.firstName || ''} ${wfClient.lastName || ''}`.trim() || 'No name',
-              clientPhone: wfClient.phone || 'No phone'
+        console.log(`📄 Found ${filteredDocuments.length} documents for client ${clientId}`);
+        
+        // If no documents found, let's debug what documents are available
+        if (filteredDocuments.length === 0) {
+          console.log('📄 No documents found for client. Debugging available documents:');
+          console.log('📄 Total documents in system:', allDocuments.length);
+          allDocuments.slice(0, 10).forEach((doc: Document, index: number) => {
+            console.log(`Document ${index + 1}:`, {
+              name: doc.name,
+              _id: doc._id,
+              clientId: doc.clientId,
+              uploadedBy: doc.uploadedBy,
+              createdAt: doc.createdAt,
+              type: doc.type || 'unknown'
             });
           });
+          console.log('📄 Current client identifiers:', {
+            searchId: clientId,
+            clientEmail: currentClient?.email,
+            workflowId: currentClient?.workflowId,
+            clientActualId: currentClient?._id
+          });
           
-          console.log('💡 Consider checking if:');
-          console.log('1. This client has any workflows created');
-          console.log('2. The client ID matches between the clients and workflows databases');
-          console.log('3. The client might be identified by email or name instead of ID');
+          // Let's try a broader search to see if any documents might belong to this client
+          const potentialMatches = allDocuments.filter((doc: Document) => {
+            const docText = `${doc.name} ${doc.clientId} ${doc.uploadedBy}`.toLowerCase();
+            const clientEmail = currentClient?.email?.toLowerCase() || '';
+            const clientName = currentClient?.name?.toLowerCase() || '';
+            
+            return docText.includes(clientEmail) || 
+                   (clientName && docText.includes(clientName)) ||
+                   doc.clientId?.toString() === clientId?.toString();
+          });
+          
+          console.log(`📄 Potential matches found: ${potentialMatches.length}`);
+          potentialMatches.forEach((doc: Document, index: number) => {
+            console.log(`Potential match ${index + 1}:`, {
+              name: doc.name,
+              clientId: doc.clientId,
+              uploadedBy: doc.uploadedBy
+            });
+          });
         }
         
-        // Extract cases from client workflows
-        const extractedCases = clientWorkflows.map((workflow: any) => {
-          const workflowCase = workflow.case || {};
+        // Process documents for display with formatted data
+        const processedDocuments = processDocumentsForDisplay(filteredDocuments);
+        setClientDocuments(processedDocuments);
+        
+        // Generate activity log from the documents we're showing
+        const documentsForActivity = filteredDocuments.length > 0 ? 
+          processDocumentsForDisplay(filteredDocuments) : 
+          processDocumentsForDisplay(allDocuments.slice(0, 10));
           
-          return {
-            id: workflowCase.id || workflowCase._id || workflow._id,
-            caseNumber: workflowCase.caseNumber || 
-                       (workflow.formCaseIds && Object.values(workflow.formCaseIds)[0]) || 
-                       `WF-${workflow._id?.slice(-8)}`,
-            type: workflowCase.category || workflowCase.subcategory || 'Immigration Case',
-            status: workflowCase.status || workflow.status || 'In Progress',
-            openDate: workflow.createdAt || new Date().toISOString(),
-            description: workflowCase.title || workflowCase.description || 'Workflow Case',
-            workflowId: workflow._id,
-            formCaseIds: workflow.formCaseIds || {}
-          };
-        });
+        const documentActivities = documentsForActivity.map((doc: Document) => ({
+          id: `doc-${doc._id}`,
+          type: 'document_upload',
+          description: `Document "${doc.name}" uploaded`,
+          timestamp: doc.uploadedAt || doc.createdAt,
+          icon: 'FileText',
+          data: {
+            documentName: doc.name,
+            documentType: doc.type,
+            documentId: doc._id
+          }
+        }));
         
-        console.log(`✅ Extracted ${extractedCases.length} cases for client`);
-        console.log('📋 Sample extracted case:', extractedCases[0]);
+        // Sort activities by timestamp (newest first)
+        const sortedActivities = documentActivities.sort((a: any, b: any) => 
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
         
-        return extractedCases;
+        setActivities(sortedActivities);
+        console.log('📄 Generated activity log:', sortedActivities.length, 'activities');
+        
       } else {
-        console.log('⚠️ No workflow data available in API response');
-        return [];
+        console.error('Failed to fetch documents:', response.message);
+        setClientDocuments([]);
+        setActivities([]);
       }
-      
-    } catch (error: any) {
-      console.error('❌ Error fetching client cases from workflows:', error);
-      
-      if (error.response?.status === 404) {
-        console.log('🔍 Server workflows endpoint not found');
-        toast('Server workflows endpoint not available');
-      } else if (error.response?.status === 401) {
-        console.log('🔐 Authentication failed');
-        toast('Authentication failed - please login again');
-      } else {
-        console.log('💥 Other API error:', error.response?.status || 'Unknown');
-        toast.error('Failed to load client cases from workflows');
-      }
-      
-      return [];
+    } catch (error) {
+      console.error('❌ Error fetching client documents:', error);
+      setClientDocuments([]);
+      setActivities([]);
     } finally {
-      setLoadingCases(false);
-      console.log('🏁 Finished client cases workflow request');
+      setLoadingDocuments(false);
+    }
+  };
+
+  // Helper function to get time ago string
+  const getTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffInMs = now.getTime() - past.getTime();
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
+    
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+      return diffInMinutes < 1 ? 'Just now' : `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    } else if (diffInDays < 30) {
+      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    } else {
+      return past.toLocaleDateString();
+    }
+  };
+
+  // Helper function to format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  // Helper function to process documents for display
+  const processDocumentsForDisplay = (documents: any[]): Document[] => {
+    return documents.map(doc => ({
+      ...doc,
+      sizeFormatted: formatFileSize(doc.size || 0),
+      uploadedAt: doc.uploadedAt || doc.createdAt,
+      uploadedBy: doc.uploadedBy || 'Unknown User'
+    }));
+  };
+
+  // Document action handlers
+  const handleDownloadDocument = async (documentId: string, documentName: string) => {
+    try {
+      await downloadDocument(documentId, documentName);
+    } catch (error) {
+      console.error('Failed to download document', error);
+      toast.error('Failed to download document');
+    }
+  };
+
+  const handlePreviewDocument = async (documentId: string) => {
+    try {
+      await previewDocument(documentId);
+    } catch (error) {
+      console.error('Failed to preview document', error);
+      toast.error('Failed to preview document');
     }
   };
 
@@ -207,17 +245,120 @@ const ClientDetailsPage = () => {
           throw new Error('Client ID is required');
         }
         
-        // Fetch client data first
-        const clientData = await getClientById(id);
-        setClient(clientData);
-        console.log('✅ Client data loaded:', clientData);
+        // Fetch client data directly from workflows API (same as ClientsPage approach)
+        console.log('🔄 Fetching client data from workflows API for client ID:', id);
+        setLoading(true);
         
-        // Wait a moment to ensure client state is updated, then fetch workflows
-        setTimeout(async () => {
-          console.log('🔄 Starting workflow fetch with client data:', clientData);
-          const casesData = await fetchClientCasesFromWorkflows(id, clientData);
-          setClientCases(casesData);
-        }, 100);
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token available');
+        }
+
+        const response = await api.get('/api/v1/workflows', {
+          params: {
+            page: 1,
+            limit: 100
+          }
+        });
+        
+        console.log('📥 Workflows API response for client details:', response.data);
+        
+        if (response.data?.success && response.data?.data) {
+          const workflows = response.data.data;
+          console.log(`✅ Successfully loaded ${workflows.length} workflows`);
+          
+          // Find the client in workflows (same logic as ClientsPage)
+          let foundClient: any = null;
+          let clientWorkflows: any[] = [];
+          
+          workflows.forEach((workflow: any) => {
+            const clientData = workflow.client;
+            const caseData = workflow.case;
+            
+            if (clientData && clientData.name && clientData.email) {
+              // Check if this workflow belongs to our target client
+              // Use workflow _id or client email as identifier
+              const isTargetClient = workflow._id === id || 
+                                   clientData.email === id ||
+                                   (clientData._id && clientData._id === id);
+              
+              if (isTargetClient) {
+                // If we haven't found the client yet, create the client object
+                if (!foundClient) {
+                  foundClient = {
+                    _id: workflow._id,
+                    id: clientData.email,
+                    name: clientData.name,
+                    email: clientData.email,
+                    phone: clientData.phone || 'N/A',
+                    status: clientData.status || 'Active',
+                    createdAt: workflow.createdAt || caseData?.openDate || '',
+                    alienNumber: clientData.alienNumber || 'N/A',
+                    address: clientData.address || null,
+                    nationality: clientData.nationality || 'N/A',
+                    dateOfBirth: clientData.dateOfBirth || null,
+                    // Workflow-specific fields
+                    workflowId: workflow._id,
+                    caseType: caseData?.category || caseData?.subcategory || 'N/A',
+                    formCaseIds: workflow.formCaseIds,
+                    openDate: caseData?.openDate || 'N/A',
+                    priorityDate: caseData?.priorityDate || 'N/A'
+                  };
+                }
+                
+                // Add this workflow to the client's workflows
+                clientWorkflows.push(workflow);
+              }
+            }
+          });
+          
+          if (foundClient) {
+            console.log('✅ Found client in workflows:', foundClient);
+            setClient(foundClient);
+            
+            // Extract cases from client workflows
+            const extractedCases = clientWorkflows.map((workflow: any) => {
+              const caseData = workflow.case;
+              
+              return {
+                id: workflow._id || workflow.id,
+                caseNumber: (workflow.formCaseIds && Object.values(workflow.formCaseIds)[0]) || 
+                           `WF-${workflow._id?.slice(-8)}`,
+                type: caseData?.category || caseData?.subcategory || workflow.type || 'Immigration Case',
+                status: workflow.status || 'In Progress',
+                openDate: caseData?.openDate || workflow.createdAt,
+                priorityDate: caseData?.priorityDate || 'N/A',
+                description: workflow.title || workflow.description || 'Workflow Case',
+                workflowId: workflow._id,
+                formCaseIds: workflow.formCaseIds || {}
+              };
+            });
+            
+            console.log(`✅ Extracted ${extractedCases.length} cases for client`);
+            setClientCases(extractedCases);
+            
+            // Also fetch documents for this client
+            console.log('🔄 Starting document fetch with client data:', foundClient);
+            // Use client email as primary identifier for documents, fallback to workflow ID
+            const documentSearchId = foundClient.email || foundClient._id || id;
+            console.log('📄 Using document search ID:', documentSearchId);
+            await fetchClientDocuments(documentSearchId, foundClient);
+          } else {
+            console.log('❌ Client not found in workflows');
+            console.log('Available workflow clients:');
+            workflows.forEach((workflow: any, index: number) => {
+              const wfClient = workflow.client || {};
+              console.log(`Workflow ${index + 1}:`, {
+                workflowId: workflow._id,
+                clientName: wfClient.name || 'No name',
+                clientEmail: wfClient.email || 'No email'
+              });
+            });
+            throw new Error('Client not found in workflows');
+          }
+        } else {
+          throw new Error('No workflow data available');
+        }
         
       } catch (err) {
         console.error('❌ Error in fetchClientData:', err);
@@ -408,7 +549,7 @@ const ClientDetailsPage = () => {
               </Link>
             </div>
             <div className="p-4">
-              {loadingCases ? (
+              {loading ? (
                 <div className="flex justify-center items-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                   <span className="ml-2 text-gray-600">Loading cases from workflows...</span>
@@ -525,25 +666,59 @@ const ClientDetailsPage = () => {
               <h2 className="text-xl font-semibold">Documents</h2>
             </div>
             <div className="p-4">
-              <div className="space-y-3">
-                {/* Example documents - replace with actual documents */}
-                <div className="flex items-center p-2 hover:bg-gray-50 rounded-md">
-                  <FileText className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Passport.pdf</p>
-                    <p className="text-xs text-gray-500">Added on {new Date().toLocaleDateString()}</p>
-                  </div>
+              {loadingDocuments ? (
+                <div className="flex justify-center items-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-sm text-gray-600">Loading documents...</span>
                 </div>
-                <div className="flex items-center p-2 hover:bg-gray-50 rounded-md">
-                  <FileText className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Birth Certificate.pdf</p>
-                    <p className="text-xs text-gray-500">Added on {new Date().toLocaleDateString()}</p>
-                  </div>
+              ) : clientDocuments.length > 0 ? (
+                <div className="space-y-3">
+                  {clientDocuments.slice(0, 5).map((doc) => (
+                    <div key={doc._id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md">
+                      <div className="flex items-center flex-1">
+                        <FileText className="h-5 w-5 text-gray-400 mr-3" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {formatFileSize(doc.size || 0)} • {getTimeAgo(doc.uploadedAt || doc.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handlePreviewDocument(doc._id)}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          title="Preview document"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDownloadDocument(doc._id, doc.name)}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          title="Download document"
+                        >
+                          <Download size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {clientDocuments.length > 5 && (
+                    <p className="text-xs text-gray-500 text-center py-2">
+                      Showing 5 of {clientDocuments.length} documents
+                    </p>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="text-center py-6">
+                  <FileText className="mx-auto h-8 w-8 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No documents found</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    No documents have been uploaded for this client yet.
+                  </p>
+                </div>
+              )}
               <Link
-                to="/documents"
+                to={`/documents?client=${id}`}
                 className="mt-4 block text-center text-sm text-primary-600 hover:text-primary-700"
               >
                 View all documents
@@ -553,56 +728,65 @@ const ClientDetailsPage = () => {
 
           <div className="bg-white rounded-lg shadow">
             <div className="border-b p-4">
-              <h2 className="text-xl font-semibold">Activity</h2>
+              <h2 className="text-xl font-semibold">Recent Activity</h2>
             </div>
             <div className="p-4">
-              <div className="flow-root">
-                <ul className="-mb-8">
-                  <li className="relative pb-8">
-                    <div className="relative flex space-x-3">
-                      <div>
-                        <span className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center ring-8 ring-white">
-                          <FileText className="h-5 w-5 text-white" />
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
-                        <div>
-                          <p className="text-sm text-gray-500">
-                            New document uploaded: <span className="font-medium text-gray-900">Passport.pdf</span>
-                          </p>
+              {activities.length > 0 ? (
+                <div className="flow-root">
+                  <ul className="-mb-8">
+                    {activities.slice(0, 10).map((activity, index) => (
+                      <li key={activity.id} className={index !== activities.length - 1 && index !== 9 ? "relative pb-8" : "relative"}>
+                        {index !== activities.length - 1 && index !== 9 && (
+                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                        )}
+                        <div className="relative flex space-x-3">
+                          <div>
+                            <span className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center ring-8 ring-white">
+                              {activity.icon === 'FileText' ? (
+                                <FileText className="h-4 w-4 text-white" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-white" />
+                              )}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                            <div>
+                              <p className="text-sm text-gray-500">
+                                {activity.description}
+                                {activity.data?.documentType && (
+                                  <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                    {activity.data.documentType}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="text-right text-sm whitespace-nowrap text-gray-500">
+                              <time dateTime={activity.timestamp}>
+                                {getTimeAgo(activity.timestamp)}
+                              </time>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right text-sm whitespace-nowrap text-gray-500">
-                          <time dateTime="2023-09-20">1h ago</time>
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                  <li className="relative pb-8">
-                    <div className="relative flex space-x-3">
-                      <div>
-                        <span className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center ring-8 ring-white">
-                          <Briefcase className="h-5 w-5 text-white" />
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
-                        <div>
-                          <p className="text-sm text-gray-500">
-                            New case created: <span className="font-medium text-gray-900">I-130 Petition</span>
-                          </p>
-                        </div>
-                        <div className="text-right text-sm whitespace-nowrap text-gray-500">
-                          <time dateTime="2023-09-20">3h ago</time>
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-              <div className="mt-6 text-center">
-                <button className="text-sm text-primary-600 hover:text-primary-700">
-                  View full activity log
-                </button>
-              </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <Clock className="mx-auto h-8 w-8 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No recent activity</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Activity will appear here when documents are uploaded or cases are created.
+                  </p>
+                </div>
+              )}
+              {activities.length > 10 && (
+                <div className="mt-6 text-center">
+                  <button className="text-sm text-primary-600 hover:text-primary-700">
+                    View full activity log ({activities.length} total activities)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
