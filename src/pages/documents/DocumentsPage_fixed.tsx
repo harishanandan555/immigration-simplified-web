@@ -469,15 +469,19 @@ const DocumentsPage = () => {
     }
 
     try {
-      // Find the selected client to get their name
+      // Find the selected client to get their name and email
       const selectedClient = clients.find(c => (c._id || c.id) === uploadClientId);
       const clientName = selectedClient?.name || 'Unknown Client';
+      const clientEmail = selectedClient?.email || '';
 
       // Use the direct API endpoint for document upload
       const formData = new FormData();
       formData.append('file', fileToUpload);
       formData.append('clientId', uploadClientId);
       formData.append('clientName', clientName);
+      if (clientEmail) {
+        formData.append('clientEmail', clientEmail);
+      }
       formData.append('type', uploadDocType);
       
       // Add optional fields if they exist
@@ -494,6 +498,7 @@ const DocumentsPage = () => {
         fileType: fileToUpload.type,
         clientId: uploadClientId,
         clientName: clientName,
+        clientEmail: clientEmail,
         type: uploadDocType,
         caseNumber: uploadCaseNumber,
         description: uploadDescription
