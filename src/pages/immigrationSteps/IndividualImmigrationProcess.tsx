@@ -36,6 +36,18 @@ import {
   Search
 } from 'lucide-react';
 import questionnaireService from '../../services/questionnaireService';
+import { getFormTemplates, FormTemplate } from '../../controllers/SettingsControllers';
+import { 
+  renderFormWithData, 
+  prepareFormData, 
+  validateFormData,
+  downloadPdfFile,
+  createPdfBlobUrl,
+  revokePdfBlobUrl
+} from '../../controllers/FormAutoFillControllers';
+import api from '../../utils/api';
+import { generateObjectId } from '../../utils/idValidation';
+import { toast } from 'react-hot-toast';
 
 // Immigration Process Categories
 interface ImmigrationCategory {
@@ -75,6 +87,63 @@ interface LoadedQuestionnaire {
     help_text?: string;
     eligibility_impact?: 'high' | 'medium' | 'low';
   }>;
+}
+
+// Add interfaces for case management (same as LegalFirmWorkflow)
+interface Client {
+  id?: string;
+  _id?: string;
+  name: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  nationality: string;
+  address: {
+    street: string;
+    aptSuiteFlr?: string;
+    aptNumber?: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    province?: string;
+    postalCode?: string;
+    country: string;
+  };
+  status?: string;
+}
+
+interface Case {
+  id: string;
+  _id?: string;
+  clientId: string;
+  title: string;
+  description: string;
+  category: string;
+  subcategory: string;
+  status: 'draft' | 'in-progress' | 'review' | 'completed' | 'Active' | 'Pending' | 'Closed' | 'On Hold';
+  priority: 'low' | 'medium' | 'high' | 'Low' | 'Medium' | 'High' | 'Urgent';
+  assignedForms: string[];
+  questionnaires: string[];
+  createdAt: string;
+  dueDate: string;
+  visaType?: string;
+  priorityDate?: string;
+  type?: string;
+  assignedTo?: string;
+  assignedAttorney?: string;
+  courtLocation?: string;
+  judge?: string;
+  openDate?: string;
+  startDate?: string;
+  expectedClosureDate?: string;
+  formCaseIds?: Record<string, string>;
+}
+
+interface FormCaseIds {
+  [key: string]: string;
 }
 
 // Define immigration categories and subcategories
@@ -463,7 +532,6 @@ const IndividualImmigrationProcess: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<ImmigrationCategory | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<ImmigrationSubcategory | null>(null);
   const [questionnaireStep, setQuestionnaireStep] = useState<'category' | 'subcategory' | 'confirmation'>('category');
-  const [selectedForm, setSelectedForm] = useState<string>('');
   const [formData, setFormData] = useState<FormData>({
     personalInfo: {
       firstName: '',
@@ -513,6 +581,70 @@ const IndividualImmigrationProcess: React.FC = () => {
   const [customQuestionnaireAnswers, setCustomQuestionnaireAnswers] = useState<Record<string, any>>({});
   const [customQuestionnaires, setCustomQuestionnaires] = useState<LoadedQuestionnaire[]>([]);
   const [loadingQuestionnaires, setLoadingQuestionnaires] = useState(false);
+
+  // State for form templates from API
+  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+  const [loadingFormTemplates, setLoadingFormTemplates] = useState(false);
+
+  // Add state variables for case management (same as LegalFirmWorkflow)
+  const [client, setClient] = useState<Client>({
+    name: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    dateOfBirth: '',
+    nationality: '',
+    address: {
+      street: '',
+      aptSuiteFlr: '',
+      aptNumber: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      province: '',
+      postalCode: '',
+      country: 'United States'
+    },
+    status: 'active'
+  });
+
+  const [caseData, setCaseData] = useState<Case>({
+    id: '',
+    clientId: '',
+    title: '',
+    description: '',
+    category: '',
+    subcategory: '',
+    status: 'draft',
+    priority: 'medium',
+    assignedForms: [],
+    questionnaires: [],
+    createdAt: new Date().toISOString(),
+    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+    visaType: '',
+    priorityDate: new Date().toISOString(),
+    openDate: new Date().toISOString()
+  });
+
+  const [selectedForms, setSelectedForms] = useState<string[]>([]);
+  const [formCaseIds, setFormCaseIds] = useState<FormCaseIds>({});
+  const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
+  const [workflowId, setWorkflowId] = useState<string>('');
+
+  // State for auto-fill forms functionality
+  const [generatedForms, setGeneratedForms] = useState<Array<{
+    formName: string;
+    templateId: string;
+    blob: Blob;
+    downloadUrl: string;
+    fileName: string;
+    status: 'generating' | 'success' | 'error';
+    error?: string;
+  }>>([]);
+  const [generatingForms, setGeneratingForms] = useState(false);
+  const [showPreview, setShowPreview] = useState<Record<string, boolean>>({});
 
   // Load custom questionnaires from API
   useEffect(() => {
@@ -627,6 +759,301 @@ const IndividualImmigrationProcess: React.FC = () => {
     loadCustomQuestionnaires();
   }, []);
 
+  // Load available form templates from API
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      setLoadingFormTemplates(true);
+      try {
+        // You may want to pass userId or params as needed
+        const response = await getFormTemplates('');
+
+        setFormTemplates(response.data.templates || []);
+      } catch (error) {
+        console.error('Error loading form templates:', error);
+        setFormTemplates([]);
+      }
+      setLoadingFormTemplates(false);
+    };
+    fetchTemplates();
+  }, []);
+
+  // Sync client and case data when form data changes
+  useEffect(() => {
+    if (formData.personalInfo.firstName && formData.personalInfo.lastName) {
+      updateClientFromFormData();
+    }
+  }, [formData.personalInfo]);
+
+  useEffect(() => {
+    if (selectedCategory && selectedSubcategory && formData.personalInfo.firstName) {
+      updateCaseFromFormData();
+    }
+  }, [selectedCategory, selectedSubcategory, selectedForms]);
+
+  // Add case creation functions (same as LegalFirmWorkflow)
+  const saveWorkflowProgress = async () => {
+    try {
+      // Prepare comprehensive workflow data
+      const workflowData = {
+        // Workflow metadata
+        workflowId: workflowId || `workflow_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        currentStep,
+        status: 'in-progress',
+
+        // Client information
+        client: {
+          ...client,
+          // Explicitly include all name fields
+          firstName: client.firstName,
+          middleName: client.middleName || '',
+          lastName: client.lastName,
+          name: client.name, // Full name
+          // Explicitly include complete address information
+          address: {
+            street: client.address?.street || '',
+            aptSuiteFlr: client.address?.aptSuiteFlr || '',
+            aptNumber: client.address?.aptNumber || '',
+            city: client.address?.city || '',
+            state: client.address?.state || '',
+            zipCode: client.address?.zipCode || '',
+            province: client.address?.province || '',
+            postalCode: client.address?.postalCode || '',
+            country: client.address?.country || 'United States'
+          }
+        },
+
+        // Case details
+        case: {
+          ...caseData,
+          // Ensure we have valid IDs
+          id: caseData.id || generateObjectId(),
+          _id: caseData._id || caseData.id || generateObjectId()
+        },
+
+        // Selected forms and case IDs
+        selectedForms,
+        formCaseIds,
+        formTemplates: formTemplates.filter(template => selectedForms.includes(template.name)),
+
+        // Workflow steps progress
+        stepsProgress: [
+          { title: 'Personal Information', status: 'completed', index: 0 },
+          { title: 'Immigration Details', status: 'completed', index: 1 },
+          { title: 'Document Upload', status: 'completed', index: 2 },
+          { title: 'Form Selection', status: 'completed', index: 3 },
+          { title: 'Review & Submit', status: 'current', index: 4 }
+        ]
+      };
+
+      // Check if we should save to API
+      const token = localStorage.getItem('token');
+
+      if (token) {
+        try {
+          // Save to API only
+          const response = await api.post('/api/v1/workflows/progress', workflowData);
+
+          // Store the workflow ID from API response
+          if (response.data?.workflowId) {
+            workflowData.workflowId = response.data.workflowId;
+            setWorkflowId(response.data.workflowId);
+          }
+
+          // Workflow progress saved to server
+          toast.success('Workflow progress saved successfully');
+          return workflowData;
+
+        } catch (apiError: any) {
+          // Check if it's a 404 (endpoint doesn't exist)
+          if (apiError.response?.status === 404) {
+            toast.error('Workflow save endpoint not available', { duration: 3000 });
+          } else {
+            toast.error('Failed to save workflow progress to server', { duration: 3000 });
+          }
+          throw apiError;
+        }
+      } else {
+        toast.error('Authentication required to save workflow');
+        throw new Error('No authentication token available');
+      }
+
+    } catch (error) {
+      toast.error('Failed to save workflow progress');
+      throw error;
+    }
+  };
+
+  // Function to save form details to backend (Steps 1-4)
+  const saveFormDetailsToBackend = async (step: number, additionalData?: any) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return null;
+      }
+
+      // Prepare data based on step
+      let requestData: any = {
+        step,
+        notes: `Immigration workflow step ${step} completed`
+      };
+
+      // Add form details ID if updating existing record
+      if (formDetailsId) {
+        requestData.id = formDetailsId;
+      }
+
+      // Step-specific data
+      switch (step) {
+        case 1:
+          // Personal information step
+          requestData.clientInfo = {
+            name: client.name,
+            firstName: client.firstName,
+            middleName: client.middleName,
+            lastName: client.lastName,
+            email: client.email,
+            phone: client.phone,
+            dateOfBirth: client.dateOfBirth,
+            nationality: client.nationality,
+            address: {
+              street: client.address?.street || '',
+              aptSuiteFlr: client.address?.aptSuiteFlr || '',
+              aptNumber: client.address?.aptNumber || '',
+              city: client.address?.city || '',
+              state: client.address?.state || '',
+              zipCode: client.address?.zipCode || '',
+              province: client.address?.province || '',
+              postalCode: client.address?.postalCode || '',
+              country: client.address?.country || 'United States'
+            },
+            clientId: client.id || client._id,
+            status: client.status || 'active'
+          };
+          break;
+
+        case 2:
+          // Immigration information step
+          requestData.immigrationInfo = {
+            currentStatus: formData.immigrationInfo.currentStatus,
+            entryDate: formData.immigrationInfo.entryDate,
+            visaType: formData.immigrationInfo.visaType,
+            intendedCategory: formData.immigrationInfo.intendedCategory,
+            familyMembers: formData.immigrationInfo.familyMembers
+          };
+          break;
+
+        case 3:
+          // Document upload step
+          requestData.documents = formData.documents.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            type: doc.type,
+            isRequired: doc.isRequired,
+            isUploaded: doc.isUploaded
+          }));
+          break;
+
+        case 4:
+          // Form selection step
+          if (selectedForms.length > 0) {
+            const selectedForm = selectedForms[0]; // Single form selection
+            const formTemplate = formTemplates.find(t => t.name === selectedForm);
+
+            requestData.selectedForm = selectedForm;
+            requestData.formTemplate = formTemplate ? {
+              name: formTemplate.name,
+              title: formTemplate.name,
+              description: formTemplate.description,
+              category: formTemplate.category
+            } : null;
+            requestData.formCaseId = formCaseIds[selectedForm];
+          }
+          break;
+      }
+
+      // Include additional data if provided
+      if (additionalData) {
+        requestData = { ...requestData, ...additionalData };
+      }
+
+      // Make API call
+      const response = await api.post('/api/v1/form-details', requestData);
+
+      // Store form details ID for future updates
+      if (response.data?.data?.id) {
+        setFormDetailsId(response.data.data.id);
+      }
+
+      // Step data saved to server
+      return response.data;
+
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to save to server';
+
+      // Don't show error toast for non-critical failures
+      if (error.response?.status !== 404) {
+        toast.error(`Failed to save step ${step} to server: ${errorMessage}`, { duration: 3000 });
+      }
+
+      return null;
+    }
+  };
+
+  // Function to generate form case IDs
+  const generateFormCaseIds = (forms: string[]) => {
+    const newFormCaseIds: FormCaseIds = {};
+    forms.forEach(form => {
+      // Generate USCIS-style case ID (MSC + 9 digits)
+      const timestamp = Date.now().toString();
+      const randomDigits = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      const caseId = `MSC${timestamp.slice(-3)}${randomDigits}`;
+      newFormCaseIds[form] = caseId;
+    });
+    setFormCaseIds(newFormCaseIds);
+    return newFormCaseIds;
+  };
+
+  // Function to update client data from form data
+  const updateClientFromFormData = () => {
+    const newClient: Client = {
+      ...client,
+      name: `${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`.trim(),
+      firstName: formData.personalInfo.firstName,
+      lastName: formData.personalInfo.lastName,
+      email: formData.personalInfo.email,
+      phone: formData.personalInfo.phone,
+      dateOfBirth: formData.personalInfo.dateOfBirth,
+      nationality: formData.personalInfo.nationality,
+      address: {
+        street: formData.personalInfo.address.street,
+        city: formData.personalInfo.address.city,
+        state: formData.personalInfo.address.state,
+        zipCode: formData.personalInfo.address.zipCode,
+        country: formData.personalInfo.address.country
+      }
+    };
+    setClient(newClient);
+    return newClient;
+  };
+
+  // Function to update case data from form data
+  const updateCaseFromFormData = () => {
+    const newCase: Case = {
+      ...caseData,
+      title: `${selectedCategory?.title || 'Immigration'} Case - ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`,
+      description: `Immigration case for ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`,
+      category: selectedCategory?.id || 'immigration',
+      subcategory: selectedSubcategory?.id || 'general',
+      visaType: formData.immigrationInfo.visaType,
+      assignedForms: selectedForms,
+      clientId: client.id || client._id || generateObjectId()
+    };
+    setCaseData(newCase);
+    return newCase;
+  };
+
   const steps: ImmigrationStep[] = [
     { id: 'select-form', title: 'Select the Form', description: 'Choose the immigration form to complete', isCompleted: false, isActive: true },
     { id: 'personal-details', title: 'Personal Details', description: 'Basic personal information', isCompleted: false, isActive: false },
@@ -718,13 +1145,58 @@ const IndividualImmigrationProcess: React.FC = () => {
 
   const handleSubmit = async () => {
     try {
-      // Here you would submit the form data to your backend
-      console.log('Submitting form data:', formData);
-      alert('Application submitted successfully!');
+      // Update client and case data from form data
+      const updatedClient = updateClientFromFormData();
+      const updatedCase = updateCaseFromFormData();
+
+      // Generate form case IDs if forms are selected
+      if (selectedForms.length > 0) {
+        generateFormCaseIds(selectedForms);
+      }
+
+      // Save workflow progress to backend
+      try {
+        await saveWorkflowProgress();
+        
+        // Save form details for each completed step
+        await saveFormDetailsToBackend(1, { clientInfo: updatedClient });
+        await saveFormDetailsToBackend(2, { immigrationInfo: formData.immigrationInfo });
+        await saveFormDetailsToBackend(3, { documents: formData.documents });
+        await saveFormDetailsToBackend(4, { selectedForms, formCaseIds });
+
+        toast.success('Immigration case created successfully!');
+        
+        // Navigate to case details or dashboard
+        navigate('/cases');
+        
+      } catch (error) {
+        console.error('Error saving to backend:', error);
+        // Fallback to local storage if API fails
+        const caseData = {
+          id: generateObjectId(),
+          client: updatedClient,
+          case: updatedCase,
+          selectedForms,
+          formCaseIds,
+          createdAt: new Date().toISOString(),
+          status: 'draft'
+        };
+        
+        localStorage.setItem(`immigration-case-${caseData.id}`, JSON.stringify(caseData));
+        toast.success('Case saved locally. Please check your internet connection and try again later.');
+      }
+
     } catch (error) {
-      console.error('Error submitting form:', error);
-      alert('Error submitting application. Please try again.');
+      console.error('Error submitting application:', error);
+      toast.error('Error submitting application. Please try again.');
     }
+  };
+
+  // Add form selection handler
+  const handleFormSelection = (formName: string) => {
+    setSelectedForms([formName]); // Single form selection for now
+    // Generate case ID for the selected form
+    generateFormCaseIds([formName]);
   };
 
   // Questionnaire handlers
@@ -800,6 +1272,186 @@ const IndividualImmigrationProcess: React.FC = () => {
       alert('Failed to submit questionnaire: ' + error.message);
     }
   };
+
+  // Auto-fill forms functionality
+  const handleAutoFillWithFormData = async () => {
+    try {
+      setGeneratingForms(true);
+      setGeneratedForms([]);
+
+      // Ensure case data is up to date before proceeding
+      const updatedClient = updateClientFromFormData();
+      const updatedCase = updateCaseFromFormData();
+
+      // Prepare comprehensive form data from all collected information
+      const autoFillData = {
+        // Client information
+        clientFirstName: formData.personalInfo.firstName || '',
+        clientLastName: formData.personalInfo.lastName || '',
+        clientEmail: formData.personalInfo.email || '',
+        clientPhone: formData.personalInfo.phone || '',
+        clientDateOfBirth: formData.personalInfo.dateOfBirth || '',
+        clientNationality: formData.personalInfo.nationality || '',
+        clientPlaceOfBirth: formData.personalInfo.placeOfBirth || '',
+        clientPassportNumber: formData.personalInfo.passportNumber || '',
+
+        // Client address
+        clientStreet: formData.personalInfo.address.street || '',
+        clientCity: formData.personalInfo.address.city || '',
+        clientState: formData.personalInfo.address.state || '',
+        clientZipCode: formData.personalInfo.address.zipCode || '',
+        clientCountry: formData.personalInfo.address.country || 'United States',
+
+        // Immigration information
+        currentStatus: formData.immigrationInfo.currentStatus || '',
+        entryDate: formData.immigrationInfo.entryDate || '',
+        visaType: formData.immigrationInfo.visaType || '',
+        intendedCategory: formData.immigrationInfo.intendedCategory || '',
+
+        // Case information - use updated case data and provide fallbacks
+        caseCategory: selectedCategory?.id || updatedCase.category || 'immigration',
+        caseSubcategory: selectedSubcategory?.id || updatedCase.subcategory || 'general',
+        caseTitle: updatedCase.title || `${formData.personalInfo.firstName} ${formData.personalInfo.lastName} Immigration Case`,
+        caseDescription: updatedCase.description || `Immigration case for ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`,
+
+        // Form information
+        selectedForms: selectedForms || [],
+        formCaseIds: formCaseIds || {},
+
+        // Additional metadata
+        workflowStep: currentStep,
+        timestamp: new Date().toISOString(),
+        autoFillSource: 'IndividualImmigrationProcess'
+      };
+
+      // Custom validation - only require essential fields
+      const missingFields = [];
+      
+      if (!autoFillData.clientFirstName) missingFields.push('First Name');
+      if (!autoFillData.clientLastName) missingFields.push('Last Name');
+      if (!autoFillData.clientEmail) missingFields.push('Email');
+      if (!autoFillData.clientPhone) missingFields.push('Phone');
+      if (!autoFillData.clientStreet) missingFields.push('Street Address');
+      if (!autoFillData.clientCity) missingFields.push('City');
+      if (!autoFillData.clientState) missingFields.push('State');
+      if (!autoFillData.clientZipCode) missingFields.push('ZIP Code');
+      
+      if (missingFields.length > 0) {
+        toast.error(`Please complete the following required fields: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      // Prepare the data for the API
+      const preparedData = prepareFormData(autoFillData);
+
+      // Generate forms for each selected form
+      const newGeneratedForms = [];
+
+      for (const formName of selectedForms) {
+        try {
+          // For now, we'll use a template ID based on the form name
+          // In a real implementation, you'd map form names to actual template IDs
+          const templateId = formName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+          // Add a placeholder for generating status
+          newGeneratedForms.push({
+            formName,
+            templateId,
+            blob: new Blob(),
+            downloadUrl: '',
+            fileName: `${formName}_${new Date().toISOString().split('T')[0]}.pdf`,
+            status: 'generating' as const
+          });
+
+          // Call renderFormWithData
+          const response = await renderFormWithData(templateId, preparedData);
+
+          if (response.data) {
+            // Create download URL
+            const downloadUrl = createPdfBlobUrl(response.data);
+            const fileName = `${formName}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+            // Update the form with success status
+            const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
+            if (formIndex !== -1) {
+              newGeneratedForms[formIndex] = {
+                formName,
+                templateId,
+                blob: response.data,
+                downloadUrl,
+                fileName,
+                status: 'success' as const
+              };
+            }
+
+            toast.success(`${formName} generated successfully!`);
+          }
+        } catch (error) {
+          // Update the form with error status
+          const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
+          if (formIndex !== -1) {
+            newGeneratedForms[formIndex] = {
+              formName,
+              templateId: '',
+              blob: new Blob(),
+              downloadUrl: '',
+              fileName: '',
+              status: 'error' as const,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            };
+          }
+
+          toast.error(`Failed to generate ${formName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      setGeneratedForms(newGeneratedForms);
+
+      if (newGeneratedForms.some(f => f.status === 'success')) {
+        toast.success('Forms generated successfully!');
+      }
+
+    } catch (error) {
+      toast.error('Failed to generate forms. Please try again.');
+    } finally {
+      setGeneratingForms(false);
+    }
+  };
+
+  // Function to download a specific form
+  const handleDownloadForm = (formName: string) => {
+    const form = generatedForms.find(f => f.formName === formName);
+    if (form && form.status === 'success') {
+      downloadPdfFile(form.blob, form.fileName);
+    }
+  };
+
+  // Function to preview a specific form
+  const handlePreviewForm = (formName: string) => {
+    setShowPreview(prev => ({
+      ...prev,
+      [formName]: !prev[formName]
+    }));
+  };
+
+  // Function to close preview
+  const handleClosePreview = (formName: string) => {
+    setShowPreview(prev => ({
+      ...prev,
+      [formName]: false
+    }));
+  };
+
+  // Cleanup function for blob URLs
+  useEffect(() => {
+    return () => {
+      generatedForms.forEach(form => {
+        if (form.downloadUrl) {
+          revokePdfBlobUrl(form.downloadUrl);
+        }
+      });
+    };
+  }, [generatedForms]);
 
   // Add the missing renderCustomQuestionnaire function
   const renderCustomQuestionnaire = () => {
@@ -1224,12 +1876,6 @@ const IndividualImmigrationProcess: React.FC = () => {
     return null;
   };
 
-  const handleFormSelection = (formName: string) => {
-    setSelectedForm(formName);
-    handleNext();
-  };
-
-  // Updated render functions with LegalFirmWorkflow UI style
   const renderFormSelectionStep = () => (
     <div className="space-y-6">
       <div className="border-b border-gray-200 pb-4">
@@ -1237,44 +1883,101 @@ const IndividualImmigrationProcess: React.FC = () => {
         <p className="text-gray-600 mt-2">Choose the immigration form you need to complete:</p>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {formData.forms.map((form) => (
-          <motion.div
-            key={form.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedForm === form.name
-                ? 'border-blue-500 bg-blue-50 shadow-lg'
-                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }`}
-            onClick={() => handleFormSelection(form.name)}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <FileText className="h-6 w-6 text-blue-600" />
-              </div>
-              {form.isRequired && (
-                <span className="px-3 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">Required</span>
-              )}
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{form.name}</h3>
-            <p className="text-sm text-gray-600 leading-relaxed">{form.description}</p>
+      {loadingFormTemplates ? (
+        <div className="text-center py-8">
+          <div className="text-gray-500">Loading form templates...</div>
+        </div>
+      ) : formTemplates.length === 0 ? (
+        <div className="text-center py-8">
+          <div className="text-gray-400 mb-4">No form templates available from API.</div>
+          <div className="text-sm text-gray-500 mb-6">Showing default immigration forms instead.</div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {formData.forms.map((form) => (
+              <motion.div
+                key={form.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedForms.includes(form.name)
+                    ? 'border-blue-500 bg-blue-50 shadow-lg'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                onClick={() => handleFormSelection(form.name)}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <FileText className="h-6 w-6 text-blue-600" />
+                  </div>
+                  {form.isRequired && (
+                    <span className="px-3 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">Required</span>
+                  )}
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{form.name}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{form.description}</p>
 
-            {selectedForm === form.name && (
-              <div className="absolute top-4 right-4">
-                <CheckCircle className="h-6 w-6 text-blue-500" />
+                {selectedForms.includes(form.name) && (
+                  <div className="absolute top-4 right-4">
+                    <CheckCircle className="h-6 w-6 text-blue-500" />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {formTemplates.map((template) => (
+            <motion.div
+              key={template._id || template.name}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedForms.includes(template.name)
+                  ? 'border-blue-500 bg-blue-50 shadow-lg'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              onClick={() => handleFormSelection(template.name)}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <FileText className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="text-right">
+                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                    {template.category}
+                  </span>
+                </div>
               </div>
-            )}
-          </motion.div>
-        ))}
-      </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{template.name}</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">{template.description}</p>
+              
+              {template.metadata?.uscisFormNumber && (
+                <div className="text-xs text-gray-500 mb-2">
+                  USCIS Form: {template.metadata.uscisFormNumber}
+                </div>
+              )}
+              
+              {template.metadata?.estimatedProcessingTime && (
+                <div className="text-xs text-gray-500 mb-2">
+                  Processing Time: {template.metadata.estimatedProcessingTime}
+                </div>
+              )}
+
+              {selectedForms.includes(template.name) && (
+                <div className="absolute top-4 right-4">
+                  <CheckCircle className="h-6 w-6 text-blue-500" />
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       <div className="flex justify-end pt-6 border-t border-gray-200">
         <button
           onClick={handleNext}
-          disabled={!selectedForm}
-          className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 ${selectedForm
+                          disabled={selectedForms.length === 0}
+                className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 ${selectedForms.length > 0
               ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
@@ -1546,8 +2249,72 @@ const IndividualImmigrationProcess: React.FC = () => {
     <div className="space-y-8">
       <div className="border-b border-gray-200 pb-4">
         <h2 className="text-2xl font-bold text-gray-900">Form Details</h2>
-        <p className="text-gray-600 mt-2">Complete the specific details required for {selectedForm}</p>
+        <p className="text-gray-600 mt-2">Complete the specific details required for {selectedForms[0]}</p>
       </div>
+
+      {/* Selected Form Template Details */}
+      {selectedForms[0] && (() => {
+        const selectedTemplate = formTemplates.find(t => t.name === selectedForms[0]);
+        return selectedTemplate ? (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <FileText className="h-5 w-5 text-green-600 mr-2" />
+              Selected Form Template: {selectedTemplate.name}
+            </h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-gray-700 mb-3">{selectedTemplate.description}</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Category:</span>
+                    <span className="font-medium text-gray-900">{selectedTemplate.category}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Type:</span>
+                    <span className="font-medium text-gray-900">{selectedTemplate.type}</span>
+                  </div>
+                  {selectedTemplate.metadata?.uscisFormNumber && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">USCIS Form:</span>
+                      <span className="font-medium text-gray-900">{selectedTemplate.metadata.uscisFormNumber}</span>
+                    </div>
+                  )}
+                  {selectedTemplate.metadata?.estimatedProcessingTime && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Processing Time:</span>
+                      <span className="font-medium text-gray-900">{selectedTemplate.metadata.estimatedProcessingTime}</span>
+                    </div>
+                  )}
+                  {selectedTemplate.metadata?.fee && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Filing Fee:</span>
+                      <span className="font-medium text-gray-900">${selectedTemplate.metadata.fee.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">Form Fields ({selectedTemplate.fields.length})</h4>
+                <div className="space-y-2 text-sm">
+                  {selectedTemplate.fields.slice(0, 5).map((field, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
+                      <span className="text-gray-700">{field.label}</span>
+                      <span className={`px-2 py-1 rounded text-xs ${field.required ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {field.required ? 'Required' : 'Optional'}
+                      </span>
+                    </div>
+                  ))}
+                  {selectedTemplate.fields.length > 5 && (
+                    <div className="text-xs text-gray-500 text-center pt-2">
+                      +{selectedTemplate.fields.length - 5} more fields
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Preview Section */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
@@ -1644,6 +2411,95 @@ const IndividualImmigrationProcess: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* JSON Data Preview for Auto-fill */}
+        <div className="mt-6 pt-6 border-t border-blue-200">
+          <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide mb-3">JSON Data for Auto-fill</h4>
+          <div className="bg-gray-900 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-green-400 text-sm font-mono">Data that will be sent to auto-fill API</span>
+              <button
+                onClick={() => {
+                  const jsonData = {
+                    // Client information
+                    clientFirstName: formData.personalInfo.firstName || '',
+                    clientLastName: formData.personalInfo.lastName || '',
+                    clientEmail: formData.personalInfo.email || '',
+                    clientPhone: formData.personalInfo.phone || '',
+                    clientDateOfBirth: formData.personalInfo.dateOfBirth || '',
+                    clientNationality: formData.personalInfo.nationality || '',
+                    clientPlaceOfBirth: formData.personalInfo.placeOfBirth || '',
+                    clientPassportNumber: formData.personalInfo.passportNumber || '',
+                    // Client address
+                    clientStreet: formData.personalInfo.address.street || '',
+                    clientCity: formData.personalInfo.address.city || '',
+                    clientState: formData.personalInfo.address.state || '',
+                    clientZipCode: formData.personalInfo.address.zipCode || '',
+                    clientCountry: formData.personalInfo.address.country || 'United States',
+                    // Immigration information
+                    currentStatus: formData.immigrationInfo.currentStatus || '',
+                    entryDate: formData.immigrationInfo.entryDate || '',
+                    visaType: formData.immigrationInfo.visaType || '',
+                    intendedCategory: formData.immigrationInfo.intendedCategory || '',
+                    // Case information
+                    caseCategory: selectedCategory?.id || 'immigration',
+                    caseSubcategory: selectedSubcategory?.id || 'general',
+                    caseTitle: caseData.title || `${formData.personalInfo.firstName} ${formData.personalInfo.lastName} Immigration Case`,
+                    caseDescription: caseData.description || `Immigration case for ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`,
+                    // Form information
+                    selectedForms: selectedForms || [],
+                    formCaseIds: formCaseIds || {},
+                    // Additional metadata
+                    workflowStep: currentStep,
+                    timestamp: new Date().toISOString(),
+                    autoFillSource: 'IndividualImmigrationProcess'
+                  };
+                  navigator.clipboard.writeText(JSON.stringify(jsonData, null, 2));
+                  toast.success('JSON data copied to clipboard!');
+                }}
+                className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+              >
+                Copy JSON
+              </button>
+            </div>
+            <pre className="text-green-400 text-xs overflow-x-auto">
+              {JSON.stringify({
+                // Client information
+                clientFirstName: formData.personalInfo.firstName || '',
+                clientLastName: formData.personalInfo.lastName || '',
+                clientEmail: formData.personalInfo.email || '',
+                clientPhone: formData.personalInfo.phone || '',
+                clientDateOfBirth: formData.personalInfo.dateOfBirth || '',
+                clientNationality: formData.personalInfo.nationality || '',
+                clientPlaceOfBirth: formData.personalInfo.placeOfBirth || '',
+                clientPassportNumber: formData.personalInfo.passportNumber || '',
+                // Client address
+                clientStreet: formData.personalInfo.address.street || '',
+                clientCity: formData.personalInfo.address.city || '',
+                clientState: formData.personalInfo.address.state || '',
+                clientZipCode: formData.personalInfo.address.zipCode || '',
+                clientCountry: formData.personalInfo.address.country || 'United States',
+                // Immigration information
+                currentStatus: formData.immigrationInfo.currentStatus || '',
+                entryDate: formData.immigrationInfo.entryDate || '',
+                visaType: formData.immigrationInfo.visaType || '',
+                intendedCategory: formData.immigrationInfo.intendedCategory || '',
+                // Case information
+                caseCategory: selectedCategory?.id || 'immigration',
+                caseSubcategory: selectedSubcategory?.id || 'general',
+                caseTitle: caseData.title || `${formData.personalInfo.firstName} ${formData.personalInfo.lastName} Immigration Case`,
+                caseDescription: caseData.description || `Immigration case for ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`,
+                // Form information
+                selectedForms: selectedForms || [],
+                formCaseIds: formCaseIds || {},
+                // Additional metadata
+                workflowStep: currentStep,
+                timestamp: new Date().toISOString(),
+                autoFillSource: 'IndividualImmigrationProcess'
+              }, null, 2)}
+            </pre>
+          </div>
+        </div>
       </div>
 
       <div className="flex justify-between pt-6 border-t border-gray-200">
@@ -1669,55 +2525,190 @@ const IndividualImmigrationProcess: React.FC = () => {
     <div className="space-y-8">
       <div className="border-b border-gray-200 pb-4">
         <h2 className="text-2xl font-bold text-gray-900">Auto-fill Forms</h2>
-        <p className="text-gray-600 mt-2">Your {selectedForm} form has been auto-filled with the information provided</p>
+        <p className="text-gray-600 mt-2">Generate completed forms with your information</p>
       </div>
 
-      <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+      {/* Auto-fill Action Section */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
         <div className="flex items-center mb-4">
-          <FileCheck className="h-8 w-8 text-green-600 mr-3" />
+          <FileCheck className="h-8 w-8 text-blue-600 mr-3" />
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Form Generation Complete</h3>
-            <p className="text-gray-600">Your {selectedForm} form has been auto-filled with the information provided.</p>
+            <h3 className="text-lg font-medium text-gray-900">Generate Forms</h3>
+            <p className="text-gray-600">Click the button below to auto-fill your {selectedForms[0]} form with all the information you've provided.</p>
           </div>
+        </div>
+        
+        {/* Data Summary */}
+        <div className="bg-white rounded-lg p-4 mb-4 border border-blue-200">
+          <h4 className="font-medium text-gray-900 mb-2">Data Summary</h4>
+          <div className="grid md:grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-gray-600">Client:</span>
+              <span className="ml-2 font-medium">
+                {formData.personalInfo.firstName} {formData.personalInfo.lastName}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-600">Category:</span>
+              <span className="ml-2 font-medium">
+                {selectedCategory?.title || 'Immigration'}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-600">Subcategory:</span>
+              <span className="ml-2 font-medium">
+                {selectedSubcategory?.title || 'General'}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-600">Form:</span>
+              <span className="ml-2 font-medium">{selectedForms[0]}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex justify-center">
+          <button
+            onClick={handleAutoFillWithFormData}
+            disabled={generatingForms}
+            className={`px-8 py-4 rounded-lg font-medium transition-all duration-200 flex items-center space-x-3 ${
+              generatingForms
+                ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                : 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+            }`}
+          >
+            {generatingForms ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <span>Generating Forms...</span>
+              </>
+            ) : (
+              <>
+                <FileCheck className="h-5 w-5" />
+                <span>Auto Generate Forms</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <FileText className="h-6 w-6 text-green-600 mr-3" />
-              <div>
-                <h4 className="font-medium text-gray-900">{selectedForm} - Completed Form</h4>
-                <p className="text-sm text-gray-600">Ready for review and submission</p>
+      {/* Generated Forms Display */}
+      {generatedForms.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-gray-900">Generated Forms</h3>
+          {generatedForms.map((form, index) => (
+            <div key={index} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <FileText className="h-6 w-6 text-green-600 mr-3" />
+                  <div>
+                    <h4 className="font-medium text-gray-900">{form.formName}</h4>
+                    <p className="text-sm text-gray-600">
+                      {form.status === 'generating' && 'Generating...'}
+                      {form.status === 'success' && 'Ready for download'}
+                      {form.status === 'error' && `Error: ${form.error}`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex space-x-3">
+                  {form.status === 'success' && (
+                    <>
+                      <button
+                        onClick={() => handlePreviewForm(form.formName)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                      >
+                        Preview
+                      </button>
+                      <button
+                        onClick={() => handleDownloadForm(form.formName)}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                      >
+                        Download
+                      </button>
+                    </>
+                  )}
+                  {form.status === 'generating' && (
+                    <div className="flex items-center text-blue-600">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                      Generating...
+                    </div>
+                  )}
+                  {form.status === 'error' && (
+                    <div className="text-red-600 text-sm">
+                      <AlertCircle className="h-4 w-4 inline mr-1" />
+                      Failed
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex space-x-3">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg">
-                Preview
-              </button>
-              <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg">
-                Download
-              </button>
+          ))}
+        </div>
+      )}
+
+      {/* PDF Preview Modal */}
+      {Object.entries(showPreview).map(([formName, isVisible]) => {
+        if (!isVisible) return null;
+        const form = generatedForms.find(f => f.formName === formName);
+        if (!form || form.status !== 'success') return null;
+
+        return (
+          <div key={formName} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[90vh] overflow-hidden">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Preview: {form.formName}</h3>
+                <button
+                  onClick={() => handleClosePreview(formName)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="overflow-auto max-h-[70vh]">
+                <iframe
+                  src={form.downloadUrl}
+                  className="w-full h-96 border border-gray-200 rounded"
+                  title={`Preview of ${form.formName}`}
+                />
+              </div>
+              <div className="flex justify-end mt-4 space-x-3">
+                <button
+                  onClick={() => handleClosePreview(formName)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => handleDownloadForm(formName)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Download
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })}
 
+      {/* Next Steps */}
       <div className="bg-gray-50 rounded-xl p-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Next Steps</h3>
         <ul className="space-y-3 text-gray-700">
           <li className="flex items-center">
             <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-            Review the completed form for accuracy
+            Generate your forms using the auto-fill feature above
           </li>
           <li className="flex items-center">
             <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-            Print and sign where required
+            Preview the completed forms for accuracy
           </li>
           <li className="flex items-center">
             <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-            Gather supporting documents
+            Download and print the forms
+          </li>
+          <li className="flex items-center">
+            <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+            Sign where required and gather supporting documents
           </li>
           <li className="flex items-center">
             <CheckCircle className="h-5 w-5 text-green-500 mr-3" />

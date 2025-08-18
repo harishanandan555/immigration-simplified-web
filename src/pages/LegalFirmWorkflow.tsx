@@ -166,18 +166,11 @@ const NEW_WORKFLOW_STEPS = [
   { id: 'questionnaire', title: 'Assign Questions', icon: ClipboardList, description: 'Send questionnaire to client' }
 ];
 
-// { id: 'answers', title: 'Collect Answers', icon: MessageSquare, description: 'Review client responses' },
-// { id: 'form-details', title: 'Form Details', icon: FormInput, description: 'Complete form information' },
-// { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
-
-// Workflow steps for existing client responses (coming from questionnaire responses)
 const EXIST_WORKFLOW_STEPS = [
   { id: 'answers', title: 'Review Responses', icon: MessageSquare, description: 'Review existing client responses' },
   { id: 'form-details', title: 'Form Details', icon: FormInput, description: 'Complete form information' },
   { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
 ];
-
-// Use generateSecurePassword from UserCreationController
 
 const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // const navigate = useNavigate(); // Not used in current implementation
@@ -280,7 +273,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [generatedForms, setGeneratedForms] = useState<Array<{
     formName: string;
     templateId: string;
-    blob: Blob;
+    blob: Blob; 
     downloadUrl: string;
     fileName: string;
     status: 'generating' | 'success' | 'error';
@@ -302,9 +295,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     const loadQuestionnairesAndCheckPrefilledData = async () => {
       await loadQuestionnaires();
     };
-
     loadQuestionnairesAndCheckPrefilledData();
-  }, []);
+  }, []); 
 
   // Load available workflows for auto-fill on component mount
   useEffect(() => {
