@@ -121,9 +121,12 @@ export const COMPANY_END_POINTS = {
 };
 
 export const FOIA_CASE_END_POINTS = {
-    CREATECASE: "/api/v1/foia-cases",
-    GETCASES: "/api/v1/foia-cases",
-    GETCASEBYID: "/api/v1/foia-cases/:id",
+    CREATECASE: "/api/v1/foia-cases/case",
+    GETCASES: "/api/v1/foia-cases/cases",
+    GETCASEBYID: "/api/v1/foia-cases/case/:id",
+    UPDATECASE: "/api/v1/foia-cases/case/:id",
+    DELETECASE: "/api/v1/foia-cases/case/:id",
+    GETCASESTATUS: "/api/v1/foia-cases/case-status/:requestNumber",
 };
 
 export const IMMIGRATION_END_POINTS = {
@@ -554,7 +557,6 @@ export const COMMON_IMMIGRATION_FORMS = {
     I_821: 'i-821',
     I_589: 'i-589'
 } as const;
-
 
 // Legal Firm Workflow Constants
 export const LEGAL_WORKFLOW_CONSTANTS = {

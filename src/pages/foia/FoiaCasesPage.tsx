@@ -43,9 +43,7 @@ const FoiaCasesPage = () => {
     return (
       caseItem.subject.firstName.toLowerCase().includes(searchLower) ||
       caseItem.subject.lastName.toLowerCase().includes(searchLower) ||
-      caseItem.requester.firstName.toLowerCase().includes(searchLower) ||
-      caseItem.requester.lastName.toLowerCase().includes(searchLower) ||
-      caseItem.requester.emailAddress.toLowerCase().includes(searchLower)
+      caseItem.requestNumber.toLowerCase().includes(searchLower)
     );
   });
 
@@ -123,18 +121,12 @@ const FoiaCasesPage = () => {
                 <th
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort('requester.firstName')}
+                  onClick={() => handleSort('requestNumber')}
                 >
                   <div className="flex items-center">
-                    Requester
+                    Request Number
                     <ArrowUpDown className="w-4 h-4 ml-1" />
                   </div>
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Document Type
                 </th>
                 <th
                   scope="col"
@@ -172,15 +164,7 @@ const FoiaCasesPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {caseItem.requester.firstName} {caseItem.requester.lastName}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {caseItem.requester.emailAddress}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {caseItem.recordsRequested[0]?.requestedDocumentType}
+                      {caseItem.requestNumber}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
