@@ -48,6 +48,23 @@ export const CLIENT_END_POINTS = {
     GETCLIENTCASES: "/api/v1/clients/:id/cases",
 };
 
+export const USER_END_POINTS = {
+    GET_ALL_USERS: "/api/v1/clients/users/all",
+    GET_USERS_BY_ROLE: "/api/v1/clients/users/all?role=:role",
+    GET_ATTORNEYS: "/api/v1/clients/users/all?role=attorney",
+    GET_PARALEGALS: "/api/v1/clients/users/all?role=paralegal",
+    GET_ATTORNEYS_AND_PARALEGALS: "/api/v1/clients/users/all?role=attorney,paralegal"
+};
+
+export const TASK_END_POINTS = {
+    GET_ALL_TASKS: "/api/v1/tasks",
+    CREATE_TASK: "/api/v1/tasks",
+    GET_TASK_BY_ID: "/api/v1/tasks/:id",
+    UPDATE_TASK: "/api/v1/tasks/:id",
+    DELETE_TASK: "/api/v1/tasks/:id",
+    GET_TASK_STATS: "/api/v1/tasks/stats"
+};
+
 export const DOCUMENT_END_POINTS = {
     GETDOCUMENTS: "/api/v1/documents",
     CREATEDOCUMENT: "/api/v1/documents",

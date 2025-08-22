@@ -491,8 +491,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             </div>
 
             {(editingField.type === 'select' || editingField.type === 'multiselect' || 
-              editingField.type === 'radio' || editingField.type === 'checkbox') && 
-              editingField.type !== 'yesno' && editingField.type !== 'scale' && (
+              editingField.type === 'radio' || editingField.type === 'checkbox') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Options</label>
                 <div className="space-y-2">
