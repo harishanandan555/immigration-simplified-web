@@ -46,46 +46,41 @@ const ClientDetailsPage = () => {
         console.log('📄 Current client for document filtering:', currentClient);
         console.log('📄 Client ID parameter:', clientId);
         
+        // Filter documents by client email (primary method)
+        const clientEmail = (clientData || client)?.email?.trim().toLowerCase() || '';
+        
+        console.log('📄 Filtering documents for client email:', clientEmail);
+        
         const filteredDocuments = allDocuments.filter((doc: Document) => {
-          // Normalize values for comparison
-          const docClientId = doc.clientId?.toString().trim().toLowerCase() || '';
-          const docUploadedBy = doc.uploadedBy?.toString().trim().toLowerCase() || '';
+          // Primary strategy: Match by client email
+          // This works with the new clientEmail field we added to document uploads
+          const docClientEmail = (doc as any).clientEmail?.toString().trim().toLowerCase() || '';
+          const docUploadedBy = (doc as any).uploadedBy?.toString().trim().toLowerCase() || '';
           
+          // Strategy 1: Direct email match in clientEmail field (new field)
+          const matchesClientEmail = docClientEmail === clientEmail;
+          
+          // Strategy 2: Email match in uploadedBy field (fallback)
+          const matchesUploadedByEmail = docUploadedBy === clientEmail;
+          
+          // Strategy 3: For backward compatibility, check if clientId matches our client
+          const docClientId = (doc as any).clientId?.toString().trim().toLowerCase() || '';
           const searchClientId = clientId?.toString().trim().toLowerCase() || '';
-          const clientEmail = currentClient?.email?.trim().toLowerCase() || '';
-          const clientWorkflowId = currentClient?.workflowId?.toString().trim().toLowerCase() || '';
-          const clientActualId = currentClient?._id?.toString().trim().toLowerCase() || '';
-          const clientName = currentClient?.name?.trim().toLowerCase() || '';
+          const clientActualId = (clientData || client)?._id?.toString().trim().toLowerCase() || '';
+          const matchesClientId = docClientId === searchClientId || docClientId === clientActualId;
           
-          // Try multiple matching strategies with normalized values
-          const matchesClientId = docClientId === searchClientId;
-          const matchesClientEmail = clientEmail && docClientId === clientEmail;
-          const matchesWorkflowId = clientWorkflowId && docClientId === clientWorkflowId;
-          const matchesActualId = clientActualId && docClientId === clientActualId;
-          const matchesUploadedByEmail = clientEmail && docUploadedBy === clientEmail;
-          const matchesUploadedById = docUploadedBy === searchClientId;
-          
-          // Additional fuzzy matching
-          const docNameContainsEmail = clientEmail && doc.name?.toLowerCase().includes(clientEmail);
-          const docNameContainsName = clientName && doc.name?.toLowerCase().includes(clientName);
-          
-          const isMatch = matchesClientId || matchesClientEmail || matchesWorkflowId || 
-                         matchesActualId || matchesUploadedByEmail || matchesUploadedById ||
-                         docNameContainsEmail || docNameContainsName;
+          const isMatch = matchesClientEmail || matchesUploadedByEmail || matchesClientId;
           
           if (isMatch) {
-            console.log('📄 Document matched:', {
+            console.log('✅ Document matched for client:', {
               docName: doc.name,
-              docClientId: doc.clientId,
-              docUploadedBy: doc.uploadedBy,
-              matchType: matchesClientId ? 'clientId' : 
-                        matchesClientEmail ? 'email' : 
-                        matchesWorkflowId ? 'workflowId' : 
-                        matchesActualId ? 'actualId' : 
-                        matchesUploadedByEmail ? 'uploadedByEmail' :
-                        matchesUploadedById ? 'uploadedById' :
-                        docNameContainsEmail ? 'nameContainsEmail' :
-                        'nameContainsName'
+              docClientEmail: docClientEmail,
+              docUploadedBy: docUploadedBy,
+              docClientId: (doc as any).clientId,
+              targetEmail: clientEmail,
+              matchType: matchesClientEmail ? 'clientEmail' : 
+                        matchesUploadedByEmail ? 'uploadedByEmail' : 
+                        'clientId'
             });
           }
           
@@ -94,58 +89,37 @@ const ClientDetailsPage = () => {
         
         console.log(`📄 Found ${filteredDocuments.length} documents for client ${clientId}`);
         
-        // If no documents found, let's debug what documents are available
+        // If no documents found, debug what documents are available
         if (filteredDocuments.length === 0) {
-          console.log('📄 No documents found for client. Debugging available documents:');
+          console.log('📄 No documents found for client email:', clientEmail);
           console.log('📄 Total documents in system:', allDocuments.length);
-          allDocuments.slice(0, 10).forEach((doc: Document, index: number) => {
+          
+          // Show sample documents with their email-related fields
+          allDocuments.slice(0, 5).forEach((doc: Document, index: number) => {
             console.log(`Document ${index + 1}:`, {
               name: doc.name,
-              _id: doc._id,
               clientId: doc.clientId,
+              clientEmail: (doc as any).clientEmail || 'not set',
               uploadedBy: doc.uploadedBy,
-              createdAt: doc.createdAt,
-              type: doc.type || 'unknown'
+              createdAt: doc.createdAt
             });
           });
-          console.log('📄 Current client identifiers:', {
-            searchId: clientId,
-            clientEmail: currentClient?.email,
-            workflowId: currentClient?.workflowId,
-            clientActualId: currentClient?._id
-          });
           
-          // Let's try a broader search to see if any documents might belong to this client
-          const potentialMatches = allDocuments.filter((doc: Document) => {
-            const docText = `${doc.name} ${doc.clientId} ${doc.uploadedBy}`.toLowerCase();
-            const clientEmail = currentClient?.email?.toLowerCase() || '';
-            const clientName = currentClient?.name?.toLowerCase() || '';
-            
-            return docText.includes(clientEmail) || 
-                   (clientName && docText.includes(clientName)) ||
-                   doc.clientId?.toString() === clientId?.toString();
-          });
+          // Show unique client emails in documents
+          const uniqueClientEmails = [...new Set(allDocuments.map((doc: any) => doc.clientEmail).filter(Boolean))];
+          const uniqueUploadedBy = [...new Set(allDocuments.map((doc: any) => doc.uploadedBy).filter(Boolean))];
           
-          console.log(`📄 Potential matches found: ${potentialMatches.length}`);
-          potentialMatches.forEach((doc: Document, index: number) => {
-            console.log(`Potential match ${index + 1}:`, {
-              name: doc.name,
-              clientId: doc.clientId,
-              uploadedBy: doc.uploadedBy
-            });
-          });
+          console.log('📄 Unique client emails in documents:', uniqueClientEmails);
+          console.log('📄 Unique uploadedBy values in documents:', uniqueUploadedBy);
+          console.log('📄 Target client email:', clientEmail);
         }
         
         // Process documents for display with formatted data
         const processedDocuments = processDocumentsForDisplay(filteredDocuments);
         setClientDocuments(processedDocuments);
         
-        // Generate activity log from the documents we're showing
-        const documentsForActivity = filteredDocuments.length > 0 ? 
-          processDocumentsForDisplay(filteredDocuments) : 
-          processDocumentsForDisplay(allDocuments.slice(0, 10));
-          
-        const documentActivities = documentsForActivity.map((doc: Document) => ({
+        // Generate activity log only from the client's documents (not all documents)
+        const documentActivities = processedDocuments.map((doc: Document) => ({
           id: `doc-${doc._id}`,
           type: 'document_upload',
           description: `Document "${doc.name}" uploaded`,
