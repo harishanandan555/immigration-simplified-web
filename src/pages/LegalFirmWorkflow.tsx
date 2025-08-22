@@ -8,8 +8,6 @@ import {
 import toast from 'react-hot-toast';
 
 import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../utils/idValidation';
-import api from '../utils/api';
-import { APPCONSTANTS } from '../utils/constants';
 import {
   generateMultipleCaseIdsFromAPI,
   generateMultipleCaseIds,
@@ -32,9 +30,7 @@ import {
   createPdfBlobUrl,
   revokePdfBlobUrl
 } from '../controllers/FormAutoFillControllers';
-import {
-  isApiEndpointAvailable
-} from '../controllers/QuestionnaireAssignmentControllers';
+
 import {
   submitQuestionnaireResponses,
   normalizeQuestionnaireStructure
@@ -44,6 +40,14 @@ import {
 } from '../controllers/UserCreationController';
 import { getClients as fetchClientsFromAPI, getClientById, Client as APIClient } from '../controllers/ClientControllers';
 import { getFormTemplates, FormTemplate } from '../controllers/SettingsControllers';
+import LegalFirmWorkflowController, {
+  Case,
+  QuestionnaireAssignment,
+  FormData,
+  WorkflowData,
+  ImmigrationProcessPayload,
+  LEGAL_WORKFLOW_ENDPOINTS
+} from '../controllers/LegalFirmWorkflowController';
 
 // Extend APIClient with optional _id field and name parts
 type Client = APIClient & {
@@ -51,83 +55,6 @@ type Client = APIClient & {
   firstName?: string;
   lastName?: string;
 };
-
-interface Case {
-  id: string;
-  _id?: string; // Added for compatibility with MongoDB
-  clientId: string;
-  title: string;
-  description: string;
-  category: string;
-  subcategory: string;
-  status: 'draft' | 'in-progress' | 'review' | 'completed' | 'Active' | 'Pending' | 'Closed' | 'On Hold';
-  priority: 'low' | 'medium' | 'high' | 'Low' | 'Medium' | 'High' | 'Urgent';
-  assignedForms: string[];
-  questionnaires: string[];
-  createdAt: string;
-  dueDate: string;
-  visaType?: string;
-  priorityDate?: string;
-  type?: string;
-  // Additional optional properties that might be used in the UI
-  assignedTo?: string;
-  assignedAttorney?: string;
-  courtLocation?: string;
-  judge?: string;
-  openDate?: string;
-  startDate?: string;
-  expectedClosureDate?: string;
-  formCaseIds?: Record<string, string>; // Map of form names to case IDs
-}
-
-interface QuestionnaireAssignment {
-  id: string;
-  caseId: string;
-  clientId: string;
-  questionnaireId: string;
-  questionnaireName: string;
-  status: 'pending' | 'in-progress' | 'completed';
-  assignedAt: string;
-  completedAt?: string;
-  responses: Record<string, any>;
-  dueDate?: string;
-  notes?: string;
-  clientEmail?: string;
-  clientUserId?: string;
-  tempPassword?: string; // Added for client account creation
-  formCaseIds?: Record<string, string>; // Map of form names to case IDs
-  selectedForms?: string[]; // List of selected forms
-  accountCreated?: boolean; // Track whether user account was successfully created
-  formType?: string; // Type of the primary form
-  formCaseIdGenerated?: string; // Generated case ID for the primary form
-  // Client name fields
-  clientFirstName?: string;
-  clientMiddleName?: string;
-  clientLastName?: string;
-  clientFullName?: string;
-  // Client address information
-  clientAddress?: {
-    street?: string;
-    aptSuiteFlr?: string;
-    aptNumber?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-    province?: string;
-    postalCode?: string;
-    country?: string;
-  };
-  // Additional client information
-  clientPhone?: string;
-  clientDateOfBirth?: string;
-  clientNationality?: string;
-}
-
-interface FormData {
-  formType: string;
-  data: Record<string, any>;
-  status: 'draft' | 'review' | 'completed';
-}
 
 const IMMIGRATION_CATEGORIES = [
   {
@@ -171,6 +98,18 @@ const EXIST_WORKFLOW_STEPS = [
   { id: 'form-details', title: 'Form Details', icon: FormInput, description: 'Complete form information' },
   { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
 ];
+
+// Use constants from LEGAL_WORKFLOW_CONSTANTS
+const WORKFLOW_STEP_INDICES = {
+  START: 0,
+  CLIENT_INFO: 1,
+  CASE_DETAILS: 2,
+  FORMS_SELECTION: 3,
+  QUESTIONNAIRE: 4,
+  QUESTIONNAIRE_RESPONSES: 5,
+  FORM_DETAILS: 6,
+  AUTO_FILL: 7
+};
 
 const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // const navigate = useNavigate(); // Not used in current implementation
@@ -347,8 +286,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          const response = await api.get(`/api/v1/workflows/progress/${workflowId}`);
-          workflowData = response.data.data || response.data;
+          const workflowDataFromAPI = await LegalFirmWorkflowController.getWorkflowProgress(workflowId);
+          workflowData = workflowDataFromAPI.data || workflowDataFromAPI;
         } catch (apiError: any) {
           // Failed to load workflow from server
         }
@@ -977,13 +916,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // First, check if user already exists by email
       let existingUserId = null;
       try {
-        const checkResponse = await api.get(`/api/v1/users/check-email/${encodeURIComponent(clientEmail.toLowerCase().trim())}`);
-        if (checkResponse.data && checkResponse.data.exists) {
-          existingUserId = checkResponse.data.userId;
+        const emailCheckResult = await LegalFirmWorkflowController.checkEmailExists(clientEmail);
+        if (emailCheckResult.exists) {
+          existingUserId = emailCheckResult.userId;
 
 
           // Check if this user has the correct role
-          if (checkResponse.data.role === 'client' && checkResponse.data.userType === 'individual') {
+          if (emailCheckResult.role === 'client' && emailCheckResult.userType === 'individual') {
 
 
             // Update client object with existing user ID
@@ -1042,7 +981,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
         // ✅ Use the correct endpoint: /api/v1/auth/register/user
-        const response = await api.post('/api/v1/auth/register/user', {
+        const response = await LegalFirmWorkflowController.registerUser({
           firstName: updatedClient.firstName,
           middleName: updatedClient.middleName || '',
           lastName: updatedClient.lastName,
@@ -1063,7 +1002,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             country: client.address?.country || 'United States'
           },
           role: 'client', // ✅ Required: Specify user role
-          userType: 'individual', // ✅ Required: Enables individual client creation
+          userType: 'individual', // ✅ Required: Specify user type
           sendPassword: false // ✅ Controls welcome email (set to true if you want emails)
         });
 
@@ -1250,17 +1189,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
 
       // Request workflows from API
-      const response = await api.get('/api/v1/workflows', {
-        params: {
-          status: 'in-progress',
-          page: 1,
-          limit: 50
-        }
+      const workflows = await LegalFirmWorkflowController.fetchWorkflows({
+        status: 'in-progress',
+        limit: 50,
+        offset: 0
       });
 
-      if (response.data?.success && response.data?.data) {
-        const workflows = response.data.data;
-        // setAvailableWorkflows(workflows);
+      if (workflows.length > 0) {
         console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         return workflows;
       } else {
@@ -1298,17 +1233,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       console.log('✅ Authentication token found, fetching workflows for client data...');
 
       // Get all workflows to extract client information
-      const response = await api.get('/api/v1/workflows', {
-        params: {
-          page: 1,
-          limit: 100 // Get more workflows to find more clients
-        }
+      const workflows = await LegalFirmWorkflowController.fetchWorkflows({
+        limit: 100,
+        offset: 0
       });
 
-      console.log('📥 Workflows response for client extraction:', response.data);
+      console.log('📥 Workflows response for client extraction:', workflows);
 
-      if (response.data?.success && response.data?.data) {
-        const workflows = response.data.data;
+      if (workflows.length > 0) {
         console.log(`📊 Processing ${workflows.length} workflows for client data`);
 
         // Log the structure of the first workflow for debugging
@@ -1732,12 +1664,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (token) {
         try {
           // Save to API only
-          const response = await api.post('/api/v1/workflows/progress', workflowData);
+          const response = await LegalFirmWorkflowController.saveWorkflowProgress(workflowData);
 
 
           // Store the workflow ID from API response
-          if (response.data?.workflowId) {
-            workflowData.workflowId = response.data.workflowId;
+          if (response?.workflowId) {
+            workflowData.workflowId = response.workflowId;
           }
 
           // Workflow progress saved to server
@@ -1867,13 +1799,18 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
       // Make API call
-      const response = await api.post('/api/v1/form-details', requestData);
+      const response = await LegalFirmWorkflowController.createFormDetails({
+        clientId: requestData.clientInfo?.clientId || '',
+        formType: 'workflow-step',
+        formData: requestData,
+        status: 'draft'
+      });
 
 
 
       // Store form details ID for future updates
-      if (response.data?.data?.id) {
-        setFormDetailsId(response.data.data.id);
+      if (response?.id) {
+        setFormDetailsId(response.id);
 
       }
 
@@ -1921,7 +1858,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
       // Make API call to assign questionnaire
-      const response = await api.post(`/api/v1/form-details/${formDetailsId}/assign-questionnaire`, requestData);
+      const response = await LegalFirmWorkflowController.assignQuestionnaireToFormDetails(formDetailsId, {
+        questionnaireId,
+        caseId: caseData.id || caseData._id || '',
+        clientId: client.id || client._id || ''
+      });
 
 
 
@@ -2243,8 +2184,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
       // Use the controller to check if the API endpoint is available
-      const endpointPath = '/api/v1/questionnaire-assignments';
-      const endpointAvailable = await isApiEndpointAvailable(endpointPath);
+      const endpointPath = LEGAL_WORKFLOW_ENDPOINTS.GET_QUESTIONNAIRE_ASSIGNMENTS;
+      const endpointAvailable = await LegalFirmWorkflowController.isApiEndpointAvailable(endpointPath);
 
       // Log and notify user about API availability
 
@@ -2265,25 +2206,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
           // Send directly with fetch for creating the assignment
-          const fetchResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(assignmentData)
-          });
-
-
-
-          if (!fetchResponse.ok) {
-            const errorText = await fetchResponse.text();
-
-            throw new Error(`Assignment creation failed: ${fetchResponse.status} ${fetchResponse.statusText}\n${errorText}`);
-          }
-
-          // Parse the successful response
-          const response = await fetchResponse.json();
+          const response = await LegalFirmWorkflowController.createQuestionnaireAssignment(assignmentData);
 
           // Handle the response which returns json directly
           const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
@@ -2412,31 +2335,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Could navigate to login page here if needed
         // navigate('/login');
       } else if (error?.response?.status === 404 || error?.message?.includes('not found')) {
-        // API endpoint not found
-
-
-        // Create a helpful toast message
-        toast.error(
-          <div>
-            <p>The questionnaire assignment API endpoint was not found (404).</p>
-            <p className="text-sm mt-2">Possible solutions:</p>
-            <ul className="text-sm list-disc pl-4">
-              <li>Ensure the API server is running</li>
-              <li>Verify the API is accessible at {APPCONSTANTS.API_BASE_URL}</li>
-              <li>Check that routes are registered properly in server.js</li>
-              <li>If you're running the API on a different port, update the API_BASE_URL</li>
-            </ul>
-            <p className="text-sm mt-2">A local copy of the assignment has been saved.</p>
-          </div>,
-          { duration: 8000 }
-        );
-
-        // Show simpler message after detailed one
-        setTimeout(() => {
-          // Assignment saved locally
-        }, 1000);
-
-
+        // API endpoint not found - show simple message
+        toast.error('API endpoint not found. Assignment saved locally.', { duration: 4000 });
       } else if (error?.response?.data?.error) {
         // This is an API error with details
         toast.error(`API Error: ${error.response.data.error}`);
@@ -2647,32 +2547,36 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     try {
       setLoading(true);
 
-      // Prepare payload to match backend requirements
-      const payload = {
-        categoryId: caseData.category,
-        subcategoryId: caseData.subcategory,
-        visaType: caseData.visaType || '',
-        clientId: client.id,
-        caseId: caseData.id,
-        priorityDate: caseData.priorityDate || new Date().toISOString(),
-        status: caseData.status || 'draft',
-        assignedForms: selectedForms || caseData.assignedForms || [],
-        questionnaires: caseData.questionnaires || (selectedQuestionnaire ? [selectedQuestionnaire] : []),
-        questionnaireAssignment: questionnaireAssignment || null,
-        clientResponses: clientResponses || {},
-        formDetails: formDetails || [],
-        steps: NEW_WORKFLOW_STEPS.map((step, idx) => ({
-          id: step.id,
-          title: step.title,
-          description: step.description,
-          status: idx < currentStep ? 'completed' : idx === currentStep ? 'current' : 'pending'
-        })),
-        createdAt: caseData.createdAt || new Date(),
-        dueDate: caseData.dueDate || null
+      // Prepare payload to match ImmigrationProcessPayload interface
+      const payload: ImmigrationProcessPayload = {
+        clientInfo: client,
+        selectedForms: selectedForms || caseData.assignedForms || [],
+        questionnaireResponses: clientResponses || {},
+        formData: {
+          categoryId: caseData.category,
+          subcategoryId: caseData.subcategory,
+          visaType: caseData.visaType || '',
+          clientId: client.id,
+          caseId: caseData.id,
+          priorityDate: caseData.priorityDate || new Date().toISOString(),
+          status: caseData.status || 'draft',
+          assignedForms: selectedForms || caseData.assignedForms || [],
+          questionnaires: caseData.questionnaires || (selectedQuestionnaire ? [selectedQuestionnaire] : []),
+          questionnaireAssignment: questionnaireAssignment || null,
+          formDetails: formDetails || [],
+          steps: NEW_WORKFLOW_STEPS.map((step, idx) => ({
+            id: step.id,
+            title: step.title,
+            description: step.description,
+            status: idx < currentStep ? 'completed' : idx === currentStep ? 'current' : 'pending'
+          })),
+          createdAt: caseData.createdAt || new Date(),
+          dueDate: caseData.dueDate || null
+        }
       };
 
       // Call backend API to save the workflow process (correct endpoint)
-      await api.post('/api/v1/immigration/process', payload);
+      await LegalFirmWorkflowController.submitImmigrationProcess(payload);
       // Workflow saved successfully
       alert('Workflow saved successfully!');
 

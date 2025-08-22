@@ -3,6 +3,10 @@ import { FOIA_CASE_END_POINTS } from '../utils/constants';
 
 export interface FoiaCase {
   _id: string;
+  caseId: string;
+  requestNumber: string;
+  publicCaseId: number;
+  status: string;
   subject: {
     firstName: string;
     lastName: string;
@@ -15,34 +19,26 @@ export interface FoiaCase {
   recordsRequested: Array<{
     requestedDocumentType: string;
   }>;
-  status: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface FoiaCaseList {
   _id: string;
+  userId: string;
   subject: {
     firstName: string;
     lastName: string;
   };
-  requester: {
-    firstName: string;
-    lastName: string;
-    emailAddress: string;
-  };
-  recordsRequested: Array<{
-    requestedDocumentType: string;
-  }>;
   status: string;
+  requestNumber: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface FoiaCaseForm {
-  userId: string;
-  alienNumber: string;
-  alienNumbers: number[];
+  alienNumber?: string;
+  alienNumbers?: string[];
   subject: {
     firstName: string;
     lastName: string;
@@ -58,8 +54,6 @@ export interface FoiaCaseForm {
     mailingAddress2?: string;
     mailingCity: string;
     mailingZipCode: string;
-    mailingProvince?: string;
-    mailingPostalCode?: string;
     daytimePhone: string;
     mobilePhone: string;
     emailAddress: string;
@@ -68,7 +62,7 @@ export interface FoiaCaseForm {
     firstName: string;
     lastName: string;
     middleName?: string;
-    relation: string;
+    relation: string; // M = Mother, F = Father
     maidenName?: string;
   }>;
   aliases: Array<{
@@ -86,8 +80,6 @@ export interface FoiaCaseForm {
     mailingAddress2?: string;
     mailingCity: string;
     mailingZipCode: string;
-    mailingProvince?: string;
-    mailingPostalCode?: string;
     daytimePhone: string;
     mobilePhone: string;
     emailAddress: string;
@@ -96,11 +88,11 @@ export interface FoiaCaseForm {
   receiptNumber: string[];
   receiptNumbers: string[];
   representiveRoleToSubjectOfRecord: {
-    role: string;
+    role: string; // ATTORNEY or OTHERFAMILY
     otherExplain: string;
   };
-  digitalDelivery: string;
-  preferredConsentMethod: string;
+  digitalDelivery: string; // MY_ACCOUNT or LEGACY
+  preferredConsentMethod: string; // NOTARIZED, EMAIL, or SMS
   courtProceedings: boolean;
   recordsRequested: Array<{
     requestedDocumentType: string;
@@ -108,15 +100,60 @@ export interface FoiaCaseForm {
     requestedDocumentDate?: string;
   }>;
   qualificationsForExpeditedProcessing: {
-    physicalThreat: string;
-    informPublic: string;
-    dueProcess: string;
-    mediaInterest: string;
+    physicalThreat: boolean;
+    informPublic: boolean;
+    dueProcess: boolean;
+    mediaInterest: boolean;
   };
   documents: Array<{
     content: string;
     fileName: string;
   }>;
+}
+
+export interface CreateFoiaCaseResponse {
+  success: boolean;
+  message: string;
+  data: {
+    caseId: string;
+    requestNumber: string;
+    publicCaseId: number;
+    status: string;
+    uscisResponse: {
+      publicCaseId: number;
+      requestNumber: string;
+      error: string | null;
+    };
+  };
+}
+
+export interface CaseStatusResponse {
+  success: boolean;
+  data: {
+    data: {
+      status: {
+        display: string;
+        code: string;
+      };
+      estCompletionDate: string;
+      requestNumber: string;
+      subjectName: string;
+      requestDate: string;
+      queueLength?: number;
+      placeInQueue?: number;
+    };
+    localCase: {
+      id: string;
+      status: string;
+      estimatedCompletionDate: string;
+    };
+  };
+}
+
+export interface GetCasesResponse {
+  success: boolean;
+  count: number;
+  data: FoiaCaseList[];
 }
 
 interface ApiResponse<T> {
@@ -125,18 +162,14 @@ interface ApiResponse<T> {
   status: number;
 }
 
-export const createFoiaCase = async (caseData: FoiaCaseForm): Promise<ApiResponse<FoiaCase>> => {
+export const createFoiaCase = async (data: { userId: string; formData: FoiaCaseForm }): Promise<CreateFoiaCaseResponse> => {
   try {
-    const response = await api.post<FoiaCase>(
+    const response = await api.post<CreateFoiaCaseResponse>(
       FOIA_CASE_END_POINTS.CREATECASE,
-      caseData
+      data
     );
 
-    return {
-      data: response.data,
-      success: true,
-      status: response.status
-    };
+    return response.data;
 
   } catch (error) {
     if (error instanceof Error) {
@@ -144,6 +177,23 @@ export const createFoiaCase = async (caseData: FoiaCaseForm): Promise<ApiRespons
       throw new Error(`Failed to create FOIA case: ${error.message}`);
     }
     throw new Error('Failed to create FOIA case due to an unknown error');
+  }
+};
+
+export const getFoiaCaseStatus = async (requestNumber: string): Promise<CaseStatusResponse> => {
+  try {
+    const response = await api.get<CaseStatusResponse>(
+      FOIA_CASE_END_POINTS.GETCASESTATUS.replace(':requestNumber', requestNumber)
+    );
+
+    return response.data;
+
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Error fetching FOIA case status:', error.message);
+      throw new Error(`Failed to fetch FOIA case status: ${error.message}`);
+    }
+    throw new Error('Failed to fetch FOIA case status due to an unknown error');
   }
 };
 
@@ -164,15 +214,47 @@ export const getFoiaCaseByCaseId = async (caseId: string): Promise<ApiResponse<F
   }
 };
 
-export const getFoiaCases = async (): Promise<{ data: FoiaCaseList[]; pagination: any }> => {
+export const getFoiaCases = async (): Promise<GetCasesResponse> => {
   try {
     const response = await api.get(FOIA_CASE_END_POINTS.GETCASES);
-    return {
-      data: response.data.cases,
-      pagination: response.data.pagination,
-    };
+    return response.data;
   } catch (error) {
     console.error('Error fetching FOIA cases:', error);
     throw error;
+  }
+};
+
+export const updateFoiaCase = async (caseId: string, updateData: Partial<FoiaCaseForm>): Promise<ApiResponse<FoiaCase>> => {
+  try {
+    const response = await api.put<ApiResponse<FoiaCase>>(
+      FOIA_CASE_END_POINTS.UPDATECASE.replace(':id', caseId),
+      updateData
+    );
+
+    return response.data;
+
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Error updating FOIA case:', error.message);
+      throw new Error(`Failed to update FOIA case: ${error.message}`);
+    }
+    throw new Error('Failed to update FOIA case due to an unknown error');
+  }
+};
+
+export const deleteFoiaCase = async (caseId: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    const response = await api.delete<{ success: boolean; message: string }>(
+      FOIA_CASE_END_POINTS.DELETECASE.replace(':id', caseId)
+    );
+
+    return response.data;
+
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Error deleting FOIA case:', error.message);
+      throw new Error(`Failed to delete FOIA case: ${error.message}`);
+    }
+    throw new Error('Failed to delete FOIA case due to an unknown error');
   }
 }; 
