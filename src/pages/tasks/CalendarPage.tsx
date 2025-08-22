@@ -102,13 +102,13 @@ const CalendarPage = () => {
             <CheckSquare size={18} />
             <span>List View</span>
           </Link>
-          <button
+          {/* <button
             onClick={() => setShowNewTaskModal(true)}
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-md transition-colors"
           >
             <Plus size={18} />
             <span>New Task</span>
-          </button>
+          </button> */}
         </div>
       </div>
 

@@ -33,9 +33,6 @@ import {
   revokePdfBlobUrl
 } from '../controllers/FormAutoFillControllers';
 import {
-  isApiEndpointAvailable
-} from '../controllers/QuestionnaireAssignmentControllers';
-import {
   submitQuestionnaireResponses,
   normalizeQuestionnaireStructure
 } from '../controllers/QuestionnaireResponseControllers';
@@ -252,9 +249,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     password: '',
     createAccount: false
   });
-
-  // State for form details ID (backend integration)
-  const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
 
   // State for auto-fill data from API
   // const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
@@ -1769,176 +1763,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
   };
 
-  // Function to save form details to backend (Steps 1-4)
-  const saveFormDetailsToBackend = async (step: number, additionalData?: any) => {
-    try {
-
-
-      const token = localStorage.getItem('token');
-      if (!token) {
-
-        return null;
-      }
-
-      // Prepare data based on step
-      let requestData: any = {
-        step,
-        notes: `Workflow step ${step} completed`
-      };
-
-      // Add form details ID if updating existing record
-      if (formDetailsId) {
-        requestData.id = formDetailsId;
-      }
-
-      // Step-specific data
-      switch (step) {
-        case 1:
-          // Client information step
-          requestData.clientInfo = {
-            name: client.name,
-            firstName: client.firstName,
-            middleName: client.middleName,
-            lastName: client.lastName,
-            email: client.email,
-            phone: client.phone,
-            dateOfBirth: client.dateOfBirth,
-            nationality: client.nationality,
-            address: {
-              street: client.address?.street || '',
-              aptSuiteFlr: client.address?.aptSuiteFlr || '',
-              aptNumber: client.address?.aptNumber || '',
-              city: client.address?.city || '',
-              state: client.address?.state || '',
-              zipCode: client.address?.zipCode || '',
-              province: client.address?.province || '',
-              postalCode: client.address?.postalCode || '',
-              country: client.address?.country || 'United States'
-            },
-            clientId: client.id || client._id,
-            status: client.status || 'active'
-          };
-          break;
-
-        case 2:
-          // Case information step
-          requestData.caseInfo = {
-            title: caseData.title,
-            description: caseData.description,
-            category: caseData.category,
-            subcategory: caseData.subcategory,
-            visaType: caseData.visaType,
-            status: caseData.status,
-            priority: caseData.priority,
-            priorityDate: caseData.priorityDate,
-            openDate: caseData.openDate,
-            dueDate: caseData.dueDate,
-            caseId: caseData.id || caseData._id
-          };
-          break;
-
-        case 3:
-          // Form selection step
-          if (selectedForms.length > 0) {
-            const selectedForm = selectedForms[0]; // Single form selection
-            const formTemplate = formTemplates.find(t => t.name === selectedForm);
-
-            requestData.selectedForm = selectedForm;
-            requestData.formTemplate = formTemplate ? {
-              name: formTemplate.name,
-              title: formTemplate.name, // Use name as title fallback
-              description: formTemplate.description,
-              category: formTemplate.category
-            } : null;
-            requestData.formCaseId = formCaseIds[selectedForm]; // Single form case ID
-          }
-          break;
-
-        case 4:
-          // Questionnaire assignment step - will be handled separately
-          break;
-      }
-
-      // Include additional data if provided
-      if (additionalData) {
-        requestData = { ...requestData, ...additionalData };
-      }
-
-
-
-      // Make API call
-      const response = await api.post('/api/v1/form-details', requestData);
-
-
-
-      // Store form details ID for future updates
-      if (response.data?.data?.id) {
-        setFormDetailsId(response.data.data.id);
-
-      }
-
-      // Step data saved to server
-      return response.data;
-
-    } catch (error: any) {
-      // Error saving to server
-
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to save to server';
-      // Error details logged
-
-      // Don't show error toast for non-critical failures
-      if (error.response?.status !== 404) {
-        toast.error(`Failed to save step ${step} to server: ${errorMessage}`, { duration: 3000 });
-      }
-
-      return null;
-    }
-  };
-
-  // Function to assign questionnaire to form details (Step 3)
-  const assignQuestionnaireToFormDetails = async (questionnaireId: string, tempPassword?: string) => {
-    try {
-      if (!formDetailsId) {
-
-        return null;
-      }
-
-
-
-      const token = localStorage.getItem('token');
-      if (!token) {
-
-        return null;
-      }
-
-      const requestData = {
-        questionnaireId,
-        dueDate: caseData.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        notes: `Questionnaire assigned for ${caseData.category || 'immigration'} case`,
-        tempPassword
-      };
-
-
-
-      // Make API call to assign questionnaire
-      const response = await api.post(`/api/v1/form-details/${formDetailsId}/assign-questionnaire`, requestData);
-
-
-
-      // Questionnaire assigned and saved to server
-      return response.data;
-
-    } catch (error: any) {
-      // Error assigning questionnaire
-
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to assign questionnaire';
-      // Error details logged
-
-      toast.error(`Failed to assign questionnaire: ${errorMessage}`, { duration: 3000 });
-      return null;
-    }
-  };
-
   const handleQuestionnaireAssignment = async () => {
     if (!selectedQuestionnaire) return;
 
@@ -2241,83 +2065,66 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Log the token (first 10 chars for security) to verify it exists
 
-
-      // Use the controller to check if the API endpoint is available
-      const endpointPath = '/api/v1/questionnaire-assignments';
-      const endpointAvailable = await isApiEndpointAvailable(endpointPath);
-
-      // Log and notify user about API availability
-
-
-      if (!endpointAvailable) {
-        toast.error('API endpoint not available. Assignment will be saved locally only.');
-      }
-
       let assignment: QuestionnaireAssignment;
       // Track success state for future use
 
-      // Only attempt API call if the endpoint is available
-      if (endpointAvailable) {
-        try {
-          // Add debugging for the request
+      // Attempt API call
+      try {
+        // Add debugging for the request
 
 
 
 
-          // Send directly with fetch for creating the assignment
-          const fetchResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(assignmentData)
-          });
+        // Send directly with fetch for creating the assignment
+        const fetchResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(assignmentData)
+        });
 
 
 
-          if (!fetchResponse.ok) {
-            const errorText = await fetchResponse.text();
+        if (!fetchResponse.ok) {
+          const errorText = await fetchResponse.text();
 
-            throw new Error(`Assignment creation failed: ${fetchResponse.status} ${fetchResponse.statusText}\n${errorText}`);
-          }
-
-          // Parse the successful response
-          const response = await fetchResponse.json();
-
-          // Handle the response which returns json directly
-          const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
-
-
-          assignment = {
-            id: responseId,
-            caseId: caseData.id,
-            clientId: client.id,
-            questionnaireId: selectedQuestionnaire,
-            questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
-            status: 'pending',
-            assignedAt: new Date().toISOString(),
-            completedAt: undefined,
-            responses: {},
-            dueDate: assignmentData.dueDate,
-            notes: assignmentData.notes,
-            clientEmail: assignmentData.clientEmail,
-            clientUserId: assignmentData.clientUserId,
-            accountCreated: assignmentData.accountCreated, // Track whether user account was successfully created
-            formCaseIds: assignmentData.formCaseIds,
-            selectedForms: assignmentData.selectedForms,
-            // Add form type and generated case ID for backend integration
-            formType: assignmentData.formType,
-            formCaseIdGenerated: assignmentData.formCaseIdGenerated
-          };
-
-          // API save succeeded
-
-        } catch (apiError: any) {
-
-          throw apiError; // Re-throw to be caught by the main catch block
+          throw new Error(`Assignment creation failed: ${fetchResponse.status} ${fetchResponse.statusText}\n${errorText}`);
         }
-      } else {
+
+        // Parse the successful response
+        const response = await fetchResponse.json();
+
+        // Handle the response which returns json directly
+        const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
+
+
+        assignment = {
+          id: responseId,
+          caseId: caseData.id,
+          clientId: client.id,
+          questionnaireId: selectedQuestionnaire,
+          questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
+          status: 'pending',
+          assignedAt: new Date().toISOString(),
+          completedAt: undefined,
+          responses: {},
+          dueDate: assignmentData.dueDate,
+          notes: assignmentData.notes,
+          clientEmail: assignmentData.clientEmail,
+          clientUserId: assignmentData.clientUserId,
+          accountCreated: assignmentData.accountCreated, // Track whether user account was successfully created
+          formCaseIds: assignmentData.formCaseIds,
+          selectedForms: assignmentData.selectedForms,
+          // Add form type and generated case ID for backend integration
+          formType: assignmentData.formType,
+          formCaseIdGenerated: assignmentData.formCaseIdGenerated
+        };
+
+        // API save succeeded
+
+      } catch (apiError: any) {
         // API not available, create assignment object only
 
         assignment = {
@@ -2364,37 +2171,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Questionnaire assigned to client
       }
 
-      // Save questionnaire assignment to backend (Step 3)
+      // Save workflow progress before moving to next step
       try {
-        const backendResult = await assignQuestionnaireToFormDetails(
-          questionnaireId,
-          clientCredentials.createAccount ? clientCredentials.password : undefined
-        );
-
-        if (backendResult) {
-
-        } else {
-
-        }
-      } catch (error) {
-
-        // Don't block the workflow for backend failures
-      }
-
-      // Save all accumulated workflow data to backend now
-      try {
-
-
-
-        // Save workflow progress
         await saveWorkflowProgress();
-
-
-        // All workflow data saved to server successfully
-
       } catch (error) {
-
-        toast.error('Questionnaire assigned but some data may not be saved to server', { duration: 3000 });
+        console.error('Failed to save workflow progress:', error);
+        // Don't block the workflow if saving fails
       }
 
       // Move to next step
@@ -2514,6 +2296,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         );
       } else {
         // Questionnaire assigned to client (local storage mode)
+      }
+
+      // Save workflow progress before moving to next step
+      try {
+        await saveWorkflowProgress();
+      } catch (error) {
+        console.error('Failed to save workflow progress:', error);
+        // Don't block the workflow if saving fails
       }
 
       // Only proceed to next step if it's not an ID validation error
@@ -3141,14 +2931,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 // Original Create Client button in normal mode
                 <Button
                   onClick={async () => {
-                    // Save client data to backend (Step 1)
-                    try {
-                      await saveFormDetailsToBackend(1);
-
-                    } catch (error) {
-
-                    }
-
                     // Simply advance to next step without creating client account
                     // Client account will only be created later if password is provided from questionnaire assignment
                     setCurrentStep(2);
@@ -3284,12 +3066,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               </Button>
               <Button
                 onClick={async () => {
-                  // Save case data to backend (Step 2)
-                  try {
-                    await saveFormDetailsToBackend(2);
-                  } catch (error) {
-
-                  }
                   setCurrentStep(3);
                 }}
                 disabled={!caseData.title || !caseData.category}
@@ -3384,7 +3160,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               </div>
             )}
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            {/* <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-blue-900 mb-2">Select Immigration Form</h3>
               <p className="text-blue-700">Choose one immigration form needed for this case.</p>
             </div>
@@ -3425,7 +3201,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   ))}
                 </div>
               )}
-            </div>
+            </div> */}
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
                 <ArrowLeft className="w-4 h-4 mr-2" />

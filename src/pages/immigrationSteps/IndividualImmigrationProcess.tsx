@@ -885,122 +885,6 @@ const IndividualImmigrationProcess: React.FC = () => {
     }
   };
 
-  // Function to save form details to backend (Steps 1-4)
-  const saveFormDetailsToBackend = async (step: number, additionalData?: any) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return null;
-      }
-
-      // Prepare data based on step
-      let requestData: any = {
-        step,
-        notes: `Immigration workflow step ${step} completed`
-      };
-
-      // Add form details ID if updating existing record
-      if (formDetailsId) {
-        requestData.id = formDetailsId;
-      }
-
-      // Step-specific data
-      switch (step) {
-        case 1:
-          // Personal information step
-          requestData.clientInfo = {
-            name: client.name,
-            firstName: client.firstName,
-            middleName: client.middleName,
-            lastName: client.lastName,
-            email: client.email,
-            phone: client.phone,
-            dateOfBirth: client.dateOfBirth,
-            nationality: client.nationality,
-            address: {
-              street: client.address?.street || '',
-              aptSuiteFlr: client.address?.aptSuiteFlr || '',
-              aptNumber: client.address?.aptNumber || '',
-              city: client.address?.city || '',
-              state: client.address?.state || '',
-              zipCode: client.address?.zipCode || '',
-              province: client.address?.province || '',
-              postalCode: client.address?.postalCode || '',
-              country: client.address?.country || 'United States'
-            },
-            clientId: client.id || client._id,
-            status: client.status || 'active'
-          };
-          break;
-
-        case 2:
-          // Immigration information step
-          requestData.immigrationInfo = {
-            currentStatus: formData.immigrationInfo.currentStatus,
-            entryDate: formData.immigrationInfo.entryDate,
-            visaType: formData.immigrationInfo.visaType,
-            intendedCategory: formData.immigrationInfo.intendedCategory,
-            familyMembers: formData.immigrationInfo.familyMembers
-          };
-          break;
-
-        case 3:
-          // Document upload step
-          requestData.documents = formData.documents.map(doc => ({
-            id: doc.id,
-            name: doc.name,
-            type: doc.type,
-            isRequired: doc.isRequired,
-            isUploaded: doc.isUploaded
-          }));
-          break;
-
-        case 4:
-          // Form selection step
-          if (selectedForms.length > 0) {
-            const selectedForm = selectedForms[0]; // Single form selection
-            const formTemplate = formTemplates.find(t => t.name === selectedForm);
-
-            requestData.selectedForm = selectedForm;
-            requestData.formTemplate = formTemplate ? {
-              name: formTemplate.name,
-              title: formTemplate.name,
-              description: formTemplate.description,
-              category: formTemplate.category
-            } : null;
-            requestData.formCaseId = formCaseIds[selectedForm];
-          }
-          break;
-      }
-
-      // Include additional data if provided
-      if (additionalData) {
-        requestData = { ...requestData, ...additionalData };
-      }
-
-      // Make API call
-      const response = await api.post('/api/v1/form-details', requestData);
-
-      // Store form details ID for future updates
-      if (response.data?.data?.id) {
-        setFormDetailsId(response.data.data.id);
-      }
-
-      // Step data saved to server
-      return response.data;
-
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to save to server';
-
-      // Don't show error toast for non-critical failures
-      if (error.response?.status !== 404) {
-        toast.error(`Failed to save step ${step} to server: ${errorMessage}`, { duration: 3000 });
-      }
-
-      return null;
-    }
-  };
-
   // Function to generate form case IDs
   const generateFormCaseIds = (forms: string[]) => {
     const newFormCaseIds: FormCaseIds = {};
@@ -1158,12 +1042,6 @@ const IndividualImmigrationProcess: React.FC = () => {
       try {
         await saveWorkflowProgress();
         
-        // Save form details for each completed step
-        await saveFormDetailsToBackend(1, { clientInfo: updatedClient });
-        await saveFormDetailsToBackend(2, { immigrationInfo: formData.immigrationInfo });
-        await saveFormDetailsToBackend(3, { documents: formData.documents });
-        await saveFormDetailsToBackend(4, { selectedForms, formCaseIds });
-
         toast.success('Immigration case created successfully!');
         
         // Navigate to case details or dashboard

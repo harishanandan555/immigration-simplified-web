@@ -105,6 +105,7 @@ export interface DocumentFolder {
 export interface DocumentUploadRequest {
   file: File;
   clientId: string;
+  clientEmail?: string; // Add email field for better client identification
   caseNumber?: string;
   type: string;
   description?: string;
@@ -238,6 +239,9 @@ export const createDocument = async (documentData: DocumentUploadRequest): Promi
     const formData = new FormData();
     formData.append('file', documentData.file);
     formData.append('clientId', documentData.clientId);
+    if (documentData.clientEmail) {
+      formData.append('clientEmail', documentData.clientEmail);
+    }
     if (documentData.caseNumber) {
       formData.append('caseNumber', documentData.caseNumber);
     }
