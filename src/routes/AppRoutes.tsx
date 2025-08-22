@@ -6,12 +6,12 @@ import LoginPage from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
 import FoiaCasesPage from '../pages/foia/FoiaCasesPage';
 import FoiaCaseFormPage from '../pages/foia/FoiaCaseFormPage';
-import FoiaCasesDetailsPage from '../pages/foia/FoiaCasesDetailsPage';
+import FoiaCaseDetailsPage from '../pages/foia/FoiaCaseDetailsPage';
 
 // Lazy-loaded components
 const Dashboard = lazy(() => import('../pages/Dashboard'));
 const CasesPage = lazy(() => import('../pages/cases/CasesPage'));
-const CaseTrackerPage = lazy(() => import('../pages/cases/CaseTrackerPage'));
+const CaseTrackerPage = lazy(() => import('../pages/foia/FoiaCaseTrackerPage'));
 const CaseDetailsPage = lazy(() => import('../pages/cases/CaseDetailsPage'));
 const CaseFormPage = lazy(() => import('../pages/cases/CaseFormPage'));
 const ClientsPage = lazy(() => import('../pages/clients/ClientsPage'));
@@ -229,7 +229,10 @@ const AppRoutes = () => {
           {/* FOIA routes */}
           <Route path="/foia-cases" element={<FoiaCasesPage />} />
           <Route path="/foia-cases/new" element={<FoiaCaseFormPage />} />
-          <Route path="/foia-cases/:caseId" element={<FoiaCasesDetailsPage />} />
+          <Route path="/foia-cases/:id" element={<FoiaCaseDetailsPage />} />
+          <Route path="/foia-cases/:id/edit" element={<FoiaCaseFormPage />} />
+          <Route path="/foia-tracker" element={<CaseTrackerPage />} />
+          <Route path="/foia-tracker/:requestNumber" element={<CaseTrackerPage />} />
 
           {/* Catch-all route */}
           <Route path="*" element={

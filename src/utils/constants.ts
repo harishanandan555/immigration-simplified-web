@@ -121,9 +121,12 @@ export const COMPANY_END_POINTS = {
 };
 
 export const FOIA_CASE_END_POINTS = {
-    CREATECASE: "/api/v1/foia-cases",
-    GETCASES: "/api/v1/foia-cases",
-    GETCASEBYID: "/api/v1/foia-cases/:id",
+    CREATECASE: "/api/v1/foia-cases/case",
+    GETCASES: "/api/v1/foia-cases/cases",
+    GETCASEBYID: "/api/v1/foia-cases/case/:id",
+    UPDATECASE: "/api/v1/foia-cases/case/:id",
+    DELETECASE: "/api/v1/foia-cases/case/:id",
+    GETCASESTATUS: "/api/v1/foia-cases/case-status/:requestNumber",
 };
 
 export const IMMIGRATION_END_POINTS = {
@@ -555,4 +558,141 @@ export const COMMON_IMMIGRATION_FORMS = {
     I_589: 'i-589'
 } as const;
 
+// Legal Firm Workflow Constants
+export const LEGAL_WORKFLOW_CONSTANTS = {
+    // Workflow Steps
+    WORKFLOW_STEPS: {
+        CLIENT_INFO: 0,
+        FORMS_SELECTION: 1,
+        QUESTIONNAIRE_ASSIGNMENT: 2,
+        QUESTIONNAIRE_RESPONSES: 3,
+        FORM_DETAILS: 4,
+        FORM_AUTO_FILL: 5,
+        FORM_GENERATION: 6,
+        DOWNLOAD_FORMS: 7
+    },
 
+    // Workflow Status
+    WORKFLOW_STATUS: {
+        DRAFT: 'draft',
+        IN_PROGRESS: 'in-progress',
+        COMPLETED: 'completed'
+    },
+
+    // Form Status
+    FORM_STATUS: {
+        DRAFT: 'draft',
+        REVIEW: 'review',
+        COMPLETED: 'completed'
+    },
+
+    // Questionnaire Status
+    QUESTIONNAIRE_STATUS: {
+        PENDING: 'pending',
+        IN_PROGRESS: 'in-progress',
+        COMPLETED: 'completed'
+    },
+
+    // Case Priority
+    CASE_PRIORITY: {
+        LOW: 'low',
+        MEDIUM: 'medium',
+        HIGH: 'high',
+        URGENT: 'urgent'
+    },
+
+    // Case Status
+    CASE_STATUS: {
+        DRAFT: 'draft',
+        ACTIVE: 'Active',
+        PENDING: 'Pending',
+        IN_PROGRESS: 'in-progress',
+        REVIEW: 'review',
+        ON_HOLD: 'On Hold',
+        CLOSED: 'Closed',
+        COMPLETED: 'completed'
+    },
+
+    // Form Categories
+    FORM_CATEGORIES: {
+        FAMILY_BASED: 'family-based',
+        EMPLOYMENT_BASED: 'employment-based',
+        NATURALIZATION: 'naturalization',
+        ASYLUM: 'asylum',
+        FOIA: 'foia',
+        OTHER: 'other'
+    },
+
+    // Visa Types
+    VISA_TYPES: {
+        FAMILY_PREFERENCE: 'family-preference',
+        EMPLOYMENT_BASED: 'employment-based',
+        DIVERSITY_VISA: 'diversity-visa',
+        REFUGEE: 'refugee',
+        ASYLEE: 'asylee',
+        OTHER: 'other'
+    },
+
+    // Default Values
+    DEFAULTS: {
+        WORKFLOW_NAME_PREFIX: 'Workflow-',
+        CASE_ID_PREFIX: 'CASE-',
+        MAX_FORMS_PER_WORKFLOW: 10,
+        MAX_QUESTIONNAIRES_PER_WORKFLOW: 5,
+        WORKFLOW_TIMEOUT_DAYS: 30
+    },
+
+    // Validation Rules
+    VALIDATION: {
+        MIN_CLIENT_NAME_LENGTH: 2,
+        MAX_CLIENT_NAME_LENGTH: 50,
+        MIN_EMAIL_LENGTH: 5,
+        MAX_EMAIL_LENGTH: 100,
+        MIN_PHONE_LENGTH: 10,
+        MAX_PHONE_LENGTH: 15,
+        MIN_ADDRESS_LENGTH: 10,
+        MAX_ADDRESS_LENGTH: 200
+    },
+
+    // Error Messages
+    ERROR_MESSAGES: {
+        CLIENT_REQUIRED: 'Client information is required',
+        FORMS_REQUIRED: 'At least one form must be selected',
+        QUESTIONNAIRE_REQUIRED: 'Questionnaire assignment is required',
+        INVALID_EMAIL: 'Please enter a valid email address',
+        INVALID_PHONE: 'Please enter a valid phone number',
+        INVALID_DATE: 'Please enter a valid date',
+        WORKFLOW_NOT_FOUND: 'Workflow not found',
+        SAVE_FAILED: 'Failed to save workflow progress',
+        LOAD_FAILED: 'Failed to load workflow data'
+    },
+
+    // Success Messages
+    SUCCESS_MESSAGES: {
+        WORKFLOW_SAVED: 'Workflow progress saved successfully',
+        WORKFLOW_LOADED: 'Workflow loaded successfully',
+        CLIENT_CREATED: 'Client account created successfully',
+        QUESTIONNAIRE_ASSIGNED: 'Questionnaire assigned successfully',
+        FORMS_GENERATED: 'Forms generated successfully',
+        FORMS_DOWNLOADED: 'Forms downloaded successfully'
+    },
+
+    // Local Storage Keys
+    STORAGE_KEYS: {
+        WORKFLOW_PROGRESS: 'legalWorkflowProgress',
+        CLIENT_INFO: 'legalWorkflowClientInfo',
+        SELECTED_FORMS: 'legalWorkflowSelectedForms',
+        QUESTIONNAIRE_RESPONSES: 'legalWorkflowQuestionnaireResponses',
+        FORM_DETAILS: 'legalWorkflowFormDetails',
+        AUTO_FILL_DATA: 'legalWorkflowAutoFillData'
+    },
+
+    // API Timeouts
+    API_TIMEOUTS: {
+        WORKFLOW_SAVE: 10000,
+        WORKFLOW_LOAD: 5000,
+        FORM_GENERATION: 15000,
+        FORM_DOWNLOAD: 10000,
+        QUESTIONNAIRE_ASSIGNMENT: 8000
+    }
+} as const;
