@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
+import { PlusCircle, Search, Filter, ArrowUpDown, Copy } from 'lucide-react';
 import { getFoiaCases, FoiaCaseList } from '../../controllers/FoiaCaseControllers';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
 
 const FoiaCasesPage = () => {
   const [cases, setCases] = useState<FoiaCaseList[]>([]);
@@ -9,6 +11,7 @@ const FoiaCasesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('createdAt');
   const [sortDirection, setSortDirection] = useState('desc');
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,6 +39,29 @@ const FoiaCasesPage = () => {
 
   const handleRowClick = (caseId: string) => {
     navigate(`/foia-cases/${caseId}`);
+  };
+
+  // Handle copying request number to clipboard
+  const handleCopyRequestNumber = async (requestNumber: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click when copying
+    
+    try {
+      await navigator.clipboard.writeText(requestNumber);
+      // You could add a toast notification here if you have one
+      console.log('Request number copied to clipboard');
+    } catch (err) {
+      console.error('Failed to copy request number:', err);
+    }
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(date);
   };
 
   const filteredCases = cases.filter(caseItem => {
@@ -163,8 +189,17 @@ const FoiaCasesPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {caseItem.requestNumber}
+                    <div className="flex items-center space-x-2">
+                      <div className="text-sm text-gray-900">
+                        {caseItem.requestNumber}
+                      </div>
+                      <button
+                        onClick={(e) => handleCopyRequestNumber(caseItem.requestNumber, e)}
+                        className="p-1 text-gray-400 hover:text-gray-600 transition-colors duration-150"
+                        title="Copy request number"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

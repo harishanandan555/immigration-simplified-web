@@ -1,17 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Download, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Download, Edit, Trash2, Search, AlertCircle, Clock, CheckCircle, FileText, Calendar } from 'lucide-react';
 import { getFoiaCaseByCaseId, getFoiaCaseStatus, deleteFoiaCase, FoiaCase } from '../../controllers/FoiaCaseControllers';
 import { toast } from 'react-hot-toast';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Alert from '../../components/common/Alert';
+
+interface FoiaCaseStatus {
+  requestNumber: string;
+  status: string;
+  lastUpdated: string;
+  history: Array<{
+    date: string;
+    status: string;
+    description: string;
+  }>;
+}
 
 const FoiaCaseDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [caseData, setCaseData] = useState<FoiaCase | null>(null);
-  const [caseStatus, setCaseStatus] = useState<any>(null);
+
+  const [trackedCaseStatus, setTrackedCaseStatus] = useState<FoiaCaseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -24,6 +42,10 @@ const FoiaCaseDetailsPage = () => {
       setLoading(true);
       const response = await getFoiaCaseByCaseId(id!);
       setCaseData(response.data);
+      // Automatically fetch case status when case data is loaded
+      if (response.data?.requestNumber) {
+        fetchCaseStatus(response.data.requestNumber);
+      }
     } catch (err) {
       setError('Failed to load FOIA case');
       console.error(err);
@@ -32,22 +54,118 @@ const FoiaCaseDetailsPage = () => {
     }
   };
 
-  const fetchCaseStatus = async () => {
-    if (!caseData?.requestNumber) {
+  const fetchCaseStatus = async (requestNumber: string) => {
+    if (!requestNumber) {
       toast.error('No request number available for this case');
       return;
     }
 
     try {
       setStatusLoading(true);
-      const response = await getFoiaCaseStatus(caseData.requestNumber);
-      setCaseStatus(response.data);
-      toast.success('Case status updated');
-    } catch (err) {
+      setTrackingError(null);
+      const response = await getFoiaCaseStatus(requestNumber);
+
+      if (response.success && response.data?.data) {
+        // Transform FOIA case status to our local format
+        const foiaCaseStatus: FoiaCaseStatus = {
+          requestNumber: response.data.data.requestNumber || requestNumber,
+          status: response.data.data.status?.display || 'Unknown',
+          lastUpdated: new Date().toISOString(),
+          history: [
+            {
+              date: new Date().toISOString(),
+              status: response.data.data.status?.display || 'Unknown',
+              description: `Current status: ${response.data.data.status?.display || 'Unknown'}${response.data.data.placeInQueue && response.data.data.queueLength ? `. Queue position: ${response.data.data.placeInQueue} of ${response.data.data.queueLength}` : ''}`
+            }
+          ]
+        };
+
+        // Add estimated completion date if available
+        if (response.data.data.estCompletionDate) {
+          foiaCaseStatus.history.push({
+            date: response.data.data.estCompletionDate,
+            status: 'Estimated Completion',
+            description: `Estimated completion date: ${new Date(response.data.data.estCompletionDate).toLocaleDateString()}`
+          });
+        }
+
+        setTrackedCaseStatus(foiaCaseStatus);
+        toast.success('Case status updated');
+      } else {
+        setTrackingError('Failed to retrieve FOIA case status. Please check the request number and try again.');
+        setTrackedCaseStatus(null);
+      }
+    } catch (err: any) {
+      // Handle specific USCIS system errors
+      if (err.message && err.message.includes('USCIS system is currently unavailable')) {
+        setTrackingError('USCIS system is temporarily unavailable. Please try again later or contact USCIS directly.');
+      } else if (err.message && err.message.includes('Failed to fetch FOIA case status')) {
+        setTrackingError('Failed to retrieve FOIA case status. Please check the request number and try again.');
+      } else {
+        setTrackingError('An unexpected error occurred. Please try again.');
+      }
+      setTrackedCaseStatus(null);
       toast.error('Failed to fetch case status');
       console.error(err);
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  // Retry case lookup with exponential backoff
+  const handleRetry = async () => {
+    if (isRetrying || !caseData?.requestNumber) return;
+
+    setIsRetrying(true);
+    setTrackingError(null);
+
+    try {
+      // Exponential backoff: 2^retryCount * 1000ms
+      const delay = Math.pow(2, retryCount) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      const response = await getFoiaCaseStatus(caseData.requestNumber);
+
+      if (response.success && response.data?.data) {
+        // Transform FOIA case status to our local format
+        const foiaCaseStatus: FoiaCaseStatus = {
+          requestNumber: response.data.data.requestNumber || caseData.requestNumber,
+          status: response.data.data.status?.display || 'Unknown',
+          lastUpdated: new Date().toISOString(),
+          history: [
+            {
+              date: new Date().toISOString(),
+              status: response.data.data.status?.display || 'Unknown',
+              description: `Current status: ${response.data.data.status?.display || 'Unknown'}${response.data.data.placeInQueue && response.data.data.queueLength ? `. Queue position: ${response.data.data.placeInQueue} of ${response.data.data.queueLength}` : ''}`
+            }
+          ]
+        };
+
+        // Add estimated completion date if available
+        if (response.data.data.estCompletionDate) {
+          foiaCaseStatus.history.push({
+            date: response.data.data.estCompletionDate,
+            status: 'Estimated Completion',
+            description: `Estimated completion date: ${new Date(response.data.data.estCompletionDate).toLocaleDateString()}`
+          });
+        }
+
+        setTrackedCaseStatus(foiaCaseStatus);
+        setRetryCount(0);
+        toast.success('Case status updated');
+      } else {
+        setTrackingError('Failed to retrieve FOIA case status. Please check the request number and try again.');
+        setTrackedCaseStatus(null);
+      }
+    } catch (error: any) {
+      setRetryCount(prev => prev + 1);
+      if (error.message && error.message.includes('USCIS system is currently unavailable')) {
+        setTrackingError(`USCIS system is temporarily unavailable. Retry attempt ${retryCount + 1} failed. Please try again later.`);
+      } else {
+        setTrackingError('Failed to retrieve FOIA case status. Please try again.');
+      }
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -64,6 +182,66 @@ const FoiaCaseDetailsPage = () => {
       toast.error('Failed to delete FOIA case');
       console.error(err);
     }
+  };
+
+  // Get status color based on status
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'completed':
+        return 'text-green-600';
+      case 'denied':
+      case 'rejected':
+        return 'text-red-600';
+      case 'in process':
+      case 'pending':
+        return 'text-primary-600';
+      case 'received':
+      case 'submitted':
+        return 'text-teal-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  // Get status icon based on status
+  const getStatusIcon = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'completed':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'denied':
+      case 'rejected':
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
+      case 'in process':
+      case 'pending':
+        return <Clock className="w-5 h-5 text-primary-500" />;
+      case 'received':
+      case 'submitted':
+        return <FileText className="w-5 h-5 text-teal-500" />;
+      default:
+        return <Calendar className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(date);
+  };
+
+  // Format time
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+    }).format(date);
   };
 
   if (loading) {
@@ -112,6 +290,118 @@ const FoiaCaseDetailsPage = () => {
         </div>
       </div>
 
+      {/* FOIA Case Tracker Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-medium text-gray-900">Track FOIA Case Status</h2>
+            <p className="text-sm text-gray-500 mt-1">Current status for request number: {caseData.requestNumber}</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchCaseStatus(caseData.requestNumber)}
+            disabled={statusLoading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${statusLoading ? 'animate-spin' : ''}`} />
+            Refresh Status
+          </Button>
+        </div>
+
+        {trackingError && (
+          <div className="mb-4">
+            <Alert
+              type="error"
+              message={trackingError}
+              className="mb-3"
+            />
+            {trackingError.includes('USCIS system is temporarily unavailable') && (
+              <div className="flex items-center justify-between bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <div className="flex items-center">
+                  <AlertCircle className="w-5 h-5 text-yellow-400 mr-2" />
+                  <span className="text-sm text-yellow-800">
+                    USCIS system may be experiencing temporary issues
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                  className="ml-3"
+                >
+                  {isRetrying ? 'Retrying...' : `Retry (${retryCount + 1})`}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Case Status Display */}
+        {trackedCaseStatus && (
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Request Number</p>
+                <p className="font-medium text-primary-900 text-lg">{trackedCaseStatus.requestNumber}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Current Status</p>
+                <div className="flex items-center space-x-2">
+                  {getStatusIcon(trackedCaseStatus.status)}
+                  <span className={`font-medium text-lg ${getStatusColor(trackedCaseStatus.status)}`}>
+                    {trackedCaseStatus.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Case History Timeline */}
+            {trackedCaseStatus.history && trackedCaseStatus.history.length > 0 && (
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Case History</h4>
+                <div className="flow-root">
+                  <ul className="-mb-4">
+                    {trackedCaseStatus.history.map((item: any, index: any) => (
+                      <li key={index}>
+                        <div className="relative pb-4">
+                          {index !== trackedCaseStatus.history.length - 1 ? (
+                            <span
+                              className="absolute top-3 left-3 -ml-px h-full w-0.5 bg-gray-200"
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          <div className="relative flex items-start space-x-3">
+                            <div className="relative">
+                              <div className="h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center ring-4 ring-gray-50">
+                                {getStatusIcon(item.status)}
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex-1 py-0.5">
+                              <div className="text-sm text-gray-500">
+                                <span className={`font-medium ${getStatusColor(item.status)}`}>
+                                  {item.status}
+                                </span>{' '}
+                                <span className="whitespace-nowrap">
+                                  {formatDate(item.date)} at {formatTime(item.date)}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-sm text-gray-700">
+                                <p>{item.description}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
@@ -126,14 +416,6 @@ const FoiaCaseDetailsPage = () => {
               }`}>
                 {caseData.status}
               </span>
-              <button
-                onClick={fetchCaseStatus}
-                disabled={statusLoading}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${statusLoading ? 'animate-spin' : ''}`} />
-                Check Status
-              </button>
             </div>
           </div>
         </div>
@@ -181,40 +463,13 @@ const FoiaCaseDetailsPage = () => {
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Email</dt>
-                  <dd className="text-sm text-gray-900">{caseData.subject.emailAddress}</dd>
+                  <dd className="text-sm text-gray-900">{caseData.requester.emailAddress}</dd>
                 </div>
               </dl>
             </div>
           </div>
 
-          {caseStatus && (
-            <div className="mt-8">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">USCIS Status</h3>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <dt className="text-sm font-medium text-blue-800">Status</dt>
-                    <dd className="text-sm text-blue-900">{caseStatus.status}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-blue-800">Queue Position</dt>
-                    <dd className="text-sm text-blue-900">
-                      {caseStatus.placeInQueue} of {caseStatus.queueLength}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-blue-800">Estimated Completion</dt>
-                    <dd className="text-sm text-blue-900">
-                      {caseStatus.estCompletionDate ? 
-                        new Date(caseStatus.estCompletionDate).toLocaleDateString() : 
-                        'Not available'
-                      }
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
-          )}
+
         </div>
       </div>
     </div>

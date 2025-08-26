@@ -9,9 +9,7 @@ import toast from 'react-hot-toast';
 
 import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../utils/idValidation';
 import {
-  generateMultipleCaseIdsFromAPI,
-  generateMultipleCaseIds,
-  formatCaseId
+  generateMultipleCaseIdsFromAPI
 } from '../utils/caseIdGenerator';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
@@ -25,7 +23,6 @@ import {
 import {
   renderFormWithData,
   prepareFormData,
-  validateFormData,
   downloadPdfFile,
   createPdfBlobUrl,
   revokePdfBlobUrl
@@ -40,13 +37,30 @@ import {
 } from '../controllers/UserCreationController';
 import { getClients as fetchClientsFromAPI, getClientById, Client as APIClient } from '../controllers/ClientControllers';
 import { getFormTemplates, FormTemplate } from '../controllers/SettingsControllers';
-import LegalFirmWorkflowController, {
+import { LEGAL_WORKFLOW_ENDPOINTS } from '../utils/constants';
+import {
+  getWorkflowProgress,
+  saveWorkflowProgress,
+  fetchWorkflows,
+  fetchWorkflowsForClientSearch,
+  checkEmailExists,
+  registerUser,
+  createFormDetails,
+  assignQuestionnaireToFormDetails,
+  fetchQuestionnaireAssignments,
+  createQuestionnaireAssignment,
+  submitImmigrationProcess,
+  getWorkflowResumptionParams,
+  clearWorkflowResumptionParams,
+  generateMultipleCaseIds,
+  validateFormData,
+  formatCaseId,
+  isApiEndpointAvailable,
   Case,
   QuestionnaireAssignment,
   FormData,
   WorkflowData,
-  ImmigrationProcessPayload,
-  LEGAL_WORKFLOW_ENDPOINTS
+  ImmigrationProcessPayload
 } from '../controllers/LegalFirmWorkflowController';
 
 // Extend APIClient with optional _id field and name parts
@@ -98,18 +112,6 @@ const EXIST_WORKFLOW_STEPS = [
   { id: 'form-details', title: 'Form Details', icon: FormInput, description: 'Complete form information' },
   { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
 ];
-
-// Use constants from LEGAL_WORKFLOW_CONSTANTS
-const WORKFLOW_STEP_INDICES = {
-  START: 0,
-  CLIENT_INFO: 1,
-  CASE_DETAILS: 2,
-  FORMS_SELECTION: 3,
-  QUESTIONNAIRE: 4,
-  QUESTIONNAIRE_RESPONSES: 5,
-  FORM_DETAILS: 6,
-  AUTO_FILL: 7
-};
 
 const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // const navigate = useNavigate(); // Not used in current implementation
@@ -286,7 +288,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          const workflowDataFromAPI = await LegalFirmWorkflowController.getWorkflowProgress(workflowId);
+          const workflowDataFromAPI = await getWorkflowProgress(workflowId);
           workflowData = workflowDataFromAPI.data || workflowDataFromAPI;
         } catch (apiError: any) {
           // Failed to load workflow from server
@@ -916,7 +918,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // First, check if user already exists by email
       let existingUserId = null;
       try {
-        const emailCheckResult = await LegalFirmWorkflowController.checkEmailExists(clientEmail);
+        const emailCheckResult = await checkEmailExists(clientEmail);
         if (emailCheckResult.exists) {
           existingUserId = emailCheckResult.userId;
 
@@ -981,7 +983,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
         // ✅ Use the correct endpoint: /api/v1/auth/register/user
-        const response = await LegalFirmWorkflowController.registerUser({
+        const response = await registerUser({
           firstName: updatedClient.firstName,
           middleName: updatedClient.middleName || '',
           lastName: updatedClient.lastName,
@@ -1148,7 +1150,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       } catch (error) {
 
         // Fallback to client-side generation
-        caseIds = generateMultipleCaseIds(selectedForms);
+        caseIds = await generateMultipleCaseIds(selectedForms);
         // Generated case ID for form (offline mode)
       }
 
@@ -1189,7 +1191,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
 
       // Request workflows from API
-      const workflows = await LegalFirmWorkflowController.fetchWorkflows({
+      const workflows = await fetchWorkflows({
         status: 'in-progress',
         limit: 50,
         offset: 0
@@ -1233,7 +1235,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       console.log('✅ Authentication token found, fetching workflows for client data...');
 
       // Get all workflows to extract client information
-      const workflows = await LegalFirmWorkflowController.fetchWorkflows({
+      const workflows = await fetchWorkflows({
         limit: 100,
         offset: 0
       });
@@ -1581,7 +1583,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   };
 
   // Function to save all workflow progress before questionnaire assignment
-  const saveWorkflowProgress = async () => {
+  const saveWorkflowProgressLocal = async () => {
     try {
       // Prepare comprehensive workflow data
       const workflowData = {
@@ -1664,7 +1666,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (token) {
         try {
           // Save to API only
-          const response = await LegalFirmWorkflowController.saveWorkflowProgress(workflowData);
+          const response = await saveWorkflowProgress(workflowData);
 
 
           // Store the workflow ID from API response
@@ -1799,7 +1801,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
       // Make API call
-      const response = await LegalFirmWorkflowController.createFormDetails({
+      const response = await createFormDetails({
         clientId: requestData.clientInfo?.clientId || '',
         formType: 'workflow-step',
         formData: requestData,
@@ -1833,7 +1835,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   };
 
   // Function to assign questionnaire to form details (Step 3)
-  const assignQuestionnaireToFormDetails = async (questionnaireId: string, tempPassword?: string) => {
+  const assignQuestionnaireToFormDetailsLocal = async (questionnaireId: string, tempPassword?: string): Promise<any> => {
     try {
       if (!formDetailsId) {
 
@@ -1857,12 +1859,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
 
-      // Make API call to assign questionnaire
-      const response = await LegalFirmWorkflowController.assignQuestionnaireToFormDetails(formDetailsId, {
-        questionnaireId,
-        caseId: caseData.id || caseData._id || '',
-        clientId: client.id || client._id || ''
-      });
+              // Make API call to assign questionnaire
+        const response = await assignQuestionnaireToFormDetailsLocal(questionnaireId, tempPassword);
 
 
 
@@ -2185,7 +2183,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Use the controller to check if the API endpoint is available
       const endpointPath = LEGAL_WORKFLOW_ENDPOINTS.GET_QUESTIONNAIRE_ASSIGNMENTS;
-      const endpointAvailable = await LegalFirmWorkflowController.isApiEndpointAvailable(endpointPath);
+      const endpointAvailable = await isApiEndpointAvailable(endpointPath);
 
       // Log and notify user about API availability
 
@@ -2206,7 +2204,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
           // Send directly with fetch for creating the assignment
-          const response = await LegalFirmWorkflowController.createQuestionnaireAssignment(assignmentData);
+          const response = await createQuestionnaireAssignment(assignmentData);
 
           // Handle the response which returns json directly
           const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
@@ -2289,9 +2287,18 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Save questionnaire assignment to backend (Step 3)
       try {
+        if (!formDetailsId) {
+          throw new Error('Form details ID is required');
+        }
+        
         const backendResult = await assignQuestionnaireToFormDetails(
-          questionnaireId,
-          clientCredentials.createAccount ? clientCredentials.password : undefined
+          formDetailsId,
+          {
+            questionnaireId,
+            caseId: caseData.id || caseData._id || '',
+            clientId: client.id || client._id || '',
+            tempPassword: clientCredentials.createAccount ? clientCredentials.password : undefined
+          }
         );
 
         if (backendResult) {
@@ -2310,7 +2317,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
         // Save workflow progress
-        await saveWorkflowProgress();
+        await saveWorkflowProgressLocal();
 
 
         // All workflow data saved to server successfully
@@ -2576,7 +2583,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       };
 
       // Call backend API to save the workflow process (correct endpoint)
-      await LegalFirmWorkflowController.submitImmigrationProcess(payload);
+              await submitImmigrationProcess(payload);
       // Workflow saved successfully
       alert('Workflow saved successfully!');
 
