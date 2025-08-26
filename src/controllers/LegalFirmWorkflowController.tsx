@@ -1,5 +1,5 @@
 import api from '../utils/api';
-import { APPCONSTANTS } from '../utils/constants';
+import { LEGAL_WORKFLOW_ENDPOINTS } from '../utils/constants';
 
 // Types
 export interface Client {
@@ -124,425 +124,320 @@ export interface ImmigrationProcessPayload {
   formData: Record<string, any>;
 }
 
-// API Endpoints
-export const LEGAL_WORKFLOW_ENDPOINTS = {
-  // Workflow Progress
-  GET_WORKFLOW_PROGRESS: '/api/v1/workflows/progress/:workflowId',
-  SAVE_WORKFLOW_PROGRESS: '/api/v1/workflows/progress',
-  
-  // Workflows
-  GET_WORKFLOWS: '/api/v1/workflows',
-  
-  // Form Details
-  CREATE_FORM_DETAILS: '/api/v1/form-details',
-  ASSIGN_QUESTIONNAIRE: '/api/v1/form-details/:formDetailsId/assign-questionnaire',
-  
-  // User Management
-  CHECK_EMAIL: '/api/v1/users/check-email/:email',
-  REGISTER_USER: '/api/v1/auth/register/user',
-  
-  // Questionnaire Assignments
-  GET_QUESTIONNAIRE_ASSIGNMENTS: '/api/v1/questionnaire-assignments',
-  
-  // Immigration Process
-  SUBMIT_IMMIGRATION_PROCESS: '/api/v1/immigration/process'
+// API Functions
+export const getWorkflowProgress = async (workflowId: string): Promise<any> => {
+  try {
+    const response = await api.get(LEGAL_WORKFLOW_ENDPOINTS.GET_WORKFLOW_PROGRESS.replace(':workflowId', workflowId));
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching workflow progress:', error);
+    throw error;
+  }
 };
 
-// API Functions
-export class LegalFirmWorkflowController {
-  /**
-   * Get workflow progress by ID
-   */
-  static async getWorkflowProgress(workflowId: string): Promise<any> {
-    try {
-      const response = await api.get(`/api/v1/workflows/progress/${workflowId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching workflow progress:', error);
-      throw error;
-    }
+export const saveWorkflowProgress = async (workflowData: WorkflowData): Promise<any> => {
+  try {
+    const response = await api.post(LEGAL_WORKFLOW_ENDPOINTS.SAVE_WORKFLOW_PROGRESS, workflowData);
+    return response.data;
+  } catch (error) {
+    console.error('Error saving workflow progress:', error);
+    throw error;
   }
+};
 
-  /**
-   * Save workflow progress
-   */
-  static async saveWorkflowProgress(workflowData: WorkflowData): Promise<any> {
-    try {
-      const response = await api.post('/api/v1/workflows/progress', workflowData);
-      return response.data;
-    } catch (error) {
-      console.error('Error saving workflow progress:', error);
-      throw error;
-    }
+export const fetchWorkflows = async (searchParams?: {
+  search?: string;
+  status?: string;
+  category?: string;
+  assignedTo?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<any[]> => {
+  try {
+    console.log('🔄 Fetching workflows from API...');
+    
+    const params = new URLSearchParams();
+    if (searchParams?.search) params.append('search', searchParams.search);
+    if (searchParams?.status) params.append('status', searchParams.status);
+    if (searchParams?.category) params.append('category', searchParams.category);
+    if (searchParams?.assignedTo) params.append('assignedTo', searchParams.assignedTo);
+    if (searchParams?.startDate) params.append('startDate', searchParams.startDate);
+    if (searchParams?.endDate) params.append('endDate', searchParams.endDate);
+    if (searchParams?.limit) params.append('limit', searchParams.limit.toString());
+    if (searchParams?.offset) params.append('offset', searchParams.offset.toString());
+
+    const response = await api.get(LEGAL_WORKFLOW_ENDPOINTS.GET_WORKFLOWS, {
+      params: Object.fromEntries(params)
+    });
+
+    console.log('✅ Workflows fetched successfully:', response.data);
+    return response.data.workflows || response.data || [];
+  } catch (error) {
+    console.error('❌ Error fetching workflows:', error);
+    return [];
   }
+};
 
-  /**
-   * Fetch workflows from API with optional search parameters
-   */
-  static async fetchWorkflows(searchParams?: {
-    search?: string;
-    status?: string;
-    category?: string;
-    assignedTo?: string;
-    startDate?: string;
-    endDate?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<any[]> {
-    try {
-      console.log('🔄 Fetching workflows from API...');
-      
-      const params = new URLSearchParams();
-      if (searchParams?.search) params.append('search', searchParams.search);
-      if (searchParams?.status) params.append('status', searchParams.status);
-      if (searchParams?.category) params.append('category', searchParams.category);
-      if (searchParams?.assignedTo) params.append('assignedTo', searchParams.assignedTo);
-      if (searchParams?.startDate) params.append('startDate', searchParams.startDate);
-      if (searchParams?.endDate) params.append('endDate', searchParams.endDate);
-      if (searchParams?.limit) params.append('limit', searchParams.limit.toString());
-      if (searchParams?.offset) params.append('offset', searchParams.offset.toString());
-
-      const response = await api.get('/api/v1/workflows', {
-        params: Object.fromEntries(params)
-      });
-
-      console.log('✅ Workflows fetched successfully:', response.data);
-      return response.data.workflows || response.data || [];
-    } catch (error) {
-      console.error('❌ Error fetching workflows:', error);
-      return [];
+export const fetchWorkflowsForClientSearch = async (searchQuery?: string): Promise<any[]> => {
+  try {
+    const params = new URLSearchParams();
+    if (searchQuery) {
+      params.append('search', searchQuery);
+      params.append('includeClientInfo', 'true');
     }
+
+    const response = await api.get(LEGAL_WORKFLOW_ENDPOINTS.GET_WORKFLOWS, {
+      params: Object.fromEntries(params)
+    });
+
+    return response.data.workflows || response.data || [];
+  } catch (error) {
+    console.error('Error fetching workflows for client search:', error);
+    return [];
   }
+};
 
-  /**
-   * Fetch workflows for client search
-   */
-  static async fetchWorkflowsForClientSearch(searchQuery?: string): Promise<any[]> {
-    try {
-      const params = new URLSearchParams();
-      if (searchQuery) {
-        params.append('search', searchQuery);
-        params.append('includeClientInfo', 'true');
-      }
-
-      const response = await api.get('/api/v1/workflows', {
-        params: Object.fromEntries(params)
-      });
-
-      return response.data.workflows || response.data || [];
-    } catch (error) {
-      console.error('Error fetching workflows for client search:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Check if email exists and return user info if found
-   */
-  static async checkEmailExists(clientEmail: string): Promise<{
-    exists: boolean;
-    userId?: string;
-    role?: string;
-    userType?: string;
-  }> {
-    try {
-      const checkResponse = await api.get(`/api/v1/users/check-email/${encodeURIComponent(clientEmail.toLowerCase().trim())}`);
-      return {
-        exists: checkResponse.data.exists || false,
-        userId: checkResponse.data.userId,
-        role: checkResponse.data.role,
-        userType: checkResponse.data.userType
-      };
-    } catch (error) {
-      console.error('Error checking email existence:', error);
-      return { exists: false };
-    }
-  }
-
-  /**
-   * Register new user
-   */
-  static async registerUser(userData: {
-    email: string;
-    password: string;
-    firstName: string;
-    middleName?: string;
-    lastName: string;
-    role: string;
-    userType?: string;
-    phone?: string;
-    dateOfBirth?: string;
-    nationality?: string;
-    address?: {
-      street?: string;
-      aptSuiteFlr?: string;
-      aptNumber?: string;
-      city?: string;
-      state?: string;
-      zipCode?: string;
-      province?: string;
-      postalCode?: string;
-      country?: string;
+export const checkEmailExists = async (clientEmail: string): Promise<{
+  exists: boolean;
+  userId?: string;
+  role?: string;
+  userType?: string;
+}> => {
+  try {
+    const checkResponse = await api.get(LEGAL_WORKFLOW_ENDPOINTS.CHECK_EMAIL.replace(':email', encodeURIComponent(clientEmail.toLowerCase().trim())));
+    return {
+      exists: checkResponse.data.exists || false,
+      userId: checkResponse.data.userId,
+      role: checkResponse.data.role,
+      userType: checkResponse.data.userType
     };
-    companyId?: string;
-    sendPassword?: boolean;
-  }): Promise<any> {
-    try {
-      const response = await api.post('/api/v1/auth/register/user', userData);
-      return response.data;
-    } catch (error) {
-      console.error('Error registering user:', error);
-      throw error;
-    }
+  } catch (error) {
+    console.error('Error checking email existence:', error);
+    return { exists: false };
   }
+};
 
-  /**
-   * Create form details
-   */
-  static async createFormDetails(formData: {
-    clientId: string;
-    formType: string;
-    formData: Record<string, any>;
-    status: string;
-    caseId?: string;
-  }): Promise<any> {
-    try {
-      const requestData = {
-        clientId: formData.clientId,
-        formType: formData.formType,
-        formData: formData.formData,
-        status: formData.status,
-        caseId: formData.caseId
-      };
-
-      const response = await api.post('/api/v1/form-details', requestData);
-      return response.data;
-    } catch (error) {
-      console.error('Error creating form details:', error);
-      throw error;
-    }
+export const registerUser = async (userData: {
+  email: string;
+  password: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  role: string;
+  userType?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  nationality?: string;
+  address?: {
+    street?: string;
+    aptSuiteFlr?: string;
+    aptNumber?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    province?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  companyId?: string;
+  sendPassword?: boolean;
+}): Promise<any> => {
+  try {
+    const response = await api.post(LEGAL_WORKFLOW_ENDPOINTS.REGISTER_USER, userData);
+    return response.data;
+  } catch (error) {
+    console.error('Error registering user:', error);
+    throw error;
   }
+};
 
-  /**
-   * Assign questionnaire to form details
-   */
-  static async assignQuestionnaireToFormDetails(
-    formDetailsId: string,
-    requestData: {
-      questionnaireId: string;
-      caseId: string;
-      clientId: string;
-      tempPassword?: string;
-    }
-  ): Promise<any> {
-    try {
-      const response = await api.post(`/api/v1/form-details/${formDetailsId}/assign-questionnaire`, requestData);
-      return response.data;
-    } catch (error) {
-      console.error('Error assigning questionnaire to form details:', error);
-      throw error;
-    }
+export const createFormDetails = async (formData: {
+  clientId: string;
+  formType: string;
+  formData: Record<string, any>;
+  status: string;
+  caseId?: string;
+}): Promise<any> => {
+  try {
+    const requestData = {
+      clientId: formData.clientId,
+      formType: formData.formType,
+      formData: formData.formData,
+      status: formData.status,
+      caseId: formData.caseId
+    };
+
+    const response = await api.post(LEGAL_WORKFLOW_ENDPOINTS.CREATE_FORM_DETAILS, requestData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating form details:', error);
+    throw error;
   }
+};
 
-  /**
-   * Fetch questionnaire assignments
-   */
-  static async fetchQuestionnaireAssignments(): Promise<any[]> {
-    try {
-      const fetchResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}${LEGAL_WORKFLOW_ENDPOINTS.GET_QUESTIONNAIRE_ASSIGNMENTS}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (fetchResponse.ok) {
-        const data = await fetchResponse.json();
-        return data.assignments || data || [];
-      } else {
-        console.warn('Failed to fetch questionnaire assignments from API');
-        return [];
-      }
-    } catch (error) {
-      console.error('Error fetching questionnaire assignments:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Create questionnaire assignment
-   */
-  static async createQuestionnaireAssignment(assignmentData: {
+export const assignQuestionnaireToFormDetails = async (
+  formDetailsId: string,
+  requestData: {
+    questionnaireId: string;
     caseId: string;
     clientId: string;
-    questionnaireId: string;
-    dueDate?: string;
-    notes?: string;
-    clientEmail?: string;
-    clientUserId?: string;
-    accountCreated?: boolean;
-    formCaseIds?: Record<string, string>;
-    selectedForms?: string[];
-    formType?: string;
-    formCaseIdGenerated?: string;
     tempPassword?: string;
-  }): Promise<any> {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token available');
-      }
-
-      const fetchResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}${LEGAL_WORKFLOW_ENDPOINTS.GET_QUESTIONNAIRE_ASSIGNMENTS}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(assignmentData)
-      });
-
-      if (!fetchResponse.ok) {
-        const errorText = await fetchResponse.text();
-        throw new Error(`Assignment creation failed: ${fetchResponse.status} ${fetchResponse.statusText}\n${errorText}`);
-      }
-
-      const response = await fetchResponse.json();
-      return response;
-    } catch (error) {
-      console.error('Error creating questionnaire assignment:', error);
-      throw error;
-    }
   }
-
-  /**
-   * Submit immigration process
-   */
-  static async submitImmigrationProcess(payload: ImmigrationProcessPayload): Promise<any> {
-    try {
-      const response = await api.post('/api/v1/immigration/process', payload);
-      return response.data;
-    } catch (error) {
-      console.error('Error submitting immigration process:', error);
-      throw error;
-    }
+): Promise<any> => {
+  try {
+    const response = await api.post(LEGAL_WORKFLOW_ENDPOINTS.ASSIGN_QUESTIONNAIRE.replace(':formDetailsId', formDetailsId), requestData);
+    return response.data;
+  } catch (error) {
+    console.error('Error assigning questionnaire to form details:', error);
+    throw error;
   }
+};
 
-  /**
-   * Get URL parameters for workflow resumption
-   */
-  static getWorkflowResumptionParams(): {
-    resumeWorkflowId: string | null;
-    fromQuestionnaireResponses: string | null;
-  } {
-    const urlParams = new URLSearchParams(window.location.search);
-    const resumeWorkflowId = urlParams.get('resumeWorkflow');
-    const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses');
-    
-    return { resumeWorkflowId, fromQuestionnaireResponses };
+export const fetchQuestionnaireAssignments = async (): Promise<any[]> => {
+  try {
+    const response = await api.get(LEGAL_WORKFLOW_ENDPOINTS.GET_QUESTIONNAIRE_ASSIGNMENTS);
+    return response.data.assignments || response.data || [];
+  } catch (error) {
+    console.error('Error fetching questionnaire assignments:', error);
+    return [];
   }
+};
 
-  /**
-   * Clear workflow resumption parameters from URL
-   */
-  static clearWorkflowResumptionParams(): void {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('resumeWorkflow');
-    url.searchParams.delete('fromQuestionnaireResponses');
-    window.history.replaceState({}, '', url.toString());
+export const createQuestionnaireAssignment = async (assignmentData: {
+  caseId: string;
+  clientId: string;
+  questionnaireId: string;
+  dueDate?: string;
+  notes?: string;
+  clientEmail?: string;
+  clientUserId?: string;
+  accountCreated?: boolean;
+  formCaseIds?: Record<string, string>;
+  selectedForms?: string[];
+  formType?: string;
+  formCaseIdGenerated?: string;
+  tempPassword?: string;
+}): Promise<any> => {
+  try {
+    const response = await api.post(LEGAL_WORKFLOW_ENDPOINTS.GET_QUESTIONNAIRE_ASSIGNMENTS, assignmentData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating questionnaire assignment:', error);
+    throw error;
   }
+};
 
-  /**
-   * Generate case IDs for multiple forms
-   */
-  static async generateMultipleCaseIds(formTypes: string[]): Promise<Record<string, string>> {
-    try {
-      // This would typically call the case ID generation API
-      // For now, returning a mock implementation
-      const caseIds: Record<string, string> = {};
-      formTypes.forEach(formType => {
-        caseIds[formType] = `CASE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      });
-      return caseIds;
-    } catch (error) {
-      console.error('Error generating case IDs:', error);
-      throw error;
-    }
+export const submitImmigrationProcess = async (payload: ImmigrationProcessPayload): Promise<any> => {
+  try {
+    const response = await api.post(LEGAL_WORKFLOW_ENDPOINTS.SUBMIT_IMMIGRATION_PROCESS, payload);
+    return response.data;
+  } catch (error) {
+    console.error('Error submitting immigration process:', error);
+    throw error;
   }
+};
 
-  /**
-   * Validate form data
-   */
-  static validateFormData(formData: Record<string, any>): {
-    isValid: boolean;
-    errors: string[];
-  } {
-    const errors: string[] = [];
-    
-    // Add validation logic here based on your requirements
-    if (!formData.clientId) {
-      errors.push('Client ID is required');
-    }
-    
-    if (!formData.formType) {
-      errors.push('Form type is required');
-    }
+export const getWorkflowResumptionParams = (): {
+  resumeWorkflowId: string | null;
+  fromQuestionnaireResponses: string | null;
+} => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const resumeWorkflowId = urlParams.get('resumeWorkflow');
+  const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses');
+  
+  return { resumeWorkflowId, fromQuestionnaireResponses };
+};
 
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
+export const clearWorkflowResumptionParams = (): void => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('resumeWorkflow');
+  url.searchParams.delete('fromQuestionnaireResponses');
+  window.history.replaceState({}, '', url.toString());
+};
+
+export const generateMultipleCaseIds = async (formTypes: string[]): Promise<Record<string, string>> => {
+  try {
+    // This would typically call the case ID generation API
+    // For now, returning a mock implementation
+    const caseIds: Record<string, string> = {};
+    formTypes.forEach(formType => {
+      caseIds[formType] = `CASE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    });
+    return caseIds;
+  } catch (error) {
+    console.error('Error generating case IDs:', error);
+    throw error;
   }
+};
 
-  /**
-   * Format case ID
-   */
-  static formatCaseId(caseId: string): string {
-    // Add case ID formatting logic here
-    return caseId.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-  }
-
-  /**
-   * Check if a specific API endpoint is available
-   */
-  static async isApiEndpointAvailable(endpointPath: string): Promise<boolean> {
-    try {
-      // First check if the base API is available
-      let apiAvailable = false;
-      try {
-        apiAvailable = await fetch(`${APPCONSTANTS.API_BASE_URL}`).then(res => res.ok).catch(() => false);
-      } catch (error) {
-        console.error('Error checking base API availability:', error);
-        return false;
-      }
-
-      if (!apiAvailable) {
-        console.warn('Base API is not available');
-        return false;
-      }
-
-      // Then check the specific endpoint
-      const token = localStorage.getItem('token');
-      let endpointAvailable = false;
-      try {
-        const fullEndpointUrl = `${APPCONSTANTS.API_BASE_URL}${endpointPath}`;
-        endpointAvailable = await fetch(fullEndpointUrl, {
-          method: 'HEAD',
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-        }).then(res => res.ok || res.status === 401).catch(() => false);
-      } catch (error) {
-        console.error(`Error checking endpoint availability for ${endpointPath}:`, error);
-        return false;
-      }
-
-      return endpointAvailable;
-    } catch (error) {
-      console.error('Error checking API endpoint availability:', error);
-      return false;
-    }
+export const validateFormData = (formData: Record<string, any>): {
+  isValid: boolean;
+  errors: string[];
+} => {
+  const errors: string[] = [];
+  
+  // Add validation logic here based on your requirements
+  if (!formData.clientId) {
+    errors.push('Client ID is required');
   }
   
-}
+  if (!formData.formType) {
+    errors.push('Form type is required');
+  }
 
-export default LegalFirmWorkflowController;
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
+export const formatCaseId = (caseId: string): string => {
+  // Add case ID formatting logic here
+  return caseId.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+};
+
+export const isApiEndpointAvailable = async (endpointPath: string): Promise<boolean> => {
+  try {
+    // Check the specific endpoint using api utility
+    try {
+      await api.head(endpointPath);
+      return true;
+    } catch (error: any) {
+      // If we get a 401, the endpoint exists but requires auth
+      if (error.response?.status === 401) {
+        return true;
+      }
+      // If we get a 404, the endpoint doesn't exist
+      if (error.response?.status === 404) {
+        return false;
+      }
+      // For other errors, assume endpoint is available
+      return true;
+    }
+  } catch (error) {
+    console.error('Error checking API endpoint availability:', error);
+    return false;
+  }
+};
+
+export default {
+  getWorkflowProgress,
+  saveWorkflowProgress,
+  fetchWorkflows,
+  fetchWorkflowsForClientSearch,
+  checkEmailExists,
+  registerUser,
+  createFormDetails,
+  assignQuestionnaireToFormDetails,
+  fetchQuestionnaireAssignments,
+  createQuestionnaireAssignment,
+  submitImmigrationProcess,
+  getWorkflowResumptionParams,
+  clearWorkflowResumptionParams,
+  generateMultipleCaseIds,
+  validateFormData,
+  formatCaseId,
+  isApiEndpointAvailable
+};
