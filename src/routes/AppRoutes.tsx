@@ -32,6 +32,7 @@ const MyQuestionnaires = lazy(() => import('../pages/MyQuestionnaires'));
 const FillQuestionnaire = lazy(() => import('../pages/FillQuestionnaire'));
 const QuestionnaireResponses = lazy(() => import('../pages/QuestionnaireResponses'));
 const ResponseView = lazy(() => import('../pages/ResponseView'));
+const ReportsPage = lazy(() => import('../pages/reports/ReportsPage'));
 
 const AppRoutes = () => {
   
@@ -223,6 +224,13 @@ const AppRoutes = () => {
           <Route path="/settings" element={
             <Suspense fallback={null}>
               <SettingsPage />
+            </Suspense>
+          } />
+
+          {/* Reports route */}
+          <Route path="/reports" element={
+            <Suspense fallback={null}>
+              <ReportsPage />
             </Suspense>
           } />
 
