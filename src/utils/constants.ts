@@ -256,6 +256,37 @@ export const SUBSCRIPTION_END_POINTS = {
     GET_COMPANY_SUBSCRIPTION: "/api/v1/subscriptions/company/:companyId"
 };
 
+export const REPORT_END_POINTS = {
+    GET_REPORTS: "/api/v1/reports",
+    GET_REPORT_BY_ID: "/api/v1/reports/:id",
+    CREATE_REPORT: "/api/v1/reports",
+    UPDATE_REPORT: "/api/v1/reports/:id",
+    DELETE_REPORT: "/api/v1/reports/:id",
+    GENERATE_REPORT: "/api/v1/reports/generate",
+    DOWNLOAD_REPORT: "/api/v1/reports/:id/download",
+    SCHEDULE_REPORT: "/api/v1/reports/:id/schedule",
+    GET_SCHEDULED_REPORTS: "/api/v1/reports/scheduled",
+    GET_REPORT_ANALYTICS: "/api/v1/reports/:id/analytics",
+    
+    // Report Data Endpoints
+    GET_CASE_REPORT_DATA: "/api/v1/reports/cases/data",
+    GET_CLIENT_REPORT_DATA: "/api/v1/reports/clients/data",
+    GET_DOCUMENT_REPORT_DATA: "/api/v1/reports/documents/data",
+    GET_USER_REPORT_DATA: "/api/v1/reports/users/data",
+    GET_FINANCIAL_REPORT_DATA: "/api/v1/reports/financial/data",
+    
+    // Report Templates
+    GET_REPORT_TEMPLATES: "/api/v1/reports/templates",
+    GET_REPORT_TEMPLATE_BY_ID: "/api/v1/reports/templates/:id",
+    CREATE_REPORT_TEMPLATE: "/api/v1/reports/templates",
+    UPDATE_REPORT_TEMPLATE: "/api/v1/reports/templates/:id",
+    DELETE_REPORT_TEMPLATE: "/api/v1/reports/templates/:id",
+    
+    // Report Categories
+    GET_REPORT_CATEGORIES: "/api/v1/reports/categories",
+    GET_REPORT_TYPES: "/api/v1/reports/types"
+};
+
 export const ROLE_TYPES = {
     SUPER_ADMIN: 'super_admin',
     ADMIN: 'admin',
