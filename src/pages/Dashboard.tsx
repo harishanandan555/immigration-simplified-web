@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   Clock,
   FileText,
-
   CheckCircle,
   AlertCircle,
   Users,
@@ -39,6 +38,7 @@ const Dashboard = () => {
   
   // Workflow API data states
   const [clients, setClients] = useState<any[]>([]);
+  const [workflowClients, setWorkflowClients] = useState<any[]>([]); // Dedicated client count from workflows
   const [cases, setCases] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [loadingWorkflowData, setLoadingWorkflowData] = useState(false);
@@ -51,6 +51,7 @@ const Dashboard = () => {
     completed: 0,
     draft: 0
   });
+  const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
 
   // Load questionnaire assignments for clients
   useEffect(() => {
@@ -85,6 +86,9 @@ const Dashboard = () => {
         setLoadingWorkflows(true);
         const workflowData = await fetchWorkflowsFromAPI();
         
+        // Store workflows for case number matching
+        setAvailableWorkflows(workflowData);
+        
         // Calculate workflow stats
         const stats = {
           total: workflowData.length,
@@ -115,6 +119,10 @@ const Dashboard = () => {
         const workflowData = await fetchClientsAndCasesFromAPI();
         setClients(workflowData.clients);
         setCases(workflowData.cases);
+        
+        // Fetch unique clients using ClientsPage logic for accurate count
+        const uniqueClients = await fetchWorkflowClientsFromAPI();
+        setWorkflowClients(uniqueClients);
         
         // Fetch tasks from tasks API
         const tasksData = await getTasks();
@@ -223,6 +231,81 @@ const Dashboard = () => {
     }
   };
 
+  // Function to fetch clients from workflows API (using ClientsPage logic)
+  const fetchWorkflowClientsFromAPI = async (): Promise<any[]> => {
+    try {
+      console.log('🔄 Fetching clients from workflows API...');
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        console.log('❌ No authentication token available');
+        return [];
+      }
+
+      const response = await api.get('/api/v1/workflows', {
+        params: {
+          page: 1,
+          limit: 100
+        }
+      });
+
+      console.log('📥 Workflows API response for clients:', response.data);
+
+      if (response.data?.success && response.data?.data) {
+        const workflows = response.data.data;
+        console.log(`✅ Successfully loaded ${workflows.length} workflows for client count`);
+        
+        // Extract unique clients from workflows (using ClientsPage logic)
+        const clientsMap = new Map<string, any>();
+        
+        workflows.forEach((workflow: any) => {
+          const clientData = workflow.client;
+          const caseData = workflow.case;
+          
+          if (clientData && clientData.name && clientData.email) {
+            const clientId = clientData.email; // Use email as unique identifier
+            
+            if (!clientsMap.has(clientId)) {
+              clientsMap.set(clientId, {
+                _id: workflow._id || workflow.id,
+                id: clientId,
+                name: clientData.name,
+                email: clientData.email,
+                phone: clientData.phone || 'N/A',
+                status: clientData.status || 'Active',
+                createdAt: workflow.createdAt || caseData?.openDate || '',
+                alienNumber: clientData.alienNumber || 'N/A',
+                address: clientData.address?.formattedAddress || 'N/A',
+                nationality: clientData.nationality || 'N/A',
+                dateOfBirth: clientData.dateOfBirth || 'N/A',
+                // Workflow-specific fields
+                workflowId: workflow._id || workflow.id,
+                caseType: caseData?.category || caseData?.subcategory || 'N/A',
+                formCaseIds: workflow.formCaseIds,
+                openDate: caseData?.openDate || 'N/A',
+                priorityDate: caseData?.priorityDate || 'N/A'
+              });
+            }
+          }
+        });
+
+        const uniqueClients = Array.from(clientsMap.values());
+        console.log(`📋 Extracted ${uniqueClients.length} unique clients`);
+        return uniqueClients;
+      } else {
+        console.log('⚠️ No workflow data available in API response');
+        return [];
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error fetching clients from workflows API:', error);
+      if (error?.response?.status === 401) {
+        console.log('🔑 Authentication failed - token may be expired');
+      }
+      return [];
+    }
+  };
+
   // Helper function to format case category for display
   const formatCaseCategory = (category: string): string => {
     if (!category) return 'Other';
@@ -244,6 +327,142 @@ const Dashboard = () => {
           word.charAt(0).toUpperCase() + word.slice(1)
         ).join(' ');
     }
+  };
+
+  // Function to get client name for a case (from TasksPage)
+  const getClientNameForCase = (caseId: string) => {
+    if (!caseId) return '';
+    
+    // Handle formatted case numbers like "CR-2025-9382 (G-28)"
+    let selectedCase;
+    if (caseId.includes('CR-')) {
+      // Extract case number from formatted string
+      const caseNumber = caseId.split(' ')[0];
+      selectedCase = cases.find((c: any) => c.caseNumber === caseNumber);
+    } else {
+      // Handle database IDs (for backward compatibility)
+      selectedCase = cases.find((c: any) => c.id === caseId);
+    }
+    
+    if (selectedCase) {
+      const client = clients.find((c: any) => c.id === selectedCase.clientId);
+      return client ? client.name : 'Unknown Client';
+    }
+    return '';
+  };
+
+  // Function to get workflow case number for a case (from CasesPage)
+  const getWorkflowCaseNumber = (caseItem: any) => {
+    if (!availableWorkflows.length) {
+      return null;
+    }
+
+    // Try to find a matching workflow by various criteria
+    const matchingWorkflow = availableWorkflows.find((workflow: any) => {
+      // Match by case ID first (most reliable)
+      if (workflow.case?.id && caseItem._id) {
+        const idMatch = workflow.case.id === caseItem._id || workflow.case._id === caseItem._id;
+        if (idMatch) {
+          return true;
+        }
+      }
+
+      // Match by case number if available
+      if (workflow.case?.caseNumber && caseItem.caseNumber) {
+        const caseNumberMatch = workflow.case.caseNumber === caseItem.caseNumber;
+        if (caseNumberMatch) {
+          return true;
+        }
+      }
+
+      // Match by form case IDs (check if case number matches any form case ID)
+      if (workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0) {
+        const formCaseIdMatch = Object.values(workflow.formCaseIds).some(formCaseId => 
+          formCaseId === caseItem.caseNumber
+        );
+        if (formCaseIdMatch) {
+          return true;
+        }
+      }
+
+      // Match by case title/description
+      if (workflow.case?.title && caseItem.description) {
+        const titleMatch = workflow.case.title.toLowerCase().includes(caseItem.description.toLowerCase()) ||
+            caseItem.description.toLowerCase().includes(workflow.case.title.toLowerCase());
+        if (titleMatch) {
+          return true;
+        }
+      }
+
+      // Match by client email if available
+      if (workflow.client?.email && caseItem.clientName) {
+        const client = clients.find((c: any) => c.id === caseItem.clientId);
+        if (client?.email) {
+          const emailMatch = workflow.client.email.toLowerCase() === client.email.toLowerCase();
+          if (emailMatch) {
+            return true;
+          }
+        }
+      }
+
+      // Match by client name if available
+      if (workflow.client && caseItem.clientName) {
+        const workflowClientName = workflow.client.name || 
+          `${workflow.client.firstName || ''} ${workflow.client.lastName || ''}`.trim();
+        const nameMatch = workflowClientName.toLowerCase() === caseItem.clientName.toLowerCase();
+        if (nameMatch) {
+          return true;
+        }
+      }
+
+      // Match by client ID if available
+      if (workflow.client?.id && caseItem.clientId) {
+        const clientIdMatch = workflow.client.id === caseItem.clientId || workflow.client._id === caseItem.clientId;
+        if (clientIdMatch) {
+          return true;
+        }
+      }
+
+      // Fuzzy match by case type/category
+      if (workflow.case?.category && caseItem.type) {
+        const categoryMatch = workflow.case.category.toLowerCase().includes(caseItem.type.toLowerCase()) ||
+            caseItem.type.toLowerCase().includes(workflow.case.category.toLowerCase());
+        if (categoryMatch) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    return matchingWorkflow;
+  };
+
+  // Function to get workflow case numbers for display (from CasesPage)
+  const getWorkflowCaseNumbers = (workflow: any) => {
+    const caseNumbers = [];
+    
+    // Get case number from case object
+    if (workflow.case?.caseNumber) {
+      caseNumbers.push({
+        type: 'Case',
+        number: workflow.case.caseNumber,
+        source: 'case'
+      });
+    }
+    
+    // Get form case IDs
+    if (workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0) {
+      Object.entries(workflow.formCaseIds).forEach(([formName, caseId]) => {
+        caseNumbers.push({
+          type: formName,
+          number: caseId,
+          source: 'form'
+        });
+      });
+    }
+    
+    return caseNumbers;
   };
 
   // Fetch workflows from API function
@@ -344,11 +563,8 @@ const Dashboard = () => {
 
       {/* Loading indicator */}
       {loadingWorkflowData && (
-        <div className="mb-6 bg-gray-50 border border-gray-200 p-4 rounded-md">
-          <div className="flex items-center">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600 mr-3"></div>
-            <p className="text-gray-600">Loading dashboard data from workflow API...</p>
-          </div>
+        <div className="mb-6 flex justify-center">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
         </div>
       )}
 
@@ -450,7 +666,7 @@ const Dashboard = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-gray-500 text-sm">Total Clients</p>
-                <p className="text-2xl font-bold mt-1">{clients.length}</p>
+                <p className="text-2xl font-bold mt-1">{workflowClients.length}</p>
               </div>
               <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
                 <Users size={20} />
@@ -572,7 +788,7 @@ const Dashboard = () => {
             </div>
 
             <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="90%" height="100%">
                 <BarChart data={typeData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
@@ -596,7 +812,7 @@ const Dashboard = () => {
               </div>
 
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="90%" height="100%">
                   <BarChart data={[
                     { name: 'In Progress', count: workflowStats.inProgress },
                     { name: 'Completed', count: workflowStats.completed },
@@ -642,34 +858,83 @@ const Dashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredCases.slice(0, 5).map((caseItem: any) => {
+                  {filteredCases.slice(0, 4).map((caseItem: any) => {
                     const client = clients.find((c: any) => c.id === caseItem.clientId);
+                    const matchingWorkflow = getWorkflowCaseNumber(caseItem);
+                    const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
+                    
                     return (
-                      <tr key={caseItem.id} className="hover:bg-gray-50">
+                      <tr key={caseItem.id || caseItem._id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Link to={`/cases/${caseItem.id}`} className="text-primary-600 hover:text-primary-700 font-medium">
-                            {caseItem.caseNumber}
+                          <Link to={`/cases/${caseItem.id || caseItem._id}`} className="text-primary-600 hover:text-primary-700 font-medium">
+                            <div>{caseItem.caseNumber}</div>
+                            {workflowCaseNumbers.length > 0 && (
+                              <div className="mt-1 space-y-1">
+                                {workflowCaseNumbers.map((caseNum, index) => (
+                                  <div 
+                                    key={index}
+                                    className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
+                                      caseNum.source === 'case' 
+                                        ? 'text-blue-600 bg-blue-50' 
+                                        : 'text-green-600 bg-green-50'
+                                    }`}
+                                  >
+                                    {caseNum.type}: {caseNum.number}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {matchingWorkflow && (
+                              <div className="text-xs text-purple-600 mt-1">
+                                📋 Workflow Status: {matchingWorkflow.status || 'in-progress'}
+                              </div>
+                            )}
                           </Link>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {caseItem.type}
+                          <div>{caseItem.type}</div>
+                          {matchingWorkflow?.selectedForms && matchingWorkflow.selectedForms.length > 0 && (
+                            <div className="text-xs text-green-600 mt-1">
+                              Forms: {matchingWorkflow.selectedForms.join(', ')}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {client?.name}
+                          <div>
+                            <div className="font-medium">{client?.name || caseItem.clientName}</div>
+                            {client?.email && (
+                              <div className="text-xs text-gray-400">{client.email}</div>
+                            )}
+                            {matchingWorkflow?.client && (
+                              <div className="text-xs text-blue-600 mt-1">
+                                🔗 Linked to workflow
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            ${caseItem.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                              caseItem.status === 'Document Collection' ? 'bg-yellow-100 text-yellow-800' :
-                                caseItem.status === 'Waiting on USCIS' ? 'bg-purple-100 text-purple-800' :
-                                  caseItem.status === 'RFE Received' ? 'bg-orange-100 text-orange-800' :
-                                    caseItem.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                                      caseItem.status === 'Closed' ? 'bg-gray-100 text-gray-800' :
-                                        'bg-gray-100 text-gray-800'
+                            ${caseItem.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                              caseItem.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                                caseItem.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                  caseItem.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                                    caseItem.status === 'Document Collection' ? 'bg-yellow-100 text-yellow-800' :
+                                      caseItem.status === 'Waiting on USCIS' ? 'bg-purple-100 text-purple-800' :
+                                        caseItem.status === 'RFE Received' ? 'bg-orange-100 text-orange-800' :
+                                          caseItem.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                                            caseItem.status === 'Closed' ? 'bg-gray-100 text-gray-800' :
+                                              'bg-gray-100 text-gray-800'
                             }`}
                           >
                             {caseItem.status}
                           </span>
+                          {matchingWorkflow && (
+                            <div className="mt-1">
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                                Step {matchingWorkflow.currentStep || 1}
+                              </span>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -769,7 +1034,17 @@ const Dashboard = () => {
             <div className="space-y-4">
               {upcomingDeadlines.length > 0 ? (
                 upcomingDeadlines.map((task: any) => {
-                  const caseItem = cases.find((c: any) => c.id === task.caseId || c.id === task.relatedCaseId);
+                  // Handle both old format (caseId) and new format (relatedCaseId) - from TasksPage logic
+                  const caseIdentifier = task.caseId || task.relatedCaseId;
+                  const relatedCase = cases.find((c: any) => 
+                    c.id === caseIdentifier || 
+                    c.caseNumber === caseIdentifier?.split(' ')[0] ||
+                    c._id === caseIdentifier
+                  );
+                  
+                  const matchingWorkflow = relatedCase ? getWorkflowCaseNumber(relatedCase) : null;
+                  const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
+                  
                   const daysLeft = Math.ceil(
                     (new Date(task.dueDate!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
                   );
@@ -797,9 +1072,35 @@ const Dashboard = () => {
                               {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
                             </p>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Case: {caseItem?.caseNumber}
-                          </p>
+                          <div className="text-xs text-gray-500 mt-1">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span>Client: {getClientNameForCase(caseIdentifier)}</span>
+                                <span className="ml-2">Case: {relatedCase?.caseNumber || caseIdentifier}</span>
+                              </div>
+                            </div>
+                            {workflowCaseNumbers.length > 0 && (
+                              <div className="mt-1 space-y-1">
+                                {workflowCaseNumbers.map((caseNum, index) => (
+                                  <span 
+                                    key={index}
+                                    className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
+                                      caseNum.source === 'case' 
+                                        ? 'text-blue-600 bg-blue-50' 
+                                        : 'text-green-600 bg-green-50'
+                                    }`}
+                                  >
+                                    {caseNum.type}: {caseNum.number}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {matchingWorkflow && (
+                              <div className="text-xs text-purple-600 mt-1">
+                                📋 Workflow Status: {matchingWorkflow.status || 'in-progress'}
+                              </div>
+                            )}
+                          </div>
                           <div className="flex items-center justify-between mt-2">
                             <p className="text-xs text-gray-500">
                               Due: {new Date(task.dueDate!).toLocaleDateString()}
@@ -808,10 +1109,11 @@ const Dashboard = () => {
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                                 ${task.status === 'Completed' ? 'bg-green-100 text-green-800' :
                                   task.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-gray-100 text-gray-800'
+                                    task.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                                      'bg-gray-100 text-gray-800'
                                 }`}
                               >
-                                {task.status}
+                                {task.status || 'Pending'}
                               </span>
                             </div>
                           </div>
@@ -880,41 +1182,6 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Quick Actions */}
-          <div className="card">
-            <h2 className="text-lg font-medium mb-4">Quick Actions</h2>
-            <div className="space-y-3">
-              <Link
-                to="/cases/new"
-                className="block w-full btn btn-primary text-center"
-              >
-                Create New Case
-              </Link>
-
-              {(isAttorney || isSuperAdmin) && (
-                <Link
-                  to="/legal-firm-workflow"
-                  className="block w-full btn btn-secondary text-center"
-                >
-                  Start New Workflow
-                </Link>
-              )}
-
-              <Link
-                to="/forms"
-                className="block w-full btn btn-secondary text-center"
-              >
-                Fill Out Form
-              </Link>
-
-              <Link
-                to="/documents"
-                className="block w-full btn btn-outline text-center"
-              >
-                Upload Document
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>
