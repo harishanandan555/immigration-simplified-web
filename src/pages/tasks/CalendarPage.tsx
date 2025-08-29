@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ChevronLeft, 
@@ -10,15 +10,204 @@ import {
 } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 import { format, isSameDay, isWithinInterval, addDays, startOfMonth, endOfMonth } from 'date-fns';
-import { mockTasks, mockCases } from '../../utils/mockData';
+import { getTasks } from '../../controllers/TaskControllers';
+import api from '../../utils/api';
+
+type Task = {
+  _id?: string;
+  id?: string;
+  title: string;
+  description: string;
+  clientName?: string;
+  relatedCaseId?: string;
+  caseId?: string; // For backward compatibility
+  dueDate: string;
+  priority: 'High' | 'Medium' | 'Low';
+  status?: string;
+  assignedTo: string | any;
+  notes?: string;
+  tags?: string[];
+  reminders?: string[];
+};
+
+type Case = { 
+  id: string; 
+  caseNumber: string; 
+  clientId: string;
+  category?: string;
+  subcategory?: string;
+  openDate?: string;
+  priorityDate?: string;
+};
+
+type Client = {
+  _id: string;
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  workflowId?: string;
+  caseType?: string;
+  cases?: Case[];
+  imsUserId?: string;
+  hasImsUser?: boolean;
+};
 
 const CalendarPage = () => {
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  
+  // State for real data
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [cases, setCases] = useState<Case[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load data from TasksPage logic
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Function to fetch clients and cases from workflows API (same as TasksPage)
+  const fetchWorkflowsFromAPI = async (): Promise<{ clients: Client[], cases: Case[] }> => {
+    try {
+      console.log('🔄 Fetching workflows from API for calendar...');
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        console.log('❌ No authentication token available');
+        return { clients: [], cases: [] };
+      }
+
+      const response = await api.get('/api/v1/workflows', {
+        params: {
+          page: 1,
+          limit: 100
+        }
+      });
+
+      console.log('📥 Workflows API response for calendar:', response.data);
+
+      if (response.data?.success && response.data?.data) {
+        const workflows = response.data.data;
+        console.log(`✅ Successfully loaded ${workflows.length} workflows for calendar`);
+        
+        const clientsMap = new Map<string, Client>();
+        const casesArray: Case[] = [];
+        
+        workflows.forEach((workflow: any) => {
+          const clientData = workflow.client;
+          const caseData = workflow.case;
+          
+          if (clientData && clientData.name && clientData.email) {
+            const clientId = clientData.email;
+            
+            // Add client if not already exists
+            if (!clientsMap.has(clientId)) {
+              clientsMap.set(clientId, {
+                _id: workflow._id || workflow.id,
+                id: clientId,
+                name: clientData.name,
+                email: clientData.email,
+                phone: clientData.phone || '',
+                workflowId: workflow._id || workflow.id,
+                caseType: caseData?.category || caseData?.subcategory || '',
+                cases: []
+              });
+            }
+            
+            // Extract case numbers from formCaseIds
+            if (caseData && caseData.formCaseIds) {
+              Object.entries(caseData.formCaseIds).forEach(([formType, caseNumber]: [string, any]) => {
+                const caseItem: Case = {
+                  id: `${workflow._id}_${formType}`,
+                  caseNumber: caseNumber,
+                  clientId: clientId,
+                  category: caseData.category || '',
+                  subcategory: caseData.subcategory || '',
+                  openDate: workflow.createdAt || '',
+                  priorityDate: caseData.priorityDate || workflow.createdAt || ''
+                };
+                
+                casesArray.push(caseItem);
+                
+                // Add case to client's cases array
+                const client = clientsMap.get(clientId);
+                if (client && client.cases) {
+                  client.cases.push(caseItem);
+                }
+              });
+            } else if (caseData) {
+              // Fallback: if no formCaseIds, create a generic case
+              const caseItem: Case = {
+                id: workflow._id || workflow.id,
+                caseNumber: `WF-${workflow.workflowId || workflow._id?.slice(-8) || 'UNKNOWN'}`,
+                clientId: clientId,
+                category: caseData.category || '',
+                subcategory: caseData.subcategory || '',
+                openDate: workflow.createdAt || '',
+                priorityDate: caseData.priorityDate || workflow.createdAt || ''
+              };
+              
+              casesArray.push(caseItem);
+              
+              // Add case to client's cases array
+              const client = clientsMap.get(clientId);
+              if (client && client.cases) {
+                client.cases.push(caseItem);
+              }
+            }
+          }
+        });
+
+        return { 
+          clients: Array.from(clientsMap.values()), 
+          cases: casesArray 
+        };
+      } else {
+        console.log('⚠️ No workflow data available in API response');
+        return { clients: [], cases: [] };
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error fetching workflows from API:', error);
+      return { clients: [], cases: [] };
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch clients and cases from workflows API
+      const { clients: workflowClients, cases: workflowCases } = await fetchWorkflowsFromAPI();
+      
+      setClients(workflowClients);
+      setCases(workflowCases || []);
+      
+      // Fetch actual tasks from API
+      try {
+        console.log('🔄 Fetching tasks from API for calendar...');
+        const tasksFromAPI = await getTasks();
+        console.log('📋 Tasks fetched for calendar:', tasksFromAPI);
+        setTasks(tasksFromAPI);
+      } catch (error) {
+        console.error('❌ Error fetching tasks for calendar:', error);
+        setTasks([]);
+      }
+    } catch (error) {
+      console.error('Error loading calendar data:', error);
+      setClients([]);
+      setCases([]);
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Get tasks for the selected month
-  const monthTasks = mockTasks.filter(task => {
+  const monthTasks = tasks.filter((task: Task) => {
     const taskDate = new Date(task.dueDate);
     return isWithinInterval(taskDate, {
       start: startOfMonth(selectedMonth),
@@ -28,7 +217,7 @@ const CalendarPage = () => {
 
   // Get tasks for the selected date
   const selectedDateTasks = selectedDate 
-    ? monthTasks.filter(task => isSameDay(new Date(task.dueDate), selectedDate))
+    ? monthTasks.filter((task: Task) => isSameDay(new Date(task.dueDate), selectedDate))
     : [];
 
   const getTaskStatusColor = (status: string) => {
@@ -57,35 +246,16 @@ const CalendarPage = () => {
     }
   };
 
-  // Custom day content to show task indicators
-  const getDayContent = (day: Date) => {
-    const dayTasks = monthTasks.filter(task => 
-      isSameDay(new Date(task.dueDate), day)
-    );
-
-    if (dayTasks.length === 0) return null;
-
-    const hasOverdue = dayTasks.some(task => 
-      new Date(task.dueDate) < new Date() && task.status !== 'Completed'
-    );
-    const hasHighPriority = dayTasks.some(task => task.priority === 'High');
-
+  if (loading) {
     return (
-      <div className="flex flex-col items-center">
-        <div className="flex gap-1 mt-1">
-          {hasOverdue && (
-            <div className="h-1.5 w-1.5 rounded-full bg-error-500" />
-          )}
-          {hasHighPriority && (
-            <div className="h-1.5 w-1.5 rounded-full bg-warning-500" />
-          )}
-          {!hasOverdue && !hasHighPriority && (
-            <div className="h-1.5 w-1.5 rounded-full bg-primary-500" />
-          )}
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading calendar data...</p>
         </div>
       </div>
     );
-  };
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -122,7 +292,7 @@ const CalendarPage = () => {
             month={selectedMonth}
             onMonthChange={setSelectedMonth}
             modifiers={{
-              hasTasks: (day) => monthTasks.some(task => 
+              hasTasks: (day) => monthTasks.some((task: Task) => 
                 isSameDay(new Date(task.dueDate), day)
               )
             }}
@@ -132,12 +302,43 @@ const CalendarPage = () => {
               }
             }}
             components={{
-              DayContent: ({ date }) => (
-                <div className="relative">
-                  <div>{format(date, 'd')}</div>
-                  {getDayContent(date)}
-                </div>
-              )
+              DayContent: ({ date }) => {
+                const dayTasks = monthTasks.filter((task: Task) => 
+                  isSameDay(new Date(task.dueDate), date)
+                );
+                
+                return (
+                  <div className="relative w-full h-full flex flex-col items-center justify-center">
+                    {/* Date number - always visible */}
+                    <div className="font-medium text-center mb-1">{format(date, 'd')}</div>
+                    
+                    {/* Task indicators - small and clean */}
+                    {dayTasks.length > 0 && (
+                      <div className="flex flex-col items-center">
+                        {/* Just show count and priority dots */}
+                        <div className="text-xs text-gray-500 mb-1">
+                          {dayTasks.length} task{dayTasks.length > 1 ? 's' : ''}
+                        </div>
+                        <div className="flex gap-1">
+                          {dayTasks.some((task: Task) => 
+                            new Date(task.dueDate) < new Date() && task.status !== 'Completed'
+                          ) && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                          )}
+                          {dayTasks.some((task: Task) => task.priority === 'High') && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                          )}
+                          {!dayTasks.some((task: Task) => 
+                            new Date(task.dueDate) < new Date() && task.status !== 'Completed'
+                          ) && !dayTasks.some((task: Task) => task.priority === 'High') && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
             }}
             styles={{
               months: { margin: '0' },
@@ -157,14 +358,19 @@ const CalendarPage = () => {
                 color: '#6b7280'
               },
               cell: { 
-                padding: '0.75rem',
-                fontSize: '0.875rem'
+                padding: '0.5rem',
+                fontSize: '0.875rem',
+                height: '3.5rem', // Reduced height for cleaner look
+                verticalAlign: 'middle'
               },
               day: {
                 margin: '0',
-                width: '2.5rem',
-                height: '2.5rem',
-                fontSize: '0.875rem'
+                width: '100%',
+                height: '100%',
+                fontSize: '0.875rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }
             }}
             className="w-full"
@@ -189,13 +395,18 @@ const CalendarPage = () => {
 
           {selectedDateTasks.length > 0 ? (
             <div className="space-y-4">
-              {selectedDateTasks.map((task) => {
-                const relatedCase = mockCases.find(c => c.id === task.caseId);
+              {selectedDateTasks.map((task: Task) => {
+                // Handle both old format (caseId) and new format (relatedCaseId)
+                const caseIdentifier = task.caseId || task.relatedCaseId;
+                const relatedCase = cases.find((c: Case) => 
+                  c.id === caseIdentifier || 
+                  c.caseNumber === caseIdentifier?.split(' ')[0]
+                );
                 const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'Completed';
                 
                 return (
                   <div 
-                    key={task.id}
+                    key={task._id || task.id}
                     className={`p-4 rounded-lg border ${
                       isOverdue 
                         ? 'border-error-200 bg-error-50'
@@ -208,20 +419,27 @@ const CalendarPage = () => {
                           <h3 className="text-sm font-medium text-gray-900">
                             {task.title}
                           </h3>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getTaskStatusColor(task.status)}`}>
-                            {task.status}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getTaskStatusColor(task.status || 'Pending')}`}>
+                            {task.status || 'Pending'}
                           </span>
                         </div>
                         <p className="mt-1 text-sm text-gray-500">
                           {task.description}
                         </p>
                         <div className="mt-2 flex items-center gap-4">
-                          <Link 
-                            to={`/cases/${relatedCase?.id}`}
-                            className="text-xs text-primary-600 hover:text-primary-700"
-                          >
-                            {relatedCase?.caseNumber}
-                          </Link>
+                          {relatedCase && (
+                            <Link 
+                              to={`/cases/${relatedCase.id}`}
+                              className="text-xs text-primary-600 hover:text-primary-700"
+                            >
+                              {relatedCase.caseNumber}
+                            </Link>
+                          )}
+                          {task.clientName && (
+                            <span className="text-xs text-gray-500">
+                              Client: {task.clientName}
+                            </span>
+                          )}
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
                             {task.priority} Priority
                           </span>
