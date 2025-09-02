@@ -301,11 +301,11 @@ const IndividualFormFiling: React.FC = () => {
 
   const handleDownloadPDF = () => {
     // Simulate PDF generation and download
-    alert('Generating and downloading pre-filled forms...');
+    console.log('Generating and downloading pre-filled forms...');
   };
 
   const handleSubmitToAdvisor = () => {
-    alert('Forms sent to legal advisor for review');
+    console.log('Forms sent to legal advisor for review');
   };
 
   const renderGoalSelection = () => (

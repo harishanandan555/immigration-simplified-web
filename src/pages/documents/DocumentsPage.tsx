@@ -538,7 +538,7 @@ const DocumentsPage = () => {
 
   const handleUpload = async () => {
     if (!fileToUpload || !uploadClientId) {
-      alert('Please select a file and a client.');
+      console.error('Please select a file and a client.');
       return;
     }
 
@@ -601,11 +601,11 @@ const DocumentsPage = () => {
         setUploadClientId('');
         setUploadCaseNumber('');
         setUploadDescription('');
-        alert('Document uploaded successfully!');
+        console.log('Document uploaded successfully!');
         console.log('✅ Document uploaded successfully:', response.data);
       } else {
         const errorMessage = response.data?.message || 'Upload failed';
-        alert(`Upload failed: ${errorMessage}`);
+        console.error(`Upload failed: ${errorMessage}`);
         console.error('❌ Upload failed:', response.data);
       }
     } catch (error: any) {
@@ -630,7 +630,7 @@ const DocumentsPage = () => {
         errorMessage = error.message;
       }
       
-      alert(`Upload error: ${errorMessage}`);
+      console.error(`Upload error: ${errorMessage}`);
     }
   };
 
@@ -655,13 +655,13 @@ const DocumentsPage = () => {
         setDocuments(documents.map(d => (d._id === editingDocument._id ? response.data : d)));
         setShowEditModal(false);
         setEditingDocument(null);
-        alert('Document updated successfully!');
+        console.log('Document updated successfully!');
       } else {
-        alert(`Update failed: ${response.message || 'Unknown error'}`);
+        console.error(`Update failed: ${response.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to update document', error);
-      alert('An error occurred during update.');
+      console.error('An error occurred during update.');
     }
   };
 
@@ -671,13 +671,13 @@ const DocumentsPage = () => {
         const response = await deleteDocument(documentId);
         if (response.success) {
           setDocuments(documents.filter(d => d._id !== documentId));
-          alert('Document deleted successfully');
+          console.log('Document deleted successfully');
         } else {
-          alert(`Failed to delete document: ${response.message}`);
+          console.error(`Failed to delete document: ${response.message}`);
         }
       } catch (error) {
         console.error('Failed to delete document', error);
-        alert('An error occurred while deleting the document.');
+        console.error('An error occurred while deleting the document.');
       }
     }
   };
@@ -687,7 +687,7 @@ const DocumentsPage = () => {
       await downloadDocument(documentId, documentName);
     } catch (error) {
       console.error('Failed to download document', error);
-      alert('An error occurred while downloading the document.');
+      console.error('An error occurred while downloading the document.');
     }
   };
 
@@ -696,7 +696,7 @@ const DocumentsPage = () => {
       await previewDocument(documentId);
     } catch (error) {
       console.error('Failed to preview document', error);
-      alert('An error occurred while previewing the document.');
+      console.error('An error occurred while previewing the document.');
     }
   };
 
@@ -705,13 +705,13 @@ const DocumentsPage = () => {
       const response = await verifyDocument(documentId);
       if (response.success) {
         setDocuments(documents.map(d => d._id === documentId ? {...d, status: 'Verified'} : d));
-        alert('Document verified successfully');
+        console.log('Document verified successfully');
       } else {
-        alert(`Failed to verify document: ${response.message}`);
+        console.error(`Failed to verify document: ${response.message}`);
       }
     } catch (error) {
       console.error('Failed to verify document', error);
-      alert('An error occurred while verifying the document.');
+      console.error('An error occurred while verifying the document.');
     }
   };
 
@@ -722,13 +722,13 @@ const DocumentsPage = () => {
         const response = await rejectDocument(documentId, reason);
         if (response.success) {
           setDocuments(documents.map(d => d._id === documentId ? {...d, status: 'Rejected'} : d));
-          alert('Document rejected successfully');
+          console.log('Document rejected successfully');
         } else {
-          alert(`Failed to reject document: ${response.message}`);
+          console.error(`Failed to reject document: ${response.message}`);
         }
       } catch (error) {
         console.error('Failed to reject document', error);
-        alert('An error occurred while rejecting the document.');
+        console.error('An error occurred while rejecting the document.');
       }
     }
   };

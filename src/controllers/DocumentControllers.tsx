@@ -427,7 +427,7 @@ export const previewDocument = async (documentId: string): Promise<void> => {
       
       // Check if it's a dummy URL
       if (previewUrl.includes('storage.example.com')) {
-        alert('Preview not available: This is a demo document with a placeholder URL. Please upload a real document to test preview functionality.');
+        console.warn('Preview not available: This is a demo document with a placeholder URL. Please upload a real document to test preview functionality.');
         return;
       }
       
@@ -446,11 +446,11 @@ export const previewDocument = async (documentId: string): Promise<void> => {
     
     // More specific error handling
     if (error.response?.status === 404) {
-      alert('Document not found or preview not available.');
+      console.error('Document not found or preview not available.');
     } else if (error.response?.status === 403) {
-      alert('You do not have permission to preview this document.');
+      console.error('You do not have permission to preview this document.');
     } else {
-      alert(`Preview failed: ${error.message || 'Unknown error'}`);
+      console.error(`Preview failed: ${error.message || 'Unknown error'}`);
     }
     
     if (error instanceof Error) {
