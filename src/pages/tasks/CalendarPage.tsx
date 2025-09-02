@@ -23,11 +23,13 @@ type Task = {
   caseId?: string; // For backward compatibility
   dueDate: string;
   priority: 'High' | 'Medium' | 'Low';
-  status?: string;
+  status: 'Pending' | 'In Progress' | 'Completed';
   assignedTo: string | any;
   notes?: string;
   tags?: string[];
   reminders?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type Case = { 
@@ -186,12 +188,21 @@ const CalendarPage = () => {
       setClients(workflowClients);
       setCases(workflowCases || []);
       
-      // Fetch actual tasks from API
+  // Fetch actual tasks from API
       try {
         console.log('🔄 Fetching tasks from API for calendar...');
         const tasksFromAPI = await getTasks();
         console.log('📋 Tasks fetched for calendar:', tasksFromAPI);
-        setTasks(tasksFromAPI);
+        
+        // Ensure all tasks have priority and status for calendar display
+        const tasksWithDefaults = tasksFromAPI.map(task => ({
+          ...task,
+          priority: task.priority || 'Medium',
+          status: task.status || 'Pending'
+        }));
+        
+        console.log('📋 Tasks with priority/status for calendar:', tasksWithDefaults.length > 0 ? tasksWithDefaults[0] : 'No tasks');
+        setTasks(tasksWithDefaults);
       } catch (error) {
         console.error('❌ Error fetching tasks for calendar:', error);
         setTasks([]);
@@ -220,7 +231,7 @@ const CalendarPage = () => {
     ? monthTasks.filter((task: Task) => isSameDay(new Date(task.dueDate), selectedDate))
     : [];
 
-  const getTaskStatusColor = (status: string) => {
+  const getTaskStatusColor = (status: 'Pending' | 'In Progress' | 'Completed') => {
     switch (status) {
       case 'Completed':
         return 'bg-green-100 text-green-800';
@@ -233,7 +244,7 @@ const CalendarPage = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: 'High' | 'Medium' | 'Low') => {
     switch (priority) {
       case 'High':
         return 'bg-red-100 text-red-800';
@@ -250,7 +261,7 @@ const CalendarPage = () => {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading calendar data...</p>
         </div>
       </div>
@@ -309,16 +320,36 @@ const CalendarPage = () => {
                 
                 return (
                   <div className="relative w-full h-full flex flex-col items-center justify-center">
-                    {/* Date number - always visible */}
-                    <div className="font-medium text-center mb-1">{format(date, 'd')}</div>
-                    
-                    {/* Task indicators - small and clean */}
+                    {/* Task name above the date */}
                     {dayTasks.length > 0 && (
-                      <div className="flex flex-col items-center">
-                        {/* Just show count and priority dots */}
-                        <div className="text-xs text-gray-500 mb-1">
-                          {dayTasks.length} task{dayTasks.length > 1 ? 's' : ''}
-                        </div>
+                      <div className="text-xs text-gray-600 mb-1 max-w-full text-center">
+                        {dayTasks.slice(0, 1).map((task, index) => (
+                          <div key={index} className="truncate leading-tight">
+                            {task.title.length > 10 ? task.title.substring(0, 10) + '...' : task.title}
+                          </div>
+                        ))}
+                        {dayTasks.length > 1 && (
+                          <div className="text-xs text-gray-400">+{dayTasks.length - 1}</div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Date number with priority color border */}
+                    <div className={`font-medium text-center w-8 h-8 rounded-full flex items-center justify-center ${
+                      dayTasks.length > 0 
+                        ? dayTasks.some(task => task.priority === 'High')
+                          ? 'border-2 border-red-500 bg-red-50 text-red-700'
+                          : dayTasks.some(task => task.priority === 'Medium')
+                          ? 'border-2 border-yellow-500 bg-yellow-50 text-yellow-700'
+                          : 'border-2 border-green-500 bg-green-50 text-green-700'
+                        : ''
+                    }`}>
+                      {format(date, 'd')}
+                    </div>
+                    
+                    {/* Task indicators below the date */}
+                    {dayTasks.length > 0 && (
+                      <div className="flex flex-col items-center mt-1">
                         <div className="flex gap-1">
                           {dayTasks.some((task: Task) => 
                             new Date(task.dueDate) < new Date() && task.status !== 'Completed'
@@ -360,7 +391,7 @@ const CalendarPage = () => {
               cell: { 
                 padding: '0.5rem',
                 fontSize: '0.875rem',
-                height: '3.5rem', // Reduced height for cleaner look
+                height: '4rem', // Increased height to accommodate task name
                 verticalAlign: 'middle'
               },
               day: {
@@ -419,8 +450,8 @@ const CalendarPage = () => {
                           <h3 className="text-sm font-medium text-gray-900">
                             {task.title}
                           </h3>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getTaskStatusColor(task.status || 'Pending')}`}>
-                            {task.status || 'Pending'}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getTaskStatusColor(task.status)}`}>
+                            {task.status}
                           </span>
                         </div>
                         <p className="mt-1 text-sm text-gray-500">
