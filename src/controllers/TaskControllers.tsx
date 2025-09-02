@@ -31,7 +31,12 @@ export const getTasks = async (): Promise<Task[]> => {
     try {
         console.log('🔄 Fetching tasks from API...');
         
-        const response: AxiosResponse<{ tasks?: Task[], data?: Task[], success?: boolean } | Task[]> = await api.get(TASK_END_POINTS.GET_ALL_TASKS);
+        // Add query parameters to ensure we get all task fields including priority and status
+        const response: AxiosResponse<{ tasks?: Task[], data?: Task[], success?: boolean } | Task[]> = await api.get(TASK_END_POINTS.GET_ALL_TASKS, {
+            params: {
+                fields: 'title,description,clientName,relatedCaseId,dueDate,priority,status,assignedTo,notes,tags,reminders,createdAt,updatedAt'
+            }
+        });
         
         console.log('📥 Tasks API response:', response.data);
         
@@ -47,7 +52,15 @@ export const getTasks = async (): Promise<Task[]> => {
             tasks = [];
         }
         
-        console.log(`✅ Found ${tasks.length} tasks`);
+        // Ensure each task has default values for priority and status if missing
+        tasks = tasks.map(task => ({
+            ...task,
+            priority: task.priority || 'Medium',
+            status: task.status || 'Pending'
+        }));
+        
+        console.log(`✅ Found ${tasks.length} tasks with priority and status`);
+        console.log('📋 Sample task data:', tasks.length > 0 ? tasks[0] : 'No tasks');
         return tasks;
     } catch (error) {
         console.error('❌ Error fetching tasks:', error);
