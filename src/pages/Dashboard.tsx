@@ -625,7 +625,7 @@ const Dashboard = () => {
           </div>
         </div> */}
 
-        <div className="card">
+        {/* <div className="card">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-gray-500 text-sm">Pending Forms</p>
@@ -642,7 +642,7 @@ const Dashboard = () => {
               Manage forms →
             </Link>
           </div>
-        </div>
+        </div> */}
 
         <div className="card">
           <div className="flex items-start justify-between">
