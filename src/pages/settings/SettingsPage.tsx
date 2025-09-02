@@ -1161,12 +1161,83 @@ const SettingsPage = () => {
   const [newUser, setNewUser] = useState({
     firstName: '',
     lastName: '',
+    middleName: '',
     email: '',
+    phone: '',
     role: '' as '' | 'attorney' | 'paralegal' | 'client',
     active: true,
     companyId: user?.companyId || '', // Set initial companyId from current user
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    bio: '',
+    address: {
+      street: '',
+      aptSuiteFlr: '',
+      aptNumber: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'United States'
+    },
+    // Client/Paralegal-specific fields
+    nationality: '',
+    dateOfBirth: '',
+    placeOfBirth: {
+      city: '',
+      state: '',
+      country: ''
+    },
+    gender: '',
+    maritalStatus: '',
+    immigrationPurpose: '',
+    passportNumber: '',
+    alienRegistrationNumber: '',
+    nationalIdNumber: '',
+    ssn: '',
+    employment: {
+      currentEmployer: {
+        name: '',
+        address: {
+          street: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          country: 'United States'
+        }
+      },
+      jobTitle: '',
+      employmentStartDate: '',
+      annualIncome: 0
+    },
+    education: {
+      highestLevel: '',
+      institutionName: '',
+      datesAttended: {
+        startDate: '',
+        endDate: ''
+      },
+      fieldOfStudy: ''
+    },
+    travelHistory: [] as Array<{
+      country: string;
+      visitDate: string;
+      purpose: string;
+      duration: number;
+    }>,
+    financialInfo: {
+      annualIncome: 0,
+      sourceOfFunds: '',
+      bankAccountBalance: 0
+    },
+    criminalHistory: {
+      hasCriminalRecord: false,
+      details: ''
+    },
+    medicalHistory: {
+      hasMedicalConditions: false,
+      details: ''
+    },
+    sendPassword: true
   });
 
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -2491,12 +2562,121 @@ const SettingsPage = () => {
     }
   };
 
-  const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setNewUser(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    
+    // Handle nested object fields
+    if (name.startsWith('address.')) {
+      const addressField = name.split('.')[1];
+      setNewUser(prev => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          [addressField]: value
+        }
+      }));
+    } else if (name.startsWith('placeOfBirth.')) {
+      const placeOfBirthField = name.split('.')[1];
+      setNewUser(prev => ({
+        ...prev,
+        placeOfBirth: {
+          ...prev.placeOfBirth,
+          [placeOfBirthField]: value
+        }
+      }));
+    } else if (name.startsWith('employment.currentEmployer.name')) {
+      setNewUser(prev => ({
+        ...prev,
+        employment: {
+          ...prev.employment,
+          currentEmployer: {
+            ...prev.employment.currentEmployer,
+            name: value
+          }
+        }
+      }));
+    } else if (name.startsWith('employment.currentEmployer.address.')) {
+      const employerAddressField = name.split('.')[3];
+      setNewUser(prev => ({
+        ...prev,
+        employment: {
+          ...prev.employment,
+          currentEmployer: {
+            ...prev.employment.currentEmployer,
+            address: {
+              ...prev.employment.currentEmployer.address,
+              [employerAddressField]: value
+            }
+          }
+        }
+      }));
+    } else if (name.startsWith('employment.')) {
+      const employmentField = name.split('.')[1];
+      setNewUser(prev => ({
+        ...prev,
+        employment: {
+          ...prev.employment,
+          [employmentField]: type === 'number' ? Number(value) : value
+        }
+      }));
+    } else if (name.startsWith('education.')) {
+      const educationField = name.split('.')[1];
+      if (educationField === 'datesAttended') {
+        const dateField = name.split('.')[2];
+        setNewUser(prev => ({
+          ...prev,
+          education: {
+            ...prev.education,
+            datesAttended: {
+              ...prev.education.datesAttended,
+              [dateField]: value
+            }
+          }
+        }));
+      } else {
+        setNewUser(prev => ({
+          ...prev,
+          education: {
+            ...prev.education,
+            [educationField]: value
+          }
+        }));
+      }
+    } else if (name.startsWith('financialInfo.')) {
+      const financialField = name.split('.')[1];
+      setNewUser(prev => ({
+        ...prev,
+        financialInfo: {
+          ...prev.financialInfo,
+          [financialField]: type === 'number' ? Number(value) : value
+        }
+      }));
+    } else if (name.startsWith('criminalHistory.')) {
+      const criminalField = name.split('.')[1];
+      setNewUser(prev => ({
+        ...prev,
+        criminalHistory: {
+          ...prev.criminalHistory,
+          [criminalField]: criminalField === 'hasCriminalRecord' ? checked : value
+        }
+      }));
+    } else if (name.startsWith('medicalHistory.')) {
+      const medicalField = name.split('.')[1];
+      setNewUser(prev => ({
+        ...prev,
+        medicalHistory: {
+          ...prev.medicalHistory,
+          [medicalField]: medicalField === 'hasMedicalConditions' ? checked : value
+        }
+      }));
+    } else {
+      // Handle top-level fields
+      setNewUser(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : (type === 'number' ? Number(value) : value)
+      }));
+    }
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
@@ -2554,7 +2734,11 @@ const SettingsPage = () => {
           email,
           password,
           user?._id || '', // superadminId
-          finalCompanyId
+          finalCompanyId,
+          newUser.phone,
+          newUser.address,
+          newUser.middleName,
+          newUser.bio
         );
       } else {
         response = await registerUser(
@@ -2563,10 +2747,31 @@ const SettingsPage = () => {
           email,
           password,
           role,
-          'company',           // <-- Add this line
+          'company',           // userType
           user?._id || '',     // superadminId
           user?._id || '',     // attorneyId
-          finalCompanyId
+          finalCompanyId,
+          // Client/Paralegal-specific fields
+          newUser.phone,
+          newUser.nationality,
+          newUser.address,
+          newUser.dateOfBirth,
+          newUser.placeOfBirth,
+          newUser.gender,
+          newUser.maritalStatus,
+          newUser.immigrationPurpose,
+          newUser.passportNumber,
+          newUser.alienRegistrationNumber,
+          newUser.nationalIdNumber,
+          newUser.ssn,
+          newUser.employment,
+          newUser.education,
+          newUser.travelHistory,
+          newUser.financialInfo,
+          newUser.criminalHistory,
+          newUser.medicalHistory,
+          newUser.bio,
+          newUser.sendPassword
         );
       }
 
@@ -2576,12 +2781,78 @@ const SettingsPage = () => {
         setNewUser({
           firstName: '',
           lastName: '',
+          middleName: '',
           email: '',
+          phone: '',
           role: '',
           active: true,
-          companyId: '',
+          companyId: user?.companyId || '',
           password: '',
-          confirmPassword: ''
+          confirmPassword: '',
+          bio: '',
+          address: {
+            street: '',
+            aptSuiteFlr: '',
+            aptNumber: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            country: 'United States'
+          },
+          // Client/Paralegal-specific fields
+          nationality: '',
+          dateOfBirth: '',
+          placeOfBirth: {
+            city: '',
+            state: '',
+            country: ''
+          },
+          gender: '',
+          maritalStatus: '',
+          immigrationPurpose: '',
+          passportNumber: '',
+          alienRegistrationNumber: '',
+          nationalIdNumber: '',
+          ssn: '',
+          employment: {
+            currentEmployer: {
+              name: '',
+              address: {
+                street: '',
+                city: '',
+                state: '',
+                zipCode: '',
+                country: 'United States'
+              }
+            },
+            jobTitle: '',
+            employmentStartDate: '',
+            annualIncome: 0
+          },
+          education: {
+            highestLevel: '',
+            institutionName: '',
+            datesAttended: {
+              startDate: '',
+              endDate: ''
+            },
+            fieldOfStudy: ''
+          },
+          travelHistory: [],
+          financialInfo: {
+            annualIncome: 0,
+            sourceOfFunds: '',
+            bankAccountBalance: 0
+          },
+          criminalHistory: {
+            hasCriminalRecord: false,
+            details: ''
+          },
+          medicalHistory: {
+            hasMedicalConditions: false,
+            details: ''
+          },
+          sendPassword: true
         });
         // Refresh users list
         const data = await getUserById(user?._id || '');
@@ -5512,12 +5783,14 @@ const SettingsPage = () => {
                 {/* Add User Modal */}
                 {showAddUser && (
                   <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
                       <form onSubmit={handleAddUser}>
                         <div className="space-y-4">
+                          {/* Basic Information */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">First Name</label>
+                              <label className="block text-sm font-medium text-gray-700">First Name *</label>
                             <input
                               type="text"
                               name="firstName"
@@ -5529,7 +5802,7 @@ const SettingsPage = () => {
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                              <label className="block text-sm font-medium text-gray-700">Last Name *</label>
                             <input
                               type="text"
                               name="lastName"
@@ -5538,10 +5811,22 @@ const SettingsPage = () => {
                               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                               required
                             />
+                            </div>
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Email</label>
+                            <label className="block text-sm font-medium text-gray-700">Middle Name</label>
+                            <input
+                              type="text"
+                              name="middleName"
+                              value={newUser.middleName}
+                              onChange={handleNewUserChange}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Email *</label>
                             <input
                               type="email"
                               name="email"
@@ -5549,6 +5834,18 @@ const SettingsPage = () => {
                               onChange={handleNewUserChange}
                               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                               required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Phone</label>
+                            <input
+                              type="tel"
+                              name="phone"
+                              value={newUser.phone}
+                              onChange={handleNewUserChange}
+                              placeholder="+1-555-123-4567"
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                             />
                           </div>
 
@@ -5570,7 +5867,7 @@ const SettingsPage = () => {
                           )}
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Role</label>
+                            <label className="block text-sm font-medium text-gray-700">Role *</label>
                             <select
                               name="role"
                               value={newUser.role}
@@ -5590,8 +5887,596 @@ const SettingsPage = () => {
                             </select>
                           </div>
 
+                          {/* Address Section */}
+                          <div className="border-t pt-4">
+                            <h4 className="text-md font-medium text-gray-900 mb-3">Address Information</h4>
+                            <div className="space-y-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Password</label>
+                                <label className="block text-sm font-medium text-gray-700">Street Address</label>
+                                <input
+                                  type="text"
+                                  name="address.street"
+                                  value={newUser.address.street}
+                                  onChange={handleNewUserChange}
+                                  placeholder="123 Legal Plaza"
+                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">Apt/Suite/Floor</label>
+                                  <select
+                                    name="address.aptSuiteFlr"
+                                    value={newUser.address.aptSuiteFlr}
+                                    onChange={handleNewUserChange}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  >
+                                    <option value="">Select</option>
+                                    <option value="Apt">Apt</option>
+                                    <option value="Suite">Suite</option>
+                                    <option value="Floor">Floor</option>
+                                    <option value="Unit">Unit</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">Number</label>
+                                  <input
+                                    type="text"
+                                    name="address.aptNumber"
+                                    value={newUser.address.aptNumber}
+                                    onChange={handleNewUserChange}
+                                    placeholder="200"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">City</label>
+                                  <input
+                                    type="text"
+                                    name="address.city"
+                                    value={newUser.address.city}
+                                    onChange={handleNewUserChange}
+                                    placeholder="New York"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">State</label>
+                                  <input
+                                    type="text"
+                                    name="address.state"
+                                    value={newUser.address.state}
+                                    onChange={handleNewUserChange}
+                                    placeholder="NY"
+                                    maxLength={2}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700">ZIP Code</label>
+                                  <input
+                                    type="text"
+                                    name="address.zipCode"
+                                    value={newUser.address.zipCode}
+                                    onChange={handleNewUserChange}
+                                    placeholder="10001"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">Country</label>
+                                <input
+                                  type="text"
+                                  name="address.country"
+                                  value={newUser.address.country}
+                                  onChange={handleNewUserChange}
+                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Bio Section */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Bio</label>
+                            <textarea
+                              name="bio"
+                              value={newUser.bio}
+                              onChange={handleNewUserChange}
+                              placeholder="Immigration attorney with 10 years of experience"
+                              rows={3}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          {/* Client/Paralegal Specific Fields - Only show for client/paralegal roles */}
+                          {(newUser.role === 'client' || newUser.role === 'paralegal') && (
+                            <>
+                              {/* Personal Information */}
+                              <div className="border-t pt-4">
+                                <h4 className="text-md font-medium text-gray-900 mb-3">Personal Information</h4>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Nationality</label>
+                                      <input
+                                        type="text"
+                                        name="nationality"
+                                        value={newUser.nationality}
+                                        onChange={handleNewUserChange}
+                                        placeholder="Mexican"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                                      <input
+                                        type="date"
+                                        name="dateOfBirth"
+                                        value={newUser.dateOfBirth}
+                                        onChange={handleNewUserChange}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Gender</label>
+                                      <select
+                                        name="gender"
+                                        value={newUser.gender}
+                                        onChange={handleNewUserChange}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      >
+                                        <option value="">Select Gender</option>
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                        <option value="other">Other</option>
+                                        <option value="prefer-not-to-say">Prefer not to say</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Marital Status</label>
+                                      <select
+                                        name="maritalStatus"
+                                        value={newUser.maritalStatus}
+                                        onChange={handleNewUserChange}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      >
+                                        <option value="">Select Status</option>
+                                        <option value="single">Single</option>
+                                        <option value="married">Married</option>
+                                        <option value="divorced">Divorced</option>
+                                        <option value="widowed">Widowed</option>
+                                        <option value="separated">Separated</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Immigration Purpose</label>
+                                    <select
+                                      name="immigrationPurpose"
+                                      value={newUser.immigrationPurpose}
+                                      onChange={handleNewUserChange}
+                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    >
+                                      <option value="">Select Purpose</option>
+                                      <option value="employment">Employment</option>
+                                      <option value="family">Family</option>
+                                      <option value="education">Education</option>
+                                      <option value="investment">Investment</option>
+                                      <option value="asylum">Asylum</option>
+                                      <option value="other">Other</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Place of Birth */}
+                              <div className="border-t pt-4">
+                                <h4 className="text-md font-medium text-gray-900 mb-3">Place of Birth</h4>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">City</label>
+                                      <input
+                                        type="text"
+                                        name="placeOfBirth.city"
+                                        value={newUser.placeOfBirth.city}
+                                        onChange={handleNewUserChange}
+                                        placeholder="Guadalajara"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">State/Province</label>
+                                      <input
+                                        type="text"
+                                        name="placeOfBirth.state"
+                                        value={newUser.placeOfBirth.state}
+                                        onChange={handleNewUserChange}
+                                        placeholder="Jalisco"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Country</label>
+                                      <input
+                                        type="text"
+                                        name="placeOfBirth.country"
+                                        value={newUser.placeOfBirth.country}
+                                        onChange={handleNewUserChange}
+                                        placeholder="Mexico"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Identification Numbers */}
+                              <div className="border-t pt-4">
+                                <h4 className="text-md font-medium text-gray-900 mb-3">Identification Numbers</h4>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Passport Number</label>
+                                      <input
+                                        type="text"
+                                        name="passportNumber"
+                                        value={newUser.passportNumber}
+                                        onChange={handleNewUserChange}
+                                        placeholder="M87654321"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Alien Registration Number</label>
+                                      <input
+                                        type="text"
+                                        name="alienRegistrationNumber"
+                                        value={newUser.alienRegistrationNumber}
+                                        onChange={handleNewUserChange}
+                                        placeholder="A987654321"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">National ID Number</label>
+                                      <input
+                                        type="text"
+                                        name="nationalIdNumber"
+                                        value={newUser.nationalIdNumber}
+                                        onChange={handleNewUserChange}
+                                        placeholder="0987654321"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">SSN</label>
+                                      <input
+                                        type="text"
+                                        name="ssn"
+                                        value={newUser.ssn}
+                                        onChange={handleNewUserChange}
+                                        placeholder="987-65-4321"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Employment Information */}
+                              <div className="border-t pt-4">
+                                <h4 className="text-md font-medium text-gray-900 mb-3">Employment Information</h4>
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Current Employer Name</label>
+                                    <input
+                                      type="text"
+                                      name="employment.currentEmployer.name"
+                                      value={newUser.employment.currentEmployer.name}
+                                      onChange={handleNewUserChange}
+                                      placeholder="Tech Solutions Inc"
+                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Employer Address</label>
+                                    <div className="space-y-2">
+                                      <input
+                                        type="text"
+                                        name="employment.currentEmployer.address.street"
+                                        value={newUser.employment.currentEmployer.address.street}
+                                        onChange={handleNewUserChange}
+                                        placeholder="555 Tech Drive"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                        <input
+                                          type="text"
+                                          name="employment.currentEmployer.address.city"
+                                          value={newUser.employment.currentEmployer.address.city}
+                                          onChange={handleNewUserChange}
+                                          placeholder="Chicago"
+                                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        />
+                                        <input
+                                          type="text"
+                                          name="employment.currentEmployer.address.state"
+                                          value={newUser.employment.currentEmployer.address.state}
+                                          onChange={handleNewUserChange}
+                                          placeholder="IL"
+                                          maxLength={2}
+                                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        />
+                                        <input
+                                          type="text"
+                                          name="employment.currentEmployer.address.zipCode"
+                                          value={newUser.employment.currentEmployer.address.zipCode}
+                                          onChange={handleNewUserChange}
+                                          placeholder="60601"
+                                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Job Title</label>
+                                      <input
+                                        type="text"
+                                        name="employment.jobTitle"
+                                        value={newUser.employment.jobTitle}
+                                        onChange={handleNewUserChange}
+                                        placeholder="Software Engineer"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                                      <input
+                                        type="date"
+                                        name="employment.employmentStartDate"
+                                        value={newUser.employment.employmentStartDate}
+                                        onChange={handleNewUserChange}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Annual Income</label>
+                                      <input
+                                        type="number"
+                                        name="employment.annualIncome"
+                                        value={newUser.employment.annualIncome}
+                                        onChange={handleNewUserChange}
+                                        placeholder="85000"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Education Information */}
+                              <div className="border-t pt-4">
+                                <h4 className="text-md font-medium text-gray-900 mb-3">Education Information</h4>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Highest Level</label>
+                                      <select
+                                        name="education.highestLevel"
+                                        value={newUser.education.highestLevel}
+                                        onChange={handleNewUserChange}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      >
+                                        <option value="">Select Level</option>
+                                        <option value="high-school">High School</option>
+                                        <option value="associate">Associate Degree</option>
+                                        <option value="bachelor">Bachelor's Degree</option>
+                                        <option value="master">Master's Degree</option>
+                                        <option value="doctorate">Doctorate</option>
+                                        <option value="other">Other</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Institution Name</label>
+                                      <input
+                                        type="text"
+                                        name="education.institutionName"
+                                        value={newUser.education.institutionName}
+                                        onChange={handleNewUserChange}
+                                        placeholder="University of Illinois"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                                      <input
+                                        type="date"
+                                        name="education.datesAttended.startDate"
+                                        value={newUser.education.datesAttended.startDate}
+                                        onChange={handleNewUserChange}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">End Date</label>
+                                      <input
+                                        type="date"
+                                        name="education.datesAttended.endDate"
+                                        value={newUser.education.datesAttended.endDate}
+                                        onChange={handleNewUserChange}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Field of Study</label>
+                                      <input
+                                        type="text"
+                                        name="education.fieldOfStudy"
+                                        value={newUser.education.fieldOfStudy}
+                                        onChange={handleNewUserChange}
+                                        placeholder="Computer Science"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Financial Information */}
+                              <div className="border-t pt-4">
+                                <h4 className="text-md font-medium text-gray-900 mb-3">Financial Information</h4>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Annual Income</label>
+                                      <input
+                                        type="number"
+                                        name="financialInfo.annualIncome"
+                                        value={newUser.financialInfo.annualIncome}
+                                        onChange={handleNewUserChange}
+                                        placeholder="85000"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">Source of Funds</label>
+                                      <select
+                                        name="financialInfo.sourceOfFunds"
+                                        value={newUser.financialInfo.sourceOfFunds}
+                                        onChange={handleNewUserChange}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      >
+                                        <option value="">Select Source</option>
+                                        <option value="employment">Employment</option>
+                                        <option value="savings">Savings</option>
+                                        <option value="investment">Investment</option>
+                                        <option value="family">Family Support</option>
+                                        <option value="other">Other</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Bank Account Balance</label>
+                                    <input
+                                      type="number"
+                                      name="financialInfo.bankAccountBalance"
+                                      value={newUser.financialInfo.bankAccountBalance}
+                                      onChange={handleNewUserChange}
+                                      placeholder="25000"
+                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Criminal History */}
+                              <div className="border-t pt-4">
+                                <h4 className="text-md font-medium text-gray-900 mb-3">Criminal History</h4>
+                                <div className="space-y-4">
+                                  <div className="flex items-center">
+                                    <input
+                                      type="checkbox"
+                                      name="criminalHistory.hasCriminalRecord"
+                                      checked={newUser.criminalHistory.hasCriminalRecord}
+                                      onChange={handleNewUserChange}
+                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <label className="ml-2 block text-sm text-gray-900">
+                                      Has Criminal Record
+                                    </label>
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Details</label>
+                                    <textarea
+                                      name="criminalHistory.details"
+                                      value={newUser.criminalHistory.details}
+                                      onChange={handleNewUserChange}
+                                      placeholder="No criminal record"
+                                      rows={2}
+                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Medical History */}
+                              <div className="border-t pt-4">
+                                <h4 className="text-md font-medium text-gray-900 mb-3">Medical History</h4>
+                                <div className="space-y-4">
+                                  <div className="flex items-center">
+                                    <input
+                                      type="checkbox"
+                                      name="medicalHistory.hasMedicalConditions"
+                                      checked={newUser.medicalHistory.hasMedicalConditions}
+                                      onChange={handleNewUserChange}
+                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <label className="ml-2 block text-sm text-gray-900">
+                                      Has Medical Conditions
+                                    </label>
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Details</label>
+                                    <textarea
+                                      name="medicalHistory.details"
+                                      value={newUser.medicalHistory.details}
+                                      onChange={handleNewUserChange}
+                                      placeholder="No significant medical conditions"
+                                      rows={2}
+                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Send Password Option */}
+                              <div className="border-t pt-4">
+                                <div className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    name="sendPassword"
+                                    checked={newUser.sendPassword}
+                                    onChange={handleNewUserChange}
+                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                  />
+                                  <label className="ml-2 block text-sm text-gray-900">
+                                    Send password via email to new user
+                                  </label>
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          {/* Password Section */}
+                          <div className="border-t pt-4">
+                            <h4 className="text-md font-medium text-gray-900 mb-3">Account Security</h4>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">Password *</label>
                             <input
                               type="password"
                               name="password"
@@ -5604,7 +6489,7 @@ const SettingsPage = () => {
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                                <label className="block text-sm font-medium text-gray-700">Confirm Password *</label>
                             <input
                               type="password"
                               name="confirmPassword"
@@ -5614,6 +6499,8 @@ const SettingsPage = () => {
                               required
                               minLength={8}
                             />
+                              </div>
+                            </div>
                           </div>
 
                           <div className="flex justify-end space-x-3">

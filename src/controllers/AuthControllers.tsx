@@ -76,7 +76,19 @@ export const registerAttorney = async (
   email: string,
   password: string,
   superadminId: string,
-  companyId: string
+  companyId: string,
+  phone?: string,
+  address?: {
+    street: string;
+    aptSuiteFlr: string;
+    aptNumber: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  },
+  middleName?: string,
+  bio?: string
 ): Promise<ApiResponse<User>> => {
   if (!IS_REGISTRATION_ENABLED) {
     console.log('Registration is disabled');
@@ -95,7 +107,11 @@ export const registerAttorney = async (
       password,
       role: 'attorney',
       superadminId,
-      companyId
+      companyId,
+      phone,
+      address,
+      middleName,
+      bio
     });
 
     return {
@@ -125,7 +141,77 @@ export const registerUser = async (
   userType: 'individual' | 'company',
   superadminId: string,
   attorneyId: string,
-  companyId: string
+  companyId: string,
+  // Client/Paralegal-specific fields
+  phone?: string,
+  nationality?: string,
+  address?: {
+    street: string;
+    aptSuiteFlr: string;
+    aptNumber: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  },
+  dateOfBirth?: string,
+  placeOfBirth?: {
+    city: string;
+    state: string;
+    country: string;
+  },
+  gender?: string,
+  maritalStatus?: string,
+  immigrationPurpose?: string,
+  passportNumber?: string,
+  alienRegistrationNumber?: string,
+  nationalIdNumber?: string,
+  ssn?: string,
+  employment?: {
+    currentEmployer: {
+      name: string;
+      address: {
+        street: string;
+        city: string;
+        state: string;
+        zipCode: string;
+        country: string;
+      };
+    };
+    jobTitle: string;
+    employmentStartDate: string;
+    annualIncome: number;
+  },
+  education?: {
+    highestLevel: string;
+    institutionName: string;
+    datesAttended: {
+      startDate: string;
+      endDate: string;
+    };
+    fieldOfStudy: string;
+  },
+  travelHistory?: Array<{
+    country: string;
+    visitDate: string;
+    purpose: string;
+    duration: number;
+  }>,
+  financialInfo?: {
+    annualIncome: number;
+    sourceOfFunds: string;
+    bankAccountBalance: number;
+  },
+  criminalHistory?: {
+    hasCriminalRecord: boolean;
+    details: string;
+  },
+  medicalHistory?: {
+    hasMedicalConditions: boolean;
+    details: string;
+  },
+  bio?: string,
+  sendPassword?: boolean
 ): Promise<ApiResponse<User>> => {
   if (!IS_REGISTRATION_ENABLED) {
     console.log('Registration is disabled');
@@ -146,7 +232,28 @@ export const registerUser = async (
       userType,
       superadminId,
       attorneyId,
-      companyId
+      companyId,
+      // Client/Paralegal-specific fields
+      phone,
+      nationality,
+      address,
+      dateOfBirth,
+      placeOfBirth,
+      gender,
+      maritalStatus,
+      immigrationPurpose,
+      passportNumber,
+      alienRegistrationNumber,
+      nationalIdNumber,
+      ssn,
+      employment,
+      education,
+      travelHistory,
+      financialInfo,
+      criminalHistory,
+      medicalHistory,
+      bio,
+      sendPassword
     });
 
     return {
@@ -313,8 +420,8 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   registerSuperadmin: (firstName: string, lastName: string, email: string, password: string) => Promise<void>;
-  registerAttorney: (firstName: string, lastName: string, email: string, password: string, superadminId: string, companyId: string) => Promise<void>;
-  registerUser: (firstName: string, lastName: string, email: string, password: string, role: string, userType: 'individual' | 'company', superadminId: string, attorneyId: string, companyId: string) => Promise<void>;
+  registerAttorney: (firstName: string, lastName: string, email: string, password: string, superadminId: string, companyId: string, phone?: string, address?: { street: string; aptSuiteFlr: string; aptNumber: string; city: string; state: string; zipCode: string; country: string; }, middleName?: string, bio?: string) => Promise<void>;
+  registerUser: (firstName: string, lastName: string, email: string, password: string, role: string, userType: 'individual' | 'company', superadminId: string, attorneyId: string, companyId: string, phone?: string, nationality?: string, address?: { street: string; aptSuiteFlr: string; aptNumber: string; city: string; state: string; zipCode: string; country: string; }, dateOfBirth?: string, placeOfBirth?: { city: string; state: string; country: string; }, gender?: string, maritalStatus?: string, immigrationPurpose?: string, passportNumber?: string, alienRegistrationNumber?: string, nationalIdNumber?: string, ssn?: string, employment?: { currentEmployer: { name: string; address: { street: string; city: string; state: string; zipCode: string; country: string; }; }; jobTitle: string; employmentStartDate: string; annualIncome: number; }, education?: { highestLevel: string; institutionName: string; datesAttended: { startDate: string; endDate: string; }; fieldOfStudy: string; }, travelHistory?: Array<{ country: string; visitDate: string; purpose: string; duration: number; }>, financialInfo?: { annualIncome: number; sourceOfFunds: string; bankAccountBalance: number; }, criminalHistory?: { hasCriminalRecord: boolean; details: string; }, medicalHistory?: { hasMedicalConditions: boolean; details: string; }, bio?: string, sendPassword?: boolean) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   getUserProfile: (email: string, password: string) => Promise<void>;
   updateUserProfile: (email: string, password: string) => Promise<void>;
@@ -368,11 +475,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string,
     password: string,
     superadminId: string,
-    companyId: string
+    companyId: string,
+    phone?: string,
+    address?: {
+      street: string;
+      aptSuiteFlr: string;
+      aptNumber: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      country: string;
+    },
+    middleName?: string,
+    bio?: string
   ): Promise<void> => {
     setIsLoading(true);
     try {
-      const response = await registerAttorney(firstName, lastName, email, password, superadminId, companyId);
+      const response = await registerAttorney(firstName, lastName, email, password, superadminId, companyId, phone, address, middleName, bio);
       if (response.data) {
         setUser(response.data);
         localStorage.setItem('user', JSON.stringify(response.data));
@@ -396,11 +515,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userType: 'individual' | 'company',
     superadminId: string,
     attorneyId: string,
-    companyId: string
+    companyId: string,
+    // Client/Paralegal-specific fields
+    phone?: string,
+    nationality?: string,
+    address?: {
+      street: string;
+      aptSuiteFlr: string;
+      aptNumber: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      country: string;
+    },
+    dateOfBirth?: string,
+    placeOfBirth?: {
+      city: string;
+      state: string;
+      country: string;
+    },
+    gender?: string,
+    maritalStatus?: string,
+    immigrationPurpose?: string,
+    passportNumber?: string,
+    alienRegistrationNumber?: string,
+    nationalIdNumber?: string,
+    ssn?: string,
+    employment?: {
+      currentEmployer: {
+        name: string;
+        address: {
+          street: string;
+          city: string;
+          state: string;
+          zipCode: string;
+          country: string;
+        };
+      };
+      jobTitle: string;
+      employmentStartDate: string;
+      annualIncome: number;
+    },
+    education?: {
+      highestLevel: string;
+      institutionName: string;
+      datesAttended: {
+        startDate: string;
+        endDate: string;
+      };
+      fieldOfStudy: string;
+    },
+    travelHistory?: Array<{
+      country: string;
+      visitDate: string;
+      purpose: string;
+      duration: number;
+    }>,
+    financialInfo?: {
+      annualIncome: number;
+      sourceOfFunds: string;
+      bankAccountBalance: number;
+    },
+    criminalHistory?: {
+      hasCriminalRecord: boolean;
+      details: string;
+    },
+    medicalHistory?: {
+      hasMedicalConditions: boolean;
+      details: string;
+    },
+    bio?: string,
+    sendPassword?: boolean
   ): Promise<void> => {
     setIsLoading(true);
     try {
-      const response = await registerUser(firstName, lastName, email, password, role, userType, superadminId, attorneyId, companyId);
+      const response = await registerUser(firstName, lastName, email, password, role, userType, superadminId, attorneyId, companyId, phone, nationality, address, dateOfBirth, placeOfBirth, gender, maritalStatus, immigrationPurpose, passportNumber, alienRegistrationNumber, nationalIdNumber, ssn, employment, education, travelHistory, financialInfo, criminalHistory, medicalHistory, bio, sendPassword);
       if (response.data) {
         setUser(response.data);
         localStorage.setItem('user', JSON.stringify(response.data));
