@@ -190,7 +190,7 @@ api.interceptors.response.use(
           break;
         case 403:
           // Forbidden - user doesn't have permission
-          alert('You do not have permission to perform this action.');
+          console.error('You do not have permission to perform this action.');
           break;
         case 404:
           // Not Found
@@ -208,7 +208,7 @@ api.interceptors.response.use(
     } else if (error.request) {
       // Network error - no response received
       console.error('No response from server:', error.request);
-      alert('Unable to connect to the server. Please check your internet connection.');
+      console.error('Unable to connect to the server. Please check your internet connection.');
       return Promise.reject(error);
     } else {
       // Request setup error

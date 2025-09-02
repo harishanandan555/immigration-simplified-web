@@ -249,11 +249,11 @@ const EnhancedIndividualFormFiling: React.FC = () => {
   };
 
   const handleDownloadPDF = () => {
-    alert('🎉 Generating and downloading your pre-filled forms...\n\nThis would normally:\n• Create PDF with your information\n• Include filing instructions\n• Save to your dashboard');
+    console.log('🎉 Generating and downloading your pre-filled forms...\n\nThis would normally:\n• Create PDF with your information\n• Include filing instructions\n• Save to your dashboard');
   };
 
   const handleSubmitToAdvisor = () => {
-    alert('📨 Forms sent to legal advisor!\n\nYour forms have been sent for professional review. You will receive feedback within 24-48 hours.');
+    console.log('📨 Forms sent to legal advisor!\n\nYour forms have been sent for professional review. You will receive feedback within 24-48 hours.');
   };
 
   const renderGoalSelection = () => (

@@ -1126,12 +1126,12 @@ const IndividualImmigrationProcess: React.FC = () => {
 
         if (response.assessment_results) {
           // Show results to user
-          alert(`Assessment completed!\n\nEligibility Score: ${response.assessment_results.eligibility_score}\n\nRecommended Forms: ${response.assessment_results.recommended_forms.join(', ')}\n\nNext Steps:\n${response.assessment_results.next_steps.join('\n')}`);
+          console.log(`Assessment completed!\n\nEligibility Score: ${response.assessment_results.eligibility_score}\n\nRecommended Forms: ${response.assessment_results.recommended_forms.join(', ')}\n\nNext Steps:\n${response.assessment_results.next_steps.join('\n')}`);
         }
       } else {
         // Offline mode - just log the answers
         console.log('Custom questionnaire answers (offline):', customQuestionnaireAnswers);
-        alert('Questionnaire completed offline. Answers have been saved locally.');
+        console.log('Questionnaire completed offline. Answers have been saved locally.');
 
         // Save to localStorage for later sync
         const offlineResponses = JSON.parse(localStorage.getItem('offline-questionnaire-responses') || '[]');
@@ -1147,7 +1147,7 @@ const IndividualImmigrationProcess: React.FC = () => {
       setShowQuestionnaire(false);
     } catch (error: any) {
       console.error('Error submitting questionnaire:', error);
-      alert('Failed to submit questionnaire: ' + error.message);
+      console.error('Failed to submit questionnaire: ' + error.message);
     }
   };
 

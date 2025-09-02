@@ -339,27 +339,27 @@ const TasksPage = () => {
       
       // Validate required fields
       if (!newTask.title.trim()) {
-        alert('Please enter a task title');
+        console.error('Please enter a task title');
         return;
       }
       
       if (!newTask.clientId || !newTask.clientName) {
-        alert('Please select a client');
+        console.error('Please select a client');
         return;
       }
       
       if (!newTask.caseId) {
-        alert('Please select a case');
+        console.error('Please select a case');
         return;
       }
       
       if (!newTask.dueDate) {
-        alert('Please select a due date');
+        console.error('Please select a due date');
         return;
       }
       
       if (!newTask.assignedTo) {
-        alert('Please assign the task to someone');
+        console.error('Please assign the task to someone');
         return;
       }
       
@@ -434,7 +434,7 @@ const TasksPage = () => {
       await loadData();
     } catch (error) {
       console.error('Error creating task:', error);
-      alert('Failed to create task. Please try again.');
+      console.error('Failed to create task. Please try again.');
     }
   };
 

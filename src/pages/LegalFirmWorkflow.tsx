@@ -2585,7 +2585,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // Call backend API to save the workflow process (correct endpoint)
               await submitImmigrationProcess(payload);
       // Workflow saved successfully
-      alert('Workflow saved successfully!');
 
       // For I-130 form auto-fill (existing logic)
       if (selectedForms.includes('I-130')) {
@@ -2615,8 +2614,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
       // Handle other forms similarly
     } catch (error) {
-
-      alert('Error saving workflow or generating forms. Please try again.');
+      console.error('Error saving workflow or generating forms:', error);
     } finally {
       setLoading(false);
     }

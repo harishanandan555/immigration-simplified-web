@@ -564,7 +564,7 @@ const ImmigrationProcess: React.FC = () => {
 
   const handleBulkOperation = async () => {
     if (selectedClients.length === 0 || !bulkOperation) {
-      alert('Please select clients and operation');
+      console.error('Please select clients and operation');
       return;
     }
 
@@ -573,21 +573,21 @@ const ImmigrationProcess: React.FC = () => {
       // Simulate bulk operation
       if (bulkOperation === 'generate-forms') {
         // Special handling for bulk I-130 form generation
-        alert(`Generating I-130 forms for ${selectedClients.length} selected clients...\n\nThis would typically:\n• Pull client data from case files\n• Generate pre-filled I-130 forms\n• Save forms to client folders\n• Send notifications to assigned attorneys`);
+        console.error(`Generating I-130 forms for ${selectedClients.length} selected clients...\n\nThis would typically:\n• Pull client data from case files\n• Generate pre-filled I-130 forms\n• Save forms to client folders\n• Send notifications to assigned attorneys`);
         
         // In production, this would iterate through each selected client
         await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate processing time
         
-        alert(`✅ Success! Generated I-130 forms for ${selectedClients.length} clients.\n\nForms have been saved to:\n• Client case folders\n• Document management system\n• Attorney review queue`);
+        console.error(`✅ Success! Generated I-130 forms for ${selectedClients.length} clients.\n\nForms have been saved to:\n• Client case folders\n• Document management system\n• Attorney review queue`);
       } else {
         await new Promise(resolve => setTimeout(resolve, 2000));
-        alert(`${bulkOperation} completed for ${selectedClients.length} clients`);
+        console.error(`${bulkOperation} completed for ${selectedClients.length} clients`);
       }
       
       setSelectedClients([]);
       setBulkOperation('');
     } catch (error) {
-      alert('Bulk operation failed');
+      console.error('Bulk operation failed');
     } finally {
       setIsProcessing(false);
     }
@@ -864,7 +864,7 @@ const ImmigrationProcess: React.FC = () => {
         </button>
         <button
           onClick={() => {
-            alert('Case created successfully!');
+            console.log('Case created successfully!');
             setCurrentStep(0);
           }}
           className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
@@ -1104,7 +1104,7 @@ const ImmigrationProcess: React.FC = () => {
   const handlePrefillOfficialI130 = async () => {
     // Check if we have the required data
     if (!formData.petitionerGivenName || !formData.petitionerFamilyName || !formData.beneficiaryGivenName || !formData.relationshipType) {
-      alert('Please fill in the basic form data first (Petitioner Name, Beneficiary Name, and Relationship)');
+      console.error('Please fill in the basic form data first (Petitioner Name, Beneficiary Name, and Relationship)');
       return;
     }
 
@@ -1161,7 +1161,7 @@ const ImmigrationProcess: React.FC = () => {
           link.click();
           document.body.removeChild(link);
           
-          alert('✅ Blank I-130 PDF downloaded. You can print this and fill it manually with the information you entered.');
+          console.log('✅ Blank I-130 PDF downloaded. You can print this and fill it manually with the information you entered.');
         } else {
           // Generate HTML form instead
           handleGenerateHTMLI130();
@@ -1189,7 +1189,7 @@ const ImmigrationProcess: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      alert(`✅ Success! Auto-filled I-130 form has been downloaded.\n\nFile: I-130_AutoFilled_${formData.petitionerFamilyName}_${formData.beneficiaryGivenName}_${new Date().toISOString().split('T')[0]}.pdf\n\nThe form has been pre-filled with:\n• Petitioner: ${formData.petitionerGivenName} ${formData.petitionerFamilyName}\n• Beneficiary: ${formData.beneficiaryGivenName} ${formData.beneficiaryFamilyName || formData.beneficiaryGivenName}\n• Relationship: ${formData.relationshipType}`);
+      console.error(`✅ Success! Auto-filled I-130 form has been downloaded.\n\nFile: I-130_AutoFilled_${formData.petitionerFamilyName}_${formData.beneficiaryGivenName}_${new Date().toISOString().split('T')[0]}.pdf\n\nThe form has been pre-filled with:\n• Petitioner: ${formData.petitionerGivenName} ${formData.petitionerFamilyName}\n• Beneficiary: ${formData.beneficiaryGivenName} ${formData.beneficiaryFamilyName || formData.beneficiaryGivenName}\n• Relationship: ${formData.relationshipType}`);
       
     } catch (error: any) {
       console.error('Error in Legal Firm I-130 auto-fill:', error);
@@ -1221,7 +1221,7 @@ const ImmigrationProcess: React.FC = () => {
           handleGenerateHTMLI130();
         }
       } else {
-        alert(`❌ ${errorMessage}`);
+        console.error(`❌ ${errorMessage}`);
       }
     } finally {
       setIsPdfProcessing(false);
@@ -1239,10 +1239,10 @@ const ImmigrationProcess: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       
-      alert('✅ Blank I-130 form downloaded successfully!');
+      console.log('✅ Blank I-130 form downloaded successfully!');
     } catch (error) {
       console.error('Error downloading blank form:', error);
-      alert('❌ Error downloading blank form. Please try again.');
+      console.error('❌ Error downloading blank form. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -1251,7 +1251,7 @@ const ImmigrationProcess: React.FC = () => {
   const handleGenerateHTMLI130 = () => {
     // Check if we have some basic data
     if (!formData.petitionerGivenName || !formData.beneficiaryGivenName) {
-      alert('Please fill in at least the Petitioner and Beneficiary names first');
+      console.error('Please fill in at least the Petitioner and Beneficiary names first');
       return;
     }
 
@@ -1389,7 +1389,7 @@ const ImmigrationProcess: React.FC = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    alert('✅ HTML I-130 form generated and downloaded successfully!');
+    console.log('✅ HTML I-130 form generated and downloaded successfully!');
   };
 
   if (loading) {
@@ -1570,12 +1570,12 @@ const ImmigrationProcess: React.FC = () => {
                             fields.forEach((field, i) => {
                               console.log(`${i + 1}. "${field.getName()}" (${field.constructor.name})`);
                             });
-                            alert(`PDF Analysis Complete!\n\nFound ${fields.length} fillable fields.\nCheck the browser console (F12) for detailed field names.`);
+                            console.error(`PDF Analysis Complete!\n\nFound ${fields.length} fillable fields.\nCheck the browser console (F12) for detailed field names.`);
                           } catch (formError) {
-                            alert('❌ This PDF does not contain fillable form fields.\nIt appears to be a scanned image.');
+                            console.error('❌ This PDF does not contain fillable form fields.\nIt appears to be a scanned image.');
                           }
                         } catch (error) {
-                          alert('Error analyzing PDF: ' + (error as any)?.message);
+                          console.error('Error analyzing PDF: ' + (error as any)?.message);
                         }
                       }}
                       className="bg-yellow-600 text-white px-4 py-2 rounded text-sm hover:bg-yellow-700"
