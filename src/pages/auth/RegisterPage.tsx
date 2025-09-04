@@ -1,26 +1,143 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../controllers/AuthControllers';
+import { createIndividualClient } from '../../controllers/ClientControllers';
 import Logo from '../../components/layout/Logo';
-import { Shield, Users, Check, ArrowRight, Loader2 } from 'lucide-react';
+import { Shield, Users, Check, ArrowRight, Loader2, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 type SubscriptionPlan = 'starter' | 'family';
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const { registerUser } = useAuth();
   const [step, setStep] = useState<'plan' | 'form'>('plan');
-  const [subscriptionPlan, setSubscriptionPlan] = useState<SubscriptionPlan | null>(null);
+  const [, setSubscriptionPlan] = useState<SubscriptionPlan | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentSection, setCurrentSection] = useState(0);
+  
+  const sections = [
+    'Basic Information',
+    'Address & Birth',
+    'Personal Details',
+    'Identification',
+    'Family Information',
+    'Employment & Education',
+    'Travel & Financial',
+    'History & Additional'
+  ];
 
   // Form state
   const [formData, setFormData] = useState({
+    // Basic Information
     firstName: '',
     lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
+    phone: '',
+    nationality: '',
+    dateOfBirth: '',
+    
+    // Address Information
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'United States'
+    },
+    
+    // Place of Birth
+    placeOfBirth: {
+      city: '',
+      state: '',
+      country: ''
+    },
+    
+    // Personal Information
+    gender: '',
+    maritalStatus: '',
+    immigrationPurpose: '',
+    
+    // Identification
+    passportNumber: '',
+    alienRegistrationNumber: '',
+    nationalIdNumber: '',
+    
+    // Spouse Information
+    spouse: {
+      firstName: '',
+      lastName: '',
+      dateOfBirth: '',
+      nationality: '',
+      alienRegistrationNumber: ''
+    },
+    
+    // Children Information
+    children: [] as Array<{
+      firstName: '',
+      lastName: '',
+      dateOfBirth: '',
+      nationality: '',
+      alienRegistrationNumber: ''
+    }>,
+    
+    // Employment Information
+    employment: {
+      currentEmployer: {
+        name: '',
+        address: {
+          street: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          country: ''
+        }
+      },
+      jobTitle: '',
+      employmentStartDate: '',
+      annualIncome: 0
+    },
+    
+    // Education Information
+    education: {
+      highestLevel: '',
+      institutionName: '',
+      datesAttended: {
+        startDate: '',
+        endDate: ''
+      },
+      fieldOfStudy: ''
+    },
+    
+    // Travel History
+    travelHistory: [] as Array<{
+      country: '',
+      visitDate: '',
+      purpose: '',
+      duration: 0
+    }>,
+    
+    // Financial Information
+    financialInfo: {
+      annualIncome: 0,
+      sourceOfFunds: '',
+      bankAccountBalance: 0
+    },
+    
+    // Criminal History
+    criminalHistory: {
+      hasCriminalRecord: false,
+      details: ''
+    },
+    
+    // Medical History
+    medicalHistory: {
+      hasMedicalConditions: false,
+      details: ''
+    },
+    
+    // Additional Information
+    bio: ''
   });
 
   const handlePlanSelect = (plan: SubscriptionPlan) => {
@@ -28,16 +145,125 @@ const RegisterPage: React.FC = () => {
     setStep('form');
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    
+    // Handle nested object fields
+    if (name.includes('.')) {
+      const [parent, child, grandchild] = name.split('.');
+      setFormData(prev => {
+        const parentValue = prev[parent as keyof typeof prev] as any;
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: grandchild ? {
+              ...(parentValue?.[child] || {}),
+              [grandchild]: type === 'number' ? Number(value) : value
+            } : (type === 'number' ? Number(value) : value)
+          }
+        };
+      });
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'number' ? Number(value) : value
+      }));
+    }
+  };
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, checked } = e.target;
+    
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      setFormData(prev => {
+        const parentValue = prev[parent as keyof typeof prev] as any;
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: checked
+          }
+        };
+      });
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked
+      }));
+    }
+  };
+
+  const addChild = () => {
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      children: [...prev.children, {
+        firstName: '',
+        lastName: '',
+        dateOfBirth: '',
+        nationality: '',
+        alienRegistrationNumber: ''
+      }]
+    }));
+  };
+
+  const removeChild = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      children: prev.children.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateChild = (index: number, field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      children: prev.children.map((child, i) => 
+        i === index ? { ...child, [field]: value } : child
+      )
+    }));
+  };
+
+  const addTravelHistory = () => {
+    setFormData(prev => ({
+      ...prev,
+      travelHistory: [...prev.travelHistory, {
+        country: '',
+        visitDate: '',
+        purpose: '',
+        duration: 0
+      }]
+    }));
+  };
+
+  const removeTravelHistory = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      travelHistory: prev.travelHistory.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateTravelHistory = (index: number, field: string, value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      travelHistory: prev.travelHistory.map((travel, i) => 
+        i === index ? { ...travel, [field]: value } : travel
+      )
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('Form submission triggered, current section:', currentSection);
+    
+    // Only allow submission on the last step
+    if (currentSection !== sections.length - 1) {
+      console.log('Form submission blocked - not on last step');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -50,18 +276,50 @@ const RegisterPage: React.FC = () => {
         throw new Error('Passwords do not match');
       }
 
-      // Register user
-      await registerUser(
-        formData.firstName,
-        formData.lastName,
-        formData.email,
-        formData.password,
-        'client', // role
-        'individual', // userType
-        '', // superadminId
-        '', // attorneyId
-        '' // companyId
-      );
+      // Create individual client
+      const clientData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        nationality: formData.nationality,
+        address: formData.address,
+        role: 'client' as const,
+        userType: 'individualUser' as const,
+        attorneyIds: [],
+        dateOfBirth: formData.dateOfBirth,
+        placeOfBirth: formData.placeOfBirth,
+        gender: formData.gender as 'male' | 'female' | 'other' | 'prefer_not_to_say',
+        maritalStatus: formData.maritalStatus as 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union',
+        immigrationPurpose: formData.immigrationPurpose as 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other',
+        passportNumber: formData.passportNumber,
+        alienRegistrationNumber: formData.alienRegistrationNumber,
+        nationalIdNumber: formData.nationalIdNumber,
+        spouse: formData.spouse,
+        children: formData.children,
+        employment: formData.employment,
+        education: {
+          ...formData.education,
+          highestLevel: formData.education.highestLevel as 'high_school' | 'associate' | 'bachelor' | 'master' | 'doctorate' | 'other' | undefined
+        },
+        travelHistory: formData.travelHistory.map(travel => ({
+          ...travel,
+          purpose: travel.purpose as 'tourism' | 'business' | 'education' | 'family' | 'other'
+        })),
+        financialInfo: {
+          ...formData.financialInfo,
+          sourceOfFunds: formData.financialInfo.sourceOfFunds as 'employment' | 'investment' | 'family' | 'savings' | 'other' | undefined
+        },
+        criminalHistory: formData.criminalHistory,
+        medicalHistory: formData.medicalHistory,
+        bio: formData.bio,
+        status: 'Active' as const,
+        active: true
+      };
+
+      await createIndividualClient(clientData);
 
       toast.success('Registration successful! Please log in.');
       navigate('/login');
@@ -134,14 +392,43 @@ const RegisterPage: React.FC = () => {
     </div>
   );
 
-  const renderRegistrationForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Create Your Account</h2>
+  const renderSectionNavigation = () => (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold text-gray-900">
+          {sections[currentSection]}
+        </h2>
+        <div className="text-sm text-gray-500">
+          Step {currentSection + 1} of {sections.length}
+        </div>
+      </div>
       
+      <div className="flex space-x-2 mb-6">
+        {sections.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => setCurrentSection(index)}
+            className={`px-3 py-1 text-xs rounded-full transition-colors ${
+              index === currentSection
+                ? 'bg-primary-600 text-white'
+                : index < currentSection
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {index + 1}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderBasicInformation = () => (
+    <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-            First Name
+            First Name *
           </label>
           <input
             type="text"
@@ -156,7 +443,7 @@ const RegisterPage: React.FC = () => {
 
         <div>
           <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
-            Last Name
+            Last Name *
           </label>
           <input
             type="text"
@@ -172,7 +459,7 @@ const RegisterPage: React.FC = () => {
 
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-          Email Address
+          Email Address *
         </label>
         <input
           type="email"
@@ -185,53 +472,986 @@ const RegisterPage: React.FC = () => {
         />
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            Password *
+          </label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            value={formData.password}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+            Confirm Password *
+          </label>
+          <input
+            type="password"
+            id="confirmPassword"
+            name="confirmPassword"
+            required
+            value={formData.confirmPassword}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+            Phone Number
+          </label>
+          <input
+            type="tel"
+            id="phone"
+            name="phone"
+            value={formData.phone}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="nationality" className="block text-sm font-medium text-gray-700">
+            Nationality
+          </label>
+          <input
+            type="text"
+            id="nationality"
+            name="nationality"
+            value={formData.nationality}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+      </div>
+
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-          Password
+        <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">
+          Date of Birth
         </label>
         <input
-          type="password"
-          id="password"
-          name="password"
-          required
-          value={formData.password}
+          type="date"
+          id="dateOfBirth"
+          name="dateOfBirth"
+          value={formData.dateOfBirth}
           onChange={handleInputChange}
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
         />
       </div>
+    </div>
+  );
 
-      <div>
-        <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-          Confirm Password
-        </label>
-        <input
-          type="password"
-          id="confirmPassword"
-          name="confirmPassword"
-          required
-          value={formData.confirmPassword}
-          onChange={handleInputChange}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-        />
+  const renderAddressAndBirth = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Current Address</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2">
+            <label htmlFor="address.street" className="block text-sm font-medium text-gray-700">
+              Street Address
+            </label>
+            <input
+              type="text"
+              id="address.street"
+              name="address.street"
+              value={formData.address.street}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="address.city" className="block text-sm font-medium text-gray-700">
+              City
+            </label>
+            <input
+              type="text"
+              id="address.city"
+              name="address.city"
+              value={formData.address.city}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="address.state" className="block text-sm font-medium text-gray-700">
+              State/Province
+            </label>
+            <input
+              type="text"
+              id="address.state"
+              name="address.state"
+              value={formData.address.state}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="address.zipCode" className="block text-sm font-medium text-gray-700">
+              ZIP/Postal Code
+            </label>
+            <input
+              type="text"
+              id="address.zipCode"
+              name="address.zipCode"
+              value={formData.address.zipCode}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="address.country" className="block text-sm font-medium text-gray-700">
+              Country
+            </label>
+            <input
+              type="text"
+              id="address.country"
+              name="address.country"
+              value={formData.address.country}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className={`w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="animate-spin h-4 w-4 mr-2" />
-            Creating account...
-          </>
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Place of Birth</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label htmlFor="placeOfBirth.city" className="block text-sm font-medium text-gray-700">
+              City
+            </label>
+            <input
+              type="text"
+              id="placeOfBirth.city"
+              name="placeOfBirth.city"
+              value={formData.placeOfBirth.city}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="placeOfBirth.state" className="block text-sm font-medium text-gray-700">
+              State/Province
+            </label>
+            <input
+              type="text"
+              id="placeOfBirth.state"
+              name="placeOfBirth.state"
+              value={formData.placeOfBirth.state}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="placeOfBirth.country" className="block text-sm font-medium text-gray-700">
+              Country
+            </label>
+            <input
+              type="text"
+              id="placeOfBirth.country"
+              name="placeOfBirth.country"
+              value={formData.placeOfBirth.country}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderPersonalDetails = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
+            Gender
+          </label>
+          <select
+            id="gender"
+            name="gender"
+            value={formData.gender}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          >
+            <option value="">Select Gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+            <option value="prefer_not_to_say">Prefer not to say</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="maritalStatus" className="block text-sm font-medium text-gray-700">
+            Marital Status
+          </label>
+          <select
+            id="maritalStatus"
+            name="maritalStatus"
+            value={formData.maritalStatus}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          >
+            <option value="">Select Marital Status</option>
+            <option value="single">Single</option>
+            <option value="married">Married</option>
+            <option value="divorced">Divorced</option>
+            <option value="widowed">Widowed</option>
+            <option value="separated">Separated</option>
+            <option value="civil_union">Civil Union</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="immigrationPurpose" className="block text-sm font-medium text-gray-700">
+          Immigration Purpose
+        </label>
+        <select
+          id="immigrationPurpose"
+          name="immigrationPurpose"
+          value={formData.immigrationPurpose}
+          onChange={handleInputChange}
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+        >
+          <option value="">Select Immigration Purpose</option>
+          <option value="family_reunification">Family Reunification</option>
+          <option value="employment">Employment</option>
+          <option value="education">Education</option>
+          <option value="asylum">Asylum</option>
+          <option value="investment">Investment</option>
+          <option value="diversity_lottery">Diversity Lottery</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
+          Bio/Additional Information
+        </label>
+        <textarea
+          id="bio"
+          name="bio"
+          rows={4}
+          value={formData.bio}
+          onChange={handleInputChange}
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          placeholder="Tell us about yourself, your background, or any additional information..."
+        />
+      </div>
+    </div>
+  );
+
+  const renderIdentification = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Identification Documents</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="passportNumber" className="block text-sm font-medium text-gray-700">
+              Passport Number
+            </label>
+            <input
+              type="text"
+              id="passportNumber"
+              name="passportNumber"
+              value={formData.passportNumber}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
+              Alien Registration Number (A-Number)
+            </label>
+            <input
+              type="text"
+              id="alienRegistrationNumber"
+              name="alienRegistrationNumber"
+              value={formData.alienRegistrationNumber}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="nationalIdNumber" className="block text-sm font-medium text-gray-700">
+              National ID Number
+            </label>
+            <input
+              type="text"
+              id="nationalIdNumber"
+              name="nationalIdNumber"
+              value={formData.nationalIdNumber}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderFamilyInformation = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Spouse Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="spouse.firstName" className="block text-sm font-medium text-gray-700">
+              Spouse First Name
+            </label>
+            <input
+              type="text"
+              id="spouse.firstName"
+              name="spouse.firstName"
+              value={formData.spouse.firstName}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="spouse.lastName" className="block text-sm font-medium text-gray-700">
+              Spouse Last Name
+            </label>
+            <input
+              type="text"
+              id="spouse.lastName"
+              name="spouse.lastName"
+              value={formData.spouse.lastName}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="spouse.dateOfBirth" className="block text-sm font-medium text-gray-700">
+              Spouse Date of Birth
+            </label>
+            <input
+              type="date"
+              id="spouse.dateOfBirth"
+              name="spouse.dateOfBirth"
+              value={formData.spouse.dateOfBirth}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="spouse.nationality" className="block text-sm font-medium text-gray-700">
+              Spouse Nationality
+            </label>
+            <input
+              type="text"
+              id="spouse.nationality"
+              name="spouse.nationality"
+              value={formData.spouse.nationality}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="spouse.alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
+              Spouse A-Number
+            </label>
+            <input
+              type="text"
+              id="spouse.alienRegistrationNumber"
+              name="spouse.alienRegistrationNumber"
+              value={formData.spouse.alienRegistrationNumber}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Children Information</h3>
+          <button
+            type="button"
+            onClick={addChild}
+            className="flex items-center px-3 py-1 text-sm text-primary-600 hover:text-primary-700"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Child
+          </button>
+        </div>
+        
+        {formData.children.map((child, index) => (
+          <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-md font-medium text-gray-800">Child {index + 1}</h4>
+              <button
+                type="button"
+                onClick={() => removeChild(index)}
+                className="text-red-600 hover:text-red-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  value={child.firstName}
+                  onChange={(e) => updateChild(index, 'firstName', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={child.lastName}
+                  onChange={(e) => updateChild(index, 'lastName', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Date of Birth
+                </label>
+                <input
+                  type="date"
+                  value={child.dateOfBirth}
+                  onChange={(e) => updateChild(index, 'dateOfBirth', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Nationality
+                </label>
+                <input
+                  type="text"
+                  value={child.nationality}
+                  onChange={(e) => updateChild(index, 'nationality', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  A-Number
+                </label>
+                <input
+                  type="text"
+                  value={child.alienRegistrationNumber}
+                  onChange={(e) => updateChild(index, 'alienRegistrationNumber', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderEmploymentAndEducation = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Employment Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2">
+            <label htmlFor="employment.currentEmployer.name" className="block text-sm font-medium text-gray-700">
+              Current Employer Name
+            </label>
+            <input
+              type="text"
+              id="employment.currentEmployer.name"
+              name="employment.currentEmployer.name"
+              value={formData.employment.currentEmployer.name}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="employment.jobTitle" className="block text-sm font-medium text-gray-700">
+              Job Title
+            </label>
+            <input
+              type="text"
+              id="employment.jobTitle"
+              name="employment.jobTitle"
+              value={formData.employment.jobTitle}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="employment.employmentStartDate" className="block text-sm font-medium text-gray-700">
+              Employment Start Date
+            </label>
+            <input
+              type="date"
+              id="employment.employmentStartDate"
+              name="employment.employmentStartDate"
+              value={formData.employment.employmentStartDate}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="employment.annualIncome" className="block text-sm font-medium text-gray-700">
+              Annual Income ($)
+            </label>
+            <input
+              type="number"
+              id="employment.annualIncome"
+              name="employment.annualIncome"
+              value={formData.employment.annualIncome}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
+        
+        <div className="mt-4">
+          <h4 className="text-md font-medium text-gray-800 mb-2">Employer Address</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label htmlFor="employment.currentEmployer.address.street" className="block text-sm font-medium text-gray-700">
+                Street Address
+              </label>
+              <input
+                type="text"
+                id="employment.currentEmployer.address.street"
+                name="employment.currentEmployer.address.street"
+                value={formData.employment.currentEmployer.address.street}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="employment.currentEmployer.address.city" className="block text-sm font-medium text-gray-700">
+                City
+              </label>
+              <input
+                type="text"
+                id="employment.currentEmployer.address.city"
+                name="employment.currentEmployer.address.city"
+                value={formData.employment.currentEmployer.address.city}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="employment.currentEmployer.address.state" className="block text-sm font-medium text-gray-700">
+                State
+              </label>
+              <input
+                type="text"
+                id="employment.currentEmployer.address.state"
+                name="employment.currentEmployer.address.state"
+                value={formData.employment.currentEmployer.address.state}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="employment.currentEmployer.address.zipCode" className="block text-sm font-medium text-gray-700">
+                ZIP Code
+              </label>
+              <input
+                type="text"
+                id="employment.currentEmployer.address.zipCode"
+                name="employment.currentEmployer.address.zipCode"
+                value={formData.employment.currentEmployer.address.zipCode}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="employment.currentEmployer.address.country" className="block text-sm font-medium text-gray-700">
+                Country
+              </label>
+              <input
+                type="text"
+                id="employment.currentEmployer.address.country"
+                name="employment.currentEmployer.address.country"
+                value={formData.employment.currentEmployer.address.country}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Education Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="education.highestLevel" className="block text-sm font-medium text-gray-700">
+              Highest Education Level
+            </label>
+            <select
+              id="education.highestLevel"
+              name="education.highestLevel"
+              value={formData.education.highestLevel}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">Select Education Level</option>
+              <option value="high_school">High School</option>
+              <option value="associate">Associate Degree</option>
+              <option value="bachelor">Bachelor's Degree</option>
+              <option value="master">Master's Degree</option>
+              <option value="doctorate">Doctorate</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="education.institutionName" className="block text-sm font-medium text-gray-700">
+              Institution Name
+            </label>
+            <input
+              type="text"
+              id="education.institutionName"
+              name="education.institutionName"
+              value={formData.education.institutionName}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="education.datesAttended.startDate" className="block text-sm font-medium text-gray-700">
+              Start Date
+            </label>
+            <input
+              type="date"
+              id="education.datesAttended.startDate"
+              name="education.datesAttended.startDate"
+              value={formData.education.datesAttended.startDate}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="education.datesAttended.endDate" className="block text-sm font-medium text-gray-700">
+              End Date
+            </label>
+            <input
+              type="date"
+              id="education.datesAttended.endDate"
+              name="education.datesAttended.endDate"
+              value={formData.education.datesAttended.endDate}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="education.fieldOfStudy" className="block text-sm font-medium text-gray-700">
+              Field of Study
+            </label>
+            <input
+              type="text"
+              id="education.fieldOfStudy"
+              name="education.fieldOfStudy"
+              value={formData.education.fieldOfStudy}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTravelAndFinancial = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Travel History</h3>
+          <button
+            type="button"
+            onClick={addTravelHistory}
+            className="flex items-center px-3 py-1 text-sm text-primary-600 hover:text-primary-700"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Travel Record
+          </button>
+        </div>
+        
+        {formData.travelHistory.map((travel, index) => (
+          <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-md font-medium text-gray-800">Travel Record {index + 1}</h4>
+              <button
+                type="button"
+                onClick={() => removeTravelHistory(index)}
+                className="text-red-600 hover:text-red-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  value={travel.country}
+                  onChange={(e) => updateTravelHistory(index, 'country', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Visit Date
+                </label>
+                <input
+                  type="date"
+                  value={travel.visitDate}
+                  onChange={(e) => updateTravelHistory(index, 'visitDate', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Purpose
+                </label>
+                <select
+                  value={travel.purpose}
+                  onChange={(e) => updateTravelHistory(index, 'purpose', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">Select Purpose</option>
+                  <option value="tourism">Tourism</option>
+                  <option value="business">Business</option>
+                  <option value="education">Education</option>
+                  <option value="family">Family</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Duration (days)
+                </label>
+                <input
+                  type="number"
+                  value={travel.duration}
+                  onChange={(e) => updateTravelHistory(index, 'duration', Number(e.target.value))}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Financial Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="financialInfo.annualIncome" className="block text-sm font-medium text-gray-700">
+              Annual Income ($)
+            </label>
+            <input
+              type="number"
+              id="financialInfo.annualIncome"
+              name="financialInfo.annualIncome"
+              value={formData.financialInfo.annualIncome}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="financialInfo.sourceOfFunds" className="block text-sm font-medium text-gray-700">
+              Source of Funds
+            </label>
+            <select
+              id="financialInfo.sourceOfFunds"
+              name="financialInfo.sourceOfFunds"
+              value={formData.financialInfo.sourceOfFunds}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">Select Source</option>
+              <option value="employment">Employment</option>
+              <option value="investment">Investment</option>
+              <option value="family">Family</option>
+              <option value="savings">Savings</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="financialInfo.bankAccountBalance" className="block text-sm font-medium text-gray-700">
+              Bank Account Balance ($)
+            </label>
+            <input
+              type="number"
+              id="financialInfo.bankAccountBalance"
+              name="financialInfo.bankAccountBalance"
+              value={formData.financialInfo.bankAccountBalance}
+              onChange={handleInputChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderHistoryAndAdditional = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Criminal History</h3>
+        <div className="space-y-4">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="criminalHistory.hasCriminalRecord"
+              name="criminalHistory.hasCriminalRecord"
+              checked={formData.criminalHistory.hasCriminalRecord}
+              onChange={handleCheckboxChange}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor="criminalHistory.hasCriminalRecord" className="ml-2 block text-sm text-gray-900">
+              I have a criminal record
+            </label>
+          </div>
+          {formData.criminalHistory.hasCriminalRecord && (
+            <div>
+              <label htmlFor="criminalHistory.details" className="block text-sm font-medium text-gray-700">
+                Details
+              </label>
+              <textarea
+                id="criminalHistory.details"
+                name="criminalHistory.details"
+                rows={4}
+                value={formData.criminalHistory.details}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                placeholder="Please provide details about your criminal history..."
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Medical History</h3>
+        <div className="space-y-4">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="medicalHistory.hasMedicalConditions"
+              name="medicalHistory.hasMedicalConditions"
+              checked={formData.medicalHistory.hasMedicalConditions}
+              onChange={handleCheckboxChange}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor="medicalHistory.hasMedicalConditions" className="ml-2 block text-sm text-gray-900">
+              I have medical conditions
+            </label>
+          </div>
+          {formData.medicalHistory.hasMedicalConditions && (
+            <div>
+              <label htmlFor="medicalHistory.details" className="block text-sm font-medium text-gray-700">
+                Details
+              </label>
+              <textarea
+                id="medicalHistory.details"
+                name="medicalHistory.details"
+                rows={4}
+                value={formData.medicalHistory.details}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                placeholder="Please provide details about your medical conditions..."
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderRegistrationForm = () => (
+    <form 
+      onSubmit={handleSubmit} 
+      onKeyDown={(e) => {
+        // Prevent form submission on Enter key unless it's the submit button
+        if (e.key === 'Enter' && e.target !== e.currentTarget.querySelector('button[type="submit"]')) {
+          e.preventDefault();
+        }
+      }}
+      className="space-y-6"
+    >
+      {renderSectionNavigation()}
+      
+      {currentSection === 0 && renderBasicInformation()}
+      {currentSection === 1 && renderAddressAndBirth()}
+      {currentSection === 2 && renderPersonalDetails()}
+      {currentSection === 3 && renderIdentification()}
+      {currentSection === 4 && renderFamilyInformation()}
+      {currentSection === 5 && renderEmploymentAndEducation()}
+      {currentSection === 6 && renderTravelAndFinancial()}
+      {currentSection === 7 && renderHistoryAndAdditional()}
+      
+      <div className="flex justify-between pt-6">
+        <button
+          type="button"
+          onClick={() => setCurrentSection(Math.max(0, currentSection - 1))}
+          disabled={currentSection === 0}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Previous
+        </button>
+        
+        {currentSection < sections.length - 1 ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCurrentSection(Math.min(sections.length - 1, currentSection + 1));
+            }}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-lg hover:bg-primary-700"
+          >
+            Next
+          </button>
         ) : (
-          <>
-            Create Account
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </>
+          <button
+            type="submit"
+            disabled={loading}
+            onClick={() => {
+              console.log('Create Account button clicked');
+              // The form submission will be handled by the form's onSubmit
+            }}
+            className={`px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin h-4 w-4 mr-2 inline" />
+                Creating account...
+              </>
+            ) : (
+              <>
+                Create Account
+                <ArrowRight className="ml-2 h-4 w-4 inline" />
+              </>
+            )}
+          </button>
         )}
-      </button>
+      </div>
     </form>
   );
 

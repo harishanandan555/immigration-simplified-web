@@ -1,6 +1,5 @@
 import api from '../utils/api';
 import { CLIENT_END_POINTS, USER_END_POINTS } from '../utils/constants';
-import { AxiosResponse } from 'axios';
 
 export interface Address {
   street: string;
@@ -10,22 +9,132 @@ export interface Address {
   country: string;
 }
 
+export interface PlaceOfBirth {
+  city: string;
+  state?: string;
+  country: string;
+}
+
+export interface Spouse {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  nationality?: string;
+  alienRegistrationNumber?: string;
+}
+
+export interface Child {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  nationality?: string;
+  alienRegistrationNumber?: string;
+}
+
+export interface Employment {
+  currentEmployer?: {
+    name?: string;
+    address?: Address;
+  };
+  jobTitle?: string;
+  employmentStartDate?: string;
+  annualIncome?: number;
+}
+
+export interface Education {
+  highestLevel?: 'high_school' | 'associate' | 'bachelor' | 'master' | 'doctorate' | 'other';
+  institutionName?: string;
+  datesAttended?: {
+    startDate?: string;
+    endDate?: string;
+  };
+  fieldOfStudy?: string;
+}
+
+export interface TravelHistory {
+  country: string;
+  visitDate: string;
+  purpose: 'tourism' | 'business' | 'education' | 'family' | 'other';
+  duration: number; // days
+}
+
+export interface FinancialInfo {
+  annualIncome?: number;
+  sourceOfFunds?: 'employment' | 'investment' | 'family' | 'savings' | 'other';
+  bankAccountBalance?: number;
+}
+
+export interface CriminalHistory {
+  hasCriminalRecord: boolean;
+  details?: string;
+}
+
+export interface MedicalHistory {
+  hasMedicalConditions: boolean;
+  details?: string;
+}
+
+export interface Document {
+  name: string;
+  path: string;
+  uploadedAt: string;
+  category: string;
+}
+
+export interface Company {
+  _id: string;
+  name: string;
+}
+
+export interface Attorney {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
 export interface Client {
-    id: string;
-    name: string;
+    _id: string;
+    firstName: string;
+    lastName: string;
+    name: string; // Auto-generated from firstName + lastName
     email: string;
     phone: string;
-    dateOfBirth: string;
-    address: Address;
     nationality: string;
-    alienNumber: string;
-    passportNumber: string;
-    entryDate: string;
-    visaCategory: string;
-    notes: string;
-    status: string;
+    address: Address;
+    role: 'client';
+    userType: 'companyClient' | 'individualUser';
+    companyId?: string; // Required for companyClient
+    attorneyIds: string[];
+    dateOfBirth: string;
+    placeOfBirth?: PlaceOfBirth;
+    gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+    maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union';
+    immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other';
+    passportNumber?: string;
+    alienRegistrationNumber?: string;
+    nationalIdNumber?: string;
+    spouse?: Spouse;
+    children?: Child[];
+    employment?: Employment;
+    education?: Education;
+    travelHistory?: TravelHistory[];
+    financialInfo?: FinancialInfo;
+    criminalHistory?: CriminalHistory;
+    medicalHistory?: MedicalHistory;
+    bio?: string;
+    status: 'Active' | 'Inactive' | 'Pending';
+    entryDate?: string;
+    visaCategory?: string;
+    notes?: string;
+    documents?: Document[];
+    active: boolean;
+    lastLogin?: string;
     createdAt: string;
     updatedAt: string;
+    // Legacy fields for backward compatibility
+    id?: string;
+    alienNumber?: string;
 }
 
 export interface ApiResponse<T> {
@@ -35,13 +144,37 @@ export interface ApiResponse<T> {
     headers: Record<string, string>;
 }
 
+export interface PaginationInfo {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+}
+
+export interface ClientsApiResponse {
+    clients: Client[];
+    pagination: PaginationInfo;
+}
+
+export interface UsersApiResponse {
+    success: boolean;
+    users: User[];
+    pagination: PaginationInfo;
+}
+
 export interface User {
     _id: string;
     firstName: string;
     lastName: string;
+    name: string; // Auto-generated from firstName + lastName
     email: string;
     role: string;
-    status?: string;
+    status?: 'Active' | 'Inactive' | 'Pending';
+    userType?: 'companyUser' | 'individualUser';
+    companyId?: string;
+    attorneyIds?: string[];
+    superadminIds?: string[];
+    lastLogin?: string;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -61,11 +194,19 @@ export interface Task {
     updatedAt?: string;
 }
 
-export const getClients = async (): Promise<Client[]> => {
+export const getClients = async (params: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    search?: string;
+} = {}): Promise<ClientsApiResponse> => {
     try {
-        const response: AxiosResponse<{ clients: Client[] }> = await api.get(CLIENT_END_POINTS.GETCLIENTS);
+        console.log('🔄 Fetching clients with params:', params);
+        const response = await api.get<ClientsApiResponse>(CLIENT_END_POINTS.GETCLIENTS, {
+            params
+        });
         console.log('📥 Clients API response:', response.data);
-        return response.data.clients;
+        return response.data;
     } catch (error) {
         if (error instanceof Error) {
             console.error('Error fetching clients:', error.message);
@@ -75,64 +216,25 @@ export const getClients = async (): Promise<Client[]> => {
     }
 };
 
-export const getUsers = async (): Promise<User[]> => {
+export const getUsers = async (params: {
+    page?: number;
+    limit?: number;
+    role?: string;
+    status?: string;
+    userType?: string;
+    search?: string;
+} = {}): Promise<UsersApiResponse> => {
     try {
-        console.log('🔄 Fetching users (attorneys and paralegals) from new API endpoint...');
+        console.log('🔄 Fetching users from new API endpoint...');
         console.log('📍 API Endpoint:', USER_END_POINTS.GET_ALL_USERS);
-        console.log('📍 Request params:', { role: 'attorney,paralegal' });
+        console.log('📍 Request params:', params);
         
-        // Use the new clients/users endpoint with role filtering for attorneys and paralegals
-        const response: AxiosResponse<{ users?: User[], data?: User[], success?: boolean } | User[]> = await api.get(USER_END_POINTS.GET_ALL_USERS, {
-            params: {
-                role: 'attorney,paralegal'
-            }
+        const response = await api.get<UsersApiResponse>(USER_END_POINTS.GET_ALL_USERS, {
+            params
         });
         
-        console.log('📥 Raw API response:', response);
-        console.log('📥 Response status:', response.status);
-        console.log('📥 Response data:', response.data);
-        console.log('📥 Response data type:', typeof response.data);
-        console.log('📥 Is response.data an array?', Array.isArray(response.data));
-        
-        // Handle different response structures
-        let users: User[];
-        if (Array.isArray(response.data)) {
-            users = response.data;
-            console.log('✅ Using response.data as array');
-        } else if (response.data && response.data.users) {
-            users = response.data.users;
-            console.log('✅ Using response.data.users');
-        } else if (response.data && response.data.data) {
-            users = response.data.data;
-            console.log('✅ Using response.data.data');
-        } else {
-            users = [];
-            console.log('⚠️ No users found in response, using empty array');
-        }
-        
-        console.log('📋 All users from API:', users);
-        console.log('📋 Number of users:', users.length);
-        
-        if (users.length > 0) {
-            console.log('📋 User roles found:', users.map(u => ({ name: `${u.firstName} ${u.lastName}`, role: u.role })));
-        }
-        
-        // Additional client-side filtering to ensure only attorneys and paralegals
-        const assignableUsers = users.filter((user: User) => 
-            user.role === 'attorney' || user.role === 'paralegal'
-        );
-        
-        console.log('📋 Filtered assignable users:', assignableUsers);
-        console.log(`✅ Found ${assignableUsers.length} assignable users (attorneys/paralegals)`);
-        
-        if (assignableUsers.length === 0) {
-            console.log('⚠️ NO ATTORNEYS OR PARALEGALS FOUND!');
-            console.log('🔍 Debug info:');
-            console.log('- Total users received:', users.length);
-            console.log('- User roles in response:', users.map(u => u.role));
-        }
-        
-        return assignableUsers;
+        console.log('📥 Users API response:', response.data);
+        return response.data;
     } catch (error) {
         console.error('❌ Error fetching users:', error);
         if (error instanceof Error) {
@@ -140,6 +242,17 @@ export const getUsers = async (): Promise<User[]> => {
             throw new Error(`Failed to fetch users: ${error.message}`);
         }
         throw new Error('Failed to fetch users due to an unknown error');
+    }
+};
+
+// Helper function to get assignable users (attorneys and paralegals)
+export const getAssignableUsers = async (): Promise<User[]> => {
+    try {
+        const response = await getUsers({ role: 'attorney,paralegal' });
+        return response.users;
+    } catch (error) {
+        console.error('❌ Error fetching assignable users:', error);
+        throw error;
     }
 };
 
@@ -218,31 +331,9 @@ export const getAttorneys = async (): Promise<User[]> => {
     try {
         console.log('🔄 Fetching attorneys from new API endpoint...');
         
-        const response: AxiosResponse<{ users?: User[], data?: User[], success?: boolean } | User[]> = await api.get(USER_END_POINTS.GET_ALL_USERS, {
-            params: {
-                role: 'attorney'
-            }
-        });
-        
-        console.log('📥 Attorneys API response:', response.data);
-        
-        // Handle different response structures
-        let users: User[];
-        if (Array.isArray(response.data)) {
-            users = response.data;
-        } else if (response.data.users) {
-            users = response.data.users;
-        } else if (response.data.data) {
-            users = response.data.data;
-        } else {
-            users = [];
-        }
-        
-        // Filter to ensure only attorneys
-        const attorneys = users.filter((user: User) => user.role === 'attorney');
-        
-        console.log(`✅ Found ${attorneys.length} attorneys`);
-        return attorneys;
+        const response = await getUsers({ role: 'attorney' });
+        console.log(`✅ Found ${response.users.length} attorneys`);
+        return response.users;
     } catch (error) {
         console.error('❌ Error fetching attorneys:', error);
         if (error instanceof Error) {
@@ -256,31 +347,9 @@ export const getParalegals = async (): Promise<User[]> => {
     try {
         console.log('🔄 Fetching paralegals from new API endpoint...');
         
-        const response: AxiosResponse<{ users?: User[], data?: User[], success?: boolean } | User[]> = await api.get(USER_END_POINTS.GET_ALL_USERS, {
-            params: {
-                role: 'paralegal'
-            }
-        });
-        
-        console.log('📥 Paralegals API response:', response.data);
-        
-        // Handle different response structures
-        let users: User[];
-        if (Array.isArray(response.data)) {
-            users = response.data;
-        } else if (response.data.users) {
-            users = response.data.users;
-        } else if (response.data.data) {
-            users = response.data.data;
-        } else {
-            users = [];
-        }
-        
-        // Filter to ensure only paralegals
-        const paralegals = users.filter((user: User) => user.role === 'paralegal');
-        
-        console.log(`✅ Found ${paralegals.length} paralegals`);
-        return paralegals;
+        const response = await getUsers({ role: 'paralegal' });
+        console.log(`✅ Found ${response.users.length} paralegals`);
+        return response.users;
     } catch (error) {
         console.error('❌ Error fetching paralegals:', error);
         if (error instanceof Error) {
@@ -292,7 +361,7 @@ export const getParalegals = async (): Promise<User[]> => {
 
 export const getClientById = async (id: string): Promise<Client> => {
     try {
-        const response: AxiosResponse<Client> = await api.get(
+        const response = await api.get<Client>(
             CLIENT_END_POINTS.GETCLIENTBYID.replace(':id', id)
         );
         return response.data;
@@ -305,19 +374,16 @@ export const getClientById = async (id: string): Promise<Client> => {
     }
 };
 
-export const createClient = async (clientData: Omit<Client, 'id'>): Promise<ApiResponse<Client>> => {
+export const createIndividualClient = async (clientData: Omit<Client, '_id' | 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
     try {
-        const response: AxiosResponse<Client> = await api.post<Client>(
+        console.log('🔄 Creating individual client...');
+        const response = await api.post<Client>(
             CLIENT_END_POINTS.CREATECLIENT,
             clientData
         );
 
-        return {
-            data: response.data,
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers as Record<string, string>
-        };
+        console.log('✅ Individual client created:', response.data);
+        return response.data;
 
     } catch (error) {
         if (error instanceof Error) {
@@ -326,11 +392,81 @@ export const createClient = async (clientData: Omit<Client, 'id'>): Promise<ApiR
         }
         throw new Error('Failed to create client due to an unknown error');
     }
-}
+};
+
+export const createCompanyClient = async (clientData: Omit<Client, '_id' | 'id' | 'createdAt' | 'updatedAt'> & {
+    companyId: string;
+    attorneyIds?: string[];
+    sendPassword?: boolean;
+    password?: string;
+}): Promise<Client> => {
+    try {
+        console.log('🔄 Creating company client...');
+        const response = await api.post<Client>(
+            CLIENT_END_POINTS.CREATECOMPANYCLIENT,
+            clientData
+        );
+
+        console.log('✅ Company client created:', response.data);
+        return response.data;
+
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error creating company client:', error.message);
+            throw new Error(`Failed to create company client: ${error.message}`);
+        }
+        throw new Error('Failed to create company client due to an unknown error');
+    }
+};
+
+export const updateClient = async (clientId: string, updateData: Partial<Client>): Promise<Client> => {
+    try {
+        console.log('🔄 Updating client:', clientId);
+        const response = await api.put<Client>(
+            CLIENT_END_POINTS.UPDATECLIENT.replace(':id', clientId),
+            updateData
+        );
+
+        console.log('✅ Client updated:', response.data);
+        return response.data;
+
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error updating client:', error.message);
+            throw new Error(`Failed to update client: ${error.message}`);
+        }
+        throw new Error('Failed to update client due to an unknown error');
+    }
+};
+
+export const addClientDocument = async (clientId: string, documentData: {
+    type: string;
+    name: string;
+    fileUrl: string;
+    notes?: string;
+}): Promise<Client> => {
+    try {
+        console.log('🔄 Adding document to client:', clientId);
+        const response = await api.post<Client>(
+            CLIENT_END_POINTS.ADDCLIENTDOCUMENT.replace(':id', clientId),
+            documentData
+        );
+
+        console.log('✅ Document added to client:', response.data);
+        return response.data;
+
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error adding document to client:', error.message);
+            throw new Error(`Failed to add document to client: ${error.message}`);
+        }
+        throw new Error('Failed to add document to client due to an unknown error');
+    }
+};
 
 export const getClientCases = async (clientId: string): Promise<any[]> => {
     try {
-        const response: AxiosResponse<any[]> = await api.get(
+        const response = await api.get<any[]>(
             CLIENT_END_POINTS.GETCLIENTCASES.replace(':id', clientId)
         );
         return response.data;

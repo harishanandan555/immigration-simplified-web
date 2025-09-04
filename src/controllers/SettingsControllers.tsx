@@ -500,6 +500,20 @@ export const getFormTemplates = async (
   }
 };
 
+export const getUscisFormNumbers = async (): Promise<ApiResponse<string[]>> => {
+  try {
+    const response = await api.get(FORM_TEMPLATE_ENDPOINTS.GET_USCIS_FORM_NUMBERS);
+    return {
+      data: response.data.formNumbers,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
 export const getFormTemplateById = async (userId: string, templateId: string): Promise<ApiResponse<FormTemplate>> => {
   try {
     const response = await api.get(FORM_TEMPLATE_ENDPOINTS.GET_BY_ID.replace(':id', templateId));
@@ -605,6 +619,7 @@ export const importFormTemplate = async (userId: string, file: File): Promise<Ap
     throw error;
   }
 };
+
 
 // Report Settings
 export const getReportSettings = async (userId: string): Promise<ApiResponse<any>> => {

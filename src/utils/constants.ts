@@ -42,6 +42,7 @@ export const CASE_END_POINTS = {
 export const CLIENT_END_POINTS = {
     GETCLIENTS: "/api/v1/clients",
     CREATECLIENT: "/api/v1/clients",
+    CREATECOMPANYCLIENT: "/api/v1/clients/company",
     GETCLIENTBYID: "/api/v1/clients/:id",
     UPDATECLIENT: "/api/v1/clients/:id",
     ADDCLIENTDOCUMENT: "/api/v1/clients/:id/documents",
@@ -49,11 +50,11 @@ export const CLIENT_END_POINTS = {
 };
 
 export const USER_END_POINTS = {
-    GET_ALL_USERS: "/api/v1/clients/users/all",
-    GET_USERS_BY_ROLE: "/api/v1/clients/users/all?role=:role",
-    GET_ATTORNEYS: "/api/v1/clients/users/all?role=attorney",
-    GET_PARALEGALS: "/api/v1/clients/users/all?role=paralegal",
-    GET_ATTORNEYS_AND_PARALEGALS: "/api/v1/clients/users/all?role=attorney,paralegal"
+    GET_ALL_USERS: "/api/v1/users/all",
+    GET_USERS_BY_ROLE: "/api/v1/users/all?role=:role",
+    GET_ATTORNEYS: "/api/v1/users/all?role=attorney",
+    GET_PARALEGALS: "/api/v1/users/all?role=paralegal",
+    GET_ATTORNEYS_AND_PARALEGALS: "/api/v1/users/all?role=attorney,paralegal"
 };
 
 export const TASK_END_POINTS = {
@@ -436,6 +437,7 @@ export const FORM_FIELD_TYPES = {
 // Form Template Endpoints
 export const FORM_TEMPLATE_ENDPOINTS = {
   GET_ALL: '/api/v1/form-templates',
+  GET_USCIS_FORM_NUMBERS: '/api/v1/form-templates/uscis-numbers',
   GET_BY_ID: '/api/v1/form-templates/:id',
   CREATE: '/api/v1/form-templates',
   UPDATE: '/api/v1/form-templates/:id',
@@ -611,3 +613,27 @@ export const LEGAL_WORKFLOW_ENDPOINTS = {
     // Immigration Process
     SUBMIT_IMMIGRATION_PROCESS: "/api/v1/immigration/process"
 } as const;
+
+export const QUESTIONNAIRE_RESPONSE_END_POINTS = {
+    // Get all questionnaire responses for attorneys
+    GET_CLIENT_RESPONSES: "/api/v1/questionnaire-assignments/client-responses",
+    
+    // Get specific questionnaire response
+    GET_RESPONSE_BY_ID: "/api/v1/questionnaire-assignments/:assignmentId/response",
+    
+    // Submit questionnaire responses
+    SUBMIT_RESPONSES: "/api/v1/questionnaire-assignments/:assignmentId/submit",
+    
+    // Get questionnaire responses for assignment
+    GET_ASSIGNMENT_RESPONSES: "/api/v1/questionnaire-assignments/:assignmentId/responses",
+    
+    // Update questionnaire responses
+    UPDATE_RESPONSES: "/api/v1/questionnaire-assignments/:assignmentId/responses",
+    
+    // Get workflows for auto-fill
+    GET_WORKFLOWS: "/api/v1/workflows"
+} as const;
+
+
+
+

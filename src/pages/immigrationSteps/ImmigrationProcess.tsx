@@ -469,7 +469,7 @@ const getDocumentDescription = (docName: string): string => {
 const ImmigrationProcess: React.FC = () => {
   const navigate = useNavigate();
   const [showProcessChoice, setShowProcessChoice] = useState(true);
-  const [selectedProcess, setSelectedProcess] = useState<'individual' | 'legal-firm' | null>(null);
+  const [selectedProcess, setSelectedProcess] = useState<'individualUser' | 'legal-firm' | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedMainCategory, setSelectedMainCategory] = useState<MainCategory | null>(null);
   const [selectedSubCategory, setSelectedSubCategory] = useState<SubCategory | null>(null);
@@ -542,9 +542,9 @@ const ImmigrationProcess: React.FC = () => {
     thisMonth: 12
   });
 
-  const handleProcessSelection = (process: 'individual' | 'legal-firm') => {
+  const handleProcessSelection = (process: 'individualUser' | 'legal-firm') => {
     setSelectedProcess(process);
-    if (process === 'individual') {
+    if (process === 'individualUser') {
       // Navigate to individual immigration process
       navigate('/immigration-process/individual');
     } else {
@@ -1014,7 +1014,7 @@ const ImmigrationProcess: React.FC = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
             className="bg-white rounded-xl shadow-lg p-8 border-2 border-transparent hover:border-blue-200 transition-all duration-300 cursor-pointer"
-            onClick={() => handleProcessSelection('individual')}
+            onClick={() => handleProcessSelection('individualUser')}
           >
             <div className="text-center">
               <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">

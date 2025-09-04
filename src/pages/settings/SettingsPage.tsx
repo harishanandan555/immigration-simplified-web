@@ -70,7 +70,7 @@ import { useSnackbar } from 'notistack';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-import { useAuth, updateUser, deleteUser, registerAttorney, registerUser, getUserById } from '../../controllers/AuthControllers';
+import { useAuth, updateUser, deleteUser, registerAttorney, registerCompanyUser, getUserById } from '../../controllers/AuthControllers';
 
 import {
   getProfile,
@@ -1164,7 +1164,7 @@ const SettingsPage = () => {
     middleName: '',
     email: '',
     phone: '',
-    role: '' as '' | 'attorney' | 'paralegal' | 'client',
+    role: (isAttorney ? 'paralegal' : '') as '' | 'attorney' | 'paralegal' | 'client',
     active: true,
     companyId: user?.companyId || '', // Set initial companyId from current user
     password: '',
@@ -2304,7 +2304,7 @@ const SettingsPage = () => {
     { id: 'backup', name: 'Backup & Recovery', icon: HardDrive, adminOnly: true },
     { id: 'api', name: 'API Settings', icon: Key, adminOnly: true },
     { id: 'performance', name: 'Performance', icon: Zap, adminOnly: true },
-    { id: 'questionnaire', name: 'Questionnaire', icon: HelpCircle, adminOnly: false, attorneyAllowed: true },
+    // { id: 'questionnaire', name: 'Questionnaire', icon: HelpCircle, adminOnly: false, attorneyAllowed: true },
   ];
 
   const renderSecuritySection = () => (
@@ -2741,17 +2741,17 @@ const SettingsPage = () => {
           newUser.bio
         );
       } else {
-        response = await registerUser(
+        response = await registerCompanyUser(
           firstName,
           lastName,
           email,
           password,
           role,
-          'company',           // userType
+          'companyUser',           // userType
           user?._id || '',     // superadminId
           user?._id || '',     // attorneyId
           finalCompanyId,
-          // Client/Paralegal-specific fields
+          // Paralegal-specific fields
           newUser.phone,
           newUser.nationality,
           newUser.address,
