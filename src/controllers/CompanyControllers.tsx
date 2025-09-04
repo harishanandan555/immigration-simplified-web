@@ -48,7 +48,6 @@ const IS_GETCOMPANYUSERS_ENABLED = true;
 
 export const getAllCompaniesList = async (userId: string): Promise<ApiResponse<any>> => {
   if (!IS_GETCOMPANIES_ENABLED) {
-    console.log('getCompanies method is skipped.');
     return {
       data: null,
       status: 0,
@@ -72,7 +71,6 @@ export const getAllCompaniesList = async (userId: string): Promise<ApiResponse<a
 
 export const getCompanyUsers = async (companyId: string): Promise<ApiResponse<any>> => {
   if (!IS_GETCOMPANYUSERS_ENABLED) {
-    console.log('getCompanyUsers method is skipped.');
     return {
       data: null,
       status: 0,

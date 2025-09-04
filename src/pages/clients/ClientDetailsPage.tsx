@@ -27,29 +27,21 @@ const ClientDetailsPage = () => {
   // Function to fetch client documents
   const fetchClientDocuments = async (clientId: string, clientData?: any) => {
     try {
-      console.log('📄 Fetching documents for client:', clientId);
       setLoadingDocuments(true);
       
       const response = await getDocuments();
-      console.log('📄 Documents API response:', response);
-      console.log('📄 Response data:', response.data);
       
       if (response.success) {
         // Handle the actual API response structure - same fix as DocumentsPage
         const responseData = response.data as any;
         const allDocuments = responseData.data?.documents || responseData.documents || [];
-        console.log('📄 All documents fetched:', allDocuments.length);
-        console.log('📄 Sample document:', allDocuments[0]);
         
         // Filter documents for this specific client
         const currentClient = clientData || client;
-        console.log('📄 Current client for document filtering:', currentClient);
-        console.log('📄 Client ID parameter:', clientId);
         
         // Filter documents by client email (primary method)
         const clientEmail = (clientData || client)?.email?.trim().toLowerCase() || '';
         
-        console.log('📄 Filtering documents for client email:', clientEmail);
         
         const filteredDocuments = allDocuments.filter((doc: Document) => {
           // Primary strategy: Match by client email
@@ -71,47 +63,17 @@ const ClientDetailsPage = () => {
           
           const isMatch = matchesClientEmail || matchesUploadedByEmail || matchesClientId;
           
-          if (isMatch) {
-            console.log('✅ Document matched for client:', {
-              docName: doc.name,
-              docClientEmail: docClientEmail,
-              docUploadedBy: docUploadedBy,
-              docClientId: (doc as any).clientId,
-              targetEmail: clientEmail,
-              matchType: matchesClientEmail ? 'clientEmail' : 
-                        matchesUploadedByEmail ? 'uploadedByEmail' : 
-                        'clientId'
-            });
-          }
           
           return isMatch;
         });
         
-        console.log(`📄 Found ${filteredDocuments.length} documents for client ${clientId}`);
         
         // If no documents found, debug what documents are available
         if (filteredDocuments.length === 0) {
-          console.log('📄 No documents found for client email:', clientEmail);
-          console.log('📄 Total documents in system:', allDocuments.length);
-          
-          // Show sample documents with their email-related fields
-          allDocuments.slice(0, 5).forEach((doc: Document, index: number) => {
-            console.log(`Document ${index + 1}:`, {
-              name: doc.name,
-              clientId: doc.clientId,
-              clientEmail: (doc as any).clientEmail || 'not set',
-              uploadedBy: doc.uploadedBy,
-              createdAt: doc.createdAt
-            });
-          });
-          
           // Show unique client emails in documents
           const uniqueClientEmails = [...new Set(allDocuments.map((doc: any) => doc.clientEmail).filter(Boolean))];
           const uniqueUploadedBy = [...new Set(allDocuments.map((doc: any) => doc.uploadedBy).filter(Boolean))];
           
-          console.log('📄 Unique client emails in documents:', uniqueClientEmails);
-          console.log('📄 Unique uploadedBy values in documents:', uniqueUploadedBy);
-          console.log('📄 Target client email:', clientEmail);
         }
         
         // Process documents for display with formatted data
@@ -138,8 +100,6 @@ const ClientDetailsPage = () => {
         );
         
         setActivities(sortedActivities);
-        console.log('📄 Generated activity log:', sortedActivities.length, 'activities');
-        
       } else {
         console.error('Failed to fetch documents:', response.message);
         setClientDocuments([]);
@@ -220,7 +180,6 @@ const ClientDetailsPage = () => {
         }
         
         // Fetch client data directly from workflows API (same as ClientsPage approach)
-        console.log('🔄 Fetching client data from workflows API for client ID:', id);
         setLoading(true);
         
         const token = localStorage.getItem('token');
@@ -235,11 +194,9 @@ const ClientDetailsPage = () => {
           }
         });
         
-        console.log('📥 Workflows API response for client details:', response.data);
         
         if (response.data?.success && response.data?.data) {
           const workflows = response.data.data;
-          console.log(`✅ Successfully loaded ${workflows.length} workflows`);
           
           // Find the client in workflows (same logic as ClientsPage)
           let foundClient: any = null;
@@ -287,7 +244,6 @@ const ClientDetailsPage = () => {
           });
           
           if (foundClient) {
-            console.log('✅ Found client in workflows:', foundClient);
             setClient(foundClient);
             
             // Extract cases from client workflows
@@ -308,25 +264,14 @@ const ClientDetailsPage = () => {
               };
             });
             
-            console.log(`✅ Extracted ${extractedCases.length} cases for client`);
             setClientCases(extractedCases);
             
-            // Also fetch documents for this client
-            console.log('🔄 Starting document fetch with client data:', foundClient);
             // Use client email as primary identifier for documents, fallback to workflow ID
             const documentSearchId = foundClient.email || foundClient._id || id;
-            console.log('📄 Using document search ID:', documentSearchId);
             await fetchClientDocuments(documentSearchId, foundClient);
           } else {
-            console.log('❌ Client not found in workflows');
-            console.log('Available workflow clients:');
             workflows.forEach((workflow: any, index: number) => {
               const wfClient = workflow.client || {};
-              console.log(`Workflow ${index + 1}:`, {
-                workflowId: workflow._id,
-                clientName: wfClient.name || 'No name',
-                clientEmail: wfClient.email || 'No email'
-              });
             });
             throw new Error('Client not found in workflows');
           }

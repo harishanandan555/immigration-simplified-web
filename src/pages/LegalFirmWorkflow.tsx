@@ -583,7 +583,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // You may want to pass userId or params as needed
         // const response = await getFormTemplates('');
         const response = await getUscisFormNumbers();
-        // console.log('🔍 Response 1:', response1);
         // setFormTemplates(response.data.templates || []);
         
         // Map the API response to FormTemplate structure
@@ -623,31 +622,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Load existing clients from API on mount (for start step)
   useEffect(() => {
     const loadClients = async () => {
-      console.log('🔄 Loading existing clients...');
       setFetchingClients(true);
 
       // Test API connection first
       const token = localStorage.getItem('token');
-      console.log('🔐 Auth token available:', !!token);
 
       try {
         const apiResponse = await fetchClientsFromAPI();
-        console.log('📋 API Clients Response:', apiResponse);
         const apiClients = apiResponse?.clients || [];
-        console.log('📊 Total clients from API:', apiClients?.length || 0);
 
         // If no clients returned from regular API, try to get them from workflows
         if (!apiClients || apiClients.length === 0) {
-          console.log('⚠️ No clients returned from regular API, trying workflows collection...');
           const workflowClients = await fetchClientsFromWorkflows();
-          console.log('📋 Clients from workflows:', workflowClients.length);
-
+          
           if (workflowClients.length > 0) {
             setExistingClients(workflowClients);
-            console.log('✅ Using clients from workflows collection');
             return;
           } else {
-            console.log('⚠️ No clients found in workflows either');
             setExistingClients([]);
             return;
           }
@@ -655,37 +646,25 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
         // Filter clients to only include role "client" (no userType check for now)
         const filteredClients = apiClients?.filter((client: any) => {
-          console.log('🔍 Checking client:', {
-            name: client.name || `${client.firstName} ${client.lastName}`,
-            email: client.email,
-            role: client.role,
-            userType: client.userType
-          });
+          
 
           // Must have exact role "client" only
           const hasValidRole = client.role === 'client';
 
           if (!hasValidRole) {
-            console.log('❌ Client filtered out - Role:', client.role);
             return false;
           }
 
-          console.log('✅ Client passed filter');
           return true;
         }) || [];
 
-        console.log('📊 Filtered clients count:', filteredClients.length);
-        console.log('📋 Filtered clients:', filteredClients);
 
         // If no clients pass the filter, try workflows as backup
         if (filteredClients.length === 0) {
-          console.log('⚠️ No clients passed filter, trying workflows as backup...');
           const workflowClients = await fetchClientsFromWorkflows();
-          console.log('📋 Backup clients from workflows:', workflowClients.length);
-
+          
           if (workflowClients.length > 0) {
             setExistingClients(workflowClients);
-            console.log('✅ Using backup clients from workflows collection');
             return;
           }
         }
@@ -710,8 +689,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
           // Otherwise, generate a new valid ObjectId
           const validId = generateObjectId();
-          console.log('🆔 Generated new ID for client:', client.name || client.email, validId);
-
+          
           return {
             ...client,
             id: validId,
@@ -719,17 +697,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           };
         });
 
-        console.log('✅ Final validated clients count:', validatedClients.length);
         setExistingClients(validatedClients);
       } catch (err) {
         console.error('❌ Error loading clients from API:', err);
 
         // No localStorage fallback - just set empty array
-        console.log('⚠️ Setting empty clients array due to API error');
         setExistingClients([]);
       } finally {
         setFetchingClients(false);
-        console.log('🏁 Finished loading clients');
       }
     };
     loadClients();
@@ -1286,7 +1261,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to fetch workflows from API for auto-fill
   const fetchWorkflowsFromAPI = async () => {
     try {
-      console.log('🔄 Fetching workflows from API...');
       // setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
 
@@ -1303,7 +1277,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       });
 
       if (workflows.length > 0) {
-        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         return workflows;
       } else {
         return [];
@@ -1322,55 +1295,34 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       return [];
     } finally {
       // setLoadingWorkflows(false);
-      console.log('🏁 Finished workflow API request');
     }
   };
 
   // Function to fetch existing clients from workflows collection
   const fetchClientsFromWorkflows = async (searchQuery?: string) => {
     try {
-      console.log('🔄 Fetching clients from workflows collection...');
       const token = localStorage.getItem('token');
 
       if (!token) {
-        console.log('❌ No authentication token available');
         return [];
       }
 
-      console.log('✅ Authentication token found, fetching workflows for client data...');
-
+      
       // Get all workflows to extract client information
       const workflows = await fetchWorkflows({
         limit: 100,
         offset: 0
       });
 
-      console.log('📥 Workflows response for client extraction:', workflows);
-
       if (workflows.length > 0) {
-        console.log(`📊 Processing ${workflows.length} workflows for client data`);
-
         // Log the structure of the first workflow for debugging
-        if (workflows.length > 0) {
-          console.log('🔍 Sample workflow structure:', {
-            id: workflows[0]._id || workflows[0].id,
-            hasClient: !!workflows[0].client,
-            clientStructure: workflows[0].client ? Object.keys(workflows[0].client) : 'No client',
-            clientSample: workflows[0].client,
-            workflowKeys: Object.keys(workflows[0])
-          });
-        }
+        
 
         // Extract unique clients from workflows
         const clientsMap = new Map();
 
         workflows.forEach((workflow: any, index: number) => {
-          console.log(`🔍 Processing workflow ${index + 1}:`, {
-            workflowId: workflow._id || workflow.id,
-            hasClient: !!workflow.client,
-            clientEmail: workflow.client?.email,
-            clientName: workflow.client?.name || `${workflow.client?.firstName} ${workflow.client?.lastName}`.trim()
-          });
+          
 
           if (workflow.client) {
             const client = workflow.client;
@@ -1379,12 +1331,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             // Create a unique key using email or name
             const clientKey = clientEmail || `${client.firstName}_${client.lastName}`.toLowerCase();
 
-            console.log(`📝 Processing client from workflow:`, {
-              clientKey,
-              originalClient: client,
-              hasEmail: !!client.email,
-              hasName: !!(client.firstName || client.lastName)
-            });
 
             if (clientKey && !clientsMap.has(clientKey)) {
               // Ensure client has proper structure
@@ -1414,17 +1360,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 workflowId: workflow._id || workflow.id
               };
 
-              console.log(`✅ Adding client to map:`, {
-                clientKey,
-                processedClient: {
-                  id: processedClient.id,
-                  name: processedClient.name,
-                  email: processedClient.email,
-                  fromWorkflow: processedClient.fromWorkflow,
-                  workflowId: processedClient.workflowId
-                }
-              });
-
               // Filter by search query if provided
               if (searchQuery) {
                 const query = searchQuery.toLowerCase();
@@ -1440,31 +1375,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 clientsMap.set(clientKey, processedClient);
               }
             } else {
-              console.log(`⏭️ Skipping workflow client (duplicate):`, {
-                clientKey,
-                existingClient: {
-                  id: client.id,
-                  name: client.name,
-                  email: client.email
-                }
-              });
             }
           }
         });
 
         const uniqueClients = Array.from(clientsMap.values());
-        console.log(`✅ Extracted ${uniqueClients.length} unique clients from workflows`);
-        console.log('📋 Extracted clients summary:', uniqueClients.map(client => ({
-          id: client.id,
-          name: client.name,
-          email: client.email,
-          fromWorkflow: client.fromWorkflow,
-          workflowId: client.workflowId
-        })));
 
         return uniqueClients;
       } else {
-        console.log('⚠️ No workflow data available for client extraction');
         return [];
       }
 
@@ -2178,7 +2096,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             caseId = generateObjectId();
             // Save it back to the case object for future use
             caseData._id = caseId;
-            console.log('🆔 Generated new case ID:', caseId);
           }
         }
         validateMongoObjectId(caseId, 'case');
@@ -4504,9 +4421,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
                 {/* Enhanced Questionnaire responses summary with debugging */}
                 {questionnaireAssignment && (() => {
-                  console.log('🔍 Questionnaire Assignment found:', questionnaireAssignment);
-                  console.log('🔍 Available Questionnaires:', availableQuestionnaires);
-                  console.log('🔍 Client Responses:', clientResponses);
 
                   // Enhanced flexible matching to find the assigned questionnaire
                   const questionnaire = availableQuestionnaires.find(q => {
@@ -4538,7 +4452,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       if (Math.abs(idWithoutPrefix.length - questionnaireAssignment.questionnaireId.length) <= 2) {
                         const similarity = calculateStringSimilarity(idWithoutPrefix, questionnaireAssignment.questionnaireId);
                         if (similarity > 0.9) { // 90% similarity
-                          console.log(`🔍 Found similar questionnaire: ${q.id} (${Math.round(similarity * 100)}% match)`);
                           return true;
                         }
                       }
@@ -4557,7 +4470,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       const qName = (q.title || q.name).toLowerCase();
                       const assignmentName = questionnaireAssignment.questionnaireName.toLowerCase();
                       if (qName === assignmentName || qName.includes(assignmentName) || assignmentName.includes(qName)) {
-                        console.log(`🔍 Found questionnaire by name match: ${q.title || q.name}`);
                         return true;
                       }
                     }
@@ -4598,13 +4510,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     return matrix[str2.length][str1.length];
                   }
 
-                  console.log('🔍 Found Questionnaire:', questionnaire);
 
                   const questions = questionnaire ? (questionnaire.fields || questionnaire.questions) : [];
                   const hasResponses = Object.keys(clientResponses).length > 0;
 
-                  console.log('🔍 Questions:', questions);
-                  console.log('🔍 Has Responses:', hasResponses);
 
                   // If no questionnaire found but we have an assignment, show debug info
                   if (!questionnaire) {

@@ -36,16 +36,7 @@ const MyQuestionnaires: React.FC = () => {
     }
   }, [isClient, user, navigate, loadAssignments]);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('=== MyQuestionnaires Debug ===');
-    console.log('Assignments:', assignments);
-    console.log('Loading:', loading);
-    console.log('Error:', error);
-    console.log('User:', user);
-    console.log('IsClient:', isClient);
-  }, [assignments, loading, error, user, isClient]);
-
+ 
   const getStatusColor = (status: string, isOverdue?: boolean): string => {
     if (isOverdue) return 'text-red-600 bg-red-50 border-red-200';
     

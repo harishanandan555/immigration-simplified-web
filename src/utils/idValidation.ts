@@ -85,7 +85,6 @@ export const convertToValidObjectId = (originalId: string): string => {
 
   // Store mapping for future reference
   idMappings[originalId] = validId;
-  console.log(`ID Mapping: ${originalId} -> ${validId}`);
   
   return validId;
 };

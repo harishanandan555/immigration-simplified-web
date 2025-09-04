@@ -42,7 +42,6 @@ export const registerSuperadmin = async (
   password: string
 ): Promise<ApiResponse<User>> => {
   if (!IS_REGISTRATION_ENABLED) {
-    console.log('Registration is disabled');
     return {
       data: null,
       status: 0,
@@ -91,7 +90,6 @@ export const registerAttorney = async (
   bio?: string
 ): Promise<ApiResponse<User>> => {
   if (!IS_REGISTRATION_ENABLED) {
-    console.log('Registration is disabled');
     return {
       data: null,
       status: 0,
@@ -214,7 +212,6 @@ export const registerCompanyUser = async (
   sendPassword?: boolean
 ): Promise<ApiResponse<User>> => {
   if (!IS_REGISTRATION_ENABLED) {
-    console.log('Registration is disabled');
     return {
       data: null,
       status: 0,
@@ -309,7 +306,6 @@ export const registerIndividualClient = async (
   bio?: string
 ): Promise<ApiResponse<User>> => {
   if (!IS_REGISTRATION_ENABLED) {
-    console.log('Registration is disabled');
     return {
       data: null,
       status: 0,
@@ -410,7 +406,6 @@ export const registerCompanyClient = async (
   sendPassword?: boolean
 ): Promise<ApiResponse<User>> => {
   if (!IS_REGISTRATION_ENABLED) {
-    console.log('Registration is disabled');
     return {
       data: null,
       status: 0,
@@ -484,7 +479,6 @@ export const registerCompanyClient = async (
 // Login Method
 export const login = async (email: string, password: string): Promise<ApiResponse<User>> => {
   if (!IS_LOGIN_ENABLED) {
-    console.log('Login is disabled');
     return {
       data: null,
       status: 0,
@@ -501,7 +495,6 @@ export const login = async (email: string, password: string): Promise<ApiRespons
 
     // Ensure we have the complete user data including companyId
     const userData = response.data.data || response.data;
-    console.log('Raw login response:', response.data); // Debug log
 
     return {
       data: userData,
@@ -518,7 +511,6 @@ export const login = async (email: string, password: string): Promise<ApiRespons
 // Profile Methods
 export const getUserProfile = async (email: string, password: string): Promise<ApiResponse<User>> => {
   if (!IS_PROFILE_ENABLED) {
-    console.log('Profile access is disabled');
     return {
       data: null,
       status: 0,
@@ -541,7 +533,6 @@ export const getUserProfile = async (email: string, password: string): Promise<A
 
 export const updateUserProfile = async (email: string, password: string): Promise<ApiResponse<User>> => {
   if (!IS_PROFILE_ENABLED) {
-    console.log('Profile updates are disabled');
     return {
       data: null,
       status: 0,
@@ -565,7 +556,6 @@ export const updateUserProfile = async (email: string, password: string): Promis
 // Logout Method
 export const logout = (): void => {
   if (!IS_LOGOUT_ENABLED) {
-    console.log('Logout is disabled');
     return;
   }
 
@@ -906,7 +896,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await login(email, password);
       if (response.data) {
-        console.log('Login response data:', response.data); // Debug log
         setUser(response.data);
         localStorage.setItem('user', JSON.stringify(response.data));
         if (response.data.token) {
@@ -915,7 +904,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Store companyId for attorney, paralegal, or client
         if ((response.data.role === 'attorney' || response.data.role === 'paralegal' || response.data.role === 'client')) {
           const companyId = response.data.companyId;
-          console.log('Company ID from response:', companyId); // Debug log
           if (companyId) {
             localStorage.setItem('companyId', companyId);
           } else {

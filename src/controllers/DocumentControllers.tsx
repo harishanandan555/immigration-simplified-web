@@ -166,7 +166,6 @@ interface ApiResponse<T> {
 // Document Controllers
 export const getDocuments = async (params?: DocumentSearchParams): Promise<ApiResponse<DocumentSearchResponse>> => {
   if (!IS_DOCUMENTS_ENABLED) {
-    console.log('getDocuments method is skipped.');
     return {
       data: { documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
       success: true,
@@ -196,7 +195,6 @@ export const getDocuments = async (params?: DocumentSearchParams): Promise<ApiRe
 
 export const getDocumentById = async (documentId: string): Promise<ApiResponse<Document>> => {
   if (!IS_DOCUMENT_CRUD_ENABLED) {
-    console.log('getDocumentById method is skipped.');
     return {
       data: {} as Document,
       success: true,
@@ -226,7 +224,6 @@ export const getDocumentById = async (documentId: string): Promise<ApiResponse<D
 
 export const createDocument = async (documentData: DocumentUploadRequest): Promise<ApiResponse<Document>> => {
   if (!IS_DOCUMENT_CRUD_ENABLED) {
-    console.log('createDocument method is skipped.');
     return {
       data: {} as Document,
       success: true,
@@ -285,7 +282,6 @@ export const createDocument = async (documentData: DocumentUploadRequest): Promi
 
 export const updateDocument = async (documentId: string, updateData: DocumentUpdateRequest): Promise<ApiResponse<Document>> => {
   if (!IS_DOCUMENT_CRUD_ENABLED) {
-    console.log('updateDocument method is skipped.');
     return {
       data: {} as Document,
       success: true,
@@ -316,7 +312,6 @@ export const updateDocument = async (documentId: string, updateData: DocumentUpd
 
 export const deleteDocument = async (documentId: string): Promise<ApiResponse<null>> => {
   if (!IS_DOCUMENT_CRUD_ENABLED) {
-    console.log('deleteDocument method is skipped.');
     return {
       data: null,
       success: true,
@@ -347,13 +342,10 @@ export const deleteDocument = async (documentId: string): Promise<ApiResponse<nu
 
 export const downloadDocument = async (documentId: string, documentName: string): Promise<void> => {
   if (!IS_DOCUMENT_DOWNLOAD_ENABLED) {
-    console.log('downloadDocument method is skipped.');
     throw new Error('Method not enabled');
   }
 
   try {
-    console.log(`🔽 Starting download for document ID: ${documentId}, Name: ${documentName}`);
-    
     const response = await api.get(
       DOCUMENT_END_POINTS.DOWNLOADDOCUMENT.replace(':id', documentId),
       {
@@ -361,12 +353,6 @@ export const downloadDocument = async (documentId: string, documentName: string)
         timeout: 30000 // 30 second timeout
       }
     );
-
-    console.log('📥 Download response received:', {
-      status: response.status,
-      contentType: response.headers['content-type'],
-      size: response.data.size
-    });
 
     const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
     const url = window.URL.createObjectURL(blob);
@@ -378,7 +364,6 @@ export const downloadDocument = async (documentId: string, documentName: string)
     a.remove();
     window.URL.revokeObjectURL(url);
     
-    console.log('✅ Download completed successfully');
 
   } catch (error) {
     console.error('❌ Download failed:', error);
@@ -391,12 +376,10 @@ export const downloadDocument = async (documentId: string, documentName: string)
 
 export const previewDocument = async (documentId: string): Promise<void> => {
   if (!IS_DOCUMENT_PREVIEW_ENABLED) {
-    console.log('previewDocument method is skipped.');
     throw new Error('Method not enabled');
   }
 
   try {
-    console.log(`👁️ Starting preview for document ID: ${documentId}`);
     
     const response = await api.get(
       DOCUMENT_END_POINTS.PREVIEWDOCUMENT.replace(':id', documentId),
@@ -406,8 +389,6 @@ export const previewDocument = async (documentId: string): Promise<void> => {
         }
       }
     );
-
-    console.log('📄 Preview response received:', response.data);
 
     // Handle different response formats
     let previewUrl = null;
@@ -423,7 +404,6 @@ export const previewDocument = async (documentId: string): Promise<void> => {
     }
 
     if (previewUrl) {
-      console.log(`🔗 Opening preview URL: ${previewUrl}`);
       
       // Check if it's a dummy URL
       if (previewUrl.includes('storage.example.com')) {
@@ -439,7 +419,6 @@ export const previewDocument = async (documentId: string): Promise<void> => {
       window.open(fallbackUrl, '_blank');
     }
     
-    console.log('✅ Preview opened successfully');
     
   } catch (error: any) {
     console.error('❌ Preview failed:', error);
@@ -462,7 +441,6 @@ export const previewDocument = async (documentId: string): Promise<void> => {
 
 export const updateDocumentStatus = async (documentId: string, status: DocumentStatus, notes?: string): Promise<ApiResponse<Document>> => {
   if (!IS_DOCUMENT_CRUD_ENABLED) {
-    console.log('updateDocumentStatus method is skipped.');
     return {
       data: {} as Document,
       success: true,
@@ -493,7 +471,6 @@ export const updateDocumentStatus = async (documentId: string, status: DocumentS
 
 export const verifyDocument = async (documentId: string): Promise<ApiResponse<Document>> => {
   if (!IS_DOCUMENT_VERIFICATION_ENABLED) {
-    console.log('verifyDocument method is skipped.');
     return {
       data: {} as Document,
       success: true,
@@ -523,7 +500,6 @@ export const verifyDocument = async (documentId: string): Promise<ApiResponse<Do
 
 export const rejectDocument = async (documentId: string, reason?: string): Promise<ApiResponse<Document>> => {
   if (!IS_DOCUMENT_CRUD_ENABLED) {
-    console.log('rejectDocument method is skipped.');
     return {
       data: {} as Document,
       success: true,
@@ -554,7 +530,6 @@ export const rejectDocument = async (documentId: string, reason?: string): Promi
 
 export const getDocumentsByClient = async (clientId: string, params?: DocumentSearchParams): Promise<ApiResponse<DocumentSearchResponse>> => {
   if (!IS_DOCUMENTS_ENABLED) {
-    console.log('getDocumentsByClient method is skipped.');
     return {
       data: { documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
       success: true,
@@ -585,7 +560,6 @@ export const getDocumentsByClient = async (clientId: string, params?: DocumentSe
 
 export const getDocumentsByCase = async (caseId: string, params?: DocumentSearchParams): Promise<ApiResponse<DocumentSearchResponse>> => {
   if (!IS_DOCUMENTS_ENABLED) {
-    console.log('getDocumentsByCase method is skipped.');
     return {
       data: { documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
       success: true,
@@ -616,7 +590,6 @@ export const getDocumentsByCase = async (caseId: string, params?: DocumentSearch
 
 export const getDocumentTypes = async (): Promise<ApiResponse<DocumentType[]>> => {
   if (!IS_DOCUMENTS_ENABLED) {
-    console.log('getDocumentTypes method is skipped.');
     return {
       data: [],
       success: true,
@@ -644,7 +617,6 @@ export const getDocumentTypes = async (): Promise<ApiResponse<DocumentType[]>> =
 
 export const getDocumentStatuses = async (): Promise<ApiResponse<DocumentStatus[]>> => {
   if (!IS_DOCUMENTS_ENABLED) {
-    console.log('getDocumentStatuses method is skipped.');
     return {
       data: [],
       success: true,
@@ -672,7 +644,6 @@ export const getDocumentStatuses = async (): Promise<ApiResponse<DocumentStatus[
 
 export const searchDocuments = async (params: DocumentSearchParams): Promise<ApiResponse<DocumentSearchResponse>> => {
   if (!IS_DOCUMENT_SEARCH_ENABLED) {
-    console.log('searchDocuments method is skipped.');
     return {
       data: { documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
       success: true,
@@ -703,7 +674,6 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<Api
 
 export const bulkDeleteDocuments = async (documentIds: string[]): Promise<ApiResponse<{ deletedCount: number }>> => {
   if (!IS_DOCUMENT_BULK_OPERATIONS_ENABLED) {
-    console.log('bulkDeleteDocuments method is skipped.');
     return {
       data: { deletedCount: 0 },
       success: true,
@@ -734,7 +704,6 @@ export const bulkDeleteDocuments = async (documentIds: string[]): Promise<ApiRes
 
 export const bulkVerifyDocuments = async (documentIds: string[]): Promise<ApiResponse<{ verifiedCount: number }>> => {
   if (!IS_DOCUMENT_BULK_OPERATIONS_ENABLED) {
-    console.log('bulkVerifyDocuments method is skipped.');
     return {
       data: { verifiedCount: 0 },
       success: true,
@@ -765,7 +734,6 @@ export const bulkVerifyDocuments = async (documentIds: string[]): Promise<ApiRes
 
 export const getDocumentComments = async (documentId: string): Promise<ApiResponse<DocumentComment[]>> => {
   if (!IS_DOCUMENT_COMMENTS_ENABLED) {
-    console.log('getDocumentComments method is skipped.');
     return {
       data: [],
       success: true,
@@ -795,7 +763,6 @@ export const getDocumentComments = async (documentId: string): Promise<ApiRespon
 
 export const addDocumentComment = async (documentId: string, content: string): Promise<ApiResponse<DocumentComment>> => {
   if (!IS_DOCUMENT_COMMENTS_ENABLED) {
-    console.log('addDocumentComment method is skipped.');
     return {
       data: {} as DocumentComment,
       success: true,
@@ -826,7 +793,6 @@ export const addDocumentComment = async (documentId: string, content: string): P
 
 export const getDocumentFolders = async (): Promise<ApiResponse<DocumentFolder[]>> => {
   if (!IS_DOCUMENT_FOLDERS_ENABLED) {
-    console.log('getDocumentFolders method is skipped.');
     return {
       data: [],
       success: true,
@@ -854,7 +820,6 @@ export const getDocumentFolders = async (): Promise<ApiResponse<DocumentFolder[]
 
 export const createDocumentFolder = async (folderData: { name: string; description?: string; parentFolderId?: string }): Promise<ApiResponse<DocumentFolder>> => {
   if (!IS_DOCUMENT_FOLDERS_ENABLED) {
-    console.log('createDocumentFolder method is skipped.');
     return {
       data: {} as DocumentFolder,
       success: true,
@@ -885,7 +850,6 @@ export const createDocumentFolder = async (folderData: { name: string; descripti
 
 export const moveDocumentToFolder = async (documentId: string, folderId: string): Promise<ApiResponse<Document>> => {
   if (!IS_DOCUMENT_CRUD_ENABLED) {
-    console.log('moveDocumentToFolder method is skipped.');
     return {
       data: {} as Document,
       success: true,
@@ -916,7 +880,6 @@ export const moveDocumentToFolder = async (documentId: string, folderId: string)
 
 export const exportDocuments = async (documentIds: string[], format: 'pdf' | 'csv' | 'excel' = 'pdf'): Promise<Blob> => {
   if (!IS_DOCUMENT_EXPORT_ENABLED) {
-    console.log('exportDocuments method is skipped.');
     throw new Error('Method not enabled');
   }
 

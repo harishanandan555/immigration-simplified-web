@@ -75,11 +75,9 @@ const TasksPage = () => {
   // Function to fetch clients and cases from workflows API
   const fetchWorkflowsFromAPI = async (): Promise<{ clients: Client[], cases: Case[] }> => {
     try {
-      console.log('🔄 Fetching workflows from API for tasks...');
       const token = localStorage.getItem('token');
 
       if (!token) {
-        console.log('❌ No authentication token available');
         return { clients: [], cases: [] };
       }
 
@@ -90,12 +88,8 @@ const TasksPage = () => {
         }
       });
 
-      console.log('📥 Workflows API response for tasks:', response.data);
-
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows for tasks`);
-        
         const clientsMap = new Map<string, Client>();
         const casesArray: Case[] = [];
         
@@ -165,29 +159,18 @@ const TasksPage = () => {
           }
         });
 
-        console.log('📊 Processed data:', {
-          clients: Array.from(clientsMap.values()).length,
-          cases: casesArray.length,
-          clientsWithCases: Array.from(clientsMap.values()).map(c => ({ 
-            name: c.name, 
-            casesCount: c.cases?.length || 0 
-          }))
-        });
 
         return { 
           clients: Array.from(clientsMap.values()), 
           cases: casesArray 
         };
       } else {
-        console.log('⚠️ No workflow data available in API response');
         return { clients: [], cases: [] };
       }
 
     } catch (error: any) {
       console.error('❌ Error fetching workflows from API:', error);
-      if (error?.response?.status === 401) {
-        console.log('🔑 Authentication failed - token may be expired');
-      }
+
       return { clients: [], cases: [] };
     }
   };
@@ -199,17 +182,19 @@ const TasksPage = () => {
       // Fetch clients and cases from workflows API (for case selection only)
       const { clients: workflowClients, cases: workflowCases } = await fetchWorkflowsFromAPI();
       
-      // Fetch all users (including clients) from ims_user database
-      console.log('🔄 Fetching all users from ims_user database...');
       
       let allUsers: User[] = [];
       let clientUsers: User[] = [];
       
       try {
         // Get all users from ims_user database
+<<<<<<< HEAD
         const usersApiResponse = await getUsers();
         allUsers = usersApiResponse.users || [];
         console.log('📋 All users from ims_user:', allUsers.length);
+=======
+        allUsers = await getUsers();
+>>>>>>> 830f163820c92d2aa70f49f75982022b3bc50f76
         
         // Filter users by role to get clients and assignable users
         clientUsers = allUsers.filter((user: User) => user.role === 'client');
@@ -217,8 +202,6 @@ const TasksPage = () => {
           user.role === 'attorney' || user.role === 'paralegal'
         );
         
-        console.log('� Client users:', clientUsers.length);
-        console.log('📋 Assignable users:', assignableUsers.length);
         
         setUsers(assignableUsers);
         
@@ -230,27 +213,12 @@ const TasksPage = () => {
       
       // Set workflow clients and cases (primary source for client/case selection)
       if (workflowClients && workflowClients.length > 0) {
-        console.log('✅ Using workflow clients for selection:', workflowClients.length);
-        console.log('✅ Using workflow cases:', workflowCases?.length || 0);
         
         // Enhance workflow clients with ims_user mapping for clientId
         const enhancedClients = workflowClients.map((client: any) => {
           // Try to find corresponding user in ims_user database by email
           const imsUser = allUsers.find((user: User) => user.email === client.id);
           
-          console.log('🔍 Client mapping:', {
-            workflowClient: {
-              name: client.name,
-              id: client.id, // This should be email
-              _id: client._id, // This is workflow client _id
-            },
-            imsUser: imsUser ? {
-              _id: imsUser._id,
-              email: imsUser.email,
-              name: `${imsUser.firstName} ${imsUser.lastName}`
-            } : null,
-            mapped: !!imsUser
-          });
           
           return {
             ...client,
@@ -259,22 +227,16 @@ const TasksPage = () => {
           };
         });
         
-        console.log('📋 Enhanced clients with ims_user mapping:', 
-          enhancedClients.map((c: any) => `${c.name} (${c.id}) -> ims_user: ${c.hasImsUser ? c.imsUserId : 'NOT_FOUND'}`));
-        
         setClients(enhancedClients);
         setCases(workflowCases || []);
       } else {
-        console.log('⚠️ No workflow data found, using empty arrays');
         setClients([]);
         setCases([]);
       }
       
       // Fetch actual tasks from API
       try {
-        console.log('🔄 Fetching tasks from API...');
         const tasksFromAPI = await getTasks();
-        console.log('📋 Tasks fetched:', tasksFromAPI);
         setTasks(tasksFromAPI);
       } catch (error) {
         console.error('❌ Error fetching tasks:', error);
@@ -336,7 +298,6 @@ const TasksPage = () => {
   // Handle new task form submission
   const handleCreateTask = async () => {
     try {
-      console.log('Creating task:', newTask);
       
       // Validate required fields
       if (!newTask.title.trim()) {
@@ -380,12 +341,6 @@ const TasksPage = () => {
           relatedCaseId = selectedCase.caseNumber;
         }
         
-        console.log('📋 Case formatting:', {
-          originalId: selectedCase.id,
-          caseNumber: selectedCase.caseNumber,
-          formType: formType,
-          formattedRelatedCaseId: relatedCaseId
-        });
       }
       
       // Create the task using the API - send only required fields
@@ -402,18 +357,8 @@ const TasksPage = () => {
         reminders: newTask.reminders || []
       };
       
-      console.log('🔄 Creating task with streamlined data:', taskData);
-      console.log('📋 Task creation details:', {
-        title: taskData.title,
-        clientName: taskData.clientName,
-        relatedCaseId: taskData.relatedCaseId,
-        assignedTo: taskData.assignedTo,
-        priority: taskData.priority
-      });
       
       const createdTask = await createTask(taskData);
-      
-      console.log('✅ Task created successfully:', createdTask);
       
       // Reset form and close modal
       setNewTask({
@@ -742,13 +687,7 @@ const TasksPage = () => {
                             const selectedClient = clients.find(c => c.name === e.target.value);
                             // Use ims_user ID if available, otherwise use workflow client ID
                             const clientIdToUse = selectedClient?.imsUserId || selectedClient?._id || '';
-                            console.log('🔄 Client selected:', {
-                              name: e.target.value,
-                              workflowId: selectedClient?._id,
-                              imsUserId: selectedClient?.imsUserId,
-                              usingId: clientIdToUse,
-                              hasImsUser: selectedClient?.hasImsUser
-                            });
+                         
                             
                             setNewTask({
                               ...newTask, 

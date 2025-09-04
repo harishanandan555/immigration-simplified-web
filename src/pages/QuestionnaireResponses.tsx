@@ -198,8 +198,6 @@ const QuestionnaireResponses: React.FC = () => {
       if (completedAssignments.length > 0) {
         const assignmentsWithResponses = completedAssignments.filter((a: any) => a.responseId?.responses);
         
-        // Loaded completed questionnaires successfully
-        console.log(`Loaded ${completedAssignments.length} completed assignments, ${assignmentsWithResponses.length} with responses`);
       }
     } catch (err) {
       setError('Failed to load questionnaire responses. Please try again.');

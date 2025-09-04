@@ -62,7 +62,6 @@ class QuestionnaireService {
       this.baseURL = `${this.baseURL}/api/v1`;
     }
     
-    console.log(`[QuestionnaireService] Initialized with baseURL: ${this.baseURL}`);
   }
 
   private async makeRequest<T>(
@@ -71,12 +70,6 @@ class QuestionnaireService {
   ): Promise<T> {
     const token = this.getAuthToken();
     
-    // Debug output
-    console.log(`[QuestionnaireService] Making request to ${this.baseURL}${url}`);
-    console.log(`[QuestionnaireService] Auth token available: ${!!token}`);
-    if (token) {
-      console.log(`[QuestionnaireService] Token starts with: ${token.substring(0, 10)}...`);
-    }
     
     const defaultHeaders = {
       'Content-Type': 'application/json',
@@ -91,17 +84,9 @@ class QuestionnaireService {
       },
     };
     
-    // Log request details
-    console.log(`[QuestionnaireService] Request method: ${options.method || 'GET'}`);
-    if (options.body && typeof options.body === 'string') {
-      console.log(`[QuestionnaireService] Request body: ${options.body.substring(0, 200)}...`);
-    }
 
     try {
-      console.log(`[QuestionnaireService] Fetching ${this.baseURL}${url}`);
       const response = await fetch(`${this.baseURL}${url}`, config);
-      
-      console.log(`[QuestionnaireService] Response status: ${response.status} ${response.statusText}`);
       
       if (!response.ok) {
         // Try to get the error response as text first
@@ -122,8 +107,6 @@ class QuestionnaireService {
       }
 
       const responseText = await response.text();
-      console.log(`[QuestionnaireService] Response body (first 200 chars): ${responseText.substring(0, 200)}...`);
-      
       try {
         const data = JSON.parse(responseText);
         return data;
@@ -151,14 +134,6 @@ class QuestionnaireService {
     const accessToken = localStorage.getItem('access_token');
     const sessionAccessToken = sessionStorage.getItem('access_token');
     const regularToken = localStorage.getItem('token');
-    
-    // Log which token was found
-    if (authToken) console.log('[QuestionnaireService] Found token in localStorage.auth_token');
-    else if (sessionAuthToken) console.log('[QuestionnaireService] Found token in sessionStorage.auth_token');
-    else if (accessToken) console.log('[QuestionnaireService] Found token in localStorage.access_token');
-    else if (sessionAccessToken) console.log('[QuestionnaireService] Found token in sessionStorage.access_token');
-    else if (regularToken) console.log('[QuestionnaireService] Found token in localStorage.token');
-    else console.log('[QuestionnaireService] No auth token found in any storage location');
     
     // Return the first valid token found
     return authToken || sessionAuthToken || accessToken || sessionAccessToken || regularToken;
@@ -211,8 +186,6 @@ class QuestionnaireService {
     }
     
     try {
-      console.log('[QuestionnaireService] Creating new questionnaire with title:', questionnaire.title);
-      
       return this.makeRequest<{ id: string; message: string; version: number }>('/questionnaires', {
         method: 'POST',
         body: JSON.stringify(questionnaire),
@@ -462,8 +435,6 @@ class QuestionnaireService {
    */
   async isAPIAvailable(): Promise<boolean> {
     try {
-      // Try a basic request to see if API is responding
-      console.log('[QuestionnaireService] Testing API connectivity...');
       
       // Use questionnaires endpoint with limit=1 instead of debug endpoint
       const response = await fetch(`${this.baseURL}/questionnaires?limit=1`, {
@@ -477,8 +448,6 @@ class QuestionnaireService {
         }
       });
       
-      console.log(`[QuestionnaireService] API test response status: ${response.status}`);
-      
       if (!response.ok) {
         console.error(`[QuestionnaireService] API test failed with status ${response.status}`);
         return false;
@@ -486,11 +455,8 @@ class QuestionnaireService {
       
       // Try to parse the response as JSON
       const responseText = await response.text();
-      console.log(`[QuestionnaireService] API test response: ${responseText.substring(0, 100)}...`);
-      
       try {
         JSON.parse(responseText);
-        console.log('[QuestionnaireService] API is available and returning valid JSON');
         return true;
       } catch (e) {
         console.error('[QuestionnaireService] API returned non-JSON response');
@@ -513,18 +479,15 @@ class QuestionnaireService {
   }> {
     const token = this.getAuthToken();
     if (!token) {
-      console.log('[QuestionnaireService] No authentication token found for testing');
       return {
         isAuthenticated: false,
         message: 'No authentication token found'
       };
     }
     
-    console.log(`[QuestionnaireService] Testing authentication with token: ${token.substring(0, 10)}...`);
     
     try {
       // First, try with the /auth/profile endpoint
-      console.log(`[QuestionnaireService] Testing auth with ${this.baseURL}/auth/profile`);
       let response = await fetch(`${this.baseURL}/auth/profile`, {
         method: 'GET',
         headers: {
@@ -532,11 +495,9 @@ class QuestionnaireService {
         }
       });
       
-      console.log(`[QuestionnaireService] Auth test response status: ${response.status}`);
       
       // If profile endpoint fails, try a basic endpoint as fallback
       if (!response.ok) {
-        console.log('[QuestionnaireService] Profile endpoint failed, trying with questionnaires endpoint');
         response = await fetch(`${this.baseURL}/questionnaires?limit=1`, {
           method: 'GET',
           headers: {
@@ -544,7 +505,6 @@ class QuestionnaireService {
           }
         });
         
-        console.log(`[QuestionnaireService] Fallback auth test response status: ${response.status}`);
         
         // If this endpoint returns 401, the token is definitely invalid
         if (response.status === 401) {
@@ -557,7 +517,6 @@ class QuestionnaireService {
         
         // If endpoint is accessible with auth token, consider it authenticated
         if (response.ok) {
-          console.log('[QuestionnaireService] Fallback endpoint accessible with token, considering authenticated');
           return {
             isAuthenticated: true,
             message: 'User appears to be authenticated'
@@ -573,10 +532,8 @@ class QuestionnaireService {
       // Parse and return user data if profile endpoint was successful
       try {
         const responseText = await response.text();
-        console.log(`[QuestionnaireService] Auth response: ${responseText.substring(0, 100)}...`);
         
         const userData = JSON.parse(responseText);
-        console.log(`[QuestionnaireService] User authenticated as ID: ${userData._id || userData.id}`);
         
         return {
           isAuthenticated: true,
@@ -611,7 +568,6 @@ class QuestionnaireService {
       throw new Error('Authentication token not found');
     }
 
-    console.log(`[QuestionnaireService] Getting questionnaire ${questionnaireId} for client`);
 
     try {
       const response = await fetch(`${this.baseURL}/questionnaires/${questionnaireId}`, {
@@ -629,7 +585,6 @@ class QuestionnaireService {
       }
 
       const data = await response.json();
-      console.log(`[QuestionnaireService] Successfully retrieved questionnaire ${questionnaireId}`);
       
       return data.data || data;
     } catch (error: any) {

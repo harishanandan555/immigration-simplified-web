@@ -64,7 +64,6 @@ const FillQuestionnaire: React.FC = () => {
         return;
       }
 
-      console.log('Loaded assignment for filling:', foundAssignment);
       
       // Ensure questionnaire has fields
       if (!foundAssignment.questionnaireId?.fields && !foundAssignment.questionnaire?.fields) {
@@ -76,20 +75,9 @@ const FillQuestionnaire: React.FC = () => {
       let actualStatus = foundAssignment.status || 'pending';
       let wasOrphaned = false;
       
-      console.log(`FillQuestionnaire - Checking assignment ${foundAssignment._id}:`, {
-        status: foundAssignment.status,
-        responseId: foundAssignment.responseId,
-        hasResponseId: !!foundAssignment.responseId,
-        responseIdType: typeof foundAssignment.responseId
-      });
       
       // If assignment shows as completed, check if it actually has response data
       if (foundAssignment.status === 'completed') {
-        console.log(`FillQuestionnaire - Assignment ${foundAssignment._id} marked as completed - checking validity:`, {
-          responseId: foundAssignment.responseId,
-          responses: foundAssignment.responses,
-          completedAt: foundAssignment.completedAt
-        });
         
         // Only reset to pending if it's completed but missing BOTH responseId AND response data
         const hasNoResponseId = !foundAssignment.responseId;
@@ -99,10 +87,8 @@ const FillQuestionnaire: React.FC = () => {
           // This is truly orphaned - completed but no data
           actualStatus = 'pending';
           wasOrphaned = true;
-          console.log(`FillQuestionnaire - Assignment ${foundAssignment._id} force reset to pending (was orphaned)`);
         } else {
           // This is legitimately completed with data
-          console.log(`FillQuestionnaire - Assignment ${foundAssignment._id} is legitimately completed`);
         }
       }
 
@@ -131,9 +117,6 @@ const FillQuestionnaire: React.FC = () => {
       const responsesToUse = draftResponses || existingResponses;
       setResponses(responsesToUse);
       
-      if (draftResponses) {
-        console.log('Loaded draft responses:', draftResponses);
-      }
       
       setError(null);
     } catch (err) {
@@ -188,10 +171,6 @@ const FillQuestionnaire: React.FC = () => {
         toast.error(`Please fill in all required fields: ${missingFields.map(f => f.label).join(', ')}`);
         return;
       }
-
-      // Submit questionnaire response via API
-      console.log('Submitting responses for assignment:', assignment._id);
-      console.log('Responses data:', responses);
       
       await questionnaireAssignmentService.submitQuestionnaireResponses(
         assignment._id,

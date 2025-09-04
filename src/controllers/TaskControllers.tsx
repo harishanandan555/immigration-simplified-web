@@ -29,7 +29,6 @@ export interface ApiResponse<T> {
 
 export const getTasks = async (): Promise<Task[]> => {
     try {
-        console.log('🔄 Fetching tasks from API...');
         
         // Add query parameters to ensure we get all task fields including priority and status
         const response: AxiosResponse<{ tasks?: Task[], data?: Task[], success?: boolean } | Task[]> = await api.get(TASK_END_POINTS.GET_ALL_TASKS, {
@@ -37,8 +36,6 @@ export const getTasks = async (): Promise<Task[]> => {
                 fields: 'title,description,clientName,relatedCaseId,dueDate,priority,status,assignedTo,notes,tags,reminders,createdAt,updatedAt'
             }
         });
-        
-        console.log('📥 Tasks API response:', response.data);
         
         // Handle different response structures
         let tasks: Task[];
@@ -59,8 +56,6 @@ export const getTasks = async (): Promise<Task[]> => {
             status: task.status || 'Pending'
         }));
         
-        console.log(`✅ Found ${tasks.length} tasks with priority and status`);
-        console.log('📋 Sample task data:', tasks.length > 0 ? tasks[0] : 'No tasks');
         return tasks;
     } catch (error) {
         console.error('❌ Error fetching tasks:', error);
@@ -74,14 +69,12 @@ export const getTasks = async (): Promise<Task[]> => {
 
 export const createTask = async (taskData: Omit<Task, '_id' | 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> => {
     try {
-        console.log('🔄 Creating new task:', taskData);
         
         const response: AxiosResponse<{ task?: Task, data?: Task, success?: boolean } | Task> = await api.post(TASK_END_POINTS.CREATE_TASK, {
             ...taskData,
             status: taskData.status || 'Pending' // Default status if not provided
         });
         
-        console.log('📥 Create task API response:', response.data);
         
         // Handle different response structures
         let createdTask: Task;
@@ -95,7 +88,6 @@ export const createTask = async (taskData: Omit<Task, '_id' | 'id' | 'createdAt'
             throw new Error('Invalid response format from create task API');
         }
         
-        console.log('✅ Task created successfully:', createdTask);
         return createdTask;
     } catch (error: any) {
         console.error('❌ Error creating task:', error);
@@ -115,14 +107,12 @@ export const createTask = async (taskData: Omit<Task, '_id' | 'id' | 'createdAt'
 
 export const updateTask = async (taskId: string, taskData: Partial<Task>): Promise<Task> => {
     try {
-        console.log('🔄 Updating task:', taskId, taskData);
         
         const response: AxiosResponse<{ task?: Task, data?: Task, success?: boolean } | Task> = await api.put(
             TASK_END_POINTS.UPDATE_TASK.replace(':id', taskId), 
             taskData
         );
         
-        console.log('📥 Update task API response:', response.data);
         
         // Handle different response structures
         let updatedTask: Task;
@@ -136,7 +126,6 @@ export const updateTask = async (taskId: string, taskData: Partial<Task>): Promi
             throw new Error('Invalid response format from update task API');
         }
         
-        console.log('✅ Task updated successfully:', updatedTask);
         return updatedTask;
     } catch (error) {
         console.error('❌ Error updating task:', error);
@@ -149,12 +138,9 @@ export const updateTask = async (taskId: string, taskData: Partial<Task>): Promi
 
 export const deleteTask = async (taskId: string): Promise<boolean> => {
     try {
-        console.log('🔄 Deleting task:', taskId);
         
         const response = await api.delete(TASK_END_POINTS.DELETE_TASK.replace(':id', taskId));
         
-        console.log('📥 Delete task API response:', response.data);
-        console.log('✅ Task deleted successfully');
         
         return true;
     } catch (error) {
@@ -168,13 +154,11 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
 
 export const getTaskById = async (taskId: string): Promise<Task> => {
     try {
-        console.log('🔄 Fetching task by ID:', taskId);
         
         const response: AxiosResponse<{ task?: Task, data?: Task, success?: boolean } | Task> = await api.get(
             TASK_END_POINTS.GET_TASK_BY_ID.replace(':id', taskId)
         );
         
-        console.log('📥 Get task by ID API response:', response.data);
         
         // Handle different response structures
         let task: Task;
@@ -188,7 +172,6 @@ export const getTaskById = async (taskId: string): Promise<Task> => {
             throw new Error('Task not found');
         }
         
-        console.log('✅ Task fetched successfully:', task);
         return task;
     } catch (error) {
         console.error('❌ Error fetching task:', error);

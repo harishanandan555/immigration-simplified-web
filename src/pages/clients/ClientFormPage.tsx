@@ -2,35 +2,30 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { createClient } from '../../controllers/ClientControllers';
-
-interface Address {
-  street: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-}
+import { createCompanyClient, Address } from '../../controllers/ClientControllers';
 
 interface ClientFormData {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
   dateOfBirth: string;
   address: Address;
   nationality: string;
-  alienNumber: string;
+  alienRegistrationNumber: string;
   passportNumber: string;
   entryDate: string;
   visaCategory: string;
   notes: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
+  status: 'Active' | 'Inactive' | 'Pending';
+  userType: 'companyClient';
+  role: 'client';
+  active: boolean;
 }
 
 const initialFormData: ClientFormData = {
-  name: '',
+  firstName: '',
+  lastName: '',
   email: '',
   phone: '',
   dateOfBirth: '',
@@ -42,14 +37,15 @@ const initialFormData: ClientFormData = {
     country: 'USA'
   },
   nationality: '',
-  alienNumber: '',
+  alienRegistrationNumber: '',
   passportNumber: '',
   entryDate: '',
   visaCategory: '',
   notes: '',
   status: 'Active',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString()
+  userType: 'companyClient',
+  role: 'client',
+  active: true
 };
 
 const ClientFormPage = () => {
@@ -91,11 +87,51 @@ const ClientFormPage = () => {
     setSaving(true);
     setError(null);
 
+    // Basic form validation
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError('First name and last name are required.');
+      setSaving(false);
+      return;
+    }
+
+    if (!formData.email.trim() || !formData.phone.trim()) {
+      setError('Email and phone number are required.');
+      setSaving(false);
+      return;
+    }
+
+    if (!formData.address.street.trim() || !formData.address.city.trim() || !formData.address.state.trim() || !formData.address.zipCode.trim()) {
+      setError('Complete address information is required.');
+      setSaving(false);
+      return;
+    }
+
     try {
-      await createClient(formData);
+      // Get company ID from attorney's localStorage
+      const attorneyCompanyId = localStorage.getItem('companyId');
+      if (!attorneyCompanyId) {
+        throw new Error('Attorney company ID not found. Please ensure you are logged in as an attorney.');
+      }
+
+      // Get current user data for attorneyIds
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const attorneyIds = currentUser._id ? [currentUser._id] : [];
+
+      // Prepare client data for createCompanyClient
+      const clientData = {
+        ...formData,
+        name: `${formData.firstName} ${formData.lastName}`, // Auto-generated name
+        companyId: attorneyCompanyId,
+        attorneyIds: attorneyIds,
+        alienNumber: formData.alienRegistrationNumber, // Map to legacy field
+        sendPassword: true, // Send password to client
+        password: 'TempPassword123!' // Temporary password - should be generated or set by user
+      };
+
+      await createCompanyClient(clientData);
       navigate('/clients');
     } catch (err) {
-      setError('Failed to save client. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to save client. Please try again.');
       setSaving(false);
     }
   };
@@ -149,18 +185,34 @@ const ClientFormPage = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                First Name
               </label>
               <input
                 type="text"
-                id="name"
-                name="name"
+                id="firstName"
+                name="firstName"
                 required
-                value={formData.name}
+                value={formData.firstName}
                 onChange={handleInputChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Enter client's full name"
+                placeholder="Enter first name"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                Last Name
+              </label>
+              <input
+                type="text"
+                id="lastName"
+                name="lastName"
+                required
+                value={formData.lastName}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Enter last name"
               />
             </div>
 
@@ -313,15 +365,15 @@ const ClientFormPage = () => {
             </div>
 
             <div>
-              <label htmlFor="alienNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                Alien Number
+              <label htmlFor="alienRegistrationNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                Alien Registration Number
               </label>
               <input
                 type="text"
-                id="alienNumber"
-                name="alienNumber"
+                id="alienRegistrationNumber"
+                name="alienRegistrationNumber"
                 required
-                value={formData.alienNumber}
+                value={formData.alienRegistrationNumber}
                 onChange={handleInputChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Enter A-Number"

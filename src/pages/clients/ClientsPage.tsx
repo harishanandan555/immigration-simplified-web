@@ -33,12 +33,10 @@ const ClientsPage = () => {
   // Function to fetch clients from workflows API
   const fetchWorkflowsFromAPI = async (): Promise<Client[]> => {
     try {
-      console.log('🔄 Fetching workflows from API...');
       const token = localStorage.getItem('token');
 
       // Check token availability
       if (!token) {
-        console.log('❌ No authentication token available');
         return [];
       }
 
@@ -50,11 +48,9 @@ const ClientsPage = () => {
         }
       });
 
-      console.log('📥 Workflows API response:', response.data);
 
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         
         // Extract unique clients from workflows
         const clientsMap = new Map<string, Client>();
@@ -93,14 +89,12 @@ const ClientsPage = () => {
 
         return Array.from(clientsMap.values());
       } else {
-        console.log('⚠️ No workflow data available in API response');
         return [];
       }
 
     } catch (error: any) {
       console.error('❌ Error fetching workflows from API:', error);
       if (error?.response?.status === 401) {
-        console.log('🔑 Authentication failed - token may be expired');
       }
       return [];
     }
@@ -115,13 +109,9 @@ const ClientsPage = () => {
         const workflowClients = await fetchWorkflowsFromAPI();
         
         if (workflowClients.length > 0) {
-          console.log('✅ Using clients from workflows API:', workflowClients.length);
           setClients(workflowClients);
         } else {
-          // Fallback to original client API
-          console.log('⚠️ No workflow clients found, falling back to client API');
           const clientData: any = await getClients();
-          console.log('Fetched clients from client API:', clientData);
           
           if (clientData && clientData.length > 0) {
             setClients(clientData);
