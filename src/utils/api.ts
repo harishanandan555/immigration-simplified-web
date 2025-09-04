@@ -38,7 +38,6 @@ const refreshToken = async (): Promise<string | null> => {
   try {
     const currentToken = localStorage.getItem('token');
     if (!currentToken) {
-      console.log('No token found for refresh');
       return null;
     }
 
@@ -51,17 +50,14 @@ const refreshToken = async (): Promise<string | null> => {
       },
     });
 
-    console.log('Attempting to refresh token...');
     const response = await refreshApi.post(AUTH_END_POINTS.REFRESH_TOKEN);
     
     const newToken = response.data.token || response.data.data?.token;
     if (newToken) {
-      console.log('Token refreshed successfully');
       localStorage.setItem('token', newToken);
       return newToken;
     }
     
-    console.log('No new token received in refresh response');
     return null;
   } catch (error) {
     console.error('Error refreshing token:', error);
@@ -94,7 +90,6 @@ api.interceptors.request.use(
         } else {
           // For other endpoints, check if token is expired
           if (isTokenExpired(token)) {
-            console.log('Token expired, attempting refresh before request');
             const newToken = await refreshToken();
             if (newToken) {
               if (config.headers) {
@@ -114,8 +109,6 @@ api.interceptors.request.use(
           }
         }
       } else if (!config.url?.includes('my-assignments') && !config.url?.includes('questionnaires')) {
-        // Only redirect for non-client endpoints if no token
-        console.log('No token found for protected endpoint');
       }
     }
     return config;
@@ -153,7 +146,6 @@ api.interceptors.response.use(
           
           // Don't retry refresh token endpoint failures
           if (originalRequest?.url?.includes(AUTH_END_POINTS.REFRESH_TOKEN)) {
-            console.log('Refresh token failed, redirecting to login');
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             window.location.href = '/login';
@@ -163,14 +155,12 @@ api.interceptors.response.use(
           if (originalRequest && !originalRequest._retry) {
             originalRequest._retry = true;
             try {
-              console.log('401 error, attempting token refresh');
               const newToken = await refreshToken();
               if (newToken) {
                 // Retry the original request with new token
                 if (originalRequest.headers) {
                   originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 }
-                console.log('Retrying request with new token');
                 return api(originalRequest);
               }
             } catch (refreshError) {
@@ -182,8 +172,6 @@ api.interceptors.response.use(
               return Promise.reject(refreshError);
             }
           }
-          // If we get here, redirect to login
-          console.log('Could not refresh token, redirecting to login');
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           window.location.href = '/login';

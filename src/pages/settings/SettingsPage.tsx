@@ -4646,10 +4646,7 @@ const SettingsPage = () => {
         ipAddresses: auditLogsData.filters.ipAddresses
       });
 
-      if (response.status === 200) {
-        console.log('Audit logs filtered successfully');
-        // Handle the filtered results here
-      }
+      
     } catch (error) {
       console.error('Error filtering audit logs:', error);
     }
@@ -4680,7 +4677,6 @@ const SettingsPage = () => {
         dateRange: auditLogsData.filters.dateRange,
         storageLocation: auditLogsData.logging.storageLocation
       });
-      if (response.status === 200) console.log('Audit logs archived successfully');
     } catch (error) {
       console.error('Error archiving audit logs:', error);
     }

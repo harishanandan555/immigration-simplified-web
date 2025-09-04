@@ -189,11 +189,6 @@ export class DataProtectionService {
     return new Date() <= retentionDate;
   }
 
-  // Mark data for deletion
-  markForDeletion(dataId: string, deletionDate: Date): void {
-    // In real implementation, this would update the database
-    console.log(`Data ${dataId} marked for deletion on ${deletionDate}`);
-  }
 
   // Anonymize data for compliance
   anonymizeData(data: any): any {
@@ -332,9 +327,6 @@ export class AuditLogService {
     };
 
     this.logs.push(logEntry);
-    
-    // In real implementation, this would be saved to database
-    console.log('Audit Log:', logEntry);
   }
 
   // Get logs for user

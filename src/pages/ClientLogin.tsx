@@ -33,7 +33,6 @@ const ClientLogin: React.FC = () => {
             email: storedCredentials.email,
             password: storedCredentials.password
           });
-          console.log('✅ Pre-filled login form with stored client credentials');
         }
       } catch (error) {
         console.warn('Could not load stored credentials:', error);

@@ -19,7 +19,6 @@ function bufferObjToBlob(bufferObj: { type: string; data: number[] }, mime = 'ap
 // Fetch all USCIS forms metadata (no PDF data)
 export const getAllUscisForms = async (): Promise<ApiResponse<any>> => {
   if (!IS_USCIS_FORMS_ENABLED) {
-    console.log('getAllUscisForms method is skipped.');
     return {
       data: [],
       status: 0,
@@ -59,7 +58,6 @@ export const getAllUscisForms = async (): Promise<ApiResponse<any>> => {
 // Download a specific USCIS form PDF by form number
 export const getUscisFormPdf = async (formNumber: string): Promise<Blob> => {
   if (!IS_USCIS_FORMS_ENABLED) {
-    console.log('getUscisFormPdf method is skipped.');
     return new Blob();
   }
   try {

@@ -23,8 +23,6 @@ export const createClientUserAccount = async (userData: ClientUserRegistration, 
   let validationResult: any = null;
   
   try {
-    console.log('🚀 Creating client account with data:', { ...userData, password: '[REDACTED]' });
-    console.log('📧 Send password via email:', sendPassword);
     
     // Enhanced validation using the new validation system
     validationResult = validateRegistrationData({
@@ -53,10 +51,8 @@ export const createClientUserAccount = async (userData: ClientUserRegistration, 
       sendPassword: sendPassword
     };
     
-    console.log('🔐 Sending registration request to backend with clean data...');
     const response = await api.post('/api/v1/auth/register/user', requestData);
     
-    console.log('✅ Client account creation response:', response.data);
     
     // Record successful registration
     const securityGuard = PasswordSecurityGuard.getInstance();
@@ -70,7 +66,6 @@ export const createClientUserAccount = async (userData: ClientUserRegistration, 
       throw new Error('Could not extract user ID from response');
     }
     
-    console.log('✅ Successfully extracted client user ID:', clientUserId);
     
     if (sendPassword) {
       try {
@@ -86,7 +81,6 @@ export const createClientUserAccount = async (userData: ClientUserRegistration, 
       } catch (emailError) {
         console.warn('📧 Welcome email sending failed:', emailError);
       }
-      console.log('📧 Attempted to send password email to:', validationResult.cleanData.email);
     }
     
     return { _id: clientUserId };
@@ -115,7 +109,6 @@ export const createClientUserAccount = async (userData: ClientUserRegistration, 
     // Return null or handle gracefully for existing users
     if (errorMessage.toLowerCase().includes('user already exists') || 
         errorMessage.toLowerCase().includes('already exists')) {
-      console.log('🔄 User already exists, continuing with workflow...');
       
       // Try to fetch the existing user ID if possible
       try {

@@ -201,11 +201,9 @@ export const getClients = async (params: {
     search?: string;
 } = {}): Promise<ClientsApiResponse> => {
     try {
-        console.log('🔄 Fetching clients with params:', params);
         const response = await api.get<ClientsApiResponse>(CLIENT_END_POINTS.GETCLIENTS, {
             params
         });
-        console.log('📥 Clients API response:', response.data);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -225,15 +223,11 @@ export const getUsers = async (params: {
     search?: string;
 } = {}): Promise<UsersApiResponse> => {
     try {
-        console.log('🔄 Fetching users from new API endpoint...');
-        console.log('📍 API Endpoint:', USER_END_POINTS.GET_ALL_USERS);
-        console.log('📍 Request params:', params);
         
         const response = await api.get<UsersApiResponse>(USER_END_POINTS.GET_ALL_USERS, {
             params
         });
         
-        console.log('📥 Users API response:', response.data);
         return response.data;
     } catch (error) {
         console.error('❌ Error fetching users:', error);
@@ -259,13 +253,8 @@ export const getAssignableUsers = async (): Promise<User[]> => {
 // Alternative method to try different API approaches
 export const getUsersAlternative = async (): Promise<User[]> => {
     try {
-        console.log('🔄 Trying alternative approach to fetch users...');
         
-        // Try 1: Get all users without role filtering first
-        console.log('🔍 Attempt 1: Getting all users without role filter');
         let response = await api.get(USER_END_POINTS.GET_ALL_USERS);
-        
-        console.log('📥 All users response:', response.data);
         
         // Handle different response structures
         let allUsers: User[];
@@ -279,17 +268,11 @@ export const getUsersAlternative = async (): Promise<User[]> => {
             allUsers = [];
         }
         
-        console.log('📋 All users found:', allUsers);
-        if (allUsers.length > 0) {
-            console.log('📋 All user roles:', allUsers.map(u => `${u.firstName} ${u.lastName} - ${u.role}`));
-        }
         
         // Filter for attorneys and paralegals
         const assignableUsers = allUsers.filter((user: User) => 
             user.role === 'attorney' || user.role === 'paralegal'
         );
-        
-        console.log(`✅ Alternative method found ${assignableUsers.length} assignable users`);
         
         return assignableUsers;
         
@@ -298,9 +281,7 @@ export const getUsersAlternative = async (): Promise<User[]> => {
         
         // Try fallback endpoint
         try {
-            console.log('🔍 Attempt 2: Trying fallback endpoint /api/v1/users');
             const fallbackResponse = await api.get('/api/v1/users');
-            console.log('📥 Fallback response:', fallbackResponse.data);
             
             let fallbackUsers: User[];
             if (Array.isArray(fallbackResponse.data)) {
@@ -317,7 +298,6 @@ export const getUsersAlternative = async (): Promise<User[]> => {
                 user.role === 'attorney' || user.role === 'paralegal'
             );
             
-            console.log(`✅ Fallback method found ${assignableUsers.length} assignable users`);
             return assignableUsers;
             
         } catch (fallbackError) {
@@ -329,10 +309,8 @@ export const getUsersAlternative = async (): Promise<User[]> => {
 
 export const getAttorneys = async (): Promise<User[]> => {
     try {
-        console.log('🔄 Fetching attorneys from new API endpoint...');
         
         const response = await getUsers({ role: 'attorney' });
-        console.log(`✅ Found ${response.users.length} attorneys`);
         return response.users;
     } catch (error) {
         console.error('❌ Error fetching attorneys:', error);
@@ -345,10 +323,8 @@ export const getAttorneys = async (): Promise<User[]> => {
 
 export const getParalegals = async (): Promise<User[]> => {
     try {
-        console.log('🔄 Fetching paralegals from new API endpoint...');
         
         const response = await getUsers({ role: 'paralegal' });
-        console.log(`✅ Found ${response.users.length} paralegals`);
         return response.users;
     } catch (error) {
         console.error('❌ Error fetching paralegals:', error);
@@ -376,13 +352,11 @@ export const getClientById = async (id: string): Promise<Client> => {
 
 export const createIndividualClient = async (clientData: Omit<Client, '_id' | 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
     try {
-        console.log('🔄 Creating individual client...');
         const response = await api.post<Client>(
             CLIENT_END_POINTS.CREATECLIENT,
             clientData
         );
 
-        console.log('✅ Individual client created:', response.data);
         return response.data;
 
     } catch (error) {
@@ -401,13 +375,11 @@ export const createCompanyClient = async (clientData: Omit<Client, '_id' | 'id' 
     password?: string;
 }): Promise<Client> => {
     try {
-        console.log('🔄 Creating company client...');
         const response = await api.post<Client>(
             CLIENT_END_POINTS.CREATECOMPANYCLIENT,
             clientData
         );
 
-        console.log('✅ Company client created:', response.data);
         return response.data;
 
     } catch (error) {
@@ -421,13 +393,11 @@ export const createCompanyClient = async (clientData: Omit<Client, '_id' | 'id' 
 
 export const updateClient = async (clientId: string, updateData: Partial<Client>): Promise<Client> => {
     try {
-        console.log('🔄 Updating client:', clientId);
         const response = await api.put<Client>(
             CLIENT_END_POINTS.UPDATECLIENT.replace(':id', clientId),
             updateData
         );
 
-        console.log('✅ Client updated:', response.data);
         return response.data;
 
     } catch (error) {
@@ -446,13 +416,11 @@ export const addClientDocument = async (clientId: string, documentData: {
     notes?: string;
 }): Promise<Client> => {
     try {
-        console.log('🔄 Adding document to client:', clientId);
         const response = await api.post<Client>(
             CLIENT_END_POINTS.ADDCLIENTDOCUMENT.replace(':id', clientId),
             documentData
         );
 
-        console.log('✅ Document added to client:', response.data);
         return response.data;
 
     } catch (error) {

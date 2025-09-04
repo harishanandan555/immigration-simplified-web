@@ -19,7 +19,6 @@ export const generateCaseId = (formType: string = 'GENERAL'): string => {
     const randomSequence = Math.floor(Math.random() * 9999) + 1;
     
     const caseId = `${prefix}-${year}-${randomSequence.toString().padStart(4, '0')}`;
-    console.log(`Generated client-side case ID: ${caseId} for form type: ${formType}`);
     
     return caseId;
   } catch (error) {

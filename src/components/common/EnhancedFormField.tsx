@@ -161,15 +161,6 @@ const EnhancedFormField: React.FC<EnhancedFormFieldProps> = ({
     }
   }, [sensitive, value, id, type, maskForDisplay]);
 
-  // Consistency checking
-  useEffect(() => {
-    if (consistencyCheck && value && formType) {
-      // This would typically check against other forms in the same case
-      // For now, we'll just log the check
-      console.log(`Consistency check for field ${id} with value ${maskForDisplay ? '***' : value}`);
-    }
-  }, [consistencyCheck, value, formType, id, maskForDisplay]);
-
   // Get display value (masked if sensitive)
   const getDisplayValue = () => {
     if (!value) return '';

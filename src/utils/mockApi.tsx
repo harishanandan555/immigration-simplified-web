@@ -24,7 +24,6 @@ export const getAuthToken = async (): Promise<string> => {
   // For demo purposes, we'll simulate the token request
   // In a real app, this would be an actual fetch to the token endpoint
   try {
-    console.log('Requesting new auth token...');
     
     // Simulate API call
     // In a real app: 
@@ -51,7 +50,6 @@ export const getAuthToken = async (): Promise<string> => {
     authToken = tokenResponse.access_token;
     tokenExpiry = Date.now() + (tokenResponse.expires_in * 1000);
     
-    console.log('Auth token acquired successfully');
     return authToken;
   } catch (error) {
     console.error('Failed to acquire auth token:', error);
@@ -77,8 +75,6 @@ export const apiRequest = async (
       'Content-Type': 'application/json',
     };
     
-    // For demo purposes, we'll log the request
-    console.log(`Making ${method} request to ${endpoint}`, data ? data : '');
     
     // In a real app, this would be an actual API call:
     // const response = await fetch(`${API_BASE_URL}${endpoint}`, {

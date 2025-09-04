@@ -864,7 +864,6 @@ const ImmigrationProcess: React.FC = () => {
         </button>
         <button
           onClick={() => {
-            console.log('Case created successfully!');
             setCurrentStep(0);
           }}
           className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
@@ -1110,8 +1109,6 @@ const ImmigrationProcess: React.FC = () => {
 
     setIsPdfProcessing(true);
     try {
-      console.log('=== Starting Legal Firm I-130 Auto-Fill Process ===');
-      console.log('Form data being used:', formData);
 
       // First, let's test if the PDF has fillable fields
       const { PDFDocument } = await import('pdf-lib');
@@ -1134,12 +1131,8 @@ const ImmigrationProcess: React.FC = () => {
         fieldCount = testFields.length;
         hasForm = fieldCount > 0;
         
-        console.log(`PDF Analysis: ${fieldCount} fillable fields found`);
-        if (fieldCount > 0) {
-          console.log('Field names:', testFields.map(f => f.getName()));
-        }
+        
       } catch (formError) {
-        console.log('PDF does not contain fillable form fields');
         hasForm = false;
       }
 
@@ -1161,7 +1154,6 @@ const ImmigrationProcess: React.FC = () => {
           link.click();
           document.body.removeChild(link);
           
-          console.log('✅ Blank I-130 PDF downloaded. You can print this and fill it manually with the information you entered.');
         } else {
           // Generate HTML form instead
           handleGenerateHTMLI130();
@@ -1239,7 +1231,6 @@ const ImmigrationProcess: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       
-      console.log('✅ Blank I-130 form downloaded successfully!');
     } catch (error) {
       console.error('Error downloading blank form:', error);
       console.error('❌ Error downloading blank form. Please try again.');
@@ -1389,7 +1380,6 @@ const ImmigrationProcess: React.FC = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    console.log('✅ HTML I-130 form generated and downloaded successfully!');
   };
 
   if (loading) {
@@ -1565,11 +1555,7 @@ const ImmigrationProcess: React.FC = () => {
                           try {
                             const form = doc.getForm();
                             const fields = form.getFields();
-                            console.log(`=== PDF DEBUG INFO ===`);
-                            console.log(`Total fields: ${fields.length}`);
-                            fields.forEach((field, i) => {
-                              console.log(`${i + 1}. "${field.getName()}" (${field.constructor.name})`);
-                            });
+                            
                             console.error(`PDF Analysis Complete!\n\nFound ${fields.length} fillable fields.\nCheck the browser console (F12) for detailed field names.`);
                           } catch (formError) {
                             console.error('❌ This PDF does not contain fillable form fields.\nIt appears to be a scanned image.');

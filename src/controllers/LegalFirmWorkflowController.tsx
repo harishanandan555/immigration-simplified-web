@@ -156,7 +156,6 @@ export const fetchWorkflows = async (searchParams?: {
   offset?: number;
 }): Promise<any[]> => {
   try {
-    console.log('🔄 Fetching workflows from API...');
     
     const params = new URLSearchParams();
     if (searchParams?.search) params.append('search', searchParams.search);
@@ -172,7 +171,6 @@ export const fetchWorkflows = async (searchParams?: {
       params: Object.fromEntries(params)
     });
 
-    console.log('✅ Workflows fetched successfully:', response.data);
     return response.data.workflows || response.data || [];
   } catch (error) {
     console.error('❌ Error fetching workflows:', error);
