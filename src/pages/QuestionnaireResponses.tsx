@@ -14,8 +14,11 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../controllers/AuthControllers';
-import { useQuestionnaireAssignments } from '../hooks/useQuestionnaireAssignments';
-import api from '../utils/api';
+import { 
+  getClientResponses, 
+  getWorkflowsFromAPI, 
+  getAssignmentResponse 
+} from '../controllers/QuestionnaireResponseControllers';
 import toast from 'react-hot-toast';
 
 interface QuestionnaireAssignment {
@@ -82,14 +85,13 @@ interface QuestionnaireAssignment {
 const QuestionnaireResponses: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getClientResponses } = useQuestionnaireAssignments('attorney', localStorage.getItem('token') || undefined);
   const [assignments, setAssignments] = useState<QuestionnaireAssignment[]>([]);
   const [filteredAssignments, setFilteredAssignments] = useState<QuestionnaireAssignment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [loadingWorkflows, setLoadingWorkflows] = useState<boolean>(false);
+  const [, setLoadingWorkflows] = useState<boolean>(false);
   
   // Function to fetch workflows from API for auto-fill
   const fetchWorkflowsFromAPI = async () => {
@@ -102,32 +104,17 @@ const QuestionnaireResponses: React.FC = () => {
         return [];
       }
 
-      // Request workflows from API
-      const response = await api.get('/api/v1/workflows', {
-        params: {
-          status: 'in-progress',
-          page: 1,
-          limit: 50
-        }
+      // Use the controller function
+      const workflows = await getWorkflowsFromAPI({
+        status: 'in-progress',
+        page: 1,
+        limit: 50
       });
       
-      if (response.data?.success && response.data?.data) {
-        const workflows = response.data.data;
-        return workflows;
-      } else {
-        return [];
-      }
+      return workflows;
       
     } catch (error: any) {
-      // If 404, the endpoint might not be available
-      if (error.response?.status === 404) {
-        // Server workflows endpoint not found
-      } else if (error.response?.status === 401) {
-        // Authentication failed
-      } else {
-        // Other API error
-      }
-      
+      console.error('Error fetching workflows:', error);
       return [];
     } finally {
       setLoadingWorkflows(false);
@@ -210,9 +197,9 @@ const QuestionnaireResponses: React.FC = () => {
       
       if (completedAssignments.length > 0) {
         const assignmentsWithResponses = completedAssignments.filter((a: any) => a.responseId?.responses);
-        const assignmentsWithoutResponses = completedAssignments.length - assignmentsWithResponses.length;
         
         // Loaded completed questionnaires successfully
+        console.log(`Loaded ${completedAssignments.length} completed assignments, ${assignmentsWithResponses.length} with responses`);
       }
     } catch (err) {
       setError('Failed to load questionnaire responses. Please try again.');
@@ -399,7 +386,7 @@ const QuestionnaireResponses: React.FC = () => {
     }
   };
 
-  const handleViewResponse = (assignmentId: string) => {
+  const handleViewResponse = async (assignmentId: string) => {
     // Validate assignmentId is a valid MongoDB ObjectId
     if (!/^[0-9a-fA-F]{24}$/.test(assignmentId)) {
       toast.error('Invalid assignment ID format');
@@ -424,7 +411,14 @@ const QuestionnaireResponses: React.FC = () => {
       return;
     }
     
-    navigate(`/questionnaires/response/${assignmentId}`);
+    try {
+      // Use the controller function to get assignment response
+      await getAssignmentResponse(assignmentId);
+      navigate(`/questionnaires/response/${assignmentId}`);
+    } catch (error) {
+      console.error('Error fetching assignment response:', error);
+      toast.error('Failed to load response data');
+    }
   };
 
   return (

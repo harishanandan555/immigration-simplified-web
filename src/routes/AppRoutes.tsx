@@ -64,7 +64,7 @@ const AppRoutes = () => {
           } />
 
           <Route path="/immigration-process/individual" element={
-            (user?.role === 'client' && user?.userType === 'individual') ? (
+            (user?.role === 'client' && user?.userType === 'individualUser') ? (
               <Suspense fallback={null}>
                 <IndividualImmigrationProcess />
               </Suspense>

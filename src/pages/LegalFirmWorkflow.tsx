@@ -35,16 +35,20 @@ import {
 import {
   generateSecurePassword
 } from '../controllers/UserCreationController';
-import { getClients as fetchClientsFromAPI, getClientById, Client as APIClient } from '../controllers/ClientControllers';
-import { getFormTemplates, FormTemplate } from '../controllers/SettingsControllers';
-import { LEGAL_WORKFLOW_ENDPOINTS } from '../utils/constants';
+import { getClients as fetchClientsFromAPI, getClientById, createCompanyClient, Client as APIClient } from '../controllers/ClientControllers';
+import { getFormTemplates, getUscisFormNumbers, FormTemplate } from '../controllers/SettingsControllers';
+import { 
+  LEGAL_WORKFLOW_ENDPOINTS,
+  FORM_TEMPLATE_CATEGORIES,
+  FORM_TEMPLATE_TYPES,
+  FORM_TEMPLATE_STATUS
+} from '../utils/constants';
 import {
   getWorkflowProgress,
   saveWorkflowProgress,
   fetchWorkflows,
   fetchWorkflowsForClientSearch,
   checkEmailExists,
-  registerUser,
   createFormDetails,
   assignQuestionnaireToFormDetails,
   fetchQuestionnaireAssignments,
@@ -577,9 +581,37 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setLoadingFormTemplates(true);
       try {
         // You may want to pass userId or params as needed
-        const response = await getFormTemplates('');
-
-        setFormTemplates(response.data.templates || []);
+        // const response = await getFormTemplates('');
+        const response = await getUscisFormNumbers();
+        // console.log('🔍 Response 1:', response1);
+        // setFormTemplates(response.data.templates || []);
+        
+        // Map the API response to FormTemplate structure
+        const mappedTemplates: FormTemplate[] = (response.data || []).map((form: any) => ({
+          _id: form._id,
+          name: form.title || form.formNumber,
+          description: form.description || '',
+          category: 'USCIS' as keyof typeof FORM_TEMPLATE_CATEGORIES,
+          type: 'uscis' as keyof typeof FORM_TEMPLATE_TYPES,
+          status: form.isActive ? 'active' as keyof typeof FORM_TEMPLATE_STATUS : 'inactive' as keyof typeof FORM_TEMPLATE_STATUS,
+          fields: [], // Empty fields array for now
+          version: '1.0',
+          effectiveDate: form.createdAt || new Date().toISOString(),
+          expirationDate: form.expirationDate,
+          isActive: form.isActive || false,
+          createdBy: 'system',
+          updatedBy: 'system',
+          createdAt: form.createdAt || new Date().toISOString(),
+          updatedAt: form.updatedAt || new Date().toISOString(),
+          metadata: {
+            uscisFormNumber: form.formNumber,
+            uscisFormLink: form.detailsUrl,
+            fee: form.fee,
+            instructions: form.metadata?.instructions
+          }
+        }));
+        
+        setFormTemplates(mappedTemplates);
       } catch (error) {
         setFormTemplates([]);
       }
@@ -599,8 +631,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       console.log('🔐 Auth token available:', !!token);
 
       try {
-        const apiClients = await fetchClientsFromAPI();
-        console.log('📋 API Clients Response:', apiClients);
+        const apiResponse = await fetchClientsFromAPI();
+        console.log('📋 API Clients Response:', apiResponse);
+        const apiClients = apiResponse?.clients || [];
         console.log('📊 Total clients from API:', apiClients?.length || 0);
 
         // If no clients returned from regular API, try to get them from workflows
@@ -924,7 +957,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
           // Check if this user has the correct role
-          if (emailCheckResult.role === 'client' && emailCheckResult.userType === 'individual') {
+          if (emailCheckResult.role === 'client' && emailCheckResult.userType === 'individualUser') {
 
 
             // Update client object with existing user ID
@@ -980,43 +1013,116 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setClient(updatedClient);
 
       try {
+        // Get companyId from attorney's localStorage
+        const attorneyCompanyId = localStorage.getItem('companyId');
+        if (!attorneyCompanyId) {
+          throw new Error('Attorney company ID not found. Please ensure you are logged in as an attorney.');
+        }
 
+        // Get current user data for attorneyIds
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const attorneyIds = currentUser._id ? [currentUser._id] : [];
 
-        // ✅ Use the correct endpoint: /api/v1/auth/register/user
-        const response = await registerUser({
+        // ✅ Use the new company client creation with all fields
+        const response = await createCompanyClient({
           firstName: updatedClient.firstName,
-          middleName: updatedClient.middleName || '',
           lastName: updatedClient.lastName,
+          name: `${updatedClient.firstName} ${updatedClient.lastName}`, // Auto-generated name
           email: clientEmail.toLowerCase().trim(),
-          password: clientPassword,
           phone: client.phone || '',
-          dateOfBirth: client.dateOfBirth || '',
           nationality: client.nationality || '',
           address: {
             street: client.address?.street || '',
-            aptSuiteFlr: client.address?.aptSuiteFlr || '',
-            aptNumber: client.address?.aptNumber || '',
             city: client.address?.city || '',
             state: client.address?.state || '',
             zipCode: client.address?.zipCode || '',
-            province: client.address?.province || '',
-            postalCode: client.address?.postalCode || '',
             country: client.address?.country || 'United States'
           },
-          role: 'client', // ✅ Required: Specify user role
-          userType: 'individual', // ✅ Required: Specify user type
-          sendPassword: false // ✅ Controls welcome email (set to true if you want emails)
+          role: 'client',
+          userType: 'companyClient',
+          companyId: attorneyCompanyId, // Get from attorney's localStorage
+          attorneyIds: attorneyIds, // Current attorney's ID
+          dateOfBirth: client.dateOfBirth || '',
+          placeOfBirth: client.placeOfBirth ? {
+            city: client.placeOfBirth.city || '',
+            state: client.placeOfBirth.state || '',
+            country: client.placeOfBirth.country || ''
+          } : undefined,
+          gender: client.gender || undefined,
+          maritalStatus: client.maritalStatus || undefined,
+          immigrationPurpose: client.immigrationPurpose || undefined,
+          passportNumber: client.passportNumber || undefined,
+          alienRegistrationNumber: client.alienRegistrationNumber || undefined,
+          nationalIdNumber: client.nationalIdNumber || undefined,
+          spouse: client.spouse ? {
+            firstName: client.spouse.firstName || undefined,
+            lastName: client.spouse.lastName || undefined,
+            dateOfBirth: client.spouse.dateOfBirth || undefined,
+            nationality: client.spouse.nationality || undefined,
+            alienRegistrationNumber: client.spouse.alienRegistrationNumber || undefined
+          } : undefined,
+          children: client.children || undefined,
+          employment: client.employment ? {
+            currentEmployer: client.employment.currentEmployer ? {
+              name: client.employment.currentEmployer.name || undefined,
+              address: client.employment.currentEmployer.address ? {
+                street: client.employment.currentEmployer.address.street || '',
+                city: client.employment.currentEmployer.address.city || '',
+                state: client.employment.currentEmployer.address.state || '',
+                zipCode: client.employment.currentEmployer.address.zipCode || '',
+                country: client.employment.currentEmployer.address.country || 'United States'
+              } : undefined
+            } : undefined,
+            jobTitle: client.employment.jobTitle || undefined,
+            employmentStartDate: client.employment.employmentStartDate || undefined,
+            annualIncome: client.employment.annualIncome || undefined
+          } : undefined,
+          education: client.education ? {
+            highestLevel: client.education.highestLevel || undefined,
+            institutionName: client.education.institutionName || undefined,
+            datesAttended: client.education.datesAttended ? {
+              startDate: client.education.datesAttended.startDate || undefined,
+              endDate: client.education.datesAttended.endDate || undefined
+            } : undefined,
+            fieldOfStudy: client.education.fieldOfStudy || undefined
+          } : undefined,
+          travelHistory: client.travelHistory || undefined,
+          financialInfo: client.financialInfo ? {
+            annualIncome: client.financialInfo.annualIncome || undefined,
+            sourceOfFunds: client.financialInfo.sourceOfFunds || undefined,
+            bankAccountBalance: client.financialInfo.bankAccountBalance || undefined
+          } : undefined,
+          criminalHistory: client.criminalHistory ? {
+            hasCriminalRecord: client.criminalHistory.hasCriminalRecord || false,
+            details: client.criminalHistory.details || undefined
+          } : undefined,
+          medicalHistory: client.medicalHistory ? {
+            hasMedicalConditions: client.medicalHistory.hasMedicalConditions || false,
+            details: client.medicalHistory.details || undefined
+          } : undefined,
+          bio: client.bio || undefined,
+          status: 'Active',
+          entryDate: client.entryDate || undefined,
+          visaCategory: client.visaCategory || undefined,
+          notes: client.notes || undefined,
+          documents: client.documents || undefined,
+          active: true,
+          lastLogin: undefined, // Will be set on first login
+          // Legacy fields for backward compatibility
+          // id: clientId,
+          alienNumber: client.alienNumber || undefined,
+          sendPassword: true, // Send password to client
+          password: clientPassword // Include the password
         });
 
 
 
-        // ✅ Enhanced response handling - handle both response structures
-        const userData = response.data?.data || response.data?.user || response.data;
+        // ✅ Enhanced response handling - createCompanyClient returns Client directly
+        const userData = response;
         const apiClientId = userData?._id || userData?.id;
-        const token = response.data?.token || userData?.token;
 
         if (!apiClientId) {
-          throw new Error('No user ID returned from registration');
+          throw new Error('No user ID returned from client creation');
         }
 
 
@@ -1047,8 +1153,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             postalCode: client.address?.postalCode || '',
             country: client.address?.country || 'United States'
           },
-          status: 'active',
-          ...(token && { token })
+          status: 'active'
         };
 
         setClient(apiClient);
@@ -1301,7 +1406,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   country: 'United States'
                 },
                 role: 'client', // Set role as client since these are from workflows
-                userType: 'individual', // Set userType for consistency
+                userType: 'individualUser', // Set userType for consistency
                 status: client.status || 'active',
                 createdAt: client.createdAt || new Date().toISOString(),
                 // Add workflow context
@@ -2820,7 +2925,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     options={[
                       { value: '', label: 'Choose a client' },
                       ...existingClients
-                        .filter(c => typeof (c as any)._id === 'string' && (c as any)._id.length === 24)
+                        .filter(c => typeof (c as any)._id === 'string' && (c as any)._id.length === 24 && (c as any).userType === 'companyClient')
                         .map(c => {
                           const anyClient = c as any;
                           return {
@@ -3214,51 +3319,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         return (
           // <div>Select Forms</div>
            <div className="space-y-6">
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-purple-900 mb-2">Required Form</h3>
-              <p className="text-purple-700">Select the form required for this case based on the selected category.</p>
-            </div>
+            
 
-            {/* Show form templates from backend */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-gray-900">Available Form Templates</h4>
-              {loadingFormTemplates ? (
-                <div className="text-gray-500">Loading form templates...</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {formTemplates.length === 0 ? (
-                    <div className="text-gray-400">No form templates available.</div>
-                  ) : (
-                    formTemplates.map(template => (
-                      <label key={template._id || template.name} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="selectedForm"
-                          checked={selectedForms.includes(template.name)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedForms([template.name]); // Only allow one form selection
-                            }
-                          }}
-                          className="mr-3"
-                        />
-                        <div>
-                          <div className="font-medium text-gray-900">{template.name}</div>
-                          <div className="text-sm text-gray-500">{template.description}</div>
-                          <div className="text-xs text-gray-400">Category: {template.category}</div>
-                          {/* Show case ID if form is selected and case ID exists */}
-                          {selectedForms.includes(template.name) && formCaseIds[template.name] && (
-                            <div className="text-xs text-green-600 font-medium mt-1">
-                              Case ID: {formatCaseId(formCaseIds[template.name])}
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+            
 
             {/* Display generated case ID summary */}
             {selectedForms.length > 0 && Object.keys(formCaseIds).length > 0 && (

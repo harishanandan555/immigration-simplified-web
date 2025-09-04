@@ -219,14 +219,16 @@ export const checkEmailExists = async (clientEmail: string): Promise<{
   }
 };
 
-export const registerUser = async (userData: {
+
+
+export const registerCompanyClient = async (userData: {
   email: string;
   password: string;
   firstName: string;
   middleName?: string;
   lastName: string;
-  role: string;
-  userType?: string;
+  companyId: string;
+  attorneyIds?: string[];
   phone?: string;
   dateOfBirth?: string;
   nationality?: string;
@@ -241,14 +243,43 @@ export const registerUser = async (userData: {
     postalCode?: string;
     country?: string;
   };
-  companyId?: string;
   sendPassword?: boolean;
 }): Promise<any> => {
   try {
-    const response = await api.post(LEGAL_WORKFLOW_ENDPOINTS.REGISTER_USER, userData);
-    return response.data;
+    // Import the client registration function from AuthControllers
+    const { registerCompanyClient: authRegisterCompanyClient } = await import('./AuthControllers');
+    
+    const response = await authRegisterCompanyClient(
+      userData.firstName,
+      userData.lastName,
+      userData.email,
+      userData.password,
+      userData.companyId,
+      userData.attorneyIds,
+      userData.phone,
+      userData.nationality,
+      userData.address ? {
+        street: userData.address.street || '',
+        city: userData.address.city || '',
+        state: userData.address.state || '',
+        zipCode: userData.address.zipCode || '',
+        country: userData.address.country || 'United States'
+      } : undefined,
+      userData.dateOfBirth,
+      undefined, // placeOfBirth
+      undefined, // gender
+      undefined, // maritalStatus
+      undefined, // immigrationPurpose
+      undefined, // passportNumber
+      undefined, // alienRegistrationNumber
+      undefined, // nationalIdNumber
+      undefined, // bio
+      userData.sendPassword
+    );
+    
+    return response;
   } catch (error) {
-    console.error('Error registering user:', error);
+    console.error('Error registering company client:', error);
     throw error;
   }
 };
@@ -428,7 +459,7 @@ export default {
   fetchWorkflows,
   fetchWorkflowsForClientSearch,
   checkEmailExists,
-  registerUser,
+  registerCompanyClient,
   createFormDetails,
   assignQuestionnaireToFormDetails,
   fetchQuestionnaireAssignments,

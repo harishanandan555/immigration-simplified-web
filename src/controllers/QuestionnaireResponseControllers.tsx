@@ -1,4 +1,5 @@
 import api from '../utils/api';
+import { QUESTIONNAIRE_RESPONSE_END_POINTS } from '../utils/constants';
 
 export interface QuestionnaireResponse {
   id: string;
@@ -198,4 +199,95 @@ export const normalizeQuestionnaireStructure = (questionnaire: any) => {
   });
   
   return normalized;
+};
+
+/**
+ * Get all client responses for attorneys/admins
+ * @param filters Optional filters (status, clientId, etc.)
+ * @returns Client responses with pagination
+ */
+export const getClientResponses = async (filters: Record<string, any> = {}) => {
+  try {
+    const params = new URLSearchParams();
+    
+    // Add filters to query params
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value.toString());
+      }
+    });
+    
+    console.log('Getting client responses with filters:', filters);
+    
+    const response = await api.get(`${QUESTIONNAIRE_RESPONSE_END_POINTS.GET_CLIENT_RESPONSES}?${params}`);
+    
+    console.log('Client responses retrieved successfully');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting client responses:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get workflows from API for auto-fill functionality
+ * @param filters Optional filters for workflows
+ * @returns Array of workflows
+ */
+export const getWorkflowsFromAPI = async (filters: Record<string, any> = {}) => {
+  try {
+    const params = new URLSearchParams();
+    
+    // Add filters to query params
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value.toString());
+      }
+    });
+    
+    console.log('Getting workflows with filters:', filters);
+    
+    const response = await api.get(`${QUESTIONNAIRE_RESPONSE_END_POINTS.GET_WORKFLOWS}?${params}`);
+    
+    if (response.data?.success && response.data?.data) {
+      const workflows = response.data.data;
+      return workflows;
+    } else {
+      return [];
+    }
+  } catch (error: any) {
+    console.error('Error getting workflows:', error);
+    
+    // If 404, the endpoint might not be available
+    if (error.response?.status === 404) {
+      console.warn('Workflows endpoint not found');
+    } else if (error.response?.status === 401) {
+      console.warn('Authentication failed for workflows');
+    } else {
+      console.warn('Other API error for workflows:', error.response?.status);
+    }
+    
+    return [];
+  }
+};
+
+/**
+ * Get assignment response for attorneys to view client submissions
+ * @param assignmentId The assignment ID
+ * @returns Assignment and response data
+ */
+export const getAssignmentResponse = async (assignmentId: string) => {
+  try {
+    console.log(`Getting assignment response for ${assignmentId}`);
+    
+    const response = await api.get(
+      QUESTIONNAIRE_RESPONSE_END_POINTS.GET_RESPONSE_BY_ID.replace(':assignmentId', assignmentId)
+    );
+    
+    console.log('Assignment response retrieved successfully');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting assignment response:', error);
+    throw error;
+  }
 };

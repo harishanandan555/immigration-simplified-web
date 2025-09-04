@@ -28,7 +28,7 @@ export interface User {
   email: string;
   password: string;
   role: UserRole;
-  userType?: 'individual' | 'company';
+  userType?: 'individualUser' | 'companyUser';
   avatar?: string;
   token?: string;
   companyId?: string;
@@ -132,17 +132,17 @@ export const registerAttorney = async (
   }
 };
 
-export const registerUser = async (
+export const registerCompanyUser = async (
   firstName: string,
   lastName: string,
   email: string,
   password: string,
   role: string,
-  userType: 'individual' | 'company',
+  userType: 'companyUser',
   superadminId: string,
   attorneyId: string,
   companyId: string,
-  // Client/Paralegal-specific fields
+  // Paralegal-specific fields
   phone?: string,
   nationality?: string,
   address?: {
@@ -275,6 +275,208 @@ export const registerUser = async (
     } else {
       toast.error(error.response?.data?.message || 'Error registering user');
     }
+    throw error;
+  }
+};
+
+// Client Registration Functions
+export const registerIndividualClient = async (
+  firstName: string,
+  lastName: string,
+  email: string,
+  password: string,
+  phone?: string,
+  nationality?: string,
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  },
+  dateOfBirth?: string,
+  placeOfBirth?: {
+    city: string;
+    state?: string;
+    country: string;
+  },
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say',
+  maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union',
+  immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other',
+  passportNumber?: string,
+  alienRegistrationNumber?: string,
+  nationalIdNumber?: string,
+  bio?: string
+): Promise<ApiResponse<User>> => {
+  if (!IS_REGISTRATION_ENABLED) {
+    console.log('Registration is disabled');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Registration is disabled'
+    };
+  }
+
+  try {
+    // Import ClientControllers functions
+    const { createIndividualClient } = await import('./ClientControllers');
+    
+    const clientData = {
+      firstName,
+      lastName,
+      name: `${firstName} ${lastName}`,
+      email: email.toLowerCase(),
+      phone: phone || '',
+      nationality: nationality || '',
+      address: address || {
+        street: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: 'United States'
+      },
+      role: 'client' as const,
+      userType: 'individualUser' as const,
+      attorneyIds: [],
+      dateOfBirth: dateOfBirth || '',
+      placeOfBirth,
+      gender,
+      maritalStatus,
+      immigrationPurpose,
+      passportNumber,
+      alienRegistrationNumber,
+      nationalIdNumber,
+      bio,
+      status: 'Active' as const,
+      active: true
+    };
+
+    const client = await createIndividualClient(clientData);
+    
+    // Convert Client to User format for consistency
+    const userData: User = {
+      _id: client._id,
+      id: client._id,
+      firstName: client.firstName,
+      lastName: client.lastName,
+      email: client.email,
+      password: password, // Note: This should be handled securely
+      role: 'client',
+      userType: 'individualUser',
+      companyId: client.companyId
+    };
+
+    return {
+      data: userData,
+      status: 200,
+      statusText: 'OK'
+    };
+  } catch (error: any) {
+    console.error('Error registering individual client:', error);
+    toast.error(error.response?.data?.message || 'Error registering client');
+    throw error;
+  }
+};
+
+export const registerCompanyClient = async (
+  firstName: string,
+  lastName: string,
+  email: string,
+  password: string,
+  companyId: string,
+  attorneyIds?: string[],
+  phone?: string,
+  nationality?: string,
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  },
+  dateOfBirth?: string,
+  placeOfBirth?: {
+    city: string;
+    state?: string;
+    country: string;
+  },
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say',
+  maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union',
+  immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other',
+  passportNumber?: string,
+  alienRegistrationNumber?: string,
+  nationalIdNumber?: string,
+  bio?: string,
+  sendPassword?: boolean
+): Promise<ApiResponse<User>> => {
+  if (!IS_REGISTRATION_ENABLED) {
+    console.log('Registration is disabled');
+    return {
+      data: null,
+      status: 0,
+      statusText: 'Registration is disabled'
+    };
+  }
+
+  try {
+    // Import ClientControllers functions
+    const { createCompanyClient } = await import('./ClientControllers');
+    
+    const clientData = {
+      firstName,
+      lastName,
+      name: `${firstName} ${lastName}`,
+      email: email.toLowerCase(),
+      phone: phone || '',
+      nationality: nationality || '',
+      address: address || {
+        street: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: 'United States'
+      },
+      role: 'client' as const,
+      userType: 'companyClient' as const,
+      companyId,
+      attorneyIds: attorneyIds || [],
+      dateOfBirth: dateOfBirth || '',
+      placeOfBirth,
+      gender,
+      maritalStatus,
+      immigrationPurpose,
+      passportNumber,
+      alienRegistrationNumber,
+      nationalIdNumber,
+      bio,
+      status: 'Active' as const,
+      active: true,
+      sendPassword
+    };
+
+    const client = await createCompanyClient(clientData);
+    
+    // Convert Client to User format for consistency
+    const userData: User = {
+      _id: client._id,
+      id: client._id,
+      firstName: client.firstName,
+      lastName: client.lastName,
+      email: client.email,
+      password: password, // Note: This should be handled securely
+      role: 'client',
+      userType: 'companyUser',
+      companyId: client.companyId
+    };
+
+    return {
+      data: userData,
+      status: 200,
+      statusText: 'OK'
+    };
+  } catch (error: any) {
+    console.error('Error registering company client:', error);
+    toast.error(error.response?.data?.message || 'Error registering client');
     throw error;
   }
 };
@@ -421,7 +623,9 @@ interface AuthContextType {
   isLoading: boolean;
   registerSuperadmin: (firstName: string, lastName: string, email: string, password: string) => Promise<void>;
   registerAttorney: (firstName: string, lastName: string, email: string, password: string, superadminId: string, companyId: string, phone?: string, address?: { street: string; aptSuiteFlr: string; aptNumber: string; city: string; state: string; zipCode: string; country: string; }, middleName?: string, bio?: string) => Promise<void>;
-  registerUser: (firstName: string, lastName: string, email: string, password: string, role: string, userType: 'individual' | 'company', superadminId: string, attorneyId: string, companyId: string, phone?: string, nationality?: string, address?: { street: string; aptSuiteFlr: string; aptNumber: string; city: string; state: string; zipCode: string; country: string; }, dateOfBirth?: string, placeOfBirth?: { city: string; state: string; country: string; }, gender?: string, maritalStatus?: string, immigrationPurpose?: string, passportNumber?: string, alienRegistrationNumber?: string, nationalIdNumber?: string, ssn?: string, employment?: { currentEmployer: { name: string; address: { street: string; city: string; state: string; zipCode: string; country: string; }; }; jobTitle: string; employmentStartDate: string; annualIncome: number; }, education?: { highestLevel: string; institutionName: string; datesAttended: { startDate: string; endDate: string; }; fieldOfStudy: string; }, travelHistory?: Array<{ country: string; visitDate: string; purpose: string; duration: number; }>, financialInfo?: { annualIncome: number; sourceOfFunds: string; bankAccountBalance: number; }, criminalHistory?: { hasCriminalRecord: boolean; details: string; }, medicalHistory?: { hasMedicalConditions: boolean; details: string; }, bio?: string, sendPassword?: boolean) => Promise<void>;
+  registerCompanyUser: (firstName: string, lastName: string, email: string, password: string, role: string, userType: 'companyUser', superadminId: string, attorneyId: string, companyId: string, phone?: string, nationality?: string, address?: { street: string; aptSuiteFlr: string; aptNumber: string; city: string; state: string; zipCode: string; country: string; }, dateOfBirth?: string, placeOfBirth?: { city: string; state: string; country: string; }, gender?: string, maritalStatus?: string, immigrationPurpose?: string, passportNumber?: string, alienRegistrationNumber?: string, nationalIdNumber?: string, ssn?: string, employment?: { currentEmployer: { name: string; address: { street: string; city: string; state: string; zipCode: string; country: string; }; }; jobTitle: string; employmentStartDate: string; annualIncome: number; }, education?: { highestLevel: string; institutionName: string; datesAttended: { startDate: string; endDate: string; }; fieldOfStudy: string; }, travelHistory?: Array<{ country: string; visitDate: string; purpose: string; duration: number; }>, financialInfo?: { annualIncome: number; sourceOfFunds: string; bankAccountBalance: number; }, criminalHistory?: { hasCriminalRecord: boolean; details: string; }, medicalHistory?: { hasMedicalConditions: boolean; details: string; }, bio?: string, sendPassword?: boolean) => Promise<void>;
+  registerIndividualClient: (firstName: string, lastName: string, email: string, password: string, phone?: string, nationality?: string, address?: { street: string; city: string; state: string; zipCode: string; country: string; }, dateOfBirth?: string, placeOfBirth?: { city: string; state?: string; country: string; }, gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say', maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union', immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other', passportNumber?: string, alienRegistrationNumber?: string, nationalIdNumber?: string, bio?: string) => Promise<void>;
+  registerCompanyClient: (firstName: string, lastName: string, email: string, password: string, companyId: string, attorneyIds?: string[], phone?: string, nationality?: string, address?: { street: string; city: string; state: string; zipCode: string; country: string; }, dateOfBirth?: string, placeOfBirth?: { city: string; state?: string; country: string; }, gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say', maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union', immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other', passportNumber?: string, alienRegistrationNumber?: string, nationalIdNumber?: string, bio?: string, sendPassword?: boolean) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   getUserProfile: (email: string, password: string) => Promise<void>;
   updateUserProfile: (email: string, password: string) => Promise<void>;
@@ -506,17 +710,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const handleRegisterUser = async (
+  const handleRegisterCompanyUser = async (
     firstName: string,
     lastName: string,
     email: string,
     password: string,
     role: string,
-    userType: 'individual' | 'company',
+    userType: 'companyUser',
     superadminId: string,
     attorneyId: string,
     companyId: string,
-    // Client/Paralegal-specific fields
+    // Paralegal-specific fields
     phone?: string,
     nationality?: string,
     address?: {
@@ -589,7 +793,100 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ): Promise<void> => {
     setIsLoading(true);
     try {
-      const response = await registerUser(firstName, lastName, email, password, role, userType, superadminId, attorneyId, companyId, phone, nationality, address, dateOfBirth, placeOfBirth, gender, maritalStatus, immigrationPurpose, passportNumber, alienRegistrationNumber, nationalIdNumber, ssn, employment, education, travelHistory, financialInfo, criminalHistory, medicalHistory, bio, sendPassword);
+      const response = await registerCompanyUser(firstName, lastName, email, password, role, userType, superadminId, attorneyId, companyId, phone, nationality, address, dateOfBirth, placeOfBirth, gender, maritalStatus, immigrationPurpose, passportNumber, alienRegistrationNumber, nationalIdNumber, ssn, employment, education, travelHistory, financialInfo, criminalHistory, medicalHistory, bio, sendPassword);
+      if (response.data) {
+        setUser(response.data);
+        localStorage.setItem('user', JSON.stringify(response.data));
+        if (response.data.token) {
+          localStorage.setItem('token', response.data.token);
+        }
+      }
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegisterIndividualClient = async (
+    firstName: string,
+    lastName: string,
+    email: string,
+    password: string,
+    phone?: string,
+    nationality?: string,
+    address?: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      country: string;
+    },
+    dateOfBirth?: string,
+    placeOfBirth?: {
+      city: string;
+      state?: string;
+      country: string;
+    },
+    gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say',
+    maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union',
+    immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other',
+    passportNumber?: string,
+    alienRegistrationNumber?: string,
+    nationalIdNumber?: string,
+    bio?: string
+  ): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const response = await registerIndividualClient(firstName, lastName, email, password, phone, nationality, address, dateOfBirth, placeOfBirth, gender, maritalStatus, immigrationPurpose, passportNumber, alienRegistrationNumber, nationalIdNumber, bio);
+      if (response.data) {
+        setUser(response.data);
+        localStorage.setItem('user', JSON.stringify(response.data));
+        if (response.data.token) {
+          localStorage.setItem('token', response.data.token);
+        }
+      }
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegisterCompanyClient = async (
+    firstName: string,
+    lastName: string,
+    email: string,
+    password: string,
+    companyId: string,
+    attorneyIds?: string[],
+    phone?: string,
+    nationality?: string,
+    address?: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      country: string;
+    },
+    dateOfBirth?: string,
+    placeOfBirth?: {
+      city: string;
+      state?: string;
+      country: string;
+    },
+    gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say',
+    maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union',
+    immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other',
+    passportNumber?: string,
+    alienRegistrationNumber?: string,
+    nationalIdNumber?: string,
+    bio?: string,
+    sendPassword?: boolean
+  ): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const response = await registerCompanyClient(firstName, lastName, email, password, companyId, attorneyIds, phone, nationality, address, dateOfBirth, placeOfBirth, gender, maritalStatus, immigrationPurpose, passportNumber, alienRegistrationNumber, nationalIdNumber, bio, sendPassword);
       if (response.data) {
         setUser(response.data);
         localStorage.setItem('user', JSON.stringify(response.data));
@@ -731,7 +1028,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading,
       registerSuperadmin: handleRegisterSuperadmin,
       registerAttorney: handleRegisterAttorney,
-      registerUser: handleRegisterUser,
+      registerCompanyUser: handleRegisterCompanyUser,
+      registerIndividualClient: handleRegisterIndividualClient,
+      registerCompanyClient: handleRegisterCompanyClient,
       login: handleLogin,
       getUserProfile: handleGetUserProfile,
       updateUserProfile: handleUpdateUserProfile,

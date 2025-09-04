@@ -34,10 +34,10 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { 
-  ImmigrationQuestionnaire as APIQuestionnaire, 
-  QuestionnaireField as APIField 
-} from '../../types/questionnaire';
+// import { 
+//   ImmigrationQuestionnaire as APIQuestionnaire, 
+//   QuestionnaireField as APIField 
+// } from '../../types/questionnaire';
 import questionnaireService from '../../services/questionnaireService';
 
 // Enhanced interfaces for questionnaire system
