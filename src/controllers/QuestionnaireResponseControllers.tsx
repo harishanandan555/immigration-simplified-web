@@ -217,11 +217,8 @@ export const getClientResponses = async (filters: Record<string, any> = {}) => {
       }
     });
     
-    console.log('Getting client responses with filters:', filters);
-    
     const response = await api.get(`${QUESTIONNAIRE_RESPONSE_END_POINTS.GET_CLIENT_RESPONSES}?${params}`);
     
-    console.log('Client responses retrieved successfully');
     return response.data;
   } catch (error) {
     console.error('Error getting client responses:', error);
@@ -245,7 +242,6 @@ export const getWorkflowsFromAPI = async (filters: Record<string, any> = {}) => 
       }
     });
     
-    console.log('Getting workflows with filters:', filters);
     
     const response = await api.get(`${QUESTIONNAIRE_RESPONSE_END_POINTS.GET_WORKFLOWS}?${params}`);
     
@@ -278,13 +274,11 @@ export const getWorkflowsFromAPI = async (filters: Record<string, any> = {}) => 
  */
 export const getAssignmentResponse = async (assignmentId: string) => {
   try {
-    console.log(`Getting assignment response for ${assignmentId}`);
     
     const response = await api.get(
       QUESTIONNAIRE_RESPONSE_END_POINTS.GET_RESPONSE_BY_ID.replace(':assignmentId', assignmentId)
     );
     
-    console.log('Assignment response retrieved successfully');
     return response.data;
   } catch (error) {
     console.error('Error getting assignment response:', error);

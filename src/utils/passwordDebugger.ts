@@ -98,9 +98,6 @@ export const debugLoginFailure = (email: string, password: string, error: any) =
   
   const passwordAnalysis = analyzePassword(password);
   
-  console.log('📧 Email:', email);
-  console.log('🔐 Password Analysis:', passwordAnalysis);
-  console.log('❌ Login Error:', error);
   
   // Specific debugging for password issues
   if (passwordAnalysis.isLikelyHashed) {

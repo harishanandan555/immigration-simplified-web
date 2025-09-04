@@ -16,11 +16,6 @@ const CLIENT_CREDENTIALS_KEY = 'client_credentials_temp';
  */
 export const storeClientCredentials = (credentials: ClientCredentials) => {
   localStorage.setItem(CLIENT_CREDENTIALS_KEY, JSON.stringify(credentials));
-  console.log('📝 Client credentials stored for easy login:', {
-    email: credentials.email,
-    userId: credentials.userId,
-    hasPassword: !!credentials.password
-  });
 };
 
 /**
@@ -134,5 +129,4 @@ export const redirectToClientLogin = (clientEmail: string, navigate: (path: stri
   // Redirect to client login
   navigate('/client-login');
   
-  console.log('🔄 Redirected to client login with pre-filled email:', clientEmail);
 };

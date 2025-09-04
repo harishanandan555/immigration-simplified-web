@@ -104,10 +104,6 @@ const CaseFormPage = () => {
         };
         const response: any = await createCase(caseData);
         
-        if (response.status === 201) {
-          console.log('Case created successfully:', response.data);
-        }
-
       }
       
       navigate('/cases');

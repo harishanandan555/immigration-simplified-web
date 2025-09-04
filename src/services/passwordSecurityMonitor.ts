@@ -182,7 +182,6 @@ class PasswordSecurityMonitor {
         console.warn(message, event);
         break;
       default:
-        console.log(message, event);
     }
   }
 

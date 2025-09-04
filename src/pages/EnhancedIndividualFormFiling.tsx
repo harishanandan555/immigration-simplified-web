@@ -152,10 +152,6 @@ const EnhancedIndividualFormFiling: React.FC = () => {
   });
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File[]>>({});
 
-  // Debug logs
-  console.log('Enhanced Filing - Current Step:', currentStep);
-  console.log('Enhanced Filing - Selected Process:', selectedProcess);
-  console.log('Enhanced Filing - All Processes:', immigrationProcesses);
 
   // Auto-save functionality
   useEffect(() => {
@@ -207,7 +203,6 @@ const EnhancedIndividualFormFiling: React.FC = () => {
   }, [commonInfo]);
 
   const handleProcessSelection = (process: ImmigrationProcess) => {
-    console.log('Setting selected process:', process);
     setSelectedProcess(process);
     setCurrentStep('process-selection');
   };
@@ -249,11 +244,9 @@ const EnhancedIndividualFormFiling: React.FC = () => {
   };
 
   const handleDownloadPDF = () => {
-    console.log('🎉 Generating and downloading your pre-filled forms...\n\nThis would normally:\n• Create PDF with your information\n• Include filing instructions\n• Save to your dashboard');
   };
 
   const handleSubmitToAdvisor = () => {
-    console.log('📨 Forms sent to legal advisor!\n\nYour forms have been sent for professional review. You will receive feedback within 24-48 hours.');
   };
 
   const renderGoalSelection = () => (
@@ -270,7 +263,6 @@ const EnhancedIndividualFormFiling: React.FC = () => {
             key={process.id}
             className="bg-white border border-gray-200 rounded-lg p-6 hover:border-blue-300 hover:shadow-lg cursor-pointer transition-all"
             onClick={() => {
-              console.log('Selecting process:', process);
               handleProcessSelection(process);
             }}
           >
@@ -360,7 +352,6 @@ const EnhancedIndividualFormFiling: React.FC = () => {
                 key={process.id}
                 className="bg-white border border-gray-200 rounded-lg p-6 hover:border-blue-300 hover:shadow-lg cursor-pointer transition-all"
                 onClick={() => {
-                  console.log('Selecting process in process-selection step:', process);
                   handleProcessSelection(process);
                 }}
               >

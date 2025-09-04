@@ -146,12 +146,10 @@ const ResponseView: React.FC = () => {
     try {
       setLoading(true);
       
-      console.log('Loading assignment response for ID:', id);
       
       // Use the dedicated endpoint to get assignment with response data
       const responseData = await questionnaireAssignmentService.getAssignmentResponse(id as string);
       
-      console.log('Raw assignment response:', responseData);
       
       if (!responseData.data) {
         setError('Assignment not found');
@@ -160,7 +158,6 @@ const ResponseView: React.FC = () => {
       
       const assignmentData = responseData.data;
       
-      console.log('Assignment data:', assignmentData);
       
       setAssignment(assignmentData);
       setError(null);
@@ -169,7 +166,6 @@ const ResponseView: React.FC = () => {
       
       // If the dedicated endpoint fails, try the fallback approach
       try {
-        console.log('Trying fallback approach...');
         const fallbackData = await questionnaireAssignmentService.getClientResponses({
           status: 'completed',
           page: 1,
@@ -179,7 +175,6 @@ const ResponseView: React.FC = () => {
         if (fallbackData.data?.assignments) {
           const assignmentData = fallbackData.data.assignments.find((a: any) => a._id === id);
           if (assignmentData) {
-            console.log('Found assignment via fallback:', assignmentData);
             setAssignment(assignmentData);
             setError(null);
             return;
@@ -306,7 +301,6 @@ const ResponseView: React.FC = () => {
       originalAssignmentId: assignment._id
     };
     
-    console.log('Navigating to Legal Firm Workflow with data:', workflowData);
     
     // Store the workflow data in sessionStorage for the Legal Firm Workflow to pick up
     sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));

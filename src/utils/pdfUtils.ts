@@ -88,22 +88,17 @@ export const downloadOfficialI130PDF = async (): Promise<ArrayBuffer> => {
 
 export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> => {
   try {
-    console.log('=== Starting I-130 PDF Fill Process ===');
-    console.log('Input form data:', JSON.stringify(formData, null, 2));
     
     // Load the local I-130 PDF
     const pdfArrayBuffer = await downloadOfficialI130PDF();
-    console.log(`PDF loaded successfully, size: ${pdfArrayBuffer.byteLength} bytes`);
     
     // Load the PDF document
     const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
-    console.log('PDF document parsed successfully');
     
     // Try to get the form
     let form;
     try {
       form = pdfDoc.getForm();
-      console.log('PDF form accessed successfully');
     } catch (formError) {
       console.error('PDF form access failed:', formError);
       throw new Error('This PDF does not contain fillable form fields. The form may be a scanned image or non-interactive PDF.');
@@ -111,25 +106,16 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
     
     // Get all form fields for debugging
     const fields = form.getFields();
-    console.log('=== I-130 PDF Form Fields Analysis ===');
-    console.log(`Total fields found: ${fields.length}`);
     
     if (fields.length === 0) {
       console.warn('⚠️  No fillable fields found in the PDF');
       throw new Error('No fillable form fields found. This appears to be a non-interactive PDF form.');
     }
     
-    // Log all field names and types for debugging
-    console.log('Available form fields:');
-    fields.forEach((field, index) => {
-      console.log(`${index + 1}. Field: "${field.getName()}" | Type: ${field.constructor.name}`);
-    });
 
     let filledFieldsCount = 0;
     let attemptedFields = 0;
 
-    // Try to fill fields with better error handling
-    console.log('=== Starting Field Fill Process ===');
     
     // Try basic name fields first as a test
     const testFields = [
@@ -141,7 +127,6 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
     for (const testField of testFields) {
       if (!testField.value) continue;
       
-      console.log(`Searching for fields matching: ${testField.label}`);
       let fieldFound = false;
       
       fields.forEach((field, index) => {
@@ -154,7 +139,6 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
             field.setText(testField.value);
             filledFieldsCount++;
             fieldFound = true;
-            console.log(`✅ Successfully filled "${field.getName()}" with "${testField.value}"`);
           } catch (fillError) {
             console.error(`❌ Failed to fill field "${field.getName()}":`, fillError);
           }
@@ -206,7 +190,6 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
               if (mapping.value && mapping.value.trim()) {
                 valueToSet = mapping.value;
                 fieldMatched = true;
-                console.log(`🎯 Exact match found for ${mapping.type}: "${fieldName}" = "${valueToSet}"`);
                 break;
               }
             }
@@ -222,7 +205,6 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
             attemptedFields++;
             field.setText(valueToSet);
             filledFieldsCount++;
-            console.log(`✅ Filled field "${fieldName}" with: "${valueToSet}"`);
           }
         } 
         else if (field instanceof PDFCheckBox) {
@@ -246,7 +228,6 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
               if (mapping.condition()) {
                 shouldCheck = true;
                 fieldMatched = true;
-                console.log(`🎯 Checkbox match found: "${fieldName}" should be checked`);
                 break;
               }
             }
@@ -256,7 +237,6 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
             attemptedFields++;
             field.check();
             filledFieldsCount++;
-            console.log(`✅ Checked field "${fieldName}"`);
           }
         }
       } catch (fieldError) {
@@ -264,27 +244,9 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
       }
     });
 
-    console.log(`=== Fill Summary ===`);
-    console.log(`Total fields in PDF: ${fields.length}`);
-    console.log(`Fields attempted: ${attemptedFields}`);
-    console.log(`Fields successfully filled: ${filledFieldsCount}`);
-    console.log(`Fill success rate: ${fields.length > 0 ? ((filledFieldsCount / fields.length) * 100).toFixed(1) : 0}%`);
-
-    if (filledFieldsCount === 0) {
-      console.warn('⚠️  WARNING: No fields were filled successfully');
-      console.log('This might indicate:');
-      console.log('1. The PDF field names don\'t match our patterns');
-      console.log('2. The PDF might be password protected');
-      console.log('3. The PDF might be a scanned document without fillable fields');
-      console.log('4. Field access permissions might be restricted');
-      
-      // Still return the PDF even if no fields were filled
-      console.log('Returning original PDF with attempted modifications...');
-    }
 
     // Save the filled PDF
     const pdfBytes = await pdfDoc.save();
-    console.log(`PDF saved successfully, final size: ${pdfBytes.length} bytes`);
     
     return pdfBytes;
     
@@ -308,7 +270,6 @@ export const fillI130PDF = async (formData: I130FormData): Promise<Uint8Array> =
 
 export const downloadFilledI130PDF = async (formData: I130FormData): Promise<void> => {
   try {
-    console.log('Starting PDF filling process...');
     const filledPdfBytes = await fillI130PDF(formData);
     
     // Create a blob and download
@@ -321,8 +282,6 @@ export const downloadFilledI130PDF = async (formData: I130FormData): Promise<voi
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
-    console.log('PDF download completed successfully!');
     
   } catch (error) {
     console.error('Error downloading filled I-130 PDF:', error);
@@ -339,12 +298,7 @@ export const fillI130PDFDynamic = async (formData: I130FormData): Promise<Uint8A
     
     // Get all form fields
     const fields = form.getFields();
-    console.log('Discovering form fields...');
     
-    // Log all field names for debugging
-    fields.forEach(field => {
-      console.log(`Field: ${field.getName()}, Type: ${field.constructor.name}`);
-    });
     
     // Try to fill fields based on common naming patterns
     fields.forEach(field => {

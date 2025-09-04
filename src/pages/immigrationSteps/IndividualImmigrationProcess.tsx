@@ -1122,17 +1122,9 @@ const IndividualImmigrationProcess: React.FC = () => {
           }
         );
 
-        console.log('Assessment results:', response.assessment_results);
 
-        if (response.assessment_results) {
-          // Show results to user
-          console.log(`Assessment completed!\n\nEligibility Score: ${response.assessment_results.eligibility_score}\n\nRecommended Forms: ${response.assessment_results.recommended_forms.join(', ')}\n\nNext Steps:\n${response.assessment_results.next_steps.join('\n')}`);
-        }
       } else {
-        // Offline mode - just log the answers
-        console.log('Custom questionnaire answers (offline):', customQuestionnaireAnswers);
-        console.log('Questionnaire completed offline. Answers have been saved locally.');
-
+        
         // Save to localStorage for later sync
         const offlineResponses = JSON.parse(localStorage.getItem('offline-questionnaire-responses') || '[]');
         offlineResponses.push({

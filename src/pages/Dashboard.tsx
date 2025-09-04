@@ -113,7 +113,6 @@ const Dashboard = () => {
     const loadDashboardData = async () => {
       try {
         setLoadingWorkflowData(true);
-        console.log('🔄 Loading dashboard data from workflow API...');
         
         // Fetch clients, cases from workflows API
         const workflowData = await fetchClientsAndCasesFromAPI();
@@ -128,7 +127,6 @@ const Dashboard = () => {
         const tasksData = await getTasks();
         setTasks(tasksData);
         
-        console.log('✅ Dashboard data loaded successfully');
       } catch (error) {
         console.error('Error loading dashboard data:', error);
       } finally {
@@ -142,11 +140,9 @@ const Dashboard = () => {
   // Function to fetch clients and cases from workflows API
   const fetchClientsAndCasesFromAPI = async (): Promise<{ clients: any[], cases: any[] }> => {
     try {
-      console.log('🔄 Fetching clients and cases from workflow API...');
       const token = localStorage.getItem('token');
 
       if (!token) {
-        console.log('❌ No authentication token available');
         return { clients: [], cases: [] };
       }
 
@@ -157,12 +153,10 @@ const Dashboard = () => {
         }
       });
 
-      console.log('📥 Workflows API response for dashboard:', response.data);
 
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows for dashboard`);
-        
+       
         const clientsMap = new Map<string, any>();
         const casesArray: any[] = [];
 
@@ -209,17 +203,7 @@ const Dashboard = () => {
         });
 
         const clientsArray = Array.from(clientsMap.values());
-        console.log(`📋 Extracted ${clientsArray.length} clients and ${casesArray.length} cases`);
         
-        // Debug: Log sample case data
-        if (casesArray.length > 0) {
-          console.log('📋 Sample case data:', {
-            firstCase: casesArray[0],
-            categories: [...new Set(casesArray.map(c => c.category))],
-            types: [...new Set(casesArray.map(c => c.type))],
-            statuses: [...new Set(casesArray.map(c => c.status))]
-          });
-        }
         
         return { clients: clientsArray, cases: casesArray };
       }
@@ -234,11 +218,9 @@ const Dashboard = () => {
   // Function to fetch clients from workflows API (using ClientsPage logic)
   const fetchWorkflowClientsFromAPI = async (): Promise<any[]> => {
     try {
-      console.log('🔄 Fetching clients from workflows API...');
       const token = localStorage.getItem('token');
 
       if (!token) {
-        console.log('❌ No authentication token available');
         return [];
       }
 
@@ -249,11 +231,9 @@ const Dashboard = () => {
         }
       });
 
-      console.log('📥 Workflows API response for clients:', response.data);
 
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows for client count`);
         
         // Extract unique clients from workflows (using ClientsPage logic)
         const clientsMap = new Map<string, any>();
@@ -290,18 +270,13 @@ const Dashboard = () => {
         });
 
         const uniqueClients = Array.from(clientsMap.values());
-        console.log(`📋 Extracted ${uniqueClients.length} unique clients`);
         return uniqueClients;
       } else {
-        console.log('⚠️ No workflow data available in API response');
         return [];
       }
 
     } catch (error: any) {
       console.error('❌ Error fetching clients from workflows API:', error);
-      if (error?.response?.status === 401) {
-        console.log('🔑 Authentication failed - token may be expired');
-      }
       return [];
     }
   };
@@ -468,15 +443,11 @@ const Dashboard = () => {
   // Fetch workflows from API function
   const fetchWorkflowsFromAPI = async () => {
     try {
-      console.log('🔄 Fetching workflows from API...');
       const token = localStorage.getItem('token');
 
       if (!token) {
-        console.log('❌ No authentication token available');
         return [];
       }
-
-      console.log('✅ Authentication token found, making API request...');
 
       const response = await api.get('/api/v1/workflows', {
         params: {
@@ -486,31 +457,19 @@ const Dashboard = () => {
         }
       });
 
-      console.log('📥 Response from workflows API:', response.data);
-
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         return workflows;
       } else {
-        console.log('⚠️ No workflow data available in API response');
         return [];
       }
 
     } catch (error: any) {
       console.error('❌ Error fetching workflows from API:', error);
 
-      if (error.response?.status === 404) {
-        console.log('🔍 Server workflows endpoint not found');
-      } else if (error.response?.status === 401) {
-        console.log('🔐 Authentication failed');
-      } else {
-        console.log('💥 Other API error:', error.response?.status || 'Unknown');
-      }
 
       return [];
     } finally {
-      console.log('🏁 Finished workflow API request');
     }
   };
 

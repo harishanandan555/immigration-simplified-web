@@ -28,34 +28,28 @@ export const useQuestionnaireAssignments = (userRole: string, authToken?: string
 
   const loadAssignments = useCallback(async () => {
     try {
-      console.log('🔄 loadAssignments called - setting loading to true');
       setLoading(true);
       let response;
       
       if (userRole === 'client') {
-        console.log('👤 Loading assignments for client...');
         // Use the enhanced assignment service method
         response = await questionnaireAssignmentService.getMyAssignments();
       } else {
-        console.log('👨‍💼 Loading assignments for attorney/admin...');
         // For attorneys/admins - get all assignments
         response = await questionnaireAssignmentService.getAllAssignments();
       }
       
-      console.log('✅ Assignments loaded:', response);
       setAssignments(response || []);
       setError(null);
     } catch (err: any) {
       console.error('❌ Error loading assignments:', err);
       setError(err.message || 'Failed to load assignments');
     } finally {
-      console.log('🏁 loadAssignments finished - setting loading to false');
       setLoading(false);
     }
   }, [userRole]);
 
   useEffect(() => {
-    console.log('🔧 useEffect triggered - authToken:', !!authToken, 'userRole:', userRole);
     if (authToken || userRole === 'client') {
       loadAssignments();
     }

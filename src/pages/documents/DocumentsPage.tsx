@@ -160,13 +160,11 @@ const DocumentsPage = () => {
   // Enhanced function to fetch workflows and extract client names and case IDs
   const fetchWorkflowsFromAPI = async () => {
     try {
-      console.log('🔄 Fetching workflows from API...');
       setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
 
       // Check token availability
       if (!token) {
-        console.log('❌ No authentication token available');
         return { workflows: [], clients: [], cases: [] };
       }
 
@@ -178,10 +176,8 @@ const DocumentsPage = () => {
         }
       });
 
-      console.log("API Response", response)
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows from API`);
         
         // Extract unique clients from workflows
         const clientsMap = new Map<string, WorkflowClient>();
@@ -191,18 +187,6 @@ const DocumentsPage = () => {
           const workflowClient = workflow.client || {};
           const workflowCase = workflow.case || {};
           
-          // Debug: Log workflow structure
-          console.log('🔍 Processing workflow:', {
-            workflowId: workflow._id,
-            clientInfo: {
-              name: workflowClient.name,
-              email: workflowClient.email,
-              firstName: workflowClient.firstName,
-              lastName: workflowClient.lastName
-            },
-            caseInfo: workflowCase,
-            formCaseIds: workflow.formCaseIds
-          });
           
           // Extract client information
           if (workflowClient.email || workflowClient.name || workflowClient.firstName) {
@@ -229,11 +213,8 @@ const DocumentsPage = () => {
 
             // Extract case information - handle multiple form case IDs
             if (workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0) {
-              console.log(`📋 Found formCaseIds for workflow ${workflow._id}:`, workflow.formCaseIds);
-              // Extract all form case IDs from the formCaseIds object
               Object.entries(workflow.formCaseIds).forEach(([formName, caseId]) => {
                 if (caseId && String(caseId).trim() !== '') {
-                  console.log(`✅ Adding case: ${caseId} for form ${formName} to client ${clientName}`);
                   casesArray.push({
                     id: `${workflow._id}_${formName}`,
                     caseNumber: String(caseId), // This will be like "CR-2025-3672"
@@ -245,7 +226,6 @@ const DocumentsPage = () => {
                 }
               });
             } else if (workflowCase.caseNumber) {
-              console.log(`📋 Using workflow case number: ${workflowCase.caseNumber}`);
               // Fallback to workflow case number if no formCaseIds
               casesArray.push({
                 id: workflowCase.id || workflowCase._id || workflow._id,
@@ -255,7 +235,6 @@ const DocumentsPage = () => {
                 workflowId: workflow._id
               });
             } else {
-              console.log(`📋 Generating fallback case ID for workflow ${workflow._id}`);
               // Generate a fallback case ID
               casesArray.push({
                 id: workflow._id,
@@ -269,16 +248,7 @@ const DocumentsPage = () => {
         });
 
         const uniqueClients = Array.from(clientsMap.values());
-        console.log(`📋 Extracted ${uniqueClients.length} unique clients and ${casesArray.length} cases from workflows`);
         
-        // Log sample of extracted cases for debugging
-        if (casesArray.length > 0) {
-          console.log('📋 Sample cases extracted:', casesArray.slice(0, 3).map(c => ({
-            caseNumber: c.caseNumber,
-            clientName: c.clientName,
-            formName: c.formName
-          })));
-        }
         
         return {
           workflows: workflows,
@@ -286,25 +256,14 @@ const DocumentsPage = () => {
           cases: casesArray
         };
       } else {
-        console.log('⚠️ No workflow data available in API response');
         return { workflows: [], clients: [], cases: [] };
       }
 
     } catch (error: any) {
       console.error('❌ Error fetching workflows:', error);
-      
-      if (error.response?.status === 404) {
-        console.log('🔍 Server workflows endpoint not found');
-      } else if (error.response?.status === 401) {
-        console.log('🔐 Authentication failed');
-      } else {
-        console.log('💥 Other API error:', error.response?.status || 'Unknown');
-      }
-
       return { workflows: [], clients: [], cases: [] };
     } finally {
       setLoadingWorkflows(false);
-      console.log('🏁 Finished workflow API request');
     }
   };
 
@@ -329,11 +288,8 @@ const DocumentsPage = () => {
 
   // Helper function to process documents and add missing fields
   const processDocuments = (documents: any[]): Document[] => {
-    console.log("processDocuments input:", documents);
-    console.log("documents length:", documents.length);
     
     const processed = documents.map(doc => {
-      console.log("Processing document:", doc);
       return {
         ...doc,
         sizeFormatted: formatFileSize(doc.size || 0),
@@ -342,7 +298,6 @@ const DocumentsPage = () => {
       };
     });
     
-    console.log("Processed result:", processed);
     return processed;
   };
 
@@ -350,17 +305,13 @@ const DocumentsPage = () => {
     const fetchDocuments = async () => {
       try {
         const response = await getDocuments();
-        console.log("documents response:", response);
-        console.log("response.data:", response.data);
         
         if (response.success) {
           // Handle the actual API response structure
           // The API seems to return response.data.data.documents instead of response.data.documents
           const responseData = response.data as any;
           const rawDocuments = responseData.data?.documents || responseData.documents || [];
-          console.log("raw documents before processing:", rawDocuments);
           const processedDocuments = processDocuments(rawDocuments);
-          console.log("processed documents after processing:", processedDocuments);
           setDocuments(processedDocuments);
         } else {
           console.error("Failed to fetch documents", response.message);
@@ -373,7 +324,9 @@ const DocumentsPage = () => {
     };
     const fetchClients = async () => {
       try {
-        const clientList = await getClients();
+        const clientResponse = await getClients();
+        // getClients returns ClientsApiResponse with clients array
+        const clientList = clientResponse.clients || [];
         setClients(clientList);
       } catch (error) {
         console.error('Failed to fetch clients', error);
@@ -397,35 +350,31 @@ const DocumentsPage = () => {
             );
             
             const convertedClients = newClients.map(wc => ({
-              id: wc.email || wc.id || wc._id || '', // Use email as ID for workflow clients
-              _id: wc.email || wc._id || wc.id,      // Use email as _id for workflow clients
+              _id: wc.email || wc._id || wc.id || '',
+              firstName: wc.firstName || wc.name?.split(' ')[0] || '',
+              lastName: wc.lastName || wc.name?.split(' ').slice(1).join(' ') || '',
               name: wc.name || '',
               email: wc.email || '',
               phone: wc.phone || '',
-              dateOfBirth: '',
               nationality: '',
-              alienNumber: '',
-              passportNumber: '',
-              entryDate: '',
-              visaCategory: '',
-              notes: '',
-              status: 'active',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
               address: {
                 street: '',
                 city: '',
                 state: '',
                 zipCode: '',
                 country: 'United States'
-              }
+              },
+              role: 'client' as const,
+              userType: 'individualUser' as const,
+              attorneyIds: [],
+              dateOfBirth: '',
+              companyId: undefined,
+              status: 'Active' as const,
+              active: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
             } as Client));
 
-            console.log('🔄 Merging clients:', {
-              existingClients: prev.length,
-              newWorkflowClients: convertedClients.length,
-              totalAfterMerge: prev.length + convertedClients.length
-            });
 
             return [...prev, ...convertedClients];
           });
@@ -442,34 +391,8 @@ const DocumentsPage = () => {
 
   // Debug effect to monitor documents state
   useEffect(() => {
-    console.log("Documents state updated:", documents);
-    console.log("Documents state length:", documents.length);
   }, [documents]);
 
-  // Debug effect to log case filtering
-  useEffect(() => {
-    if (availableCases.length > 0) {
-      console.log('🔍 Case filtering debug:', {
-        uploadClientId,
-        totalCases: availableCases.length,
-        filteredCases: getAvailableCasesForClient().length,
-        sampleCases: availableCases.slice(0, 3).map(c => ({
-          id: c.id,
-          caseNumber: c.caseNumber,
-          clientId: c.clientId,
-          clientName: c.clientName,
-          formName: c.formName
-        })),
-        selectedClientCases: getAvailableCasesForClient().slice(0, 3).map(c => ({
-          id: c.id,
-          caseNumber: c.caseNumber,
-          clientId: c.clientId,
-          clientName: c.clientName,
-          formName: c.formName
-        }))
-      });
-    }
-  }, [uploadClientId, availableCases]);
 
   // Defensive fallback in case documents is undefined
   const documentTypes = ['all', ...new Set((documents || []).map(doc => doc.type))];
@@ -492,24 +415,10 @@ const DocumentsPage = () => {
   });
   */
 
-  // Debug filtered documents
-  useEffect(() => {
-    console.log("Filter values:", {
-      searchTerm,
-      selectedType,
-      selectedStatus,
-      selectedClient,
-      documentsLength: documents.length,
-      filteredLength: filteredDocuments.length
-    });
-    if (documents.length > 0) {
-      console.log("Sample document for filtering:", documents[0]);
-    }
-  }, [documents, searchTerm, selectedType, selectedStatus, selectedClient, filteredDocuments.length]);
-
+  
   // Helper function to get client name by ID
   const getClientNameById = (clientId: string): string => {
-    const client = clients.find(c => (c._id || c.id) === clientId);
+    const client = (clients || []).find(c => (c._id || c.id) === clientId);
     return client?.name || 'Unknown Client';
   };
 
@@ -520,7 +429,7 @@ const DocumentsPage = () => {
     }
     
     // Find the selected client to get their email for matching
-    const selectedClient = clients.find(c => (c._id || c.id) === uploadClientId);
+    const selectedClient = (clients || []).find(c => (c._id || c.id) === uploadClientId);
     const selectedClientEmail = selectedClient?.email;
     
     // Filter cases by both client ID and email (since workflow clients use email as ID)
@@ -544,7 +453,7 @@ const DocumentsPage = () => {
 
     try {
       // Find the selected client to get their name and email
-      const selectedClient = clients.find(c => (c._id || c.id) === uploadClientId);
+      const selectedClient = (clients || []).find(c => (c._id || c.id) === uploadClientId);
       const clientName = selectedClient?.name || 'Unknown Client';
       const clientEmail = selectedClient?.email || '';
 
@@ -566,20 +475,7 @@ const DocumentsPage = () => {
         formData.append('description', uploadDescription);
       }
 
-      console.log('📤 Uploading document with data:', {
-        fileName: fileToUpload.name,
-        fileSize: fileToUpload.size,
-        fileType: fileToUpload.type,
-        clientId: uploadClientId,
-        clientName: clientName,
-        clientEmail: clientEmail,
-        type: uploadDocType,
-        caseNumber: uploadCaseNumber,
-        description: uploadDescription
-      });
-
       const token = localStorage.getItem('token');
-      console.log('🔐 Using token:', token ? 'Token available' : 'No token found');
 
       const response = await api.post('/api/v1/documents', formData, {
         headers: {
@@ -588,7 +484,6 @@ const DocumentsPage = () => {
         }
       });
 
-      console.log('📥 Server response:', response);
 
       if (response.data?.success) {
         // Add the new document to the list
@@ -601,8 +496,6 @@ const DocumentsPage = () => {
         setUploadClientId('');
         setUploadCaseNumber('');
         setUploadDescription('');
-        console.log('Document uploaded successfully!');
-        console.log('✅ Document uploaded successfully:', response.data);
       } else {
         const errorMessage = response.data?.message || 'Upload failed';
         console.error(`Upload failed: ${errorMessage}`);
@@ -655,7 +548,6 @@ const DocumentsPage = () => {
         setDocuments(documents.map(d => (d._id === editingDocument._id ? response.data : d)));
         setShowEditModal(false);
         setEditingDocument(null);
-        console.log('Document updated successfully!');
       } else {
         console.error(`Update failed: ${response.message || 'Unknown error'}`);
       }
@@ -671,7 +563,6 @@ const DocumentsPage = () => {
         const response = await deleteDocument(documentId);
         if (response.success) {
           setDocuments(documents.filter(d => d._id !== documentId));
-          console.log('Document deleted successfully');
         } else {
           console.error(`Failed to delete document: ${response.message}`);
         }
@@ -705,7 +596,6 @@ const DocumentsPage = () => {
       const response = await verifyDocument(documentId);
       if (response.success) {
         setDocuments(documents.map(d => d._id === documentId ? {...d, status: 'Verified'} : d));
-        console.log('Document verified successfully');
       } else {
         console.error(`Failed to verify document: ${response.message}`);
       }
@@ -722,7 +612,6 @@ const DocumentsPage = () => {
         const response = await rejectDocument(documentId, reason);
         if (response.success) {
           setDocuments(documents.map(d => d._id === documentId ? {...d, status: 'Rejected'} : d));
-          console.log('Document rejected successfully');
         } else {
           console.error(`Failed to reject document: ${response.message}`);
         }
@@ -772,7 +661,7 @@ const DocumentsPage = () => {
               onChange={(e) => setSelectedClient(e.target.value)}
             >
               <option key="all" value="all">All Clients</option>
-              {clients.map(client => (
+              {(clients || []).map(client => (
                 <option key={client._id || client.id} value={client._id || client.id}>
                   {client.name}
                 </option>
@@ -989,13 +878,13 @@ const DocumentsPage = () => {
                             <option value="" disabled>
                               {loadingWorkflows ? 'Loading clients...' : 'Select a client'}
                             </option>
-                            {clients.map(client => (
+                            {(clients || []).map(client => (
                               <option key={client._id || client.id} value={client._id || client.id}>
                                 {client.name} {client.email ? `(${client.email})` : ''}
                               </option>
                             ))}
                             {/* Temporary: Show workflow clients directly if regular clients are empty */}
-                            {clients.length === 0 && workflowClients.length > 0 && workflowClients.map(wc => (
+                            {(clients || []).length === 0 && workflowClients.length > 0 && workflowClients.map(wc => (
                               <option key={wc.email || wc.id} value={wc.email || wc.id}>
                                 [WF] {wc.name} {wc.email ? `(${wc.email})` : ''}
                               </option>
@@ -1073,12 +962,12 @@ const DocumentsPage = () => {
                               <p>Workflows loaded: {workflows.length}</p>
                               <p>Workflow clients: {workflowClients.length}</p>
                               <p>Available cases: {availableCases.length}</p>
-                              <p>Total clients in dropdown: {clients.length}</p>
-                              {clients.length > 0 && (
+                              <p>Total clients in dropdown: {(clients || []).length}</p>
+                              {(clients || []).length > 0 && (
                                 <details className="mt-1">
                                   <summary>Sample clients</summary>
                                   <pre className="text-xs mt-1">
-                                    {JSON.stringify(clients.slice(0, 2).map(c => ({
+                                    {JSON.stringify((clients || []).slice(0, 2).map(c => ({
                                       id: c.id,
                                       _id: c._id,
                                       name: c.name,

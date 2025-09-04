@@ -34,7 +34,6 @@ const QuestionnaireAssignmentService = {
         throw new Error(`API error: ${response.status}`);
       }
       const data = await response.json();
-      console.log('Received assignments:', data);
       return data;
     } catch (error) {
       console.error('Failed to fetch assignments:', error);
@@ -44,7 +43,6 @@ const QuestionnaireAssignmentService = {
   
   createAssignmentDirect: async (assignmentData: any, token: string) => {
     try {
-      console.log('Creating direct assignment with data:', JSON.stringify(assignmentData, null, 2));
       
       const response = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments`, {
         method: 'POST',
@@ -56,7 +54,6 @@ const QuestionnaireAssignmentService = {
         body: JSON.stringify(assignmentData)
       });
       
-      console.log(`Direct assignment response status: ${response.status}`);
       
       if (!response.ok) {
         let errorText = '';
@@ -148,20 +145,13 @@ const QuestionnaireAssignmentService = {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const token = localStorage.getItem('token');
 
-      console.log('=== DEBUG: getMyAssignments called ===');
-      console.log('User from localStorage:', user);
-      console.log('Token available:', !!token);
 
       // Function to fetch questionnaire details with fields
       const fetchQuestionnaireDetails = async (questionnaireId: string) => {
         try {
           const response = await api.get(`/api/v1/questionnaires/${questionnaireId}?include_fields=true`);
           const questionnaire = response.data.data || response.data;
-          console.log('Fetched questionnaire details:', {
-            id: questionnaireId,
-            title: questionnaire?.title,
-            fieldCount: questionnaire?.fields?.length
-          });
+
           return questionnaire;
         } catch (error) {
           console.warn(`Failed to fetch questionnaire details for ${questionnaireId}:`, error);
@@ -172,16 +162,10 @@ const QuestionnaireAssignmentService = {
       // Try API call first if we have a token
       if (token) {
         try {
-          console.log('Attempting to fetch assignments from API with token');
-          console.log('API call URL: /api/v1/questionnaire-assignments/my-assignments?populate=questionnaire');
           
           const response = await api.get('/api/v1/questionnaire-assignments/my-assignments?populate=questionnaire');
-          console.log('API Response received:', response);
-          console.log('Response data:', response.data);
           
           let apiAssignments = response.data.data || response.data || [];
-          console.log('Raw API assignments:', apiAssignments);
-          console.log('Number of assignments found:', apiAssignments.length);
           
           // Fetch questionnaire details for each assignment if not already populated
           apiAssignments = await Promise.all(apiAssignments.map(async (assignment: any) => {
@@ -202,9 +186,6 @@ const QuestionnaireAssignmentService = {
             return assignment;
           }));
 
-          console.log('Found assignments from API:', apiAssignments.length);
-          console.log('Final processed assignments:', apiAssignments);
-          
           // Return assignments as-is from server
           return apiAssignments;
           
@@ -222,12 +203,9 @@ const QuestionnaireAssignmentService = {
             assignment.clientUserId === user._id
           );
           
-          console.log('Using localStorage fallback:', filteredAssignments.length, 'assignments');
           return filteredAssignments;
         }
       } else {
-        // No token, use localStorage only
-        console.log('No token available, using localStorage only');
         const localAssignments = JSON.parse(localStorage.getItem('questionnaire-assignments') || '[]');
         const filteredAssignments = localAssignments.filter((assignment: any) => 
           assignment.clientEmail === user.email || 
@@ -380,7 +358,6 @@ const QuestionnaireAssignmentService = {
       
       // Debug token information
       const token = localStorage.getItem('token');
-      console.log('Current auth token exists:', !!token);
       
       if (token) {
         try {
@@ -391,31 +368,17 @@ const QuestionnaireAssignmentService = {
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
           }).join(''));
           const tokenData = JSON.parse(jsonPayload);
-          console.log('Current user from token:', {
-            userId: tokenData.userId || tokenData.id,
-            email: tokenData.email,
-            role: tokenData.role,
-            exp: new Date(tokenData.exp * 1000).toISOString()
-          });
+
         } catch (e) {
           console.error('Error decoding token:', e);
         }
       }
       
-      console.log(`Submitting questionnaire responses for assignment ${assignmentId}`);
-      console.log('Request payload:', { responses, notes });
-      
       // Debug: Get assignment details to compare with current user
       try {
         const assignmentResponse = await api.get(`/api/v1/questionnaire-assignments/${assignmentId}`);
         const assignment = assignmentResponse.data.data || assignmentResponse.data;
-        console.log('Assignment details for authorization check:', {
-          assignmentId,
-          clientId: assignment.clientId,
-          clientUserId: assignment.clientUserId,
-          clientEmail: assignment.clientEmail,
-          status: assignment.status
-        });
+
         
         // Alert user if they need to login as client
         if (token) {
@@ -430,18 +393,7 @@ const QuestionnaireAssignmentService = {
             const currentUserId = tokenData.userId || tokenData.id;
             const currentUserEmail = tokenData.email;
             const currentUserRole = tokenData.role;
-            
-            console.log('Authorization comparison:', {
-              currentUser: { id: currentUserId, email: currentUserEmail, role: currentUserRole },
-              assignment: { 
-                clientUserId: assignment.clientUserId, 
-                clientEmail: assignment.clientEmail,
-                clientId: assignment.clientId 
-              },
-              userIdMatches: currentUserId === assignment.clientUserId,
-              emailMatches: currentUserEmail === assignment.clientEmail,
-              clientIdMatches: currentUserId === assignment.clientId
-            });
+        
             
             // Warn if user appears to be logged in as wrong account
             if (currentUserRole !== 'client') {
@@ -467,7 +419,6 @@ const QuestionnaireAssignmentService = {
         notes
       });
       
-      console.log('Questionnaire responses submitted successfully:', response.data);
       
       // Return the data in a consistent format
       return response.data.data || response.data;
@@ -562,7 +513,6 @@ const QuestionnaireAssignmentService = {
       };
       
       localStorage.setItem(draftKey, JSON.stringify(draftData));
-      console.log(`Draft saved for assignment ${assignmentId}`);
     } catch (error) {
       console.error('Error saving draft responses:', error);
       throw error;
@@ -581,7 +531,6 @@ const QuestionnaireAssignmentService = {
       
       if (draftData) {
         const parsed = JSON.parse(draftData);
-        console.log(`Draft loaded for assignment ${assignmentId}`);
         return parsed.responses;
       }
       
@@ -600,7 +549,6 @@ const QuestionnaireAssignmentService = {
     try {
       const draftKey = `questionnaire_draft_${assignmentId}`;
       localStorage.removeItem(draftKey);
-      console.log(`Draft cleared for assignment ${assignmentId}`);
     } catch (error) {
       console.error('Error clearing draft responses:', error);
     }
@@ -615,11 +563,9 @@ const QuestionnaireAssignmentService = {
     try {
       validateMongoObjectId(assignmentId, 'assignment');
       
-      console.log(`Getting assignment response for ${assignmentId}`);
       
       const response = await api.get(`/api/v1/questionnaire-assignments/${assignmentId}/response`);
       
-      console.log('Assignment response retrieved successfully');
       return response.data;
     } catch (error) {
       console.error('Error getting assignment response:', error);
@@ -643,11 +589,9 @@ const QuestionnaireAssignmentService = {
         }
       });
       
-      console.log('Getting client responses with filters:', filters);
       
       const response = await api.get(`/api/v1/questionnaire-assignments/client-responses?${params}`);
       
-      console.log('Client responses retrieved successfully');
       return response.data;
     } catch (error) {
       console.error('Error getting client responses:', error);

@@ -74,11 +74,9 @@ const CalendarPage = () => {
   // Function to fetch clients and cases from workflows API (same as TasksPage)
   const fetchWorkflowsFromAPI = async (): Promise<{ clients: Client[], cases: Case[] }> => {
     try {
-      console.log('🔄 Fetching workflows from API for calendar...');
       const token = localStorage.getItem('token');
 
       if (!token) {
-        console.log('❌ No authentication token available');
         return { clients: [], cases: [] };
       }
 
@@ -89,12 +87,8 @@ const CalendarPage = () => {
         }
       });
 
-      console.log('📥 Workflows API response for calendar:', response.data);
-
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log(`✅ Successfully loaded ${workflows.length} workflows for calendar`);
-        
         const clientsMap = new Map<string, Client>();
         const casesArray: Case[] = [];
         
@@ -168,7 +162,6 @@ const CalendarPage = () => {
           cases: casesArray 
         };
       } else {
-        console.log('⚠️ No workflow data available in API response');
         return { clients: [], cases: [] };
       }
 
@@ -190,9 +183,7 @@ const CalendarPage = () => {
       
   // Fetch actual tasks from API
       try {
-        console.log('🔄 Fetching tasks from API for calendar...');
         const tasksFromAPI = await getTasks();
-        console.log('📋 Tasks fetched for calendar:', tasksFromAPI);
         
         // Ensure all tasks have priority and status for calendar display
         const tasksWithDefaults = tasksFromAPI.map(task => ({
@@ -201,8 +192,7 @@ const CalendarPage = () => {
           status: task.status || 'Pending'
         }));
         
-        console.log('📋 Tasks with priority/status for calendar:', tasksWithDefaults.length > 0 ? tasksWithDefaults[0] : 'No tasks');
-        setTasks(tasksWithDefaults);
+       setTasks(tasksWithDefaults);
       } catch (error) {
         console.error('❌ Error fetching tasks for calendar:', error);
         setTasks([]);

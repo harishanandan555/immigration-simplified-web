@@ -300,12 +300,9 @@ const IndividualFormFiling: React.FC = () => {
   };
 
   const handleDownloadPDF = () => {
-    // Simulate PDF generation and download
-    console.log('Generating and downloading pre-filled forms...');
   };
 
   const handleSubmitToAdvisor = () => {
-    console.log('Forms sent to legal advisor for review');
   };
 
   const renderGoalSelection = () => (

@@ -256,11 +256,9 @@ const RegisterPage: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    console.log('Form submission triggered, current section:', currentSection);
     
     // Only allow submission on the last step
     if (currentSection !== sections.length - 1) {
-      console.log('Form submission blocked - not on last step');
       return;
     }
     
@@ -1433,7 +1431,6 @@ const RegisterPage: React.FC = () => {
             type="submit"
             disabled={loading}
             onClick={() => {
-              console.log('Create Account button clicked');
               // The form submission will be handled by the form's onSubmit
             }}
             className={`px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}

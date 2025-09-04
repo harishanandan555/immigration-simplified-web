@@ -47,8 +47,6 @@ const FoiaCasesPage = () => {
     
     try {
       await navigator.clipboard.writeText(requestNumber);
-      // You could add a toast notification here if you have one
-      console.log('Request number copied to clipboard');
     } catch (err) {
       console.error('Failed to copy request number:', err);
     }
