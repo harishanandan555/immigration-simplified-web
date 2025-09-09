@@ -69,6 +69,7 @@ interface QuestionnaireAssignment {
     category: string;
     status: string;
   };
+  formCaseIdGenerated?: string; // Generated case ID from form processing
   responseId?: {
     _id: string;
     responses: Record<string, any>;
@@ -150,12 +151,14 @@ const QuestionnaireResponses: React.FC = () => {
           clientName = `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}`.toLowerCase();
         }
         
-        // Safely get case title
+        // Safely get case title and form case ID
         const caseTitle = assignment.caseId?.title?.toLowerCase() || '';
+        const formCaseId = assignment.formCaseIdGenerated?.toLowerCase() || '';
         
         const matches = questionnaireTitle.includes(term) || 
                clientName.includes(term) || 
-               caseTitle.includes(term);
+               caseTitle.includes(term) ||
+               formCaseId.includes(term);
         
         return matches;
       });
@@ -411,8 +414,31 @@ const QuestionnaireResponses: React.FC = () => {
     
     try {
       // Use the controller function to get assignment response
-      await getAssignmentResponse(assignmentId);
-      navigate(`/questionnaires/response/${assignmentId}`);
+      const responseData = await getAssignmentResponse(assignmentId);
+      
+      // Log data being passed to ResponseView for debugging
+      console.log('QuestionnaireResponses - Assignment found:', assignment);
+      console.log('QuestionnaireResponses - Assignment responseId:', assignment.responseId);
+      console.log('QuestionnaireResponses - Response data fetched:', responseData?.data);
+      
+      // Create a comprehensive assignment object with all necessary data
+      const completeAssignment = {
+        ...assignment,
+        // Ensure we have the response data properly mapped
+        response: responseData?.data || assignment.responseId,
+        responseId: assignment.responseId || responseData?.data
+      };
+      
+      console.log('QuestionnaireResponses - Complete assignment to pass:', completeAssignment);
+      
+      // Pass the assignment data through navigation state to avoid refetching in ResponseView
+      navigate(`/questionnaires/response/${assignmentId}`, {
+        state: {
+          assignmentData: completeAssignment,
+          responseData: responseData?.data,
+          fromQuestionnaireResponses: true
+        }
+      });
     } catch (error) {
       console.error('Error fetching assignment response:', error);
       toast.error('Failed to load response data');
@@ -546,7 +572,11 @@ const QuestionnaireResponses: React.FC = () => {
                     <div className="text-xs text-gray-500">{assignment.questionnaireId?.category || 'No category'}</div>
                   </td>
                   <td className="px-6 py-4">
-                    {assignment.caseId ? (
+                    {assignment.formCaseIdGenerated ? (
+                      <div>
+                        <div className="text-sm text-gray-900 font-medium">{assignment.formCaseIdGenerated}</div>
+                      </div>
+                    ) : assignment.caseId ? (
                       <div>
                         <div className="text-sm text-gray-900">{assignment.caseId.title}</div>
                         <div className="text-xs text-gray-500">{assignment.caseId.category}</div>

@@ -139,7 +139,7 @@ export const updateTask = async (taskId: string, taskData: Partial<Task>): Promi
 export const deleteTask = async (taskId: string): Promise<boolean> => {
     try {
         
-        const response = await api.delete(TASK_END_POINTS.DELETE_TASK.replace(':id', taskId));
+        await api.delete(TASK_END_POINTS.DELETE_TASK.replace(':id', taskId));
         
         
         return true;
