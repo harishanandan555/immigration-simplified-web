@@ -28,7 +28,7 @@ export interface User {
   email: string;
   password: string;
   role: UserRole;
-  userType?: 'individualUser' | 'companyUser';
+  userType?: 'individualUser' | 'companyUser' | 'companyClient';
   avatar?: string;
   token?: string;
   companyId?: string;
