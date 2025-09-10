@@ -188,7 +188,9 @@ const TasksPage = () => {
       
       try {
         // Get all users from ims_user database
-        allUsers = await getUsers();
+        const usersApiResponse = await getUsers();
+        allUsers = usersApiResponse.users || [];
+        console.log('📋 All users from ims_user:', allUsers.length);
         
         // Filter users by role to get clients and assignable users
         clientUsers = allUsers.filter((user: User) => user.role === 'client');
