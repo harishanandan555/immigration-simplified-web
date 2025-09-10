@@ -23,10 +23,9 @@ const DocumentsPage = lazy(() => import('../pages/documents/DocumentsPage'));
 const TasksPage = lazy(() => import('../pages/tasks/TasksPage'));
 const CalendarPage = lazy(() => import('../pages/tasks/CalendarPage'));
 const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'));
-const ImmigrationProcess = lazy(() => import('../pages/immigrationSteps/ImmigrationProcess'));
 const IndividualImmigrationProcess = lazy(() => import('../pages/immigrationSteps/IndividualImmigrationProcess'));
 const EnhancedIndividualFormFiling = lazy(() => import('../pages/EnhancedIndividualFormFiling'));
-const LegalFirmWorkflow = lazy(() => import('../pages/LegalFirmWorkflow'));
+const LegalFirmWorkflow = lazy(() => import('../pages/immigrationSteps/LegalFirmWorkflow'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 const MyQuestionnaires = lazy(() => import('../pages/MyQuestionnaires'));
 const FillQuestionnaire = lazy(() => import('../pages/FillQuestionnaire'));
@@ -58,9 +57,7 @@ const AppRoutes = () => {
           } />
 
           <Route path="/immigration-process" element={
-            <Suspense fallback={null}>
-              <ImmigrationProcess />
-            </Suspense>
+            <Navigate to="/immigration-process/individual" replace />
           } />
 
           <Route path="/immigration-process/individual" element={
@@ -89,7 +86,7 @@ const AppRoutes = () => {
           {/* Additional immigration workflow routes */}
           <Route path="/immigration-process/legal-firm" element={
             <Suspense fallback={null}>
-              <ImmigrationProcess />
+              <LegalFirmWorkflow />
             </Suspense>
           } />
 
@@ -181,9 +178,13 @@ const AppRoutes = () => {
 
           {/* Questionnaires routes */}
           <Route path="/my-questionnaires" element={
-            <Suspense fallback={null}>
-              <MyQuestionnaires />
-            </Suspense>
+            (user?.role === 'client' && user?.userType === 'companyClient') ? (
+              <Suspense fallback={null}>
+                <MyQuestionnaires />
+              </Suspense>
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
           } />
           <Route path="/questionnaires/fill/:id" element={
             <Suspense fallback={null}>
