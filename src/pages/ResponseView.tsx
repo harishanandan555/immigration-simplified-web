@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Loader2, 
@@ -48,6 +48,12 @@ interface QuestionnaireResponse {
   metadata?: any;
   createdAt: string;
   updatedAt: string;
+}
+
+interface NavigationState {
+  assignmentData?: QuestionnaireAssignment;
+  responseData?: any;
+  fromQuestionnaireResponses?: boolean;
 }
 
 interface QuestionnaireAssignment {
@@ -107,19 +113,27 @@ interface QuestionnaireAssignment {
     category: string;
     status: string;
   } | string;
+  formCaseIdGenerated?: string; // Generated case ID from form processing
+  formType?: string; // Form type information
+  clientEmail?: string; // Client email from assignment
   status: 'pending' | 'in-progress' | 'completed';
   assignedAt: string;
   completedAt?: string;
   dueDate?: string;
   notes?: string;
-  response?: QuestionnaireResponse;
+  response?: QuestionnaireResponse | any; // Allow any structure for response
   responseId?: QuestionnaireResponse;
 }
 
 const ResponseView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  
+  // Debug log to see when component mounts and what location state we have
+  // console.log('ResponseView component mounted - ID:', id);
+  // console.log('ResponseView component mounted - Location state:', location.state);
   
   const [assignment, setAssignment] = useState<QuestionnaireAssignment | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -140,12 +154,36 @@ const ResponseView: React.FC = () => {
     }
 
     loadAssignment();
-  }, [id, user, navigate]);
+  }, [id, user, navigate, location.state]);
 
   const loadAssignment = async () => {
     try {
       setLoading(true);
       
+      // Check if assignment data was passed from QuestionnaireResponses page
+      const navigationState = location.state as NavigationState | null;
+      
+      // console.log('ResponseView - Navigation state:', navigationState);
+      // console.log('ResponseView - Location:', location);
+      
+      if (navigationState?.assignmentData && navigationState?.fromQuestionnaireResponses) {
+        // Use the passed assignment data to avoid refetching
+        // console.log('Using passed assignment data from QuestionnaireResponses:', navigationState.assignmentData);
+        
+        // Normalize the assignment data to ensure proper mapping
+        const normalizedAssignment = normalizeAssignmentData(
+          navigationState.assignmentData, 
+          navigationState.responseData
+        );
+        
+        console.log('Setting assignment from navigation state:', normalizedAssignment);
+        setAssignment(normalizedAssignment);
+        setError(null);
+        return;
+      }
+      
+      // Fallback to API fetch if no navigation state data
+      console.log('No navigation state data, fetching from API...');
       
       // Use the dedicated endpoint to get assignment with response data
       const responseData = await questionnaireAssignmentService.getAssignmentResponse(id as string);
@@ -158,7 +196,7 @@ const ResponseView: React.FC = () => {
       
       const assignmentData = responseData.data;
       
-      
+      console.log('Setting assignment from API fetch:', assignmentData);
       setAssignment(assignmentData);
       setError(null);
     } catch (err: any) {
@@ -202,15 +240,31 @@ const ResponseView: React.FC = () => {
 
   const getClientName = (assignment: QuestionnaireAssignment) => {
     const client = getClientInfo(assignment);
-    if (client) {
-      return `${client.firstName} ${client.lastName}`;
+    if (client && client.firstName && client.lastName) {
+      // Check for undefined values
+      const firstName = client.firstName === 'undefined' ? '' : client.firstName;
+      const lastName = client.lastName === 'undefined' ? '' : client.lastName;
+      
+      if (firstName && lastName) {
+        return `${firstName} ${lastName}`;
+      } else if (firstName || lastName) {
+        return firstName || lastName;
+      }
     }
-    return 'Unknown Client';
+    
+    // Fallback to client ID if available
+    if (client && client._id) {
+      return `Client ID: ${client._id}`;
+    }
+    
+    return 'Client Name Not Available';
   };
 
   const getClientEmail = (assignment: QuestionnaireAssignment) => {
-    const client = getClientInfo(assignment);
-    return client?.email || 'No email available';
+    // Try assignment.clientEmail first, then fallback to client object email
+    return assignment.clientEmail || 
+           getClientInfo(assignment)?.email || 
+           'No email available';
   };
 
   // Helper to get questionnaire info from either structure
@@ -220,7 +274,14 @@ const ResponseView: React.FC = () => {
 
   // Helper to get response info from either structure  
   const getResponseInfo = (assignment: QuestionnaireAssignment) => {
-    return assignment.response || assignment.responseId;
+    console.log('getResponseInfo - assignment.response:', assignment.response);
+    console.log('getResponseInfo - assignment.responseId:', assignment.responseId);
+    
+    // Try different response sources in order of preference
+    const responseInfo = assignment.response || assignment.responseId;
+    console.log('getResponseInfo - selected responseInfo:', responseInfo);
+    
+    return responseInfo;
   };
 
   const getCaseInfo = (assignment: QuestionnaireAssignment) => {
@@ -228,16 +289,73 @@ const ResponseView: React.FC = () => {
   };
 
   const formatDate = (dateString?: string): string => {
-    if (!dateString) return 'Not available';
+    if (!dateString || dateString === 'undefined' || dateString === 'null') {
+      return 'Not available';
+    }
     
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Not available';
+      }
+      
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return 'Not available';
+    }
+  };
+
+  // Function to normalize assignment data from different sources
+  const normalizeAssignmentData = (assignmentData: any, responseData?: any) => {
+    // Create a normalized assignment object that maps all possible data sources
+    const normalizedAssignment: QuestionnaireAssignment = {
+      _id: assignmentData._id,
+      
+      // Map questionnaire information
+      questionnaire: assignmentData.questionnaire || assignmentData.questionnaireId,
+      questionnaireId: assignmentData.questionnaireId || assignmentData.questionnaire,
+      
+      // Map client information with multiple fallbacks
+      client: assignmentData.client || assignmentData.clientId,
+      clientId: assignmentData.clientId || assignmentData.client,
+      clientUserId: assignmentData.clientUserId,
+      actualClient: assignmentData.actualClient,
+      clientEmail: assignmentData.clientEmail,
+      
+      // Map response information - handle different response data structures
+      // Priority: responseData from API > assignmentData.response > assignmentData.responseId
+      response: responseData || assignmentData.response || assignmentData.responseId,
+      responseId: assignmentData.responseId || assignmentData.response || responseData,
+      
+      // Map other assignment details
+      submittedBy: assignmentData.submittedBy,
+      assignedBy: assignmentData.assignedBy,
+      attorneyInfo: assignmentData.attorneyInfo,
+      caseId: assignmentData.caseId,
+      formCaseIdGenerated: assignmentData.formCaseIdGenerated,
+      formType: assignmentData.formType,
+      
+      // Map status and dates with proper validation
+      status: (assignmentData.status && typeof assignmentData.status === 'string' && assignmentData.status.trim() !== '') 
+        ? assignmentData.status 
+        : 'pending',
+      assignedAt: assignmentData.assignedAt,
+      completedAt: assignmentData.completedAt,
+      dueDate: assignmentData.dueDate,
+      notes: assignmentData.notes
+    };
+
+    console.log('Normalized assignment data:', normalizedAssignment);
+    console.log('Normalized assignment - response:', normalizedAssignment.response);
+    console.log('Normalized assignment - responseId:', normalizedAssignment.responseId);
+    
+    return normalizedAssignment;
   };
 
   const handleSendEmail = async () => {
@@ -377,8 +495,36 @@ const ResponseView: React.FC = () => {
   // Get the response and questionnaire info using helper functions
   const responseInfo = getResponseInfo(assignment);
   const questionnaireInfo = getQuestionnaireInfo(assignment);
-  const responses = responseInfo?.responses || {};
+  
+  // Debug logging to see what we have
+  console.log('ResponseView - Assignment:', assignment);
+  console.log('ResponseView - responseInfo:', responseInfo);
+  console.log('ResponseView - questionnaireInfo:', questionnaireInfo);
+  
+  // Extract responses with multiple fallback strategies
+  let responses = {};
+  
+  // From the console log, we can see the structure is assignment.response.responses
+  if ((assignment as any)?.response?.responses) {
+    responses = (assignment as any).response.responses;
+  } else if (assignment?.responseId?.responses) {
+    responses = assignment.responseId.responses;
+  } else if (responseInfo?.responses) {
+    responses = responseInfo.responses;
+  } else if (responseInfo && typeof responseInfo === 'object' && !responseInfo.responses) {
+    // If responseInfo is the direct responses object (without .responses property)
+    responses = responseInfo;
+  }
+  
   const fields = questionnaireInfo?.fields || [];
+  
+  console.log('ResponseView - extracted responses:', responses);
+  console.log('ResponseView - fields:', fields);
+  console.log('ResponseView - response extraction logic:', {
+    'responseInfo?.responses exists': !!responseInfo?.responses,
+    'responseInfo type': typeof responseInfo,
+    'responseInfo keys': responseInfo ? Object.keys(responseInfo) : 'none'
+  });
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -397,15 +543,34 @@ const ResponseView: React.FC = () => {
             {questionnaireInfo?.title || 'Questionnaire Response'}
           </h1>
           
-          <div className="bg-green-50 text-green-700 p-3 rounded-lg flex items-center mb-4">
-            <CheckCircle className="w-5 h-5 mr-2" />
-            <span>Completed by client on {formatDate(assignment.completedAt)}</span>
-          </div>
+          {/* Status Banner */}
+          {assignment.completedAt ? (
+            <div className="bg-green-50 text-green-700 p-3 rounded-lg flex items-center mb-4">
+              <CheckCircle className="w-5 h-5 mr-2" />
+              <span>Completed by client on {formatDate(assignment.completedAt)}</span>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg flex items-center mb-4">
+              <Clock className="w-5 h-5 mr-2" />
+              <span>Status: {assignment.status && typeof assignment.status === 'string' && assignment.status.length > 0 ? (assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)) : 'Unknown'}</span>
+              {assignment.dueDate && (
+                <span className="ml-2">• Due: {formatDate(assignment.dueDate)}</span>
+              )}
+            </div>
+          )}
           
-          {responseInfo && (
+          {/* Response Info */}
+          {responseInfo ? (
             <div className="bg-blue-50 text-blue-700 p-3 rounded-lg flex items-center mb-4">
               <FileText className="w-5 h-5 mr-2" />
-              <span>Response submitted: {formatDate(responseInfo.createdAt)} | {Object.keys(responses).length} fields completed</span>
+              <span>
+                Response submitted: {responseInfo.createdAt ? formatDate(responseInfo.createdAt) : 'Not available'} | {Object.keys(responses).length} fields completed
+              </span>
+            </div>
+          ) : (
+            <div className="bg-gray-50 text-gray-700 p-3 rounded-lg flex items-center mb-4">
+              <FileText className="w-5 h-5 mr-2" />
+              <span>Response submitted: Not available | {Object.keys(responses).length} fields completed</span>
             </div>
           )}
         </div>
@@ -457,7 +622,30 @@ const ResponseView: React.FC = () => {
           {/* Case Information */}
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <h3 className="text-lg font-medium text-gray-900 mb-3">Case Details</h3>
-            {getCaseInfo(assignment) ? (
+            {assignment.formCaseIdGenerated ? (
+              <div>
+                <p className="font-medium text-lg text-blue-900">{assignment.formCaseIdGenerated}</p>
+                <p className="text-sm text-gray-500 mb-2">Generated Case ID</p>
+                {assignment.formType && (
+                  <p className="text-sm text-gray-600 mb-2">Form Type: {assignment.formType}</p>
+                )}
+                <div className="mt-4">
+                  <button
+                    onClick={() => {
+                      // Navigate to case details or show more case info
+                      if (assignment.formCaseIdGenerated) {
+                        toast.success(`Case ID: ${assignment.formCaseIdGenerated} copied to clipboard`);
+                        navigator.clipboard.writeText(assignment.formCaseIdGenerated);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <File className="w-4 h-4 mr-2" />
+                    Copy Case ID
+                  </button>
+                </div>
+              </div>
+            ) : getCaseInfo(assignment) && getCaseInfo(assignment)?.title !== "No case linked" ? (
               <div>
                 <p className="font-medium">{getCaseInfo(assignment)?.title}</p>
                 <p className="text-sm text-gray-500 mb-2">Category: {getCaseInfo(assignment)?.category}</p>
@@ -481,7 +669,11 @@ const ResponseView: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <p className="text-gray-500 italic">No case linked to this questionnaire</p>
+              <div className="text-center py-4">
+                <File className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500 italic">No case linked to this questionnaire</p>
+                <p className="text-xs text-gray-400 mt-1">Case will be created when forms are processed</p>
+              </div>
             )}
           </div>
           
@@ -497,10 +689,46 @@ const ResponseView: React.FC = () => {
                 <Clock className="w-4 h-4 text-gray-400 mr-2" />
                 <span>Due: {formatDate(assignment.dueDate)}</span>
               </div>
-              <div className="flex items-center">
-                <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                <span>Completed: {formatDate(assignment.completedAt)}</span>
-              </div>
+              {assignment.completedAt ? (
+                <div className="flex items-center">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
+                  <span>Completed: {formatDate(assignment.completedAt)}</span>
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <Clock className="w-4 h-4 text-yellow-500 mr-2" />
+                  <span>Status: {assignment.status && typeof assignment.status === 'string' && assignment.status.length > 0 ? (assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)) : 'Unknown'}</span>
+                </div>
+              )}
+              {(assignment.assignedBy || assignment.attorneyInfo) ? (
+                <div className="flex items-center">
+                  <User className="w-4 h-4 text-gray-400 mr-2" />
+                  <span>Assigned by: {
+                    assignment.assignedBy && assignment.assignedBy.firstName && assignment.assignedBy.lastName ? 
+                      `${assignment.assignedBy.firstName} ${assignment.assignedBy.lastName}` :
+                      assignment.attorneyInfo && assignment.attorneyInfo.firstName && assignment.attorneyInfo.lastName ? 
+                        `${assignment.attorneyInfo.firstName} ${assignment.attorneyInfo.lastName}` :
+                        'Not available'
+                  }</span>
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <User className="w-4 h-4 text-gray-400 mr-2" />
+                  <span>Assigned by: Not available</span>
+                </div>
+              )}
+              {assignment.formType && (
+                <div className="flex items-center">
+                  <FileText className="w-4 h-4 text-gray-400 mr-2" />
+                  <span>Form Type: {assignment.formType}</span>
+                </div>
+              )}
+              {assignment.notes && (
+                <div className="mt-2 p-2 bg-yellow-50 rounded border">
+                  <p className="text-xs text-gray-600 font-medium">Assignment Notes:</p>
+                  <p className="text-sm text-gray-700 mt-1">{assignment.notes}</p>
+                </div>
+              )}
             </div>
             <div className="mt-4">
               <button
@@ -517,15 +745,39 @@ const ResponseView: React.FC = () => {
         {/* Response Content */}
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Client Responses</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Client Responses</h3>
+              {Object.keys(responses).length > 0 && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                  {Object.keys(responses).length} fields completed
+                </span>
+              )}
+            </div>
             {responseInfo?.notes && (
               <p className="text-sm text-gray-600 mt-1">Notes: {responseInfo.notes}</p>
             )}
           </div>
           <div className="divide-y divide-gray-200">
             {Object.keys(responses).length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
-                No response data available.
+              <div className="p-8 text-center">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h4 className="text-lg font-medium text-gray-600 mb-2">No Response Data Available</h4>
+                <p className="text-gray-500 mb-4">
+                  This questionnaire assignment doesn't have any response data yet.
+                </p>
+                {assignment.status !== 'completed' && (
+                  <p className="text-sm text-gray-400">
+                    Response data will appear here once the client completes the questionnaire.
+                  </p>
+                )}
+                {assignment.status === 'completed' && !responseInfo && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                    <AlertTriangle className="w-5 h-5 text-yellow-600 mx-auto mb-2" />
+                    <p className="text-yellow-700 text-sm">
+                      This assignment is marked as completed but response data is missing.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : fields.length > 0 ? (
               // If we have field definitions, use them to render with labels
