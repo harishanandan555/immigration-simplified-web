@@ -60,14 +60,44 @@ const Dashboard = () => {
         try {
           setLoadingQuestionnaires(true);
           const data = await questionnaireAssignmentService.getMyAssignments();
-          setAssignments(data);
+          
+          console.log('Raw assignment data:', data); // Debug log
+          
+          // Ensure data is an array and filter out any invalid entries
+          const validAssignments = Array.isArray(data) ? data.filter((item: any) => {
+            const isValid = item && typeof item === 'object' && 
+              (item.assignment_id || item._id || item.id);
+            
+            if (!isValid) {
+              console.warn('Invalid assignment item filtered out:', item);
+            }
+            
+            return isValid;
+          }).map((item: any) => ({
+            // Normalize the assignment object to ensure consistent structure
+            assignment_id: item.assignment_id || item._id || item.id,
+            _id: item._id || item.assignment_id || item.id,
+            id: item.id || item.assignment_id || item._id,
+            questionnaire_title: item.questionnaire_title || item.questionnaire?.title || 'Untitled',
+            formType: item.formType || 'Unknown Form',
+            status: item.status || 'pending',
+            dueDate: item.dueDate,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt
+          })) : [];
+          
+          console.log('Processed assignments:', validAssignments); // Debug log
+          
+          setAssignments(validAssignments);
           
           // Check for pending questionnaires to show notification
-          const pendingAssignments = data.filter((a: any) => a.status === 'pending');
+          const pendingAssignments = validAssignments.filter((a: any) => a.status === 'pending');
           setPendingCount(pendingAssignments.length);
           setShowNotification(pendingAssignments.length > 0);
         } catch (error) {
           console.error('Error loading questionnaire assignments:', error);
+          // Set empty array on error to prevent rendering issues
+          setAssignments([]);
         } finally {
           setLoadingQuestionnaires(false);
         }
@@ -817,52 +847,76 @@ const Dashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredCases.slice(0, 4).map((caseItem: any) => {
+                  {filteredCases.slice(0, 4).map((caseItem: any, caseIndex: number) => {
+                    // Comprehensive safety check
+                    if (!caseItem || typeof caseItem !== 'object' || Array.isArray(caseItem)) {
+                      console.warn('Invalid case item at index', caseIndex, caseItem);
+                      return null;
+                    }
+
+                    // Ensure all case properties are strings/primitives
+                    const caseId = String(caseItem.id || caseItem._id || '');
+                    const caseNumber = String(caseItem.caseNumber || 'No Case Number');
+                    const caseType = String(caseItem.type || 'Unknown');
+                    const caseStatus = String(caseItem.status || 'Unknown');
+                    const clientName = String(caseItem.clientName || 'Unknown Client');
+
+                    if (!caseId) {
+                      console.warn('Skipping case without valid ID', caseItem);
+                      return null;
+                    }
+
                     const client = clients.find((c: any) => c.id === caseItem.clientId);
                     const matchingWorkflow = getWorkflowCaseNumber(caseItem);
                     const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
                     
                     return (
-                      <tr key={caseItem.id || caseItem._id} className="hover:bg-gray-50">
+                      <tr key={caseId} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Link to={`/cases/${caseItem.id || caseItem._id}`} className="text-primary-600 hover:text-primary-700 font-medium">
-                            <div>{caseItem.caseNumber}</div>
+                          <Link to={`/cases/${caseId}`} className="text-primary-600 hover:text-primary-700 font-medium">
+                            <div>{caseNumber}</div>
                             {workflowCaseNumbers.length > 0 && (
                               <div className="mt-1 space-y-1">
-                                {workflowCaseNumbers.map((caseNum, index) => (
-                                  <div 
-                                    key={index}
-                                    className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
-                                      caseNum.source === 'case' 
-                                        ? 'text-blue-600 bg-blue-50' 
-                                        : 'text-green-600 bg-green-50'
-                                    }`}
-                                  >
-                                    {caseNum.type}: {caseNum.number}
-                                  </div>
-                                ))}
+                                {workflowCaseNumbers.map((caseNum, index) => {
+                                  // Safety check to ensure we have valid data
+                                  if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
+                                    return null;
+                                  }
+                                  return (
+                                    <div 
+                                      key={index}
+                                      className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
+                                        caseNum.source === 'case' 
+                                          ? 'text-blue-600 bg-blue-50' 
+                                          : 'text-green-600 bg-green-50'
+                                      }`}
+                                    >
+                                      {String(caseNum.type)}: {String(caseNum.number)}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                             {matchingWorkflow && (
                               <div className="text-xs text-purple-600 mt-1">
-                                📋 Workflow Status: {matchingWorkflow.status || 'in-progress'}
+                                📋 Workflow Status: {String(matchingWorkflow.status || 'in-progress')}
                               </div>
                             )}
                           </Link>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>{caseItem.type}</div>
-                          {matchingWorkflow?.selectedForms && matchingWorkflow.selectedForms.length > 0 && (
+                          <div>{caseType}</div>
+                          {matchingWorkflow?.selectedForms && Array.isArray(matchingWorkflow.selectedForms) && matchingWorkflow.selectedForms.length > 0 && (
                             <div className="text-xs text-green-600 mt-1">
-                              Forms: {matchingWorkflow.selectedForms.join(', ')}
+                              Forms: {matchingWorkflow.selectedForms.map((form: any) => String(form)).join(', ')}
                             </div>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div>
-                            <div className="font-medium">{client?.name || caseItem.clientName}</div>
+                            <div className="font-medium">{String(client?.name || clientName)}</div>
                             {client?.email && (
-                              <div className="text-xs text-gray-400">{client.email}</div>
+                              <div className="text-xs text-gray-400">{String(client.email)}</div>
                             )}
                             {matchingWorkflow?.client && (
                               <div className="text-xs text-blue-600 mt-1">
@@ -873,24 +927,24 @@ const Dashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            ${caseItem.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                              caseItem.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                                caseItem.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                  caseItem.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                                    caseItem.status === 'Document Collection' ? 'bg-yellow-100 text-yellow-800' :
-                                      caseItem.status === 'Waiting on USCIS' ? 'bg-purple-100 text-purple-800' :
-                                        caseItem.status === 'RFE Received' ? 'bg-orange-100 text-orange-800' :
-                                          caseItem.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                                            caseItem.status === 'Closed' ? 'bg-gray-100 text-gray-800' :
+                            ${caseStatus === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                              caseStatus === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                                caseStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                  caseStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                                    caseStatus === 'Document Collection' ? 'bg-yellow-100 text-yellow-800' :
+                                      caseStatus === 'Waiting on USCIS' ? 'bg-purple-100 text-purple-800' :
+                                        caseStatus === 'RFE Received' ? 'bg-orange-100 text-orange-800' :
+                                          caseStatus === 'Approved' ? 'bg-green-100 text-green-800' :
+                                            caseStatus === 'Closed' ? 'bg-gray-100 text-gray-800' :
                                               'bg-gray-100 text-gray-800'
                             }`}
                           >
-                            {caseItem.status}
+                            {caseStatus}
                           </span>
                           {matchingWorkflow && (
                             <div className="mt-1">
                               <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                                Step {matchingWorkflow.currentStep || 1}
+                                Step {String(matchingWorkflow.currentStep || 1)}
                               </span>
                             </div>
                           )}
@@ -992,7 +1046,19 @@ const Dashboard = () => {
 
             <div className="space-y-4">
               {upcomingDeadlines.length > 0 ? (
-                upcomingDeadlines.map((task: any) => {
+                upcomingDeadlines.map((task: any, taskIndex: number) => {
+                  // Safety check to prevent rendering objects
+                  if (!task || typeof task !== 'object' || !task.id) {
+                    console.warn('Skipping invalid task at index', taskIndex, task);
+                    return null;
+                  }
+                  
+                  // Ensure all task properties are strings/primitives
+                  const taskId = String(task.id);
+                  const taskTitle = String(task.title || 'Untitled Task');
+                  const taskStatus = String(task.status || 'Pending');
+                  const taskDueDate = task.dueDate;
+                  
                   // Handle both old format (caseId) and new format (relatedCaseId) - from TasksPage logic
                   const caseIdentifier = task.caseId || task.relatedCaseId;
                   const relatedCase = cases.find((c: any) => 
@@ -1004,14 +1070,14 @@ const Dashboard = () => {
                   const matchingWorkflow = relatedCase ? getWorkflowCaseNumber(relatedCase) : null;
                   const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
                   
-                  const daysLeft = Math.ceil(
-                    (new Date(task.dueDate!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-                  );
-                  const isUrgent = daysLeft <= 3;
+                  const daysLeft = taskDueDate ? Math.ceil(
+                    (new Date(taskDueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+                  ) : 0;
+                  const isUrgent = daysLeft <= 3 && daysLeft > 0;
 
                   return (
                     <div
-                      key={task.id}
+                      key={taskId}
                       className={`p-3 rounded-lg border ${isUrgent
                         ? 'border-error-200 bg-error-50'
                         : 'border-gray-200 bg-white'
@@ -1024,7 +1090,7 @@ const Dashboard = () => {
                         <div className="ml-3 flex-1">
                           <div className="flex items-center justify-between">
                             <p className={`text-sm font-medium ${isUrgent ? 'text-error-600' : 'text-gray-900'}`}>
-                              {task.title}
+                              {taskTitle}
                             </p>
                             <p className={`text-xs font-medium ${isUrgent ? 'text-error-600' : 'text-gray-500'
                               }`}>
@@ -1040,18 +1106,24 @@ const Dashboard = () => {
                             </div>
                             {workflowCaseNumbers.length > 0 && (
                               <div className="mt-1 space-y-1">
-                                {workflowCaseNumbers.map((caseNum, index) => (
-                                  <span 
-                                    key={index}
-                                    className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
-                                      caseNum.source === 'case' 
-                                        ? 'text-blue-600 bg-blue-50' 
-                                        : 'text-green-600 bg-green-50'
-                                    }`}
-                                  >
-                                    {caseNum.type}: {caseNum.number}
-                                  </span>
-                                ))}
+                                {workflowCaseNumbers.map((caseNum, index) => {
+                                  // Safety check to ensure we have valid data
+                                  if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
+                                    return null;
+                                  }
+                                  return (
+                                    <span 
+                                      key={index}
+                                      className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
+                                        caseNum.source === 'case' 
+                                          ? 'text-blue-600 bg-blue-50' 
+                                          : 'text-green-600 bg-green-50'
+                                      }`}
+                                    >
+                                      {caseNum.type}: {caseNum.number}
+                                    </span>
+                                  );
+                                })}
                               </div>
                             )}
                             {matchingWorkflow && (
@@ -1062,17 +1134,17 @@ const Dashboard = () => {
                           </div>
                           <div className="flex items-center justify-between mt-2">
                             <p className="text-xs text-gray-500">
-                              Due: {new Date(task.dueDate!).toLocaleDateString()}
+                              Due: {taskDueDate ? new Date(taskDueDate).toLocaleDateString() : 'No due date'}
                             </p>
                             <div>
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                                ${task.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                                  task.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                                    task.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                                ${taskStatus === 'Completed' ? 'bg-green-100 text-green-800' :
+                                  taskStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                                    taskStatus === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
                                       'bg-gray-100 text-gray-800'
                                 }`}
                               >
-                                {task.status || 'Pending'}
+                                {taskStatus}
                               </span>
                             </div>
                           </div>
@@ -1106,31 +1178,49 @@ const Dashboard = () => {
                     <p className="text-sm">Loading your questionnaires...</p>
                   </div>
                 ) : assignments.length > 0 ? (
-                  assignments.map(assignment => (
-                    <div
-                      key={assignment.id}
-                      className="p-3 rounded-lg border border-gray-200 bg-white"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {assignment.questionnaire.title}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Due: {new Date(assignment.dueDate).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div>
-                          <Link
-                            to={`/questionnaires/fill/${assignment._id}`}
-                            className="inline-flex items-center px-3 py-1 text-xs rounded-md bg-primary-100 text-primary-700 hover:bg-primary-200"
-                          >
-                            {assignment.status === 'completed' ? 'View Responses' : 'Continue Questionnaire'}
-                          </Link>
+                  assignments.map((assignment, index) => {
+                    // Extra safety check to prevent rendering objects
+                    if (!assignment || typeof assignment !== 'object') {
+                      console.warn('Skipping invalid assignment at index', index, assignment);
+                      return null;
+                    }
+                    
+                    const assignmentId = assignment.assignment_id || assignment._id || assignment.id;
+                    const title = String(assignment.questionnaire_title || assignment.formType || 'Questionnaire');
+                    const status = String(assignment.status || 'pending');
+                    const dueDate = assignment.dueDate;
+                    
+                    if (!assignmentId) {
+                      console.warn('Skipping assignment without valid ID', assignment);
+                      return null;
+                    }
+                    
+                    return (
+                      <div
+                        key={assignmentId}
+                        className="p-3 rounded-lg border border-gray-200 bg-white"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {title}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Due: {dueDate ? new Date(dueDate).toLocaleDateString() : 'No due date'}
+                            </p>
+                          </div>
+                          <div>
+                            <Link
+                              to={`/questionnaires/fill/${assignmentId}`}
+                              className="inline-flex items-center px-3 py-1 text-xs rounded-md bg-primary-100 text-primary-700 hover:bg-primary-200"
+                            >
+                              {status === 'completed' ? 'View Responses' : 'Continue Questionnaire'}
+                            </Link>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="py-4 text-center text-gray-500">
                     <ClipboardList className="mx-auto h-8 w-8 text-gray-400" />

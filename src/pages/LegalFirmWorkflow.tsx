@@ -7,42 +7,42 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../../utils/idValidation';
+import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../utils/idValidation';
 import {
   generateMultipleCaseIdsFromAPI
-} from '../../utils/caseIdGenerator';
-import Button from '../../components/common/Button';
-import Input from '../../components/common/Input';
-import Select from '../../components/common/Select';
-import TextArea from '../../components/common/TextArea';
-import { downloadFilledI130PDF } from '../../utils/pdfUtils';
+} from '../utils/caseIdGenerator';
+import Button from '../components/common/Button';
+import Input from '../components/common/Input';
+import Select from '../components/common/Select';
+import TextArea from '../components/common/TextArea';
+import { downloadFilledI130PDF } from '../utils/pdfUtils';
 import {
   isQuestionnaireApiAvailable,
   getQuestionnaires
-} from '../../controllers/QuestionnaireControllers';
+} from '../controllers/QuestionnaireControllers';
 import {
   renderFormWithData,
   prepareFormData,
   downloadPdfFile,
   createPdfBlobUrl,
   revokePdfBlobUrl
-} from '../../controllers/FormAutoFillControllers';
+} from '../controllers/FormAutoFillControllers';
 
 import {
   submitQuestionnaireResponses,
   normalizeQuestionnaireStructure
-} from '../../controllers/QuestionnaireResponseControllers';
+} from '../controllers/QuestionnaireResponseControllers';
 import {
   generateSecurePassword
-} from '../../controllers/UserCreationController';
-import { getClients as fetchClientsFromAPI, getClientById, createCompanyClient, Client as APIClient } from '../../controllers/ClientControllers';
-import { getFormTemplates, getUscisFormNumbers, FormTemplate } from '../../controllers/SettingsControllers';
+} from '../controllers/UserCreationController';
+import { getClients as fetchClientsFromAPI, getClientById, createCompanyClient, Client as APIClient } from '../controllers/ClientControllers';
+import { getFormTemplates, getUscisFormNumbers, FormTemplate } from '../controllers/SettingsControllers';
 import { 
   LEGAL_WORKFLOW_ENDPOINTS,
   FORM_TEMPLATE_CATEGORIES,
   FORM_TEMPLATE_TYPES,
   FORM_TEMPLATE_STATUS
-} from '../../utils/constants';
+} from '../utils/constants';
 import {
   getWorkflowProgress,
   saveWorkflowProgress,
@@ -65,7 +65,7 @@ import {
   FormData,
   WorkflowData,
   ImmigrationProcessPayload
-} from '../../controllers/LegalFirmWorkflowController';
+} from '../controllers/LegalFirmWorkflowController';
 
 // Extend APIClient with optional _id field and name parts
 type Client = APIClient & {
@@ -584,7 +584,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // const response = await getFormTemplates('');
         const response = await getUscisFormNumbers();
         // setFormTemplates(response.data.templates || []);
-        
+        console.log("resonse ", response)
         // Map the API response to FormTemplate structure
         const mappedTemplates: FormTemplate[] = (response.data || []).map((form: any) => ({
           _id: form._id,
@@ -2650,10 +2650,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Prepare comprehensive form data from all collected information
       const formData = {
-        // Required fields for validation
-        clientId: client.id || client._id || '',
-        formType: selectedForms && selectedForms.length > 0 ? selectedForms[0] : 'workflow-step',
-
         // Client information
         clientFirstName: client.firstName || '',
         clientLastName: client.lastName || '',
@@ -2703,14 +2699,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       for (const formName of selectedForms) {
         try {
-          // Find the form template that matches the selected form name
-          const formTemplate = formTemplates.find(template => 
-            template.name === formName || 
-            template.metadata?.uscisFormNumber === formName
-          );
-          
-          // Use the form number from the template metadata, or fallback to form name
-          const templateId = formTemplate?.metadata?.uscisFormNumber || formName;
+          // For now, we'll use a template ID based on the form name
+          // In a real implementation, you'd map form names to actual template IDs
+          const templateId = formName.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
           // Add a placeholder for generating status
           newGeneratedForms.push({
@@ -3267,7 +3258,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   )}
                   {client.address?.city && (
                     <div>
-                      <span className="font-medium text-green-800">Location:</span> {String(client.address.city)}, {String(client.address.state || client.address.province || '')}
+                      <span className="font-medium text-green-800">Location:</span> {client.address.city}, {client.address.state || client.address.province}
                     </div>
                   )}
                   <div>
@@ -4430,11 +4421,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
                 {/* Enhanced Questionnaire responses summary with debugging */}
                 {questionnaireAssignment && (() => {
-                  // Safety check to ensure questionnaireAssignment is an object
-                  if (!questionnaireAssignment || typeof questionnaireAssignment !== 'object') {
-                    console.warn('Invalid questionnaireAssignment:', questionnaireAssignment);
-                    return null;
-                  }
 
                   // Enhanced flexible matching to find the assigned questionnaire
                   const questionnaire = availableQuestionnaires.find(q => {
@@ -4575,11 +4561,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                               <div className="mt-1 max-h-32 overflow-y-auto bg-yellow-100 p-2 rounded text-sm">
                                 {Object.entries(clientResponses).map(([key, value]) => (
                                   <div key={key} className="mb-1">
-                                    <strong>{String(key)}:</strong> {
-                                      typeof value === 'object' && value !== null 
-                                        ? JSON.stringify(value).substring(0, 100) + (JSON.stringify(value).length > 100 ? '...' : '')
-                                        : String(value || '')
-                                    }
+                                    <strong>{key}:</strong> {typeof value === 'object' ? JSON.stringify(value) : value}
                                   </div>
                                 ))}
                               </div>
