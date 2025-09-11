@@ -7,12 +7,13 @@ import {
   downloadDocument,
   previewDocument
 } from '../../controllers/DocumentControllers';
+import { getClientById, Client } from '../../controllers/ClientControllers';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const ClientDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
-  const [client, setClient] = useState<any>(null);
+  const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [clientCases, setClientCases] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -36,12 +37,8 @@ const ClientDetailsPage = () => {
         const responseData = response.data as any;
         const allDocuments = responseData.data?.documents || responseData.documents || [];
         
-        // Filter documents for this specific client
-        const currentClient = clientData || client;
-        
         // Filter documents by client email (primary method)
         const clientEmail = (clientData || client)?.email?.trim().toLowerCase() || '';
-        
         
         const filteredDocuments = allDocuments.filter((doc: Document) => {
           // Primary strategy: Match by client email
@@ -63,18 +60,8 @@ const ClientDetailsPage = () => {
           
           const isMatch = matchesClientEmail || matchesUploadedByEmail || matchesClientId;
           
-          
           return isMatch;
         });
-        
-        
-        // If no documents found, debug what documents are available
-        if (filteredDocuments.length === 0) {
-          // Show unique client emails in documents
-          const uniqueClientEmails = [...new Set(allDocuments.map((doc: any) => doc.clientEmail).filter(Boolean))];
-          const uniqueUploadedBy = [...new Set(allDocuments.map((doc: any) => doc.uploadedBy).filter(Boolean))];
-          
-        }
         
         // Process documents for display with formatted data
         const processedDocuments = processDocumentsForDisplay(filteredDocuments);
@@ -179,105 +166,23 @@ const ClientDetailsPage = () => {
           throw new Error('Client ID is required');
         }
         
-        // Fetch client data directly from workflows API (same as ClientsPage approach)
         setLoading(true);
         
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No authentication token available');
-        }
-
-        const response = await api.get('/api/v1/workflows', {
-          params: {
-            page: 1,
-            limit: 100
-          }
-        });
+        // Fetch client data using getClientById
+        const clientData = await getClientById(id);
+        setClient(clientData);
         
-        
-        if (response.data?.success && response.data?.data) {
-          const workflows = response.data.data;
-          
-          // Find the client in workflows (same logic as ClientsPage)
-          let foundClient: any = null;
-          let clientWorkflows: any[] = [];
-          
-          workflows.forEach((workflow: any) => {
-            const clientData = workflow.client;
-            const caseData = workflow.case;
-            
-            if (clientData && clientData.name && clientData.email) {
-              // Check if this workflow belongs to our target client
-              // Use workflow _id or client email as identifier
-              const isTargetClient = workflow._id === id || 
-                                   clientData.email === id ||
-                                   (clientData._id && clientData._id === id);
-              
-              if (isTargetClient) {
-                // If we haven't found the client yet, create the client object
-                if (!foundClient) {
-                  foundClient = {
-                    _id: workflow._id,
-                    id: clientData.email,
-                    name: clientData.name,
-                    email: clientData.email,
-                    phone: clientData.phone || 'N/A',
-                    status: clientData.status || 'Active',
-                    createdAt: workflow.createdAt || caseData?.openDate || '',
-                    alienNumber: clientData.alienNumber || 'N/A',
-                    address: clientData.address || null,
-                    nationality: clientData.nationality || 'N/A',
-                    dateOfBirth: clientData.dateOfBirth || null,
-                    // Workflow-specific fields
-                    workflowId: workflow._id,
-                    caseType: caseData?.category || caseData?.subcategory || 'N/A',
-                    formCaseIds: workflow.formCaseIds,
-                    openDate: caseData?.openDate || 'N/A',
-                    priorityDate: caseData?.priorityDate || 'N/A'
-                  };
-                }
-                
-                // Add this workflow to the client's workflows
-                clientWorkflows.push(workflow);
-              }
-            }
-          });
-          
-          if (foundClient) {
-            setClient(foundClient);
-            
-            // Extract cases from client workflows
-            const extractedCases = clientWorkflows.map((workflow: any) => {
-              const caseData = workflow.case;
-              
-              return {
-                id: workflow._id || workflow.id,
-                caseNumber: (workflow.formCaseIds && Object.values(workflow.formCaseIds)[0]) || 
-                           `WF-${workflow._id?.slice(-8)}`,
-                type: caseData?.category || caseData?.subcategory || workflow.type || 'Immigration Case',
-                status: workflow.status || 'In Progress',
-                openDate: caseData?.openDate || workflow.createdAt,
-                priorityDate: caseData?.priorityDate || 'N/A',
-                description: workflow.title || workflow.description || 'Workflow Case',
-                workflowId: workflow._id,
-                formCaseIds: workflow.formCaseIds || {}
-              };
-            });
-            
-            setClientCases(extractedCases);
-            
-            // Use client email as primary identifier for documents, fallback to workflow ID
-            const documentSearchId = foundClient.email || foundClient._id || id;
-            await fetchClientDocuments(documentSearchId, foundClient);
-          } else {
-            workflows.forEach((workflow: any, index: number) => {
-              const wfClient = workflow.client || {};
-            });
-            throw new Error('Client not found in workflows');
-          }
-        } else {
-          throw new Error('No workflow data available');
+        // Fetch client cases (if available)
+        try {
+          const cases = await api.get(`/api/v1/clients/${id}/cases`);
+          setClientCases(cases.data || []);
+        } catch (caseError) {
+          console.warn('Could not fetch client cases:', caseError);
+          setClientCases([]);
         }
+        
+        // Fetch client documents
+        await fetchClientDocuments(id, clientData);
         
       } catch (err) {
         console.error('❌ Error in fetchClientData:', err);
@@ -327,19 +232,11 @@ const ClientDetailsPage = () => {
 
   // Ensure client has minimum required fields
   const safeClient = {
-    name: client.name || 'Unknown Client',
-    email: client.email || 'No email provided',
-    phone: client.phone || 'No phone provided',
-    status: client.status || 'Unknown',
-    address: client.address || null,
-    dateOfBirth: client.dateOfBirth || null,
-    alienNumber: client.alienNumber || null,
-    nationality: client.nationality || null,
-    passportNumber: client.passportNumber || null,
-    entryDate: client.entryDate || null,
-    visaCategory: client.visaCategory || null,
-    notes: client.notes || null,
-    ...client
+    ...client,
+    name: client?.name || 'Unknown Client',
+    email: client?.email || 'No email provided',
+    phone: client?.phone || 'No phone provided',
+    status: client?.status || 'Unknown'
   };
 
   return (
@@ -425,7 +322,7 @@ const ClientDetailsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500">Alien Number</p>
-                  <p className="font-medium mt-1">{safeClient.alienNumber || 'Not provided'}</p>
+                  <p className="font-medium mt-1">{safeClient.alienRegistrationNumber || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Nationality</p>
@@ -459,7 +356,7 @@ const ClientDetailsPage = () => {
 
           <div className="bg-white rounded-lg shadow">
             <div className="border-b p-4 flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Cases from Workflows</h2>
+              <h2 className="text-xl font-semibold">Client Cases</h2>
               <Link
                 to="/cases/new"
                 className="text-sm text-primary-600 hover:text-primary-700 font-medium"
@@ -471,7 +368,7 @@ const ClientDetailsPage = () => {
               {loading ? (
                 <div className="flex justify-center items-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-gray-600">Loading cases from workflows...</span>
+                  <span className="ml-2 text-gray-600">Loading cases...</span>
                 </div>
               ) : clientCases.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -488,36 +385,23 @@ const ClientDetailsPage = () => {
                           Status
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Open Date
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Workflow ID
+                          Created Date
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {clientCases.map((caseItem) => (
-                        <tr key={caseItem.id} className="hover:bg-gray-50">
+                        <tr key={caseItem.id || caseItem._id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <Link 
-                              to={`/cases/${caseItem.id}`}
+                              to={`/cases/${caseItem.id || caseItem._id}`}
                               className="text-primary-600 hover:text-primary-700 font-medium"
                             >
-                              {caseItem.caseNumber}
+                              {caseItem.caseNumber || caseItem.title || `Case ${(caseItem.id || caseItem._id).slice(-8)}`}
                             </Link>
-                            {/* Show form case IDs if available */}
-                            {caseItem.formCaseIds && Object.keys(caseItem.formCaseIds).length > 0 && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                {Object.entries(caseItem.formCaseIds).map(([formName, caseId]) => (
-                                  <div key={formName}>
-                                    {formName}: {String(caseId)}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {caseItem.type}
+                            {caseItem.type || caseItem.category || 'Immigration Case'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -525,14 +409,11 @@ const ClientDetailsPage = () => {
                               caseItem.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
-                              {caseItem.status}
+                              {caseItem.status || 'Unknown'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(caseItem.openDate).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                            {caseItem.workflowId?.slice(-8)}
+                            {caseItem.createdAt ? new Date(caseItem.createdAt).toLocaleDateString() : 'N/A'}
                           </td>
                         </tr>
                       ))}
@@ -544,32 +425,15 @@ const ClientDetailsPage = () => {
                   <Briefcase className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">No cases found</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    No workflow cases found for this client.
+                    No cases found for this client.
                   </p>
-                  
-                  {/* Debug section - will be removed later */}
-                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md text-left">
-                    <h4 className="text-sm font-medium text-yellow-800 mb-2">Debug Information:</h4>
-                    <div className="text-xs text-yellow-700">
-                      <p><strong>Current Client ID:</strong> {id}</p>
-                      <p><strong>Client Name:</strong> {safeClient?.name || 'Not loaded'}</p>
-                      <p><strong>Client Email:</strong> {safeClient?.email || 'Not loaded'}</p>
-                      <p className="mt-2">
-                        <strong>Possible Solutions:</strong><br/>
-                        1. Create a new workflow for this client<br/>
-                        2. Check if client exists in workflow database<br/>
-                        3. Verify client ID consistency between databases
-                      </p>
-                    </div>
-                  </div>
-                  
                   <div className="mt-6">
                     <Link
-                      to="/legal-firm-workflow"
+                      to="/cases/new"
                       className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
                     >
                       <PlusCircle className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-                      Create New Workflow
+                      Create New Case
                     </Link>
                   </div>
                 </div>

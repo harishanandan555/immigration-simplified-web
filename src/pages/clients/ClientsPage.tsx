@@ -2,143 +2,59 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Search, Filter, ArrowUpDown, Mail, Phone } from 'lucide-react';
 
-import { getClients } from '../../controllers/ClientControllers';
-import api from '../../utils/api';
-
-type Client = {
-  _id: string;
-  id: string;
-  createdAt: string;
-  email: string;
-  name: string;
-  phone: string;
-  status: string;
-  alienNumber: string;
-  address: string;
-  nationality: string;
-  // Additional fields from workflow API
-  workflowId?: string;
-  caseType?: string;
-  formCaseIds?: Record<string, string>;
-  openDate?: string;
-  priorityDate?: string;
-  dateOfBirth?: string;
-};
+import { getCompanyClients, Client } from '../../controllers/ClientControllers';
 
 const ClientsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Function to fetch clients from workflows API
-  const fetchWorkflowsFromAPI = async (): Promise<Client[]> => {
+  // Function to fetch clients from company clients API
+  const fetchCompanyClients = async (): Promise<Client[]> => {
     try {
-      const token = localStorage.getItem('token');
-
-      // Check token availability
-      if (!token) {
-        return [];
-      }
-
-      // Request workflows from API
-      const response = await api.get('/api/v1/workflows', {
-        params: {
-          page: 1,
-          limit: 100 // Get more workflows to find more clients and cases
-        }
+      const response = await getCompanyClients({
+        search: searchTerm || undefined
       });
 
-
-      if (response.data?.success && response.data?.data) {
-        const workflows = response.data.data;
-        
-        // Extract unique clients from workflows
-        const clientsMap = new Map<string, Client>();
-        
-        workflows.forEach((workflow: any) => {
-          // Extract client data from the nested client object
-          const clientData = workflow.client;
-          const caseData = workflow.case;
-          
-          if (clientData && clientData.name && clientData.email) {
-            const clientId = clientData.email; // Use email as unique identifier
-            
-            if (!clientsMap.has(clientId)) {
-              clientsMap.set(clientId, {
-                _id: workflow._id || workflow.id,
-                id: clientId,
-                name: clientData.name,
-                email: clientData.email,
-                phone: clientData.phone || 'N/A',
-                status: clientData.status || 'Active',
-                createdAt: workflow.createdAt || caseData?.openDate || '',
-                alienNumber: clientData.alienNumber || 'N/A',
-                address: clientData.address?.formattedAddress || 'N/A',
-                nationality: clientData.nationality || 'N/A',
-                dateOfBirth: clientData.dateOfBirth || 'N/A',
-                // Workflow-specific fields
-                workflowId: workflow._id || workflow.id,
-                caseType: caseData?.category || caseData?.subcategory || 'N/A',
-                formCaseIds: workflow.formCaseIds,
-                openDate: caseData?.openDate || 'N/A',
-                priorityDate: caseData?.priorityDate || 'N/A'
-              });
-            }
-          }
-        });
-
-        return Array.from(clientsMap.values());
+      if (response.success && response.clients) {
+        return response.clients;
       } else {
         return [];
       }
 
     } catch (error: any) {
-      console.error('❌ Error fetching workflows from API:', error);
-      if (error?.response?.status === 401) {
-      }
+      console.error('❌ Error fetching company clients:', error);
       return [];
     }
   };
 
   useEffect(() => {
-    const fetchCases = async () => {
+    const fetchClients = async () => {
       try {
         setLoading(true);
         
-        // Try to fetch clients from workflows API first
-        const workflowClients = await fetchWorkflowsFromAPI();
-        
-        if (workflowClients.length > 0) {
-          setClients(workflowClients);
-        } else {
-          const clientData: any = await getClients();
-          
-          if (clientData && clientData.length > 0) {
-            setClients(clientData);
-          } else {
-            setClients([]);
-          }
-        }
+        const companyClients = await fetchCompanyClients();
+        setClients(companyClients);
       } catch (error) {
-        console.error('Error fetching cases:', error);
+        console.error('Error fetching clients:', error);
         setClients([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCases();
-  }, []);
+    fetchClients();
+  }, [searchTerm]);
 
   const filteredClients = clients.filter(
     (client) =>
       (client.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.alienNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.caseType || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.alienRegistrationNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.nationality || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.openDate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.priorityDate || '').toLowerCase().includes(searchTerm.toLowerCase())
+      (client.firstName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.lastName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.phone || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -159,7 +75,7 @@ const ClientsPage = () => {
           <div className="relative flex-grow">
             <input
               type="text"
-              placeholder="Search by name, email, case type, dates, alien number, or nationality..."
+              placeholder="Search by name, email, phone, alien number, or nationality..."
               className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -187,12 +103,6 @@ const ClientsPage = () => {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div className="flex items-center gap-1 cursor-pointer">
-                    <span>Case Type</span>
-                    <ArrowUpDown size={14} />
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex items-center gap-1 cursor-pointer">
                     <span>Alien Number</span>
                     <ArrowUpDown size={14} />
                   </div>
@@ -205,13 +115,13 @@ const ClientsPage = () => {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div className="flex items-center gap-1 cursor-pointer">
-                    <span>Open Date</span>
+                    <span>Date of Birth</span>
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div className="flex items-center gap-1 cursor-pointer">
-                    <span>Priority Date</span>
+                    <span>Created</span>
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
@@ -220,23 +130,21 @@ const ClientsPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                     Loading clients...
                   </td>
                 </tr>
               ) : filteredClients.length > 0 ? (
                 filteredClients.map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50">
+                  <tr key={client._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Link to={`/clients/${client._id}`} className="flex items-center">
                         <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-medium">
-                          {client.name.charAt(0)}
+                          {client.firstName?.charAt(0) || client.name?.charAt(0) || '?'}
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{client.name || 'N/A'}</div>
-                          {client.workflowId && (
-                            <div className="text-xs text-gray-500">ID: {client.workflowId.slice(-8)}</div>
-                          )}
+                          <div className="text-xs text-gray-500">ID: {client._id.slice(-8)}</div>
                         </div>
                       </Link>
                     </td>
@@ -257,39 +165,36 @@ const ClientsPage = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {client.caseType || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {client.alienNumber || 'N/A'}
+                      {client.alienRegistrationNumber || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {client.nationality || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${client.status === 'Active' || client.status === 'active'
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${client.status === 'Active'
                         ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
+                        : client.status === 'Inactive'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-yellow-100 text-yellow-800'
                         }`}>
                         {client.status || 'N/A'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {client.openDate && client.openDate !== 'N/A' 
-                        ? new Date(client.openDate).toLocaleDateString() 
+                      {client.dateOfBirth 
+                        ? new Date(client.dateOfBirth).toLocaleDateString() 
                         : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {client.priorityDate && client.priorityDate !== 'N/A' 
-                        ? new Date(client.priorityDate).toLocaleDateString() 
+                      {client.createdAt 
+                        ? new Date(client.createdAt).toLocaleDateString() 
                         : 'N/A'}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                     No clients found matching your search criteria.
                   </td>
                 </tr>

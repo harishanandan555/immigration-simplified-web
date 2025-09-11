@@ -23,7 +23,7 @@ import {
   rejectDocument,
   updateDocument
 } from '../../controllers/DocumentControllers';
-import { getClients, Client as BaseClient } from '../../controllers/ClientControllers';
+import { getCompanyClients, Client as BaseClient } from '../../controllers/ClientControllers';
 import api from '../../utils/api';
 
 // Extend Client type to allow _id for MongoDB compatibility
@@ -286,7 +286,8 @@ const DocumentsPage = () => {
     };
     const fetchClients = async () => {
       try {
-        const clientList = await getClients();
+        const clientResponse = await getCompanyClients();
+        const clientList = clientResponse.clients || [];
         setClients(clientList);
       } catch (error) {
         console.error('Failed to fetch clients', error);

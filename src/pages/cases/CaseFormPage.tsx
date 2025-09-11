@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { createCase } from "../../controllers/CaseControllers";
-import { getClients } from "../../controllers/ClientControllers";
+import { getCompanyClients } from "../../controllers/ClientControllers";
 
 interface CaseFormData {
   title: string;
@@ -67,8 +67,8 @@ const CaseFormPage = () => {
         }
 
         // Fetch clients
-        const clientData = await getClients();
-        setClients(clientData);
+        const clientData = await getCompanyClients();
+        setClients(clientData.clients);
       } catch (err) {
         console.error('Error fetching data:', err);
         setError('Failed to load data. Please try again.');

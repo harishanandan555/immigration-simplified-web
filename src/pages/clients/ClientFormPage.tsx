@@ -21,6 +21,17 @@ interface ClientFormData {
   userType: 'companyClient';
   role: 'client';
   active: boolean;
+  // Additional fields from Client interface
+  placeOfBirth?: {
+    city: string;
+    state?: string;
+    country: string;
+  };
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union';
+  immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 'asylum' | 'investment' | 'diversity_lottery' | 'other';
+  nationalIdNumber?: string;
+  bio?: string;
 }
 
 const initialFormData: ClientFormData = {
@@ -45,7 +56,16 @@ const initialFormData: ClientFormData = {
   status: 'Active',
   userType: 'companyClient',
   role: 'client',
-  active: true
+  active: true,
+  placeOfBirth: {
+    city: '',
+    country: ''
+  },
+  gender: 'prefer_not_to_say',
+  maritalStatus: 'single',
+  immigrationPurpose: 'other',
+  nationalIdNumber: '',
+  bio: ''
 };
 
 const ClientFormPage = () => {
@@ -74,6 +94,15 @@ const ClientFormPage = () => {
         ...prev,
         address: {
           ...prev.address,
+          [field]: value
+        }
+      }));
+    } else if (name.startsWith('placeOfBirth.')) {
+      const field = name.split('.')[1];
+      setFormData(prev => ({
+        ...prev,
+        placeOfBirth: {
+          ...prev.placeOfBirth!,
           [field]: value
         }
       }));
@@ -123,7 +152,6 @@ const ClientFormPage = () => {
         name: `${formData.firstName} ${formData.lastName}`, // Auto-generated name
         companyId: attorneyCompanyId,
         attorneyIds: attorneyIds,
-        alienNumber: formData.alienRegistrationNumber, // Map to legacy field
         sendPassword: true, // Send password to client
         password: 'TempPassword123!' // Temporary password - should be generated or set by user
       };
@@ -424,6 +452,143 @@ const ClientFormPage = () => {
                 onChange={handleInputChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Enter visa category"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="nationalIdNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                National ID Number
+              </label>
+              <input
+                type="text"
+                id="nationalIdNumber"
+                name="nationalIdNumber"
+                value={formData.nationalIdNumber}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Enter national ID number"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-1">
+                Gender
+              </label>
+              <select
+                id="gender"
+                name="gender"
+                value={formData.gender}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="prefer_not_to_say">Prefer not to say</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="maritalStatus" className="block text-sm font-medium text-gray-700 mb-1">
+                Marital Status
+              </label>
+              <select
+                id="maritalStatus"
+                name="maritalStatus"
+                value={formData.maritalStatus}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="single">Single</option>
+                <option value="married">Married</option>
+                <option value="divorced">Divorced</option>
+                <option value="widowed">Widowed</option>
+                <option value="separated">Separated</option>
+                <option value="civil_union">Civil Union</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="immigrationPurpose" className="block text-sm font-medium text-gray-700 mb-1">
+                Immigration Purpose
+              </label>
+              <select
+                id="immigrationPurpose"
+                name="immigrationPurpose"
+                value={formData.immigrationPurpose}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="family_reunification">Family Reunification</option>
+                <option value="employment">Employment</option>
+                <option value="education">Education</option>
+                <option value="asylum">Asylum</option>
+                <option value="investment">Investment</option>
+                <option value="diversity_lottery">Diversity Lottery</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Place of Birth</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label htmlFor="placeOfBirth.city" className="block text-sm font-medium text-gray-700 mb-1">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    id="placeOfBirth.city"
+                    name="placeOfBirth.city"
+                    value={formData.placeOfBirth?.city || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Enter city of birth"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="placeOfBirth.state" className="block text-sm font-medium text-gray-700 mb-1">
+                    State/Province
+                  </label>
+                  <input
+                    type="text"
+                    id="placeOfBirth.state"
+                    name="placeOfBirth.state"
+                    value={formData.placeOfBirth?.state || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Enter state/province"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="placeOfBirth.country" className="block text-sm font-medium text-gray-700 mb-1">
+                    Country
+                  </label>
+                  <input
+                    type="text"
+                    id="placeOfBirth.country"
+                    name="placeOfBirth.country"
+                    value={formData.placeOfBirth?.country || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Enter country of birth"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">
+                Bio/Additional Information
+              </label>
+              <textarea
+                id="bio"
+                name="bio"
+                value={formData.bio}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Enter any additional biographical information"
+                rows={3}
               />
             </div>
 

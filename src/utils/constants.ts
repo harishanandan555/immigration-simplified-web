@@ -40,6 +40,7 @@ export const CASE_END_POINTS = {
 };
 
 export const CLIENT_END_POINTS = {
+    // Main client endpoints
     GETCLIENTS: "/api/v1/clients",
     CREATECLIENT: "/api/v1/clients",
     CREATECOMPANYCLIENT: "/api/v1/clients/company",
@@ -47,6 +48,40 @@ export const CLIENT_END_POINTS = {
     UPDATECLIENT: "/api/v1/clients/:id",
     ADDCLIENTDOCUMENT: "/api/v1/clients/:id/documents",
     GETCLIENTCASES: "/api/v1/clients/:id/cases",
+    
+    // New specialized client endpoints
+    GETCOMPANYCLIENTS: "/api/v1/clients/company",
+    GETINDIVIDUALCLIENTS: "/api/v1/clients/individual",
+    GETALLUSERS: "/api/v1/clients/users/all",
+    
+    // Client management endpoints
+    DELETECLIENT: "/api/v1/clients/:id",
+    ACTIVATECLIENT: "/api/v1/clients/:id/activate",
+    DEACTIVATECLIENT: "/api/v1/clients/:id/deactivate",
+    RESETCLIENTPASSWORD: "/api/v1/clients/:id/reset-password",
+    UPDATECLIENTPASSWORD: "/api/v1/clients/:id/password",
+    
+    // Client document management
+    GETCLIENTDOCUMENTS: "/api/v1/clients/:id/documents",
+    UPDATECLIENTDOCUMENT: "/api/v1/clients/:id/documents/:documentId",
+    DELETECLIENTDOCUMENT: "/api/v1/clients/:id/documents/:documentId",
+    DOWNLOADCLIENTDOCUMENT: "/api/v1/clients/:id/documents/:documentId/download",
+    
+    // Client search and filtering
+    SEARCHCLIENTS: "/api/v1/clients/search",
+    GETCLIENTSTATS: "/api/v1/clients/stats",
+    EXPORTCLIENTS: "/api/v1/clients/export",
+    IMPORTCLIENTS: "/api/v1/clients/import",
+    
+    // Client relationships
+    ASSIGNATTORNEY: "/api/v1/clients/:id/assign-attorney",
+    UNASSIGNATTORNEY: "/api/v1/clients/:id/unassign-attorney",
+    GETCLIENTATTORNEYS: "/api/v1/clients/:id/attorneys",
+    
+    // Bulk operations
+    BULKUPDATECLIENTS: "/api/v1/clients/bulk-update",
+    BULKDELETECLIENTS: "/api/v1/clients/bulk-delete",
+    BULKASSIGNATTORNEYS: "/api/v1/clients/bulk-assign-attorneys",
 };
 
 export const USER_END_POINTS = {

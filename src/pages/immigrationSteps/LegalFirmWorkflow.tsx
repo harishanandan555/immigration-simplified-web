@@ -35,8 +35,8 @@ import {
 import {
   generateSecurePassword
 } from '../../controllers/UserCreationController';
-import { getClients as fetchClientsFromAPI, getClientById, createCompanyClient, Client as APIClient } from '../../controllers/ClientControllers';
-import { getFormTemplates, getUscisFormNumbers, FormTemplate } from '../../controllers/SettingsControllers';
+import { getCompanyClients as fetchClientsFromAPI, getClientById, createCompanyClient, Client as APIClient } from '../../controllers/ClientControllers';
+import { getUscisFormNumbers, FormTemplate } from '../../controllers/SettingsControllers';
 import { 
   LEGAL_WORKFLOW_ENDPOINTS,
   FORM_TEMPLATE_CATEGORIES,

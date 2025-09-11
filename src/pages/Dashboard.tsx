@@ -415,25 +415,32 @@ const Dashboard = () => {
 
   // Function to get workflow case numbers for display (from CasesPage)
   const getWorkflowCaseNumbers = (workflow: any) => {
-    const caseNumbers = [];
+    const caseNumbers: Array<{type: string, number: string, source: string}> = [];
+    
+    // Ensure workflow is an object
+    if (!workflow || typeof workflow !== 'object') {
+      return caseNumbers;
+    }
     
     // Get case number from case object
-    if (workflow.case?.caseNumber) {
+    if (workflow.case?.caseNumber && typeof workflow.case.caseNumber === 'string') {
       caseNumbers.push({
         type: 'Case',
-        number: workflow.case.caseNumber,
+        number: String(workflow.case.caseNumber),
         source: 'case'
       });
     }
     
     // Get form case IDs
-    if (workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0) {
+    if (workflow.formCaseIds && typeof workflow.formCaseIds === 'object' && Object.keys(workflow.formCaseIds).length > 0) {
       Object.entries(workflow.formCaseIds).forEach(([formName, caseId]) => {
-        caseNumbers.push({
-          type: formName,
-          number: caseId,
-          source: 'form'
-        });
+        if (typeof formName === 'string' && caseId) {
+          caseNumbers.push({
+            type: String(formName),
+            number: String(caseId),
+            source: 'form'
+          });
+        }
       });
     }
     
@@ -829,23 +836,30 @@ const Dashboard = () => {
                             <div>{caseItem.caseNumber}</div>
                             {workflowCaseNumbers.length > 0 && (
                               <div className="mt-1 space-y-1">
-                                {workflowCaseNumbers.map((caseNum, index) => (
-                                  <div 
-                                    key={index}
-                                    className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
-                                      caseNum.source === 'case' 
-                                        ? 'text-blue-600 bg-blue-50' 
-                                        : 'text-green-600 bg-green-50'
-                                    }`}
-                                  >
-                                    {caseNum.type}: {caseNum.number}
-                                  </div>
-                                ))}
+                                {workflowCaseNumbers.map((caseNum, index) => {
+                                  // Ensure caseNum is an object with required properties
+                                  if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
+                                    return null;
+                                  }
+                                  
+                                  return (
+                                    <div 
+                                      key={index}
+                                      className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
+                                        caseNum.source === 'case' 
+                                          ? 'text-blue-600 bg-blue-50' 
+                                          : 'text-green-600 bg-green-50'
+                                      }`}
+                                    >
+                                      {String(caseNum.type)}: {String(caseNum.number)}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                             {matchingWorkflow && (
                               <div className="text-xs text-purple-600 mt-1">
-                                📋 Workflow Status: {matchingWorkflow.status || 'in-progress'}
+                                📋 Workflow Status: {String(matchingWorkflow.status || 'in-progress')}
                               </div>
                             )}
                           </Link>
@@ -1056,7 +1070,7 @@ const Dashboard = () => {
                             )}
                             {matchingWorkflow && (
                               <div className="text-xs text-purple-600 mt-1">
-                                📋 Workflow Status: {matchingWorkflow.status || 'in-progress'}
+                                📋 Workflow Status: {String(matchingWorkflow.status || 'in-progress')}
                               </div>
                             )}
                           </div>
