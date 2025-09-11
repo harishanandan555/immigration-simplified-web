@@ -669,29 +669,6 @@ export const QUESTIONNAIRE_RESPONSE_END_POINTS = {
     GET_WORKFLOWS: "/api/v1/workflows"
 } as const;
 
-export const INDIVIDUAL_FORM_FILING_END_POINTS = {
-    // Personal Details
-    GET_PERSONAL_DETAILS: "/api/v1/individual-forms/personal-details",
-    UPDATE_PERSONAL_DETAILS: "/api/v1/individual-forms/personal-details",
-    
-    // Form Selection
-    GET_AVAILABLE_FORMS: "/api/v1/individual-forms/available-forms",
-    SELECT_FORMS: "/api/v1/individual-forms/select-forms",
-    
-    // Create Case
-    CREATE_CASE: "/api/v1/individual-forms/workflow/:workflowId/create-case",
-    
-    // Form Review
-    GET_FORM_REVIEW: "/api/v1/individual-forms/workflow/:workflowId/form-review",
-    
-    // Auto-fill Forms
-    AUTO_FILL_FORMS: "/api/v1/individual-forms/workflow/:workflowId/auto-fill-forms",
-    
-    // Workflow Management
-    GET_WORKFLOW: "/api/v1/individual-forms/workflow/:workflowId",
-    GET_ALL_WORKFLOWS: "/api/v1/individual-forms/workflows"
-} as const;
-
 
 
 

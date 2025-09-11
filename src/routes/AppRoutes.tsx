@@ -25,7 +25,7 @@ const CalendarPage = lazy(() => import('../pages/tasks/CalendarPage'));
 const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'));
 const IndividualImmigrationProcess = lazy(() => import('../pages/immigrationSteps/IndividualImmigrationProcess'));
 const EnhancedIndividualFormFiling = lazy(() => import('../pages/EnhancedIndividualFormFiling'));
-const LegalFirmWorkflow = lazy(() => import('../pages/immigrationSteps/LegalFirmWorkflow'));
+const LegalFirmWorkflow = lazy(() => import('../pages/LegalFirmWorkflow'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 const MyQuestionnaires = lazy(() => import('../pages/MyQuestionnaires'));
 const FillQuestionnaire = lazy(() => import('../pages/FillQuestionnaire'));
