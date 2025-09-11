@@ -9,43 +9,59 @@ type Client = {
   _id: string;
   name: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  nationality?: string;
 };
 
-type Case = {
+type WorkflowCase = {
   _id: string;
+  workflowId: string;
   caseNumber: string;
-  type: string;
-  status: string;
-  clientId: Client | null;
-  assignedTo: string | null;
+  title: string;
   description: string;
-  timeline: Array<{
-    action: string;
-    user: string;
-    notes: string;
+  category: string;
+  subcategory: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+  assignedForms: string[];
+  formCaseIds: { [key: string]: string };
+  client: Client;
+  createdBy: {
     _id: string;
-    date: string;
-  }>;
-  documents: any[];
-  tasks: any[];
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  };
+  currentStep: number;
+  selectedForms: string[];
+  questionnaireAssignment?: {
+    questionnaire_id: string;
+    questionnaire_title: string;
+    response_id?: string;
+    is_complete: boolean;
+    submitted_at?: string;
+    responses?: any;
+  };
   createdAt: string;
   updatedAt: string;
-  __v: number;
 };
 
-type SortField = 'caseNumber' | 'description' | 'clientId' | 'createdAt';
+type SortField = 'caseNumber' | 'title' | 'clientName' | 'createdAt' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 const CasesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [cases, setCases] = useState<Case[]>([]);
+  const [workflowCases, setWorkflowCases] = useState<WorkflowCase[]>([]);
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   // Workflow-related state
-  const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(false);
 
   // Function to fetch workflows from API
@@ -60,7 +76,7 @@ const CasesPage: React.FC = () => {
         return [];
       }
 
-      // Request ALL workflows from API (not just in-progress)
+      // Request ALL workflows from API
       const response = await api.get('/api/v1/workflows', {
         params: {
           page: 1,
@@ -68,23 +84,13 @@ const CasesPage: React.FC = () => {
         }
       });
       
-      
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        
-        
-        // Ensure we have an array before setting state
-        if (Array.isArray(workflows)) {
-          setAvailableWorkflows(workflows);
-          return workflows;
-        } else {
-          console.error('❌ Workflows data is not an array:', workflows);
-          setAvailableWorkflows([]);
-          return [];
-        }
+        console.log('Fetched workflows:', workflows);
+        return workflows;
       } else {
         console.log('❌ No workflows data in response:', response.data);
-        setAvailableWorkflows([]);
+        setWorkflowCases([]);
         return [];
       }
       
@@ -110,174 +116,93 @@ const CasesPage: React.FC = () => {
     const loadWorkflows = async () => {
       const workflows = await fetchWorkflowsFromAPI();
       
-      // Extract cases from workflows instead of calling separate cases API
+      // Transform workflows into WorkflowCase objects
       if (workflows && workflows.length > 0) {
-        
-        const extractedCases: Case[] = workflows.map((workflow: any) => {
+        const transformedCases: WorkflowCase[] = workflows.map((workflow: any) => {
           const workflowCase = workflow.case || {};
           const workflowClient = workflow.client || {};
           
-          // Create a case object from workflow data
-          const extractedCase: Case = {
-            _id: workflowCase.id || workflowCase._id || workflow._id,
-            caseNumber: workflowCase.caseNumber || 
-                       (workflow.formCaseIds && Object.values(workflow.formCaseIds)[0]) || 
-                       `WF-${workflow._id?.slice(-8)}`,
-            type: workflowCase.category || workflowCase.subcategory || 'Immigration',
-            status: workflowCase.status || workflow.status || 'In Progress',
-            clientId: workflowClient ? {
-              _id: workflowClient.id || workflowClient._id || workflow._id,
-              name: workflowClient.name || 
-                    `${workflowClient.firstName || ''} ${workflowClient.lastName || ''}`.trim() || 
-                    'Unknown Client',
-              email: workflowClient.email || 'No email'
-            } : null,
-            assignedTo: workflow.createdBy?.firstName ? 
-                       `${workflow.createdBy.firstName} ${workflow.createdBy.lastName}` : 
-                       null,
-            description: workflowCase.title || workflowCase.description || 'Workflow Case',
-            timeline: [],
-            documents: [],
-            tasks: [],
-            createdAt: workflow.createdAt || new Date().toISOString(),
-            updatedAt: workflow.updatedAt || workflow.createdAt || new Date().toISOString(),
-            __v: 0
-          };
+          // Get primary case number from formCaseIds or generate one
+          const formCaseIds = workflow.formCaseIds || {};
+          const primaryCaseNumber = Object.values(formCaseIds)[0] as string || 
+                                  workflowCase.caseNumber || 
+                                  `WF-${workflow._id?.slice(-8)}`;
           
-          return extractedCase;
-        }).filter((case_: any) => case_.clientId); // Only include cases with valid client data
+          return {
+            _id: workflow._id,
+            workflowId: workflow.workflowId || workflow._id,
+            caseNumber: primaryCaseNumber,
+            title: workflowCase.title || workflowCase.description || 'Immigration Case',
+            description: workflowCase.description || workflowCase.title || 'Immigration workflow case',
+            category: workflowCase.category || 'immigration',
+            subcategory: workflowCase.subcategory || '',
+            status: workflowCase.status || workflow.status || 'in-progress',
+            priority: workflowCase.priority || 'Medium',
+            dueDate: workflowCase.dueDate || '',
+            assignedForms: workflowCase.assignedForms || workflow.selectedForms || [],
+            formCaseIds: formCaseIds,
+            client: {
+              _id: workflowClient.id || workflowClient._id || '',
+              name: workflowClient.name || 
+                    `${workflowClient.firstName || ''} ${workflowClient.lastName || ''}`.trim(),
+              email: workflowClient.email || '',
+              firstName: workflowClient.firstName || '',
+              lastName: workflowClient.lastName || '',
+              phone: workflowClient.phone || '',
+              nationality: workflowClient.nationality || ''
+            },
+            createdBy: workflow.createdBy || {
+              _id: '',
+              firstName: 'Unknown',
+              lastName: 'User',
+              email: '',
+              role: 'attorney'
+            },
+            currentStep: workflow.currentStep || 1,
+            selectedForms: workflow.selectedForms || [],
+            questionnaireAssignment: workflow.questionnaireAssignment ? {
+              questionnaire_id: workflow.questionnaireAssignment.questionnaire_id,
+              questionnaire_title: workflow.questionnaireAssignment.questionnaire_title,
+              response_id: workflow.questionnaireAssignment.response_id,
+              is_complete: workflow.questionnaireAssignment.is_complete || false,
+              submitted_at: workflow.questionnaireAssignment.submitted_at,
+              responses: workflow.questionnaireAssignment.responses
+            } : undefined,
+            createdAt: workflow.createdAt || new Date().toISOString(),
+            updatedAt: workflow.updatedAt || workflow.createdAt || new Date().toISOString()
+          };
+        }).filter((workflowCase: WorkflowCase) => workflowCase.client.name); // Only include cases with valid client data
         
-        
-        setCases(extractedCases);
+        setWorkflowCases(transformedCases);
       } else {
-        setCases([]);
+        setWorkflowCases([]);
       }
     };
     
-    // Load workflows and extract cases
+    // Load workflows and transform to cases
     loadWorkflows();
   }, []);
 
-  // Function to get workflow case number for a case
-  const getWorkflowCaseNumber = (caseItem: Case) => {
-    if (!availableWorkflows.length) {
-      return null;
-    }
-
-
-
-    // Try to find a matching workflow by various criteria
-    const matchingWorkflow = availableWorkflows.find((workflow: any) => {
- 
-
-      // Match by case ID first (most reliable)
-      if (workflow.case?.id && caseItem._id) {
-        const idMatch = workflow.case.id === caseItem._id || workflow.case._id === caseItem._id;
-        if (idMatch) {
-          return true;
-        }
-      }
-
-      // Match by case number if available
-      if (workflow.case?.caseNumber && caseItem.caseNumber) {
-        const caseNumberMatch = workflow.case.caseNumber === caseItem.caseNumber;
-        if (caseNumberMatch) {
-          return true;
-        }
-      }
-
-      // Match by form case IDs (check if case number matches any form case ID)
-      if (workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0) {
-        const formCaseIdMatch = Object.values(workflow.formCaseIds).some(formCaseId => 
-          formCaseId === caseItem.caseNumber
-        );
-        if (formCaseIdMatch) {
-          return true;
-        }
-      }
-
-      // Match by case title/description
-      if (workflow.case?.title && caseItem.description) {
-        const titleMatch = workflow.case.title.toLowerCase().includes(caseItem.description.toLowerCase()) ||
-            caseItem.description.toLowerCase().includes(workflow.case.title.toLowerCase());
-        if (titleMatch) {
-          return true;
-        }
-      }
-
-      // Match by client email if available
-      if (workflow.client?.email && caseItem.clientId?.email) {
-        const emailMatch = workflow.client.email.toLowerCase() === caseItem.clientId.email.toLowerCase();
-        if (emailMatch) {
-          return true;
-        }
-      }
-
-      // Match by client name if available
-      if (workflow.client && caseItem.clientId?.name) {
-        const workflowClientName = workflow.client.name || 
-          `${workflow.client.firstName || ''} ${workflow.client.lastName || ''}`.trim();
-        const nameMatch = workflowClientName.toLowerCase() === caseItem.clientId.name.toLowerCase();
-        if (nameMatch) {
-          return true;
-        }
-      }
-
-      // Match by client ID if available
-      if (workflow.client?.id && caseItem.clientId?._id) {
-        const clientIdMatch = workflow.client.id === caseItem.clientId._id || workflow.client._id === caseItem.clientId._id;
-        if (clientIdMatch) {
-          return true;
-        }
-      }
-
-      // Fuzzy match by case type/category
-      if (workflow.case?.category && caseItem.type) {
-        const categoryMatch = workflow.case.category.toLowerCase().includes(caseItem.type.toLowerCase()) ||
-            caseItem.type.toLowerCase().includes(workflow.case.category.toLowerCase());
-        if (categoryMatch) {
-          return true;
-        }
-      }
-
-      return false;
-    });
-
-    return matchingWorkflow;
-  };
-
-  // Function to get workflow case numbers for display
-  const getWorkflowCaseNumbers = (workflow: any) => {
-    const caseNumbers: Array<{type: string, number: string, source: string}> = [];
+  // Helper function to get all case numbers for a workflow
+  const getAllCaseNumbers = (workflowCase: WorkflowCase): string[] => {
+    const numbers: string[] = [];
     
-    // Ensure workflow is an object
-    if (!workflow || typeof workflow !== 'object') {
-      return caseNumbers;
+    // Add primary case number if it exists and is a string
+    if (workflowCase.caseNumber && typeof workflowCase.caseNumber === 'string') {
+      numbers.push(workflowCase.caseNumber);
     }
     
-    // Get case number from case object
-    if (workflow.case?.caseNumber && typeof workflow.case.caseNumber === 'string') {
-      caseNumbers.push({
-        type: 'Case',
-        number: String(workflow.case.caseNumber),
-        source: 'case'
-      });
-    }
-    
-    // Get form case IDs
-    if (workflow.formCaseIds && typeof workflow.formCaseIds === 'object' && Object.keys(workflow.formCaseIds).length > 0) {
-      Object.entries(workflow.formCaseIds).forEach(([formName, caseId]) => {
-        if (typeof formName === 'string' && caseId) {
-          caseNumbers.push({
-            type: String(formName),
-            number: String(caseId),
-            source: 'form'
-          });
+    // Add form case IDs, filtering out Mongoose metadata
+    if (workflowCase.formCaseIds && typeof workflowCase.formCaseIds === 'object') {
+      Object.entries(workflowCase.formCaseIds).forEach(([key, value]) => {
+        // Skip Mongoose metadata properties
+        if (!key.startsWith('$') && !key.startsWith('_') && typeof value === 'string' && value.trim() !== '') {
+          numbers.push(value);
         }
       });
     }
     
-    return caseNumbers;
+    return numbers.filter(num => num && typeof num === 'string' && num.trim() !== '');
   };
 
   const handleSort = (field: SortField) => {
@@ -289,29 +214,54 @@ const CasesPage: React.FC = () => {
     }
   };
 
-  const filteredCases = cases.filter((caseItem) => {
-    const matchingWorkflow = getWorkflowCaseNumber(caseItem);
-    const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
+  const filteredCases = workflowCases.filter((workflowCase) => {
+    const allCaseNumbers = getAllCaseNumbers(workflowCase);
     
-    // Check if search term matches any workflow case numbers
-    const workflowMatches = workflowCaseNumbers.some(({ number }) => 
-      number && number.toLowerCase().includes(searchTerm.toLowerCase())
+    // Check if search term matches any case numbers
+    const caseNumberMatches = allCaseNumbers.some(number => 
+      number.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
     return (
-      caseItem.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      caseItem.caseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      workflowMatches ||
-      (caseItem.clientId && (
-        caseItem.clientId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        caseItem.clientId.email.toLowerCase().includes(searchTerm.toLowerCase())
-      ))
+      workflowCase.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      workflowCase.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      workflowCase.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      workflowCase.subcategory.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      caseNumberMatches ||
+      workflowCase.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      workflowCase.client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      workflowCase.selectedForms.some(form => form.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   });
 
   const sortedCases = [...filteredCases].sort((a, b) => {
-    const aValue = a[sortField] ?? '';
-    const bValue = b[sortField] ?? '';
+    let aValue: any, bValue: any;
+    
+    switch (sortField) {
+      case 'caseNumber':
+        aValue = a.caseNumber;
+        bValue = b.caseNumber;
+        break;
+      case 'title':
+        aValue = a.title;
+        bValue = b.title;
+        break;
+      case 'clientName':
+        aValue = a.client.name;
+        bValue = b.client.name;
+        break;
+      case 'status':
+        aValue = a.status;
+        bValue = b.status;
+        break;
+      case 'createdAt':
+        aValue = new Date(a.createdAt).getTime();
+        bValue = new Date(b.createdAt).getTime();
+        break;
+      default:
+        aValue = a.createdAt;
+        bValue = b.createdAt;
+    }
     
     if (sortDirection === 'asc') {
       return aValue > bValue ? 1 : -1;
@@ -333,9 +283,9 @@ const CasesPage: React.FC = () => {
           {loadingWorkflows && (
             <p className="text-sm text-blue-600 mt-1">Loading workflow data...</p>
           )}
-          {availableWorkflows.length > 0 && !loadingWorkflows && (
+          {workflowCases.length > 0 && !loadingWorkflows && (
             <p className="text-sm text-green-600 mt-1">
-              ✅ {availableWorkflows.length} workflows loaded
+              ✅ {workflowCases.length} workflow cases loaded
             </p>
           )}
         </div>
@@ -353,7 +303,7 @@ const CasesPage: React.FC = () => {
           <div className="relative flex-grow">
             <input
               type="text"
-              placeholder="Search cases, workflow numbers, clients..."
+              placeholder="Search cases by title, case number, client name, forms..."
               className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -382,23 +332,31 @@ const CasesPage: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
-                    onClick={() => handleSort('description')}
+                    onClick={() => handleSort('title')}
                   >
-                    <span>Description</span>
+                    <span>Title</span>
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
-                    onClick={() => handleSort('clientId')}
+                    onClick={() => handleSort('clientName')}
                   >
-                    <span>Client ID</span>
+                    <span>Client</span>
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div 
+                    className="flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleSort('status')}
+                  >
+                    <span>Status</span>
+                    <ArrowUpDown size={14} />
+                  </div>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
@@ -414,103 +372,111 @@ const CasesPage: React.FC = () => {
               {loadingWorkflows ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                    Loading cases from workflows...
+                    Loading workflow cases...
                   </td>
                 </tr>
               ) : paginatedCases.length > 0 ? (
-                paginatedCases.map((caseItem) => {
-                  const matchingWorkflow = getWorkflowCaseNumber(caseItem);
-                  const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
-                  
+                paginatedCases.map((workflowCase) => {
                   return (
-                    <tr key={caseItem._id} className="hover:bg-gray-50 cursor-pointer">
+                    <tr key={workflowCase._id} className="hover:bg-gray-50 cursor-pointer">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">
-                        <Link to={`/cases/${caseItem._id}`} className="block">
-                          <div>{caseItem.caseNumber}</div>
-                          {workflowCaseNumbers.length > 0 && (
+                        <Link to={`/cases/${workflowCase._id}`} className="block">
+                          <div className="font-bold">{workflowCase.caseNumber}</div>
+                          {workflowCase.formCaseIds && Object.keys(workflowCase.formCaseIds).length > 0 && (
                             <div className="mt-1 space-y-1">
-                              {workflowCaseNumbers.map((caseNum, index) => {
-                                // Ensure caseNum is an object with required properties
-                                if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
-                                  return null;
-                                }
-                                
-                                return (
-                                  <div 
-                                    key={index}
-                                    className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
-                                      caseNum.source === 'case' 
-                                        ? 'text-blue-600 bg-blue-50' 
-                                        : 'text-green-600 bg-green-50'
-                                    }`}
-                                  >
-                                    {String(caseNum.type)}: {String(caseNum.number)}
-                                  </div>
-                                );
-                              })}
+                              {Object.entries(workflowCase.formCaseIds)
+                                .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
+                                .map(([formName, caseId]) => (
+                                <div 
+                                  key={formName}
+                                  className="text-xs font-mono px-2 py-1 rounded inline-block mr-1 bg-green-50 text-green-600"
+                                >
+                                  {formName}: {caseId}
+                                </div>
+                              ))}
                             </div>
                           )}
-                          {matchingWorkflow && (
-                            <div className="text-xs text-purple-600 mt-1">
-                              📋 Workflow Status: {String(matchingWorkflow.status || 'in-progress')}
-                            </div>
-                          )}
+                          <div className="text-xs text-purple-600 mt-1">
+                            📋 Step {workflowCase.currentStep} • {workflowCase.status}
+                          </div>
                         </Link>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <Link to={`/cases/${caseItem._id}`}>
-                          <div>{caseItem.description}</div>
-                          {matchingWorkflow?.case?.title && matchingWorkflow.case.title !== caseItem.description && (
+                        <Link to={`/cases/${workflowCase._id}`}>
+                          <div className="font-medium">{workflowCase.title}</div>
+                          {workflowCase.description && workflowCase.description !== workflowCase.title && (
                             <div className="text-xs text-gray-500 mt-1">
-                              Workflow: {String(matchingWorkflow.case.title)}
+                              {workflowCase.description}
+                            </div>
+                          )}
+                          {workflowCase.subcategory && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              {workflowCase.category} • {workflowCase.subcategory}
                             </div>
                           )}
                         </Link>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {caseItem.clientId ? (
-                          <div>
-                            <div className="font-medium">{caseItem.clientId.name}</div>
-                            <div className="text-xs text-gray-400">{caseItem.clientId.email}</div>
-                            {matchingWorkflow?.client && (
-                              <div className="text-xs text-blue-600 mt-1">
-                                🔗 Linked to workflow
-                              </div>
-                            )}
-                          </div>
-                        ) : 'N/A'}
+                        <div>
+                          <div className="font-medium">{workflowCase.client.name}</div>
+                          <div className="text-xs text-gray-400">{workflowCase.client.email}</div>
+                          {workflowCase.client.phone && (
+                            <div className="text-xs text-gray-400">{workflowCase.client.phone}</div>
+                          )}
+                          {workflowCase.client.nationality && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              🌍 {workflowCase.client.nationality}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          caseItem.status === 'New' 
-                            ? 'bg-blue-100 text-blue-800'
-                            : caseItem.status === 'In Progress'
+                          workflowCase.status === 'active' || workflowCase.status === 'Active'
+                            ? 'bg-green-100 text-green-800'
+                            : workflowCase.status === 'in-progress'
                             ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
+                            : workflowCase.status === 'completed'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {caseItem.status}
+                          {workflowCase.status}
                         </span>
-                        {matchingWorkflow && (
+                        {workflowCase.priority && (
                           <div className="mt-1">
-                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                              Step {matchingWorkflow.currentStep || 1}
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              workflowCase.priority === 'High' 
+                                ? 'bg-red-100 text-red-800'
+                                : workflowCase.priority === 'Medium'
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {workflowCase.priority}
                             </span>
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div>{caseItem.type}</div>
-                        {matchingWorkflow?.selectedForms && Array.isArray(matchingWorkflow.selectedForms) && matchingWorkflow.selectedForms.length > 0 && (
+                        <div className="capitalize">{workflowCase.category}</div>
+                        {workflowCase.selectedForms.length > 0 && (
                           <div className="text-xs text-green-600 mt-1">
-                            Forms: {matchingWorkflow.selectedForms.map((form: string | number) => String(form)).join(', ')}
+                            Forms: {workflowCase.selectedForms.join(', ')}
+                          </div>
+                        )}
+                        {workflowCase.dueDate && (
+                          <div className="text-xs text-orange-600 mt-1">
+                            Due: {new Date(workflowCase.dueDate).toLocaleDateString()}
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div>{new Date(caseItem.createdAt).toLocaleDateString()}</div>
-                        {matchingWorkflow?.createdAt && (
-                          <div className="text-xs text-gray-400 mt-1">
-                            Workflow: {new Date(matchingWorkflow.createdAt).toLocaleDateString()}
+                        <div>{new Date(workflowCase.createdAt).toLocaleDateString()}</div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          by {workflowCase.createdBy.firstName} {workflowCase.createdBy.lastName}
+                        </div>
+                        {workflowCase.questionnaireAssignment?.is_complete && (
+                          <div className="text-xs text-green-600 mt-1">
+                            ✅ Questionnaire Complete
                           </div>
                         )}
                       </td>
@@ -520,7 +486,7 @@ const CasesPage: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                    No cases found matching your search criteria.
+                    No workflow cases found matching your search criteria.
                   </td>
                 </tr>
               )}
