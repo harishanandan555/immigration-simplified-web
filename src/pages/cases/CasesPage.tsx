@@ -71,11 +71,20 @@ const CasesPage: React.FC = () => {
       
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        setAvailableWorkflows(workflows);
         
         
-        return workflows;
+        // Ensure we have an array before setting state
+        if (Array.isArray(workflows)) {
+          setAvailableWorkflows(workflows);
+          return workflows;
+        } else {
+          console.error('❌ Workflows data is not an array:', workflows);
+          setAvailableWorkflows([]);
+          return [];
+        }
       } else {
+        console.log('❌ No workflows data in response:', response.data);
+        setAvailableWorkflows([]);
         return [];
       }
       
@@ -158,7 +167,7 @@ const CasesPage: React.FC = () => {
 
 
     // Try to find a matching workflow by various criteria
-    const matchingWorkflow = availableWorkflows.find((workflow: any, index: number) => {
+    const matchingWorkflow = availableWorkflows.find((workflow: any) => {
  
 
       // Match by case ID first (most reliable)
@@ -239,25 +248,32 @@ const CasesPage: React.FC = () => {
 
   // Function to get workflow case numbers for display
   const getWorkflowCaseNumbers = (workflow: any) => {
-    const caseNumbers = [];
+    const caseNumbers: Array<{type: string, number: string, source: string}> = [];
+    
+    // Ensure workflow is an object
+    if (!workflow || typeof workflow !== 'object') {
+      return caseNumbers;
+    }
     
     // Get case number from case object
-    if (workflow.case?.caseNumber) {
+    if (workflow.case?.caseNumber && typeof workflow.case.caseNumber === 'string') {
       caseNumbers.push({
         type: 'Case',
-        number: workflow.case.caseNumber,
+        number: String(workflow.case.caseNumber),
         source: 'case'
       });
     }
     
     // Get form case IDs
-    if (workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0) {
+    if (workflow.formCaseIds && typeof workflow.formCaseIds === 'object' && Object.keys(workflow.formCaseIds).length > 0) {
       Object.entries(workflow.formCaseIds).forEach(([formName, caseId]) => {
-        caseNumbers.push({
-          type: formName,
-          number: caseId,
-          source: 'form'
-        });
+        if (typeof formName === 'string' && caseId) {
+          caseNumbers.push({
+            type: String(formName),
+            number: String(caseId),
+            source: 'form'
+          });
+        }
       });
     }
     
@@ -413,23 +429,30 @@ const CasesPage: React.FC = () => {
                           <div>{caseItem.caseNumber}</div>
                           {workflowCaseNumbers.length > 0 && (
                             <div className="mt-1 space-y-1">
-                              {workflowCaseNumbers.map((caseNum, index) => (
-                                <div 
-                                  key={index}
-                                  className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
-                                    caseNum.source === 'case' 
-                                      ? 'text-blue-600 bg-blue-50' 
-                                      : 'text-green-600 bg-green-50'
-                                  }`}
-                                >
-                                  {caseNum.type}: {caseNum.number}
-                                </div>
-                              ))}
+                              {workflowCaseNumbers.map((caseNum, index) => {
+                                // Ensure caseNum is an object with required properties
+                                if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
+                                  return null;
+                                }
+                                
+                                return (
+                                  <div 
+                                    key={index}
+                                    className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
+                                      caseNum.source === 'case' 
+                                        ? 'text-blue-600 bg-blue-50' 
+                                        : 'text-green-600 bg-green-50'
+                                    }`}
+                                  >
+                                    {String(caseNum.type)}: {String(caseNum.number)}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                           {matchingWorkflow && (
                             <div className="text-xs text-purple-600 mt-1">
-                              📋 Workflow Status: {matchingWorkflow.status || 'in-progress'}
+                              📋 Workflow Status: {String(matchingWorkflow.status || 'in-progress')}
                             </div>
                           )}
                         </Link>
@@ -439,7 +462,7 @@ const CasesPage: React.FC = () => {
                           <div>{caseItem.description}</div>
                           {matchingWorkflow?.case?.title && matchingWorkflow.case.title !== caseItem.description && (
                             <div className="text-xs text-gray-500 mt-1">
-                              Workflow: {matchingWorkflow.case.title}
+                              Workflow: {String(matchingWorkflow.case.title)}
                             </div>
                           )}
                         </Link>
@@ -477,9 +500,9 @@ const CasesPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div>{caseItem.type}</div>
-                        {matchingWorkflow?.selectedForms && matchingWorkflow.selectedForms.length > 0 && (
+                        {matchingWorkflow?.selectedForms && Array.isArray(matchingWorkflow.selectedForms) && matchingWorkflow.selectedForms.length > 0 && (
                           <div className="text-xs text-green-600 mt-1">
-                            Forms: {matchingWorkflow.selectedForms.join(', ')}
+                            Forms: {matchingWorkflow.selectedForms.map((form: string | number) => String(form)).join(', ')}
                           </div>
                         )}
                       </td>

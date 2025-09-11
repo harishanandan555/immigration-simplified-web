@@ -75,10 +75,15 @@ export interface MedicalHistory {
 }
 
 export interface Document {
+  _id?: string;
+  type: string;
   name: string;
-  path: string;
-  uploadedAt: string;
-  category: string;
+  fileUrl: string;
+  uploadDate: string;
+  notes?: string;
+  category?: string;
+  path?: string; // Legacy field
+  uploadedAt?: string; // Legacy field
 }
 
 export interface Company {
@@ -194,25 +199,74 @@ export interface Task {
     updatedAt?: string;
 }
 
-export const getClients = async (params: {
+// New interfaces for enhanced API responses
+export interface CompanyClientsApiResponse {
+    success: boolean;
+    clients: Client[];
+    total: number;
+}
+
+export interface IndividualClientsApiResponse {
+    success: boolean;
+    clients: Client[];
+    total: number;
+}
+
+export interface ClientStats {
+    total: number;
+    active: number;
+    inactive: number;
+    pending: number;
+    companyClients: number;
+    individualClients: number;
+    newThisMonth: number;
+    newThisWeek: number;
+}
+
+export interface ClientSearchParams {
+    query?: string;
+    status?: string;
+    userType?: string;
+    companyId?: string;
+    attorneyId?: string;
+    dateFrom?: string;
+    dateTo?: string;
     page?: number;
     limit?: number;
-    status?: string;
-    search?: string;
-} = {}): Promise<ClientsApiResponse> => {
-    try {
-        const response = await api.get<ClientsApiResponse>(CLIENT_END_POINTS.GETCLIENTS, {
-            params
-        });
-        return response.data;
-    } catch (error) {
-        if (error instanceof Error) {
-            console.error('Error fetching clients:', error.message);
-            throw new Error(`Failed to fetch clients: ${error.message}`);
-        }
-        throw new Error('Failed to fetch clients due to an unknown error');
-    }
-};
+}
+
+export interface BulkUpdateRequest {
+    clientIds: string[];
+    updates: Partial<Client>;
+}
+
+export interface BulkDeleteRequest {
+    clientIds: string[];
+}
+
+export interface BulkAssignAttorneysRequest {
+    clientIds: string[];
+    attorneyIds: string[];
+}
+
+export interface ClientPasswordUpdate {
+    currentPassword?: string;
+    newPassword: string;
+    confirmPassword?: string;
+}
+
+export interface ClientActivationRequest {
+    status: 'Active' | 'Inactive' | 'Pending';
+    reason?: string;
+}
+
+export interface AttorneyAssignment {
+    attorneyId: string;
+    assignedBy: string;
+    assignedAt: string;
+    notes?: string;
+}
+
 
 export const getUsers = async (params: {
     page?: number;
@@ -444,5 +498,470 @@ export const getClientCases = async (clientId: string): Promise<any[]> => {
             throw new Error(`Failed to fetch client cases: ${error.message}`);
         }
         throw new Error('Failed to fetch client cases due to an unknown error');
+    }
+};
+
+// New specialized client functions
+
+export const getCompanyClients = async (params: {
+    status?: string;
+    search?: string;
+} = {}): Promise<CompanyClientsApiResponse> => {
+    try {
+        const response = await api.get<CompanyClientsApiResponse>(
+            CLIENT_END_POINTS.GETCOMPANYCLIENTS,
+            { params }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error fetching company clients:', error.message);
+            throw new Error(`Failed to fetch company clients: ${error.message}`);
+        }
+        throw new Error('Failed to fetch company clients due to an unknown error');
+    }
+};
+
+export const getIndividualClients = async (params: {
+    status?: string;
+    search?: string;
+} = {}): Promise<IndividualClientsApiResponse> => {
+    try {
+        const response = await api.get<IndividualClientsApiResponse>(
+            CLIENT_END_POINTS.GETINDIVIDUALCLIENTS,
+            { params }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error fetching individual clients:', error.message);
+            throw new Error(`Failed to fetch individual clients: ${error.message}`);
+        }
+        throw new Error('Failed to fetch individual clients due to an unknown error');
+    }
+};
+
+export const getAllUsers = async (params: {
+    role?: string;
+    status?: string;
+    userType?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+} = {}): Promise<UsersApiResponse> => {
+    try {
+        const response = await api.get<UsersApiResponse>(
+            CLIENT_END_POINTS.GETALLUSERS,
+            { params }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error fetching all users:', error.message);
+            throw new Error(`Failed to fetch all users: ${error.message}`);
+        }
+        throw new Error('Failed to fetch all users due to an unknown error');
+    }
+};
+
+export const deleteClient = async (clientId: string): Promise<{ success: boolean; message: string }> => {
+    try {
+        const response = await api.delete<{ success: boolean; message: string }>(
+            CLIENT_END_POINTS.DELETECLIENT.replace(':id', clientId)
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error deleting client:', error.message);
+            throw new Error(`Failed to delete client: ${error.message}`);
+        }
+        throw new Error('Failed to delete client due to an unknown error');
+    }
+};
+
+export const activateClient = async (clientId: string, activationData: ClientActivationRequest): Promise<Client> => {
+    try {
+        const response = await api.put<Client>(
+            CLIENT_END_POINTS.ACTIVATECLIENT.replace(':id', clientId),
+            activationData
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error activating client:', error.message);
+            throw new Error(`Failed to activate client: ${error.message}`);
+        }
+        throw new Error('Failed to activate client due to an unknown error');
+    }
+};
+
+export const deactivateClient = async (clientId: string, reason?: string): Promise<Client> => {
+    try {
+        const response = await api.put<Client>(
+            CLIENT_END_POINTS.DEACTIVATECLIENT.replace(':id', clientId),
+            { reason }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error deactivating client:', error.message);
+            throw new Error(`Failed to deactivate client: ${error.message}`);
+        }
+        throw new Error('Failed to deactivate client due to an unknown error');
+    }
+};
+
+export const resetClientPassword = async (clientId: string): Promise<{ success: boolean; message: string; temporaryPassword?: string }> => {
+    try {
+        const response = await api.post<{ success: boolean; message: string; temporaryPassword?: string }>(
+            CLIENT_END_POINTS.RESETCLIENTPASSWORD.replace(':id', clientId)
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error resetting client password:', error.message);
+            throw new Error(`Failed to reset client password: ${error.message}`);
+        }
+        throw new Error('Failed to reset client password due to an unknown error');
+    }
+};
+
+export const updateClientPassword = async (clientId: string, passwordData: ClientPasswordUpdate): Promise<{ success: boolean; message: string }> => {
+    try {
+        const response = await api.put<{ success: boolean; message: string }>(
+            CLIENT_END_POINTS.UPDATECLIENTPASSWORD.replace(':id', clientId),
+            passwordData
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error updating client password:', error.message);
+            throw new Error(`Failed to update client password: ${error.message}`);
+        }
+        throw new Error('Failed to update client password due to an unknown error');
+    }
+};
+
+export const getClientDocuments = async (clientId: string): Promise<Document[]> => {
+    try {
+        const response = await api.get<Document[]>(
+            CLIENT_END_POINTS.GETCLIENTDOCUMENTS.replace(':id', clientId)
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error fetching client documents:', error.message);
+            throw new Error(`Failed to fetch client documents: ${error.message}`);
+        }
+        throw new Error('Failed to fetch client documents due to an unknown error');
+    }
+};
+
+export const updateClientDocument = async (clientId: string, documentId: string, documentData: Partial<Document>): Promise<Document> => {
+    try {
+        const response = await api.put<Document>(
+            CLIENT_END_POINTS.UPDATECLIENTDOCUMENT.replace(':id', clientId).replace(':documentId', documentId),
+            documentData
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error updating client document:', error.message);
+            throw new Error(`Failed to update client document: ${error.message}`);
+        }
+        throw new Error('Failed to update client document due to an unknown error');
+    }
+};
+
+export const deleteClientDocument = async (clientId: string, documentId: string): Promise<{ success: boolean; message: string }> => {
+    try {
+        const response = await api.delete<{ success: boolean; message: string }>(
+            CLIENT_END_POINTS.DELETECLIENTDOCUMENT.replace(':id', clientId).replace(':documentId', documentId)
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error deleting client document:', error.message);
+            throw new Error(`Failed to delete client document: ${error.message}`);
+        }
+        throw new Error('Failed to delete client document due to an unknown error');
+    }
+};
+
+export const downloadClientDocument = async (clientId: string, documentId: string): Promise<Blob> => {
+    try {
+        const response = await api.get(
+            CLIENT_END_POINTS.DOWNLOADCLIENTDOCUMENT.replace(':id', clientId).replace(':documentId', documentId),
+            { responseType: 'blob' }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error downloading client document:', error.message);
+            throw new Error(`Failed to download client document: ${error.message}`);
+        }
+        throw new Error('Failed to download client document due to an unknown error');
+    }
+};
+
+export const searchClients = async (searchParams: ClientSearchParams): Promise<ClientsApiResponse> => {
+    try {
+        const response = await api.get<ClientsApiResponse>(
+            CLIENT_END_POINTS.SEARCHCLIENTS,
+            { params: searchParams }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error searching clients:', error.message);
+            throw new Error(`Failed to search clients: ${error.message}`);
+        }
+        throw new Error('Failed to search clients due to an unknown error');
+    }
+};
+
+export const getClientStats = async (): Promise<ClientStats> => {
+    try {
+        const response = await api.get<ClientStats>(CLIENT_END_POINTS.GETCLIENTSTATS);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error fetching client stats:', error.message);
+            throw new Error(`Failed to fetch client stats: ${error.message}`);
+        }
+        throw new Error('Failed to fetch client stats due to an unknown error');
+    }
+};
+
+export const exportClients = async (filters?: ClientSearchParams): Promise<Blob> => {
+    try {
+        const response = await api.get(
+            CLIENT_END_POINTS.EXPORTCLIENTS,
+            { 
+                params: filters,
+                responseType: 'blob'
+            }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error exporting clients:', error.message);
+            throw new Error(`Failed to export clients: ${error.message}`);
+        }
+        throw new Error('Failed to export clients due to an unknown error');
+    }
+};
+
+export const importClients = async (file: File): Promise<{ success: boolean; message: string; imported: number; errors: string[] }> => {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await api.post<{ success: boolean; message: string; imported: number; errors: string[] }>(
+            CLIENT_END_POINTS.IMPORTCLIENTS,
+            formData,
+            {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error importing clients:', error.message);
+            throw new Error(`Failed to import clients: ${error.message}`);
+        }
+        throw new Error('Failed to import clients due to an unknown error');
+    }
+};
+
+export const assignAttorney = async (clientId: string, attorneyId: string, notes?: string): Promise<Client> => {
+    try {
+        const response = await api.post<Client>(
+            CLIENT_END_POINTS.ASSIGNATTORNEY.replace(':id', clientId),
+            { attorneyId, notes }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error assigning attorney:', error.message);
+            throw new Error(`Failed to assign attorney: ${error.message}`);
+        }
+        throw new Error('Failed to assign attorney due to an unknown error');
+    }
+};
+
+export const unassignAttorney = async (clientId: string, attorneyId: string): Promise<Client> => {
+    try {
+        const response = await api.delete<Client>(
+            CLIENT_END_POINTS.UNASSIGNATTORNEY.replace(':id', clientId),
+            { data: { attorneyId } }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error unassigning attorney:', error.message);
+            throw new Error(`Failed to unassign attorney: ${error.message}`);
+        }
+        throw new Error('Failed to unassign attorney due to an unknown error');
+    }
+};
+
+export const getClientAttorneys = async (clientId: string): Promise<Attorney[]> => {
+    try {
+        const response = await api.get<Attorney[]>(
+            CLIENT_END_POINTS.GETCLIENTATTORNEYS.replace(':id', clientId)
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error fetching client attorneys:', error.message);
+            throw new Error(`Failed to fetch client attorneys: ${error.message}`);
+        }
+        throw new Error('Failed to fetch client attorneys due to an unknown error');
+    }
+};
+
+export const bulkUpdateClients = async (bulkUpdateData: BulkUpdateRequest): Promise<{ success: boolean; message: string; updated: number }> => {
+    try {
+        const response = await api.put<{ success: boolean; message: string; updated: number }>(
+            CLIENT_END_POINTS.BULKUPDATECLIENTS,
+            bulkUpdateData
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error bulk updating clients:', error.message);
+            throw new Error(`Failed to bulk update clients: ${error.message}`);
+        }
+        throw new Error('Failed to bulk update clients due to an unknown error');
+    }
+};
+
+export const bulkDeleteClients = async (bulkDeleteData: BulkDeleteRequest): Promise<{ success: boolean; message: string; deleted: number }> => {
+    try {
+        const response = await api.delete<{ success: boolean; message: string; deleted: number }>(
+            CLIENT_END_POINTS.BULKDELETECLIENTS,
+            { data: bulkDeleteData }
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error bulk deleting clients:', error.message);
+            throw new Error(`Failed to bulk delete clients: ${error.message}`);
+        }
+        throw new Error('Failed to bulk delete clients due to an unknown error');
+    }
+};
+
+export const bulkAssignAttorneys = async (bulkAssignData: BulkAssignAttorneysRequest): Promise<{ success: boolean; message: string; assigned: number }> => {
+    try {
+        const response = await api.post<{ success: boolean; message: string; assigned: number }>(
+            CLIENT_END_POINTS.BULKASSIGNATTORNEYS,
+            bulkAssignData
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error('Error bulk assigning attorneys:', error.message);
+            throw new Error(`Failed to bulk assign attorneys: ${error.message}`);
+        }
+        throw new Error('Failed to bulk assign attorneys due to an unknown error');
+    }
+};
+
+// Utility functions for frontend integration
+
+export const downloadClientDocumentAsFile = async (clientId: string, documentId: string, filename?: string): Promise<void> => {
+    try {
+        const blob = await downloadClientDocument(clientId, documentId);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || `document-${documentId}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Error downloading document as file:', error);
+        throw error;
+    }
+};
+
+export const exportClientsAsFile = async (filters?: ClientSearchParams, filename?: string): Promise<void> => {
+    try {
+        const blob = await exportClients(filters);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || `clients-export-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Error exporting clients as file:', error);
+        throw error;
+    }
+};
+
+export const validateClientData = (clientData: Partial<Client>): string[] => {
+    const errors: string[] = [];
+    
+    if (!clientData.firstName?.trim()) {
+        errors.push('First name is required');
+    }
+    
+    if (!clientData.lastName?.trim()) {
+        errors.push('Last name is required');
+    }
+    
+    if (!clientData.email?.trim()) {
+        errors.push('Email is required');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientData.email)) {
+        errors.push('Invalid email format');
+    }
+    
+    if (clientData.userType === 'companyClient' && !clientData.companyId) {
+        errors.push('Company ID is required for company clients');
+    }
+    
+    if (clientData.dateOfBirth && isNaN(Date.parse(clientData.dateOfBirth))) {
+        errors.push('Invalid date of birth format');
+    }
+    
+    return errors;
+};
+
+export const formatClientName = (client: Pick<Client, 'firstName' | 'lastName' | 'name'>): string => {
+    if (client.firstName && client.lastName) {
+        return `${client.firstName} ${client.lastName}`;
+    }
+    return client.name || 'Unknown Client';
+};
+
+export const getClientStatusColor = (status: Client['status']): string => {
+    switch (status) {
+        case 'Active':
+            return 'green';
+        case 'Inactive':
+            return 'red';
+        case 'Pending':
+            return 'yellow';
+        default:
+            return 'gray';
+    }
+};
+
+export const getClientTypeLabel = (userType: Client['userType']): string => {
+    switch (userType) {
+        case 'companyClient':
+            return 'Company Client';
+        case 'individualUser':
+            return 'Individual User';
+        default:
+            return 'Unknown';
     }
 };

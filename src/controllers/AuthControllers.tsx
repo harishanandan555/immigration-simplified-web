@@ -901,13 +901,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (response.data.token) {
           localStorage.setItem('token', response.data.token);
         }
-        // Store companyId for attorney, paralegal, or client
-        if ((response.data.role === 'attorney' || response.data.role === 'paralegal' || response.data.role === 'client')) {
+        // Store companyId for attorney, paralegal, or company clients (not individual users)
+        if ((response.data.role === 'attorney' || response.data.role === 'paralegal' || 
+             (response.data.role === 'client' && response.data.userType !== 'individualUser'))) {
           const companyId = response.data.companyId;
           if (companyId) {
             localStorage.setItem('companyId', companyId);
           } else {
-            console.warn('Company ID is undefined for user:', response.data.email);
+            console.warn('Company ID is undefined for user:', response.data.email, 'usertype =', response.data.userType, 'Company ID not required');
           }
         }
       }
