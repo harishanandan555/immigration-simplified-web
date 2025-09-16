@@ -86,10 +86,8 @@ const CasesPage: React.FC = () => {
       
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log('Fetched workflows:', workflows);
         return workflows;
       } else {
-        console.log('❌ No workflows data in response:', response.data);
         setWorkflowCases([]);
         return [];
       }

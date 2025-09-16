@@ -415,12 +415,7 @@ const QuestionnaireResponses: React.FC = () => {
     try {
       // Use the controller function to get assignment response
       const responseData = await getAssignmentResponse(assignmentId);
-      
-      // Log data being passed to ResponseView for debugging
-      console.log('QuestionnaireResponses - Assignment found:', assignment);
-      console.log('QuestionnaireResponses - Assignment responseId:', assignment.responseId);
-      console.log('QuestionnaireResponses - Response data fetched:', responseData?.data);
-      
+   
       // Create a comprehensive assignment object with all necessary data
       const completeAssignment = {
         ...assignment,
@@ -428,9 +423,6 @@ const QuestionnaireResponses: React.FC = () => {
         response: responseData?.data || assignment.responseId,
         responseId: assignment.responseId || responseData?.data
       };
-      
-      console.log('QuestionnaireResponses - Complete assignment to pass:', completeAssignment);
-      
       // Pass the assignment data through navigation state to avoid refetching in ResponseView
       navigate(`/questionnaires/response/${assignmentId}`, {
         state: {
