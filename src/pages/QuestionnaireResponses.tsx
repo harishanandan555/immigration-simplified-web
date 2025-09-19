@@ -23,12 +23,12 @@ import toast from 'react-hot-toast';
 
 interface QuestionnaireAssignment {
   _id: string;
-  questionnaireId: {
-    _id: string;
+  questionnaireId: string; // Now a string ID
+  questionnaireDetails?: {
     title: string;
     category: string;
     description: string;
-    fields?: any[]; // Add this line to include the fields property
+    fields?: any[];
   };
   clientId: string; // This is just a string ID, not an object
   clientUserId?: {
@@ -81,6 +81,40 @@ interface QuestionnaireAssignment {
   completedAt?: string;
   dueDate?: string;
   isOverdue?: boolean;
+  
+  // Enhanced workflow data fields
+  workflowCase?: {
+    id?: string;
+    _id?: string;
+    title?: string;
+    caseNumber?: string;
+    category?: string;
+    subcategory?: string;
+    status?: string;
+    priority?: string;
+    visaType?: string;
+    description?: string;
+  };
+  workflowFormCaseIds?: Record<string, string>;
+  workflowQuestionnaireAssignment?: {
+    assignment_id?: string;
+    attorney_id?: string;
+    formCaseIdGenerated?: string;
+    formType?: string;
+    is_complete?: boolean;
+    notes?: string;
+    responses?: Record<string, any>;
+    reuseMetadata?: {
+      isReused: boolean;
+      originalAssignmentId?: string;
+      originalResponseId?: string;
+      reuseDate?: string;
+      originalCompletedAt?: string;
+    };
+  };
+  workflowSelectedForms?: string[];
+  workflowId?: string;
+  enhancedWithWorkflow?: boolean;
 }
 
 const QuestionnaireResponses: React.FC = () => {
@@ -141,7 +175,7 @@ const QuestionnaireResponses: React.FC = () => {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(assignment => {
         // Safely get questionnaire title
-        const questionnaireTitle = assignment.questionnaireId?.title?.toLowerCase() || '';
+        const questionnaireTitle = assignment.questionnaireDetails?.title?.toLowerCase() || '';
         
         // Safely get client name
         let clientName = '';
@@ -151,14 +185,33 @@ const QuestionnaireResponses: React.FC = () => {
           clientName = `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}`.toLowerCase();
         }
         
-        // Safely get case title and form case ID
+        // Safely get case title and form case ID (original data)
         const caseTitle = assignment.caseId?.title?.toLowerCase() || '';
         const formCaseId = assignment.formCaseIdGenerated?.toLowerCase() || '';
+        
+        // Enhanced search: also check workflow case data
+        const workflowCaseTitle = assignment.workflowCase?.title?.toLowerCase() || '';
+        const workflowCaseNumber = assignment.workflowCase?.caseNumber?.toLowerCase() || '';
+        const workflowFormCaseId = assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated?.toLowerCase() || '';
+        
+        // Check workflow form case IDs
+        const workflowFormCaseIdValues = assignment.workflowFormCaseIds ? 
+          Object.values(assignment.workflowFormCaseIds).join(' ').toLowerCase() : '';
+        
+        // Check workflow selected forms
+        const workflowSelectedForms = assignment.workflowSelectedForms ? 
+          assignment.workflowSelectedForms.join(' ').toLowerCase() : '';
         
         const matches = questionnaireTitle.includes(term) || 
                clientName.includes(term) || 
                caseTitle.includes(term) ||
-               formCaseId.includes(term);
+               formCaseId.includes(term) ||
+               // Enhanced workflow data search
+               workflowCaseTitle.includes(term) ||
+               workflowCaseNumber.includes(term) ||
+               workflowFormCaseId.includes(term) ||
+               workflowFormCaseIdValues.includes(term) ||
+               workflowSelectedForms.includes(term);
         
         return matches;
       });
@@ -198,10 +251,30 @@ const QuestionnaireResponses: React.FC = () => {
       setAssignments(completedAssignments);
       setError(null);
       
-      if (completedAssignments.length > 0) {
-        const assignmentsWithResponses = completedAssignments.filter((a: any) => a.responseId?.responses);
-        
-      }
+      console.log('📋 Loaded questionnaire responses:', {
+        totalAssignments: assignmentsData.length,
+        completedAssignments: completedAssignments.length,
+        enhancedWithWorkflow: completedAssignments.filter((a: any) => a.enhancedWithWorkflow).length
+      });
+      
+      // Debug: Log detailed information about enhanced assignments
+      completedAssignments.forEach((assignment: any, index: number) => {
+        if (assignment.enhancedWithWorkflow) {
+          console.log(`🔍 Enhanced Assignment ${index + 1}:`, {
+            assignmentId: assignment._id,
+            clientEmail: assignment.actualClient?.email,
+            hasWorkflowCase: !!assignment.workflowCase,
+            workflowCaseDetails: assignment.workflowCase,
+            hasWorkflowFormCaseIds: !!assignment.workflowFormCaseIds,
+            workflowFormCaseIds: assignment.workflowFormCaseIds,
+            hasWorkflowQuestionnaireAssignment: !!assignment.workflowQuestionnaireAssignment,
+            workflowQuestionnaireAssignment: assignment.workflowQuestionnaireAssignment,
+            hasWorkflowSelectedForms: !!assignment.workflowSelectedForms,
+            workflowSelectedForms: assignment.workflowSelectedForms,
+            formCaseIdGenerated: assignment.formCaseIdGenerated
+          });
+        }
+      });
     } catch (err) {
       setError('Failed to load questionnaire responses. Please try again.');
     } finally {
@@ -248,10 +321,53 @@ const QuestionnaireResponses: React.FC = () => {
     });
   };
 
+  // Function to sanitize complex MongoDB objects and remove prototype chains
+  const sanitizeObject = (obj: any): any => {
+    if (obj === null || obj === undefined) return obj;
+    
+    // Handle arrays
+    if (Array.isArray(obj)) {
+      return obj.map(item => sanitizeObject(item));
+    }
+    
+    // Handle dates
+    if (obj instanceof Date) {
+      return obj.toISOString();
+    }
+    
+    // Handle primitive types
+    if (typeof obj !== 'object') {
+      return obj;
+    }
+    
+    // Handle objects - create clean plain object
+    const cleanObj: any = {};
+    
+    // Only include enumerable own properties, skip prototype and MongoDB metadata
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key) && !key.startsWith('$__') && !key.startsWith('_') && key !== '__v') {
+        const value = obj[key];
+        
+        // Skip functions and complex objects that could cause issues
+        if (typeof value === 'function') continue;
+        
+        // Recursively sanitize nested objects
+        try {
+          cleanObj[key] = sanitizeObject(value);
+        } catch (error) {
+          // Skip properties that can't be sanitized
+          console.warn(`Skipping property ${key} due to sanitization error:`, error);
+        }
+      }
+    }
+    
+    return cleanObj;
+  };
+
   const handleClientClick = async (assignment: QuestionnaireAssignment) => {
     // Prepare the data to pass to the Legal Firm Workflow
     const clientInfo = assignment.actualClient || assignment.clientUserId;
-    const questionnaireInfo = assignment.questionnaireId;
+    const questionnaireInfo = assignment.questionnaireDetails;
     const responseInfo = assignment.responseId;
     
     if (!clientInfo || !questionnaireInfo) {
@@ -266,6 +382,7 @@ const QuestionnaireResponses: React.FC = () => {
       const apiWorkflows = await fetchWorkflowsFromAPI();
       let matchingWorkflow = null;
 
+      console.log('Fetched workflows for auto-fill:', apiWorkflows);
       if (apiWorkflows && apiWorkflows.length > 0) {
         // Try to find a matching workflow by client email
         matchingWorkflow = apiWorkflows.find((workflow: any) => {
@@ -292,22 +409,22 @@ const QuestionnaireResponses: React.FC = () => {
         }
       }
 
-      // Prepare comprehensive workflow data
+      // Prepare comprehensive workflow data with sanitized objects
       const workflowData = {
         clientId: clientInfo._id,
         clientEmail: clientInfo.email,
         clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
-        questionnaireId: questionnaireInfo._id,
-        questionnaireTitle: questionnaireInfo.title,
-        existingResponses: responseInfo?.responses || {},
-        fields: questionnaireInfo.fields || [],
+        questionnaireId: assignment.questionnaireId,
+        questionnaireTitle: questionnaireInfo?.title,
+        existingResponses: sanitizeObject(responseInfo?.responses || {}),
+        fields: sanitizeObject(questionnaireInfo?.fields || []),
         mode: responseInfo?.responses ? 'edit' : 'new',
         originalAssignmentId: assignment._id,
         
-        // Enhanced workflow data from API
+        // Enhanced workflow data from API - all sanitized
         ...(matchingWorkflow && {
-          // Client data from workflow
-          workflowClient: {
+          // Client data from workflow - sanitized
+          workflowClient: sanitizeObject({
             name: matchingWorkflow.client?.name || `${clientInfo.firstName} ${clientInfo.lastName}`,
             firstName: matchingWorkflow.client?.firstName || clientInfo.firstName,
             lastName: matchingWorkflow.client?.lastName || clientInfo.lastName,
@@ -322,10 +439,10 @@ const QuestionnaireResponses: React.FC = () => {
               zipCode: '',
               country: 'United States'
             }
-          },
+          }),
           
-          // Case data from workflow
-          workflowCase: {
+          // Case data from workflow - sanitized
+          workflowCase: sanitizeObject({
             id: matchingWorkflow.case?.id || matchingWorkflow.case?._id,
             _id: matchingWorkflow.case?._id || matchingWorkflow.case?.id,
             title: matchingWorkflow.case?.title || 'Case',
@@ -339,18 +456,33 @@ const QuestionnaireResponses: React.FC = () => {
             openDate: matchingWorkflow.case?.openDate || '',
             priorityDate: matchingWorkflow.case?.priorityDate || '',
             dueDate: matchingWorkflow.case?.dueDate || ''
-          },
+          }),
           
-          // Form data from workflow
-          selectedForms: matchingWorkflow.selectedForms || [],
-          formCaseIds: matchingWorkflow.formCaseIds || {},
-          selectedQuestionnaire: matchingWorkflow.selectedQuestionnaire || questionnaireInfo._id,
+          // Form data from workflow - sanitized
+          selectedForms: sanitizeObject(matchingWorkflow.selectedForms || []),
+          formCaseIds: sanitizeObject(matchingWorkflow.formCaseIds || {}),
+          selectedQuestionnaire: matchingWorkflow.selectedQuestionnaire || assignment.questionnaireId,
           
-          // Client credentials from workflow
-          clientCredentials: {
+          // Questionnaire assignment data - sanitized
+          questionnaireAssignment: sanitizeObject({
+            assignment_id: matchingWorkflow.questionnaireAssignment?.assignment_id || '',
+            attorney_id: matchingWorkflow.questionnaireAssignment?.attorney_id || '',
+            formCaseIdGenerated: matchingWorkflow.questionnaireAssignment?.formCaseIdGenerated || '',
+            formType: matchingWorkflow.questionnaireAssignment?.formType || '',
+            is_complete: matchingWorkflow.questionnaireAssignment?.is_complete || false,
+            notes: matchingWorkflow.questionnaireAssignment?.notes || '',
+            questionnaire_id: matchingWorkflow.questionnaireAssignment?.questionnaire_id || '',
+            questionnaire_title: matchingWorkflow.questionnaireAssignment?.questionnaire_title || '',
+            response_id: matchingWorkflow.questionnaireAssignment?.response_id || '',
+            responses: sanitizeObject(matchingWorkflow.questionnaireAssignment?.responses || {}),
+            submitted_at: matchingWorkflow.questionnaireAssignment?.submitted_at || ''
+          }),
+          
+          // Client credentials from workflow - sanitized
+          clientCredentials: sanitizeObject({
             email: matchingWorkflow.clientCredentials?.email || clientInfo.email,
             createAccount: matchingWorkflow.clientCredentials?.createAccount || true
-          },
+          }),
           
           // Set target step to Form Details (step 1 in EXIST_WORKFLOW_STEPS) for edit mode
           targetStep: responseInfo?.responses ? 1 : 2,
@@ -359,24 +491,26 @@ const QuestionnaireResponses: React.FC = () => {
         })
       };
       
-      // Store the workflow data in sessionStorage for the Legal Firm Workflow to pick up
+      // Store the sanitized workflow data in sessionStorage for the Legal Firm Workflow to pick up
+      console.log('Storing sanitized workflow data:', JSON.stringify(workflowData, null, 2));
       sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));
       
     } catch (error) {
-      // Fallback to basic data if API fails
+      // Fallback to basic data if API fails - with sanitization
       const basicWorkflowData = {
         clientId: clientInfo._id,
         clientEmail: clientInfo.email,
         clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
-        questionnaireId: questionnaireInfo._id,
-        questionnaireTitle: questionnaireInfo.title,
-        existingResponses: responseInfo?.responses || {},
-        fields: questionnaireInfo.fields || [],
+        questionnaireId: assignment.questionnaireId,
+        questionnaireTitle: questionnaireInfo?.title,
+        existingResponses: sanitizeObject(responseInfo?.responses || {}),
+        fields: sanitizeObject(questionnaireInfo?.fields || []),
         mode: responseInfo?.responses ? 'edit' : 'new',
         originalAssignmentId: assignment._id,
         autoFillMode: true
       };
       
+      console.log('Storing basic sanitized workflow data:', JSON.stringify(basicWorkflowData, null, 2));
       sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(basicWorkflowData));
       
     } finally {
@@ -560,13 +694,72 @@ const QuestionnaireResponses: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">{assignment.questionnaireId?.title || 'Untitled'}</div>
-                    <div className="text-xs text-gray-500">{assignment.questionnaireId?.category || 'No category'}</div>
+                    <div className="text-sm text-gray-900">{assignment.questionnaireDetails?.title || 'Untitled'}</div>
+                    <div className="text-xs text-gray-500">{assignment.questionnaireDetails?.category || 'No category'}</div>
                   </td>
                   <td className="px-6 py-4">
                     {assignment.formCaseIdGenerated ? (
                       <div>
                         <div className="text-sm text-gray-900 font-medium">{assignment.formCaseIdGenerated}</div>
+                        {assignment.enhancedWithWorkflow && (
+                          <div className="text-xs text-blue-500 mt-1">Enhanced with workflow data</div>
+                        )}
+                        
+                        {/* Show workflow case information even when formCaseIdGenerated exists */}
+                        {assignment.workflowCase && (
+                          <div className="mt-2 p-2 bg-green-50 rounded border border-green-200">
+                            <div className="text-xs text-green-700 font-medium">Workflow Case Details:</div>
+                            <div className="text-xs text-gray-700 mt-1">
+                              {assignment.workflowCase.title || assignment.workflowCase.caseNumber || 'Workflow Case'}
+                            </div>
+                            {assignment.workflowCase.category && (
+                              <div className="text-xs text-gray-600">{assignment.workflowCase.category}</div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Show workflow form case IDs */}
+                        {assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated && (
+                          <div className="text-xs text-blue-600 mt-1">
+                            Workflow Form Case ID: {assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}
+                          </div>
+                        )}
+                        
+                        {/* Show all workflow form case IDs */}
+                        {assignment.workflowFormCaseIds && Object.keys(assignment.workflowFormCaseIds).length > 0 && (
+                          <div className="text-xs text-purple-600 mt-1">
+                            Workflow Forms: {Object.entries(assignment.workflowFormCaseIds).map(([form, caseId]) => 
+                              `${form}: ${caseId}`
+                            ).join(', ')}
+                          </div>
+                        )}
+                        
+                        {/* Show selected forms from workflow */}
+                        {assignment.workflowSelectedForms && assignment.workflowSelectedForms.length > 0 && (
+                          <div className="text-xs text-indigo-600 mt-1">
+                            Selected Forms: {assignment.workflowSelectedForms.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    ) : assignment.workflowCase ? (
+                      <div>
+                        <div className="text-sm text-gray-900 font-medium">
+                          {assignment.workflowCase.title || assignment.workflowCase.caseNumber || 'Workflow Case'}
+                        </div>
+                        <div className="text-xs text-gray-500">{assignment.workflowCase.category || 'Workflow'}</div>
+                        {assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated && (
+                          <div className="text-xs text-blue-600 mt-1">
+                            Form Case ID: {assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}
+                          </div>
+                        )}
+                        {assignment.workflowFormCaseIds && Object.keys(assignment.workflowFormCaseIds).length > 0 && (
+                          <div className="text-xs text-purple-600 mt-1">
+                            Forms: {Object.entries(assignment.workflowFormCaseIds).map(([form, caseId]) => 
+                              `${form}: ${caseId}`
+                            ).join(', ')}
+                          </div>
+                        )}
+                        <div className="text-xs text-green-600 mt-1">From saved workflow</div>
                       </div>
                     ) : assignment.caseId ? (
                       <div>
@@ -614,6 +807,13 @@ const QuestionnaireResponses: React.FC = () => {
                         </span>
                       </div>
                     )}
+                    {assignment.workflowQuestionnaireAssignment?.reuseMetadata?.isReused && (
+                      <div className="mt-1">
+                        <span className="px-2 py-1 text-xs rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                          🔄 Reused Response
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-500">
@@ -631,6 +831,11 @@ const QuestionnaireResponses: React.FC = () => {
                         <div className={`flex items-center ${assignment.isOverdue ? 'text-red-600' : ''}`}>
                           <Clock className="w-3 h-3 mr-1" />
                           <span>Due: {formatDate(assignment.dueDate)}</span>
+                        </div>
+                      )}
+                      {assignment.workflowQuestionnaireAssignment?.reuseMetadata?.isReused && (
+                        <div className="flex items-center text-blue-600 mt-1">
+                          <span className="text-xs">🔄 Reused from: {formatDate(assignment.workflowQuestionnaireAssignment.reuseMetadata.originalCompletedAt)}</span>
                         </div>
                       )}
                     </div>

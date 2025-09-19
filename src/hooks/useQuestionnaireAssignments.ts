@@ -3,8 +3,8 @@ import questionnaireAssignmentService from '../services/questionnaireAssignmentS
 
 export interface Assignment {
   _id: string;
-  questionnaireId: {
-    _id: string;
+  questionnaireId: string; // Now a string ID
+  questionnaireDetails?: {
     title: string;
     category: string;
     description: string;
