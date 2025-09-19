@@ -204,7 +204,7 @@ export const normalizeQuestionnaireStructure = (questionnaire: any) => {
 /**
  * Get all client responses for attorneys/admins
  * @param filters Optional filters (status, clientId, etc.)
- * @returns Client responses with pagination
+ * @returns Client responses with pagination and enhanced with workflow data
  */
 export const getClientResponses = async (filters: Record<string, any> = {}) => {
   try {
@@ -217,9 +217,74 @@ export const getClientResponses = async (filters: Record<string, any> = {}) => {
       }
     });
     
+    // Get questionnaire assignments
     const response = await api.get(`${QUESTIONNAIRE_RESPONSE_END_POINTS.GET_CLIENT_RESPONSES}?${params}`);
+    const assignmentsData = response.data;
     
-    return response.data;
+    // Also fetch workflow data to get saved questionnaire assignment data
+    try {
+      console.log('🔍 Fetching workflow data to enhance questionnaire responses...');
+      const workflowResponse = await api.get(`${QUESTIONNAIRE_RESPONSE_END_POINTS.GET_WORKFLOWS}`);
+      const workflows = workflowResponse.data?.data || workflowResponse.data || [];
+      
+      console.log('📊 Retrieved workflows for enhancement:', {
+        workflowCount: workflows.length,
+        assignmentCount: assignmentsData.data?.assignments?.length || 0
+      });
+      
+      // Enhance assignments with workflow data
+      if (assignmentsData.data?.assignments && Array.isArray(workflows)) {
+        assignmentsData.data.assignments = assignmentsData.data.assignments.map((assignment: any) => {
+          // Find matching workflow that contains questionnaire assignment data
+          const matchingWorkflow = workflows.find((workflow: any) => {
+            const workflowQA = workflow.questionnaireAssignment;
+            if (!workflowQA) return false;
+            
+            // Match by assignment ID, client ID, or email
+            return workflowQA.assignment_id === assignment._id ||
+                   workflowQA.client_id === assignment.clientId ||
+                   (workflow.client?.email && assignment.actualClient?.email && 
+                    workflow.client.email.toLowerCase() === assignment.actualClient.email.toLowerCase());
+          });
+          
+          if (matchingWorkflow) {
+            console.log('🔗 Enhanced assignment with workflow data:', {
+              assignmentId: assignment._id,
+              workflowId: matchingWorkflow.id || matchingWorkflow._id,
+              hasQuestionnaireAssignment: !!matchingWorkflow.questionnaireAssignment,
+              hasCase: !!matchingWorkflow.case,
+              hasFormCaseIds: !!matchingWorkflow.formCaseIds
+            });
+            
+            // Enhance assignment with workflow data
+            return {
+              ...assignment,
+              // Add workflow case information
+              workflowCase: matchingWorkflow.case,
+              // Add form case IDs from workflow
+              workflowFormCaseIds: matchingWorkflow.formCaseIds,
+              // Add questionnaire assignment details from workflow
+              workflowQuestionnaireAssignment: matchingWorkflow.questionnaireAssignment,
+              // Add selected forms from workflow
+              workflowSelectedForms: matchingWorkflow.selectedForms,
+              // Add workflow ID for reference
+              workflowId: matchingWorkflow.id || matchingWorkflow._id,
+              // Flag to indicate this has been enhanced with workflow data
+              enhancedWithWorkflow: true
+            };
+          }
+          
+          return assignment;
+        });
+        
+        console.log('✅ Enhanced assignments with workflow data completed');
+      }
+    } catch (workflowError) {
+      console.warn('⚠️ Failed to fetch workflow data for enhancement:', workflowError);
+      // Continue with regular assignment data if workflow fetch fails
+    }
+    
+    return assignmentsData;
   } catch (error) {
     console.error('Error getting client responses:', error);
     throw error;

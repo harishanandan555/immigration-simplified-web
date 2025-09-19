@@ -128,7 +128,20 @@ export interface ImmigrationProcessPayload {
 export const getWorkflowProgress = async (workflowId: string): Promise<any> => {
   try {
     const response = await api.get(LEGAL_WORKFLOW_ENDPOINTS.GET_WORKFLOW_PROGRESS.replace(':workflowId', workflowId));
-    return response.data;
+    
+    // Handle the nested response structure
+    const workflowData = response.data.data || response.data;
+    
+    console.log('✅ getWorkflowProgress: Retrieved workflow data:', {
+      hasData: !!workflowData,
+      responseKeys: response.data ? Object.keys(response.data) : [],
+      workflowDataKeys: workflowData ? Object.keys(workflowData) : [],
+      hasClient: !!workflowData?.client,
+      hasCase: !!workflowData?.case,
+      hasSelectedForms: !!(workflowData?.selectedForms && workflowData.selectedForms.length > 0)
+    });
+    
+    return workflowData;
   } catch (error) {
     console.error('Error fetching workflow progress:', error);
     throw error;
@@ -171,7 +184,17 @@ export const fetchWorkflows = async (searchParams?: {
       params: Object.fromEntries(params)
     });
 
-    return response.data.workflows || response.data || [];
+    // Handle different response structures
+    const workflows = response.data.data || response.data.workflows || response.data || [];
+    
+    // Ensure we always return an array
+    if (!Array.isArray(workflows)) {
+      console.warn('⚠️ fetchWorkflows: API response is not an array:', typeof workflows, workflows);
+      return [];
+    }
+    
+    console.log('✅ fetchWorkflows: Retrieved workflows:', workflows.length);
+    return workflows;
   } catch (error) {
     console.error('❌ Error fetching workflows:', error);
     return [];
@@ -190,7 +213,17 @@ export const fetchWorkflowsForClientSearch = async (searchQuery?: string): Promi
       params: Object.fromEntries(params)
     });
 
-    return response.data.workflows || response.data || [];
+    // Handle different response structures
+    const workflows = response.data.data || response.data.workflows || response.data || [];
+    
+    // Ensure we always return an array
+    if (!Array.isArray(workflows)) {
+      console.warn('⚠️ fetchWorkflowsForClientSearch: API response is not an array:', typeof workflows, workflows);
+      return [];
+    }
+    
+    console.log('✅ fetchWorkflowsForClientSearch: Retrieved workflows:', workflows.length);
+    return workflows;
   } catch (error) {
     console.error('Error fetching workflows for client search:', error);
     return [];
