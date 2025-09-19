@@ -61,8 +61,6 @@ const Dashboard = () => {
           setLoadingQuestionnaires(true);
           const data = await questionnaireAssignmentService.getMyAssignments();
           
-          console.log('Raw assignment data:', data); // Debug log
-          
           // Ensure data is an array and filter out any invalid entries
           const validAssignments = Array.isArray(data) ? data.filter((item: any) => {
             const isValid = item && typeof item === 'object' && 
@@ -85,8 +83,6 @@ const Dashboard = () => {
             createdAt: item.createdAt,
             updatedAt: item.updatedAt
           })) : [];
-          
-          console.log('Processed assignments:', validAssignments); // Debug log
           
           setAssignments(validAssignments);
           

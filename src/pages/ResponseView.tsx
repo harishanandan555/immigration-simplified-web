@@ -131,10 +131,6 @@ const ResponseView: React.FC = () => {
   const location = useLocation();
   const { user } = useAuth();
   
-  // Debug log to see when component mounts and what location state we have
-  // console.log('ResponseView component mounted - ID:', id);
-  // console.log('ResponseView component mounted - Location state:', location.state);
-  
   const [assignment, setAssignment] = useState<QuestionnaireAssignment | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,12 +159,7 @@ const ResponseView: React.FC = () => {
       // Check if assignment data was passed from QuestionnaireResponses page
       const navigationState = location.state as NavigationState | null;
       
-      // console.log('ResponseView - Navigation state:', navigationState);
-      // console.log('ResponseView - Location:', location);
-      
       if (navigationState?.assignmentData && navigationState?.fromQuestionnaireResponses) {
-        // Use the passed assignment data to avoid refetching
-        // console.log('Using passed assignment data from QuestionnaireResponses:', navigationState.assignmentData);
         
         // Normalize the assignment data to ensure proper mapping
         const normalizedAssignment = normalizeAssignmentData(
@@ -176,14 +167,10 @@ const ResponseView: React.FC = () => {
           navigationState.responseData
         );
         
-        console.log('Setting assignment from navigation state:', normalizedAssignment);
         setAssignment(normalizedAssignment);
         setError(null);
         return;
       }
-      
-      // Fallback to API fetch if no navigation state data
-      console.log('No navigation state data, fetching from API...');
       
       // Use the dedicated endpoint to get assignment with response data
       const responseData = await questionnaireAssignmentService.getAssignmentResponse(id as string);
@@ -195,8 +182,6 @@ const ResponseView: React.FC = () => {
       }
       
       const assignmentData = responseData.data;
-      
-      console.log('Setting assignment from API fetch:', assignmentData);
       setAssignment(assignmentData);
       setError(null);
     } catch (err: any) {
@@ -274,12 +259,8 @@ const ResponseView: React.FC = () => {
 
   // Helper to get response info from either structure  
   const getResponseInfo = (assignment: QuestionnaireAssignment) => {
-    console.log('getResponseInfo - assignment.response:', assignment.response);
-    console.log('getResponseInfo - assignment.responseId:', assignment.responseId);
-    
     // Try different response sources in order of preference
     const responseInfo = assignment.response || assignment.responseId;
-    console.log('getResponseInfo - selected responseInfo:', responseInfo);
     
     return responseInfo;
   };
@@ -351,10 +332,6 @@ const ResponseView: React.FC = () => {
       notes: assignmentData.notes
     };
 
-    console.log('Normalized assignment data:', normalizedAssignment);
-    console.log('Normalized assignment - response:', normalizedAssignment.response);
-    console.log('Normalized assignment - responseId:', normalizedAssignment.responseId);
-    
     return normalizedAssignment;
   };
 
@@ -496,11 +473,6 @@ const ResponseView: React.FC = () => {
   const responseInfo = getResponseInfo(assignment);
   const questionnaireInfo = getQuestionnaireInfo(assignment);
   
-  // Debug logging to see what we have
-  console.log('ResponseView - Assignment:', assignment);
-  console.log('ResponseView - responseInfo:', responseInfo);
-  console.log('ResponseView - questionnaireInfo:', questionnaireInfo);
-  
   // Extract responses with multiple fallback strategies
   let responses = {};
   
@@ -518,14 +490,6 @@ const ResponseView: React.FC = () => {
   
   const fields = questionnaireInfo?.fields || [];
   
-  console.log('ResponseView - extracted responses:', responses);
-  console.log('ResponseView - fields:', fields);
-  console.log('ResponseView - response extraction logic:', {
-    'responseInfo?.responses exists': !!responseInfo?.responses,
-    'responseInfo type': typeof responseInfo,
-    'responseInfo keys': responseInfo ? Object.keys(responseInfo) : 'none'
-  });
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
