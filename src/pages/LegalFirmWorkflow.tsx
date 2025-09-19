@@ -51,11 +51,8 @@ import {
   checkEmailExists,
   createFormDetails,
   assignQuestionnaireToFormDetails,
-  fetchQuestionnaireAssignments,
   createQuestionnaireAssignment,
   submitImmigrationProcess,
-  getWorkflowResumptionParams,
-  clearWorkflowResumptionParams,
   generateMultipleCaseIds,
   validateFormData,
   formatCaseId,
@@ -63,7 +60,6 @@ import {
   Case,
   QuestionnaireAssignment,
   FormData,
-  WorkflowData,
   ImmigrationProcessPayload
 } from '../controllers/LegalFirmWorkflowController';
 
@@ -148,6 +144,18 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     createdAt: ''
   });
 
+  // DEBUG: Log client state at render level
+  console.log('🔍 DEBUG: Component render - current client state:', {
+    clientId: client?.id,
+    clientName: client?.name,
+    clientEmail: client?.email,
+    isExistingClient: client?.isExistingClient,
+    hasUserAccount: client?.hasUserAccount,
+    role: client?.role,
+    userType: client?.userType,
+    timestamp: new Date().toISOString()
+  });
+
   // Existing clients (from API)
   const [existingClients, setExistingClients] = useState<Client[]>([]);
   const [selectedExistingClientId, setSelectedExistingClientId] = useState('');
@@ -189,7 +197,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [clientResponses, setClientResponses] = useState<Record<string, any>>({});
 
   // Form details
-  const [formDetails, setFormDetails] = useState<FormData[]>([]);
+  const [formDetails] = useState<FormData[]>([]);
 
   // State for client credentials
   const [clientCredentials, setClientCredentials] = useState({
@@ -197,6 +205,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     password: '',
     createAccount: false
   });
+
+  // State for existing client response reuse functionality
+  const [existingQuestionnaireResponses, setExistingQuestionnaireResponses] = useState<any[]>([]);
+  const [selectedExistingResponse, setSelectedExistingResponse] = useState<string>('');
+  const [useExistingResponse, setUseExistingResponse] = useState(false);
+  const [, setIsExistingResponse] = useState(false);
+  const [, setLoadingExistingResponses] = useState(false);
 
   // State for form details ID (backend integration)
   const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
@@ -208,7 +223,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [autoFillingFormDetails, setAutoFillingFormDetails] = useState(false);
 
   // State to track if we're in view/edit mode from QuestionnaireResponses
-  const [isViewEditMode, setIsViewEditMode] = useState(false);
+  const [isViewEditMode] = useState(false);
 
   // State to track if this is a new response or existing response
   // const [isNewResponse, setIsNewResponse] = useState(true);
@@ -252,6 +267,53 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     // Load workflows after a brief delay to allow other data to load first
     setTimeout(loadWorkflowsForAutoFill, 1000);
   }, []);
+
+  // Monitor client state changes for debugging
+  useEffect(() => {
+    console.log('🔍 DEBUG: Client state changed - monitoring flags:', {
+      clientId: client?.id,
+      clientName: client?.name,
+      clientEmail: client?.email,
+      isExistingClient: client?.isExistingClient,
+      hasUserAccount: client?.hasUserAccount,
+      role: client?.role,
+      userType: client?.userType,
+      timestamp: new Date().toISOString(),
+      changeSource: 'useEffect monitoring'
+    });
+  }, [client.isExistingClient, client.hasUserAccount, client.id, client.email]);
+
+  // Emergency safety check to fix undefined flags for existing clients
+  useEffect(() => {
+    // EMERGENCY SAFETY CHECK: If we have a client ID and it's from selectedExistingClientId, force the flags
+    const isDefinitelyExistingClient = (
+      selectedExistingClientId && 
+      client.id && 
+      (client.id === selectedExistingClientId || client._id === selectedExistingClientId)
+    );
+    
+    if (isDefinitelyExistingClient && (client.isExistingClient !== true || client.hasUserAccount !== true)) {
+      console.log('🚨 DEBUG: EMERGENCY SAFETY - Detected existing client with undefined flags, FORCING correction:', {
+        selectedExistingClientId,
+        clientId: client.id,
+        clientIdMatch: client.id === selectedExistingClientId,
+        currentFlags: {
+          isExistingClient: client.isExistingClient,
+          hasUserAccount: client.hasUserAccount
+        },
+        forcingToTrue: true
+      });
+      
+      // Force update the client state immediately
+      setClient((prev: any) => ({
+        ...prev,
+        isExistingClient: true,
+        hasUserAccount: true,
+        role: prev.role || 'client',
+        userType: prev.userType || 'companyClient'
+      }));
+    }
+  }, [selectedExistingClientId, client.id, client._id, client.isExistingClient, client.hasUserAccount]);
 
   // Auto-fill form details when user reaches step 6 (Form Details)
   useEffect(() => {
@@ -372,208 +434,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         window.history.replaceState({}, '', url);
       }
 
-      // Check sessionStorage for workflow resumption
-      const resumeData = sessionStorage.getItem('resumeWorkflow');
-      if (resumeData) {
-        try {
-          const { workflowId } = JSON.parse(resumeData);
-
-          resumeWorkflow(workflowId);
-          sessionStorage.removeItem('resumeWorkflow');
-        } catch (error) {
-
-          sessionStorage.removeItem('resumeWorkflow');
-        }
-      }
+      // Removed sessionStorage workflow resumption - API only workflow management
     };
 
     // Delay check to allow questionnaires to load first
     setTimeout(checkForWorkflowResumption, 1000);
   }, []);
 
-  // Separate effect to handle pre-filled data after questionnaires are loaded
-  useEffect(() => {
-    if (availableQuestionnaires.length === 0) return; // Wait for questionnaires to be loaded
-
-    const workflowData = sessionStorage.getItem('legalFirmWorkflowData');
-    if (workflowData) {
-      try {
-        const data = JSON.parse(workflowData);
-
-        // Check if we have the questionnaire in our available questionnaires
-        let foundQuestionnaire = availableQuestionnaires.find(q =>
-          q._id === data.questionnaireId ||
-          q.id === data.questionnaireId ||
-          q.originalId === data.questionnaireId ||
-          // Fuzzy matching for similar IDs
-          (q.id && q.id.replace(/^q_/, '').substring(0, 20) === data.questionnaireId.replace(/^q_/, '').substring(0, 20))
-        );
-
-        // If not found and we have field data, create a temporary questionnaire
-        if (!foundQuestionnaire) {
-          // If we have fields from the response data, use them
-          const fieldsToUse = data.fields && data.fields.length > 0 ? data.fields : [
-            // Create basic fields from the existing responses
-            ...Object.keys(data.existingResponses || {}).map((key, index) => ({
-              id: key,
-              type: 'text',
-              label: `Question ${index + 1}`,
-              question: key,
-              required: false,
-              options: []
-            }))
-          ];
-
-          foundQuestionnaire = {
-            _id: data.questionnaireId,
-            id: data.questionnaireId,
-            title: data.questionnaireTitle || 'Imported Questionnaire',
-            description: 'Loaded from existing response data',
-            category: 'imported',
-            fields: fieldsToUse,
-            apiQuestionnaire: true
-          };
-
-          // Add it to available questionnaires
-          setAvailableQuestionnaires(prev => [...prev, foundQuestionnaire]);
-        }
-
-        // Auto-fill workflow steps progressively from step 2 to targetStep
-        const autoFillSteps = async () => {
-          // Step 1: Client Information (index 1)
-          if (data.workflowClient) {
-            setClient({
-              id: data.clientId || '',
-              name: data.workflowClient.name || `${data.workflowClient.firstName || ''} ${data.workflowClient.lastName || ''}`.trim(),
-              firstName: data.workflowClient.firstName || data.clientName.split(' ')[0] || '',
-              lastName: data.workflowClient.lastName || data.clientName.split(' ').slice(1).join(' ') || '',
-              email: data.workflowClient.email || data.clientEmail,
-              phone: data.workflowClient.phone || '',
-              address: data.workflowClient.address || {
-                street: '',
-                city: '',
-                state: '',
-                zipCode: '',
-                country: 'United States'
-              },
-              dateOfBirth: data.workflowClient.dateOfBirth || '',
-              nationality: data.workflowClient.nationality || '',
-              status: 'active',
-              createdAt: new Date().toISOString()
-            });
-          } else {
-            // Fallback to basic client data
-            setClient((prev: any) => ({
-              ...prev,
-              id: data.clientId,
-              firstName: data.clientName.split(' ')[0] || '',
-              lastName: data.clientName.split(' ').slice(1).join(' ') || '',
-              email: data.clientEmail
-            }));
-          }
-
-          // Step 2: Case Information (index 2)
-          if (data.workflowCase) {
-            setCaseData({
-              id: data.workflowCase.id || data.workflowCase._id || generateObjectId(),
-              _id: data.workflowCase._id || data.workflowCase.id,
-              clientId: data.clientId,
-              title: data.workflowCase.title || 'Case',
-              description: data.workflowCase.description || '',
-              category: data.workflowCase.category || 'family-based',
-              subcategory: data.workflowCase.subcategory || '',
-              status: data.workflowCase.status || 'draft',
-              priority: data.workflowCase.priority || 'medium',
-              assignedForms: [],
-              questionnaires: [data.questionnaireId],
-              createdAt: new Date().toISOString(),
-              dueDate: data.workflowCase.dueDate || '',
-              visaType: data.workflowCase.visaType || '',
-              priorityDate: data.workflowCase.priorityDate || '',
-              openDate: data.workflowCase.openDate || ''
-            });
-          }
-
-          // Step 1: Form Selection (index 1)
-          if (data.selectedForms && data.selectedForms.length > 0) {
-            setSelectedForms(data.selectedForms);
-
-            if (data.formCaseIds) {
-              setFormCaseIds(data.formCaseIds);
-            }
-          }
-
-          // Step 3: Questionnaire Assignment (index 3) 
-          if (data.questionnaireId) {
-            setSelectedQuestionnaire(data.questionnaireId);
-
-            // Create a questionnaire assignment for the answers collection step
-            const assignment: QuestionnaireAssignment = {
-              id: data.originalAssignmentId || 'temp-assignment',
-              caseId: data.workflowCase?.id || data.workflowCase?._id || '',
-              clientId: data.clientId,
-              questionnaireId: data.questionnaireId,
-              questionnaireName: data.questionnaireTitle || 'Questionnaire',
-              status: 'in-progress',
-              assignedAt: new Date().toISOString(),
-              responses: data.existingResponses || {},
-              clientEmail: data.clientEmail,
-              selectedForms: data.selectedForms || [],
-              formCaseIds: data.formCaseIds || {}
-            };
-
-            setQuestionnaireAssignment(assignment);
-          }
-
-          // Step 4: Responses (index 4) - Set existing responses if in edit mode
-          if (data.mode === 'edit' && data.existingResponses) {
-            setClientResponses(data.existingResponses);
-
-            // Set as existing response workflow
-            setIsExistResponse(true);
-            // setIsNewResponse(false);
-          }
-
-          // Set client credentials if available
-          if (data.clientCredentials) {
-            setClientCredentials({
-              email: data.clientCredentials.email || data.clientEmail,
-              password: '',
-              createAccount: data.clientCredentials.createAccount || true
-            });
-          }
-
-          // For existing responses, start at step 0 (Review Responses)
-          // For new responses, start at step 1 (Client Information)
-          const startStep = data.mode === 'edit' ? 0 : 1; // Review Responses for edit mode, Client Information for new
-          const targetStepIndex = data.targetStep || (data.mode === 'edit' ? 2 : 6); // Default to Form Details for edit, Auto-fill for new
-
-          setCurrentStep(startStep);
-
-          // Show success message
-          if (data.autoFillMode) {
-            setIsViewEditMode(true); // Set view/edit mode for simple navigation
-          } else if (data.mode === 'edit') {
-            setIsExistResponse(true);
-            // setIsNewResponse(false);
-            toast.success(`Loaded existing responses for ${data.clientName}`);
-          } else {
-            // setIsNewResponse(true);
-            setIsExistResponse(false);
-          }
-        };
-
-        // Execute auto-fill after a small delay to ensure UI is ready
-        setTimeout(autoFillSteps, 500);
-
-        // Clear the session storage after using it
-        sessionStorage.removeItem('legalFirmWorkflowData');
-
-      } catch (error) {
-        sessionStorage.removeItem('legalFirmWorkflowData');
-      }
-    }
-  }, [availableQuestionnaires]);
+  // Removed sessionStorage workflow data loading - API only workflow management
 
   // Load available form templates for Select Forms screen
   useEffect(() => {
@@ -624,8 +492,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     const loadClients = async () => {
       setFetchingClients(true);
 
-      // Test API connection first
-      const token = localStorage.getItem('token');
+      // Note: token can be used for API auth if needed
 
       try {
         const apiResponse = await fetchClientsFromAPI();
@@ -701,7 +568,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       } catch (err) {
         console.error('❌ Error loading clients from API:', err);
 
-        // No localStorage fallback - just set empty array
+        // API-only mode - no fallback available
         setExistingClients([]);
       } finally {
         setFetchingClients(false);
@@ -833,9 +700,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const nextStepConfig = workflowSteps[nextStep];
       if (nextStepConfig?.id === 'answers' && autoFillEnabled) {
         // Trigger auto-fill with a slight delay to allow step transition
-        setTimeout(() => {
-          const clientEmail = client.email || clientCredentials.email;
-          findAndAutoFillWorkflow(clientEmail);
+        setTimeout(async () => {
+          try {
+            const clientEmail = client.email || clientCredentials.email;
+            await findAndAutoFillWorkflow(clientEmail);
+          } catch (error) {
+            console.error('❌ DEBUG: Error in delayed auto-fill:', error);
+          }
         }, 500);
       }
     }
@@ -851,6 +722,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   const handleClientSubmit = async () => {
 
+    // Check if this is an existing client - if so, skip all account creation
+    const isExistingClientWithAccount = client.isExistingClient || client.hasUserAccount;
+    
+    if (isExistingClientWithAccount) {
+      console.log('✅ DEBUG: Existing client detected in handleClientSubmit - skipping all account creation steps:', {
+        clientId: client.id,
+        clientName: client.name,
+        clientEmail: client.email,
+        isExistingClient: client.isExistingClient,
+        hasUserAccount: client.hasUserAccount
+      });
+      
+      // For existing clients, just proceed to next step without creating any account
+      handleNext();
+      return client.id || client._id; // Return existing client ID
+    }
 
     // Ensure client has first and last name
     if (!client.firstName || client.firstName.trim() === '') {
@@ -916,9 +803,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Helper function to create client account with provided credentials
   const createClientAccountWithCredentials = async (clientEmail: string, clientPassword: string) => {
-    // Use the firstName and lastName from the client state directly
-    const firstName = client.firstName.trim();
-    const lastName = client.lastName.trim();
+    // Validate client name fields are available
+    if (!client.firstName?.trim() || !client.lastName?.trim()) {
+      throw new Error('Client first name and last name are required');
+    }
 
     try {
 
@@ -988,7 +876,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setClient(updatedClient);
 
       try {
-        // Get companyId from attorney's localStorage
+        // Get companyId from attorney's session
         const attorneyCompanyId = localStorage.getItem('companyId');
         if (!attorneyCompanyId) {
           throw new Error('Attorney company ID not found. Please ensure you are logged in as an attorney.');
@@ -1015,7 +903,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           },
           role: 'client',
           userType: 'companyClient',
-          companyId: attorneyCompanyId, // Get from attorney's localStorage
+          companyId: attorneyCompanyId, // Attorney's company from session
           attorneyIds: attorneyIds, // Current attorney's ID
           dateOfBirth: client.dateOfBirth || '',
           placeOfBirth: client.placeOfBirth ? {
@@ -1266,8 +1154,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Check token availability
       if (!token) {
+        console.log('⚠️ DEBUG: No authentication token available');
         return [];
       }
+
+      console.log('🔄 DEBUG: Requesting workflows from API...');
 
       // Request workflows from API
       const workflows = await fetchWorkflows({
@@ -1276,20 +1167,29 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         offset: 0
       });
 
+      // Ensure workflows is always an array
+      if (!Array.isArray(workflows)) {
+        console.warn('⚠️ DEBUG: fetchWorkflows did not return an array:', typeof workflows, workflows);
+        return [];
+      }
+
       if (workflows.length > 0) {
+        console.log('✅ DEBUG: Retrieved workflows from API:', workflows.length);
         return workflows;
       } else {
+        console.log('⚠️ DEBUG: No workflows found from API');
         return [];
       }
 
     } catch (error: any) {
+      console.error('❌ DEBUG: Error in fetchWorkflowsFromAPI:', error);
       // If 404, the endpoint might not be available
       if (error.response?.status === 404) {
-        // Server workflows endpoint not found
+        console.log('⚠️ DEBUG: Server workflows endpoint not found');
       } else if (error.response?.status === 401) {
-        // Authentication failed
+        console.log('⚠️ DEBUG: Authentication failed');
       } else {
-        // Other API error
+        console.log('⚠️ DEBUG: Other API error:', error.message);
       }
 
       return [];
@@ -1297,6 +1197,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // setLoadingWorkflows(false);
     }
   };
+
 
   // Function to fetch existing clients from workflows collection
   const fetchClientsFromWorkflows = async (searchQuery?: string) => {
@@ -1321,7 +1222,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Extract unique clients from workflows
         const clientsMap = new Map();
 
-        workflows.forEach((workflow: any, index: number) => {
+        workflows.forEach((workflow: any) => {
           
 
           if (workflow.client) {
@@ -1392,14 +1293,358 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
   };
 
+  // Fetch existing questionnaire responses for existing clients
+  const fetchExistingQuestionnaireResponses = async (clientId: string) => {
+    try {
+      setLoadingExistingResponses(true);
+      console.log('🔄 DEBUG: Fetching existing questionnaire responses for client:', clientId);
+
+      // Import the api utility to use consistent configuration
+      const { default: api } = await import('../utils/api');
+      
+      // Try multiple API endpoints to find questionnaire responses
+      const possibleEndpoints = [
+        `/api/v1/questionnaire-responses?client_id=${clientId}`,
+        `/api/v1/questionnaire-responses?clientId=${clientId}`,
+        `/api/questionnaire-responses?client_id=${clientId}`,
+        `/questionnaire-responses?client_id=${clientId}`,
+        `/api/v1/questionnaire-responses`
+      ];
+
+      let allResponses: any[] = [];
+      
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log(`🔄 DEBUG: Trying endpoint: ${endpoint}`);
+          const response = await api.get(endpoint);
+          
+          console.log(`✅ DEBUG: Response from ${endpoint}:`, {
+            status: response.status,
+            hasData: !!response.data,
+            dataType: typeof response.data,
+            dataKeys: response.data ? Object.keys(response.data) : [],
+            dataStructure: response.data
+          });
+
+          if (response.data) {
+            const result = response.data;
+            let responses = result.data || result.responses || result || [];
+            
+            // If we got all responses, filter by client ID
+            if (Array.isArray(responses)) {
+              const clientResponses = responses.filter((r: any) => {
+                const responseClientId = r.clientId || r.client_id || r.client?.id || r.client?._id;
+                console.log(`🔍 DEBUG: Checking response client ID:`, {
+                  responseId: r.id || r._id,
+                  responseClientId,
+                  targetClientId: clientId,
+                  matches: responseClientId === clientId
+                });
+                return responseClientId === clientId;
+              });
+              
+              console.log(`✅ DEBUG: Found ${clientResponses.length} responses for client from ${endpoint}`);
+              allResponses = [...allResponses, ...clientResponses];
+            }
+          }
+        } catch (endpointError: any) {
+          console.log(`⚠️ DEBUG: Endpoint ${endpoint} failed:`, endpointError.message);
+        }
+      }
+
+      // Remove duplicates based on response ID
+      const uniqueResponses = allResponses.filter((response, index, arr) => {
+        const responseId = response.id || response._id;
+        return arr.findIndex(r => (r.id || r._id) === responseId) === index;
+      });
+      
+      console.log('✅ DEBUG: Final unique questionnaire responses found:', {
+        clientId,
+        totalResponses: allResponses.length,
+        uniqueResponses: uniqueResponses.length,
+        responses: uniqueResponses.map((r: any) => ({
+          id: r.id || r._id,
+          questionnaireTitle: r.questionnaireTitle || r.questionnaire?.title || 'Unknown',
+          submittedAt: r.submittedAt || r.createdAt,
+          responseCount: Object.keys(r.responses || {}).length,
+          clientId: r.clientId || r.client_id
+        }))
+      });
+
+      setExistingQuestionnaireResponses(uniqueResponses);
+      
+      // Also try to fetch workflow-specific responses for this client
+      console.log('🔄 DEBUG: Also checking for workflow-specific responses');
+      await fetchWorkflowQuestionnaireResponses(clientId);
+      
+      return uniqueResponses;
+    } catch (error) {
+      console.error('❌ Error fetching existing questionnaire responses:', error);
+      setExistingQuestionnaireResponses([]);
+      return [];
+    } finally {
+      setLoadingExistingResponses(false);
+    }
+  };
+
+  // New function to fetch questionnaire responses specifically from workflow data
+  const fetchWorkflowQuestionnaireResponses = async (clientId: string) => {
+    try {
+      console.log('🔄 DEBUG: Fetching workflow-specific questionnaire responses for client:', clientId);
+      
+      // Try to find workflow data for this client that might contain questionnaire responses
+      const apiWorkflows = await fetchWorkflowsFromAPI();
+      
+      if (Array.isArray(apiWorkflows)) {
+        // More flexible client matching
+        const clientWorkflows = apiWorkflows.filter((w: any) => {
+          const workflowClientId = w.clientId || w.client?.id || w.client?._id;
+          const workflowClientEmail = w.client?.email;
+          const currentClientEmail = client.email;
+          
+          // Handle empty string clientId in workflow
+          const hasValidWorkflowClientId = workflowClientId && workflowClientId.trim() !== '';
+          const idMatch = hasValidWorkflowClientId && workflowClientId === clientId;
+          const emailMatch = workflowClientEmail && currentClientEmail && workflowClientEmail.toLowerCase() === currentClientEmail.toLowerCase();
+          
+          // Also check if the workflow client ID matches the target client's ID from the workflow's client object
+          const workflowInternalClientId = w.client?.id || w.client?._id;
+          const internalIdMatch = workflowInternalClientId && workflowInternalClientId === clientId;
+          
+          console.log('🔍 DEBUG: Checking workflow for client match:', {
+            workflowId: w.id || w._id,
+            workflowClientId: workflowClientId || 'empty/undefined',
+            workflowInternalClientId: workflowInternalClientId || 'empty/undefined',
+            workflowClientEmail,
+            targetClientId: clientId,
+            targetClientEmail: currentClientEmail,
+            hasValidWorkflowClientId,
+            idMatch,
+            internalIdMatch,
+            emailMatch,
+            overallMatch: idMatch || emailMatch || internalIdMatch
+          });
+          
+          return idMatch || emailMatch || internalIdMatch;
+        });
+        
+        console.log('🔄 DEBUG: Found workflows for client:', {
+          clientId,
+          clientEmail: client.email,
+          totalWorkflows: apiWorkflows.length,
+          matchingWorkflows: clientWorkflows.length,
+          workflowIds: clientWorkflows.map((w: any) => w.id || w._id)
+        });
+        
+        // Check each workflow for questionnaire responses
+        for (const workflow of clientWorkflows) {
+          console.log('🔍 DEBUG: Checking workflow for questionnaire data:', {
+            workflowId: workflow.id || workflow._id,
+            hasQuestionnaireAssignment: !!workflow.questionnaireAssignment,
+            hasResponses: !!workflow.responses,
+            hasResponsesData: workflow.responses ? Object.keys(workflow.responses).length > 0 : false,
+            currentStep: workflow.currentStep,
+            status: workflow.status
+          });
+          
+          if (workflow.questionnaireAssignment && workflow.responses && Object.keys(workflow.responses).length > 0) {
+            console.log('✅ DEBUG: Found workflow with questionnaire responses:', {
+              workflowId: workflow.id || workflow._id,
+              questionnaireTitle: workflow.questionnaireAssignment.questionnaire_title,
+              responseCount: Object.keys(workflow.responses || {}).length,
+              responseFields: Object.keys(workflow.responses)
+            });
+            
+            // Load this workflow's questionnaire responses
+            const loadedResponse = await loadPreviousQuestionnaireFromWorkflow(workflow);
+            if (loadedResponse) {
+              console.log('✅ DEBUG: Successfully loaded workflow questionnaire response');
+            }
+          } else {
+            console.log('⚠️ DEBUG: Workflow does not have complete questionnaire data:', {
+              workflowId: workflow.id || workflow._id,
+              missingQuestionnaireAssignment: !workflow.questionnaireAssignment,
+              missingResponses: !workflow.responses,
+              emptyResponses: workflow.responses ? Object.keys(workflow.responses).length === 0 : 'no responses object'
+            });
+          }
+        }
+      } else {
+        console.log('⚠️ DEBUG: apiWorkflows is not an array:', typeof apiWorkflows, apiWorkflows);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching workflow questionnaire responses:', error);
+    }
+  };
+
+  // Function to detect and load previous questionnaire responses from workflow data
+  const loadPreviousQuestionnaireFromWorkflow = async (workflowData: any) => {
+    try {
+      console.log('🔄 DEBUG: ========== LOADING PREVIOUS QUESTIONNAIRE FROM WORKFLOW ==========');
+      console.log('🔄 DEBUG: Checking for previous questionnaire responses in workflow data:', {
+        hasQuestionnaireAssignment: !!workflowData.questionnaireAssignment,
+        hasTopLevelResponses: !!workflowData.responses,
+        hasNestedResponses: !!(workflowData.questionnaireAssignment?.responses),
+        currentStep: workflowData.currentStep,
+        workflowStructure: {
+          questionnaireAssignment: workflowData.questionnaireAssignment ? Object.keys(workflowData.questionnaireAssignment) : 'None',
+          topLevelResponsesKeys: workflowData.responses ? Object.keys(workflowData.responses) : 'None'
+        }
+      });
+
+      let responsesData = null;
+      let questionnaireAssignmentData = workflowData.questionnaireAssignment;
+
+      // Check for responses in multiple locations
+      if (workflowData.questionnaireAssignment?.responses && Object.keys(workflowData.questionnaireAssignment.responses).length > 0) {
+        console.log('✅ DEBUG: Found responses in questionnaireAssignment.responses');
+        responsesData = workflowData.questionnaireAssignment.responses;
+      } else if (workflowData.responses && Object.keys(workflowData.responses).length > 0) {
+        console.log('✅ DEBUG: Found responses in top-level responses');
+        responsesData = workflowData.responses;
+      }
+
+      console.log('🔍 DEBUG: Response data analysis:', {
+        foundResponses: !!responsesData,
+        responseLocation: responsesData ? (workflowData.questionnaireAssignment?.responses ? 'questionnaireAssignment.responses' : 'top-level responses') : 'none',
+        responseCount: responsesData ? Object.keys(responsesData).length : 0,
+        responseKeys: responsesData ? Object.keys(responsesData) : [],
+        responsesData: responsesData
+      });
+
+      // Check if the workflow has questionnaire assignment and responses
+      if (questionnaireAssignmentData && responsesData && Object.keys(responsesData).length > 0) {
+        const questionnaireResponse = {
+          id: questionnaireAssignmentData.response_id || `response_${Date.now()}`,
+          _id: questionnaireAssignmentData.response_id,
+          questionnaireId: questionnaireAssignmentData.questionnaire_id,
+          questionnaireTitle: questionnaireAssignmentData.questionnaire_title || 'Previous Questionnaire',
+          responses: responsesData,
+          submittedAt: questionnaireAssignmentData.submitted_at || responsesData.submitted_at || new Date().toISOString(),
+          isComplete: questionnaireAssignmentData.is_complete || responsesData.is_complete || false,
+          clientId: client.id,
+          caseId: workflowData.case?.id || 'previous-case',
+          // Additional workflow data
+          assignmentId: questionnaireAssignmentData.assignment_id,
+          attorneyId: questionnaireAssignmentData.attorney_id,
+          notes: questionnaireAssignmentData.notes,
+          formType: questionnaireAssignmentData.formType,
+          formCaseIdGenerated: questionnaireAssignmentData.formCaseIdGenerated
+        };
+
+        console.log('✅ DEBUG: ========== QUESTIONNAIRE RESPONSE CREATED ==========');
+        console.log('✅ DEBUG: Created questionnaire response object:', {
+          responseId: questionnaireResponse.id,
+          questionnaireTitle: questionnaireResponse.questionnaireTitle,
+          questionnaireId: questionnaireResponse.questionnaireId,
+          responseCount: Object.keys(questionnaireResponse.responses).length,
+          isComplete: questionnaireResponse.isComplete,
+          submittedAt: questionnaireResponse.submittedAt,
+          assignmentId: questionnaireResponse.assignmentId,
+          responseFields: Object.entries(questionnaireResponse.responses).map(([key, value]) => ({
+            field: key,
+            value: value,
+            type: typeof value
+          }))
+        });
+
+        // Add this response to the existing questionnaire responses
+        setExistingQuestionnaireResponses(prev => {
+          // Check if this response already exists to avoid duplicates
+          const existingIndex = prev.findIndex(r => r.id === questionnaireResponse.id);
+          if (existingIndex >= 0) {
+            console.log('🔄 DEBUG: Updating existing response in state');
+            // Update existing response
+            const updated = [...prev];
+            updated[existingIndex] = questionnaireResponse;
+            return updated;
+          } else {
+            console.log('🔄 DEBUG: Adding new response to state');
+            // Add new response
+            return [questionnaireResponse, ...prev];
+          }
+        });
+
+        // Auto-select the previous response for convenience
+        console.log('🔄 DEBUG: Auto-selecting previous response');
+        setSelectedExistingResponse(questionnaireResponse.id);
+        setUseExistingResponse(true);
+        
+        // Load the responses into the form
+        console.log('🔄 DEBUG: Loading responses into form state');
+        setClientResponses(questionnaireResponse.responses);
+        setIsExistingResponse(true);
+
+        toast.success(`Previous questionnaire response loaded: ${questionnaireResponse.questionnaireTitle}`);
+        
+        console.log('✅ DEBUG: ========== QUESTIONNAIRE LOADING COMPLETED ==========');
+        return questionnaireResponse;
+      } else {
+        console.log('⚠️ DEBUG: ========== NO QUESTIONNAIRE RESPONSES FOUND ==========');
+        console.log('⚠️ DEBUG: Missing data analysis:', {
+          hasQuestionnaireAssignment: !!questionnaireAssignmentData,
+          hasResponses: !!responsesData,
+          responseCount: responsesData ? Object.keys(responsesData).length : 0,
+          missingQuestionnaireAssignment: !questionnaireAssignmentData,
+          missingResponses: !responsesData,
+          emptyResponses: responsesData ? Object.keys(responsesData).length === 0 : 'no responses object'
+        });
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ ERROR: Failed to load previous questionnaire from workflow:', error);
+      return null;
+    }
+  };
+
   // Function to auto-fill workflow data from saved workflows
+  // Function to auto-fill ONLY CLIENT DATA - no other workflow data
   const autoFillFromSavedWorkflow = async (workflowData: any) => {
     try {
-      // Log workflow data for debugging
+      console.log('🔄 DEBUG: ========== AUTO-FILLING CLIENT DATA FROM WORKFLOW ==========');
+      console.log('🔄 DEBUG: Current client state before auto-fill:', {
+        currentClientFlags: {
+          isExistingClient: client.isExistingClient,
+          hasUserAccount: client.hasUserAccount,
+          role: client.role,
+          userType: client.userType
+        },
+        currentClientId: client.id,
+        currentClientEmail: client.email,
+        currentClientName: client.name
+      });
+      
+      // SAFETY CHECK: If client is already marked as existing, DO NOT OVERRIDE
+      if (client.isExistingClient === true || client.hasUserAccount === true) {
+        console.log('🛡️ DEBUG: SAFETY CHECK - Client already marked as existing, SKIPPING workflow auto-fill to preserve flags:', {
+          isExistingClient: client.isExistingClient,
+          hasUserAccount: client.hasUserAccount,
+          clientId: client.id,
+          clientEmail: client.email,
+          reason: 'Preserving existing client flags - no auto-fill needed'
+        });
+        toast.success('Existing client detected - preserving account status');
+        return;
+      }
+      
+      console.log('🔄 DEBUG: Auto-filling ONLY client data for Create Client step - SKIPPING all other data:', {
+        hasClient: !!workflowData.client,
+        willSkipCase: true,
+        willSkipForms: true,
+        willSkipQuestionnaire: true,
+        willSkipAllOtherData: true
+      });
 
-      // Auto-fill client data
+      // ONLY auto-fill client data - absolutely nothing else
       if (workflowData.client) {
-        // Current client data
+        console.log('🔄 DEBUG: Auto-filling client data from workflow:', {
+          currentClientId: client.id,
+          workflowClientId: workflowData.client.id || workflowData.client._id,
+          workflowClientName: workflowData.client.name || `${workflowData.client.firstName} ${workflowData.client.lastName}`.trim(),
+          workflowClientEmail: workflowData.client.email,
+          workflowClientPhone: workflowData.client.phone,
+          workflowClientAddress: workflowData.client.address
+        });
 
         const newClientData = {
           ...client,
@@ -1414,192 +1659,620 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           lastName: workflowData.client.lastName || client.lastName,
           email: workflowData.client.email || client.email,
           phone: workflowData.client.phone || client.phone,
-          // Explicitly handle complete address information
+          // Explicitly handle complete address information from workflow
           address: {
-            street: '',
-            aptSuiteFlr: '',
-            aptNumber: '',
-            city: '',
-            state: '',
-            zipCode: '',
-            province: '',
-            postalCode: '',
-            country: 'United States',
-            ...(client.address || {}),
-            ...(workflowData.client.address || {})
+            street: workflowData.client.address?.street || client.address?.street || '',
+            aptSuiteFlr: workflowData.client.address?.aptSuiteFlr || client.address?.aptSuiteFlr || '',
+            aptNumber: workflowData.client.address?.aptNumber || client.address?.aptNumber || '',
+            city: workflowData.client.address?.city || client.address?.city || '',
+            state: workflowData.client.address?.state || client.address?.state || '',
+            zipCode: workflowData.client.address?.zipCode || client.address?.zipCode || '',
+            province: workflowData.client.address?.province || client.address?.province || '',
+            postalCode: workflowData.client.address?.postalCode || client.address?.postalCode || '',
+            country: workflowData.client.address?.country || client.address?.country || 'United States',
+            formattedAddress: workflowData.client.address?.formattedAddress || client.address?.formattedAddress
           },
           dateOfBirth: workflowData.client.dateOfBirth || client.dateOfBirth,
-          nationality: workflowData.client.nationality || client.nationality
+          nationality: workflowData.client.nationality || client.nationality,
+          status: workflowData.client.status || client.status,
+          // Additional fields from workflow
+          temporaryPassword: workflowData.client.temporaryPassword,
+          createdAt: workflowData.client.createdAt || client.createdAt,
+          // PRESERVE EXISTING CLIENT FLAGS - ABSOLUTE PRIORITY to preserve existing client status
+          // These flags should NEVER be overwritten if they were already set to true
+          // CRITICAL: If client.isExistingClient OR client.hasUserAccount is already true, KEEP IT TRUE
+          isExistingClient: (client.isExistingClient === true) ? true : 
+                          (client.isExistingClient || workflowData.client.isExistingClient || 
+                           (workflowData.client.id || workflowData.client._id ? true : false)),
+          hasUserAccount: (client.hasUserAccount === true) ? true : 
+                         (client.hasUserAccount || workflowData.client.hasUserAccount || 
+                          (workflowData.client.id || workflowData.client._id ? true : false)),
+          role: client.role || workflowData.client.role,
+          userType: client.userType || workflowData.client.userType
         };
+        
+        // CRITICAL DEBUG: Log flag preservation logic
+        console.log('🔍 DEBUG: FLAG PRESERVATION LOGIC:', {
+          originalClientFlags: {
+            isExistingClient: client.isExistingClient,
+            hasUserAccount: client.hasUserAccount,
+            isExistingClientStrictly: client.isExistingClient === true,
+            hasUserAccountStrictly: client.hasUserAccount === true
+          },
+          workflowClientFlags: {
+            isExistingClient: workflowData.client.isExistingClient,
+            hasUserAccount: workflowData.client.hasUserAccount,
+            hasWorkflowId: !!(workflowData.client.id || workflowData.client._id)
+          },
+          resultingFlags: {
+            isExistingClient: newClientData.isExistingClient,
+            hasUserAccount: newClientData.hasUserAccount
+          },
+          flagPreservationReason: {
+            existingClientPreserved: client.isExistingClient === true,
+            userAccountPreserved: client.hasUserAccount === true,
+            workflowIdDetected: !!(workflowData.client.id || workflowData.client._id)
+          }
+        });
 
-        // Client data updated
+        console.log('✅ DEBUG: Complete client data updated from workflow:', {
+          name: newClientData.name,
+          firstName: newClientData.firstName,
+          lastName: newClientData.lastName,
+          email: newClientData.email,
+          phone: newClientData.phone,
+          dateOfBirth: newClientData.dateOfBirth,
+          nationality: newClientData.nationality,
+          hasAddress: !!newClientData.address,
+          addressDetails: newClientData.address,
+          temporaryPassword: !!newClientData.temporaryPassword,
+          // IMPORTANT: Check existing client flags
+          isExistingClient: newClientData.isExistingClient,
+          hasUserAccount: newClientData.hasUserAccount,
+          role: newClientData.role,
+          userType: newClientData.userType,
+          preservedFromOriginalClient: {
+            isExistingClient: client.isExistingClient,
+            hasUserAccount: client.hasUserAccount
+          },
+          derivedFromWorkflow: {
+            hasWorkflowId: !!(workflowData.client.id || workflowData.client._id),
+            workflowClientId: workflowData.client.id || workflowData.client._id
+          }
+        });
+
         setClient(newClientData);
-        // Client data auto-filled
-      } else {
-        // No client data to auto-fill
-      }
-
-      // Auto-fill case data
-      if (workflowData.case) {
-        // Current and new case data
-
-        const newCaseData = {
-          ...caseData,
-          ...workflowData.case,
-          // Ensure we don't overwrite with undefined values
-          id: workflowData.case.id || caseData.id,
-          _id: workflowData.case._id || caseData._id,
-          title: workflowData.case.title || caseData.title,
-          description: workflowData.case.description || caseData.description,
-          category: workflowData.case.category || caseData.category,
-          subcategory: workflowData.case.subcategory || caseData.subcategory,
-          status: workflowData.case.status || caseData.status,
-          priority: workflowData.case.priority || caseData.priority,
-          dueDate: workflowData.case.dueDate || caseData.dueDate
-        };
-
-        // Case data updated
-        setCaseData(newCaseData);
-        // Case data auto-filled
-      } else {
-        // No case data to auto-fill
-      }
-
-      // Auto-fill selected forms
-      if (workflowData.selectedForms && Array.isArray(workflowData.selectedForms)) {
-        // Forms auto-filled
-        setSelectedForms(workflowData.selectedForms);
-      }
-
-      // Auto-fill form case IDs
-      if (workflowData.formCaseIds) {
-        // Form case IDs auto-filled
-        setFormCaseIds(workflowData.formCaseIds);
-      }
-
-      // Auto-fill questionnaire selection
-      if (workflowData.selectedQuestionnaire) {
-        // Questionnaire auto-filled
-        setSelectedQuestionnaire(workflowData.selectedQuestionnaire);
-      }
-
-      // Auto-fill client credentials (without password for security)
-      if (workflowData.clientCredentials) {
-        // Client credentials auto-filled
-        setClientCredentials({
-          ...clientCredentials,
-          email: workflowData.clientCredentials.email || clientCredentials.email,
-          createAccount: workflowData.clientCredentials.createAccount || clientCredentials.createAccount,
-          // Don't auto-fill password for security reasons
-          password: clientCredentials.password
+        
+        // Immediately verify the client flags were preserved
+        console.log('🔍 DEBUG: Client flags immediately after setClient:', {
+          isExistingClient: newClientData.isExistingClient,
+          hasUserAccount: newClientData.hasUserAccount,
+          role: newClientData.role,
+          userType: newClientData.userType,
+          clientId: newClientData.id,
+          clientEmail: newClientData.email
         });
-      }
-
-      // Auto-fill client responses if available
-      if (workflowData.clientResponses && Object.keys(workflowData.clientResponses).length > 0) {
-        // Client responses auto-filled
-        setClientResponses({
-          ...clientResponses,
-          ...workflowData.clientResponses
+        
+        // Also update client credentials if available
+        if (workflowData.clientCredentials) {
+          console.log('🔄 DEBUG: Updating client credentials from workflow:', {
+            email: workflowData.clientCredentials.email,
+            createAccount: workflowData.clientCredentials.createAccount,
+            hasPassword: workflowData.clientCredentials.hasPassword,
+            isExistingClient: newClientData.isExistingClient,
+            hasUserAccount: newClientData.hasUserAccount
+          });
+          
+          setClientCredentials(prev => {
+            // For existing clients, never create accounts - they should already have accounts
+            const shouldCreateAccount = (newClientData.isExistingClient || newClientData.hasUserAccount) 
+              ? false 
+              : (workflowData.clientCredentials.createAccount !== undefined ? workflowData.clientCredentials.createAccount : prev.createAccount);
+            
+            console.log('🔄 DEBUG: Client credentials updated:', {
+              createAccount: shouldCreateAccount,
+              reason: (newClientData.isExistingClient || newClientData.hasUserAccount) ? 'Existing client - account creation disabled' : 'New client - using workflow setting'
+            });
+            
+            return {
+              ...prev,
+              email: workflowData.clientCredentials.email || prev.email,
+              createAccount: shouldCreateAccount,
+              // Don't auto-fill password for security reasons
+              password: prev.password
+            };
+          });
+        }
+        
+        toast.success('Client details filled from previous workflow - ready for Create Client step');
+      } else {
+        console.log('⚠️ DEBUG: No client data in workflow, keeping existing client data:', {
+          clientId: client.id,
+          clientName: client.name,
+          clientEmail: client.email
         });
+        // Client data is already set from selection, no need to change anything
       }
 
-      // Auto-fill questionnaire assignment if available
-      if (workflowData.questionnaireAssignment) {
-        // Questionnaire assignment auto-filled
-        setQuestionnaireAssignment(workflowData.questionnaireAssignment);
-      }
+      // EXPLICITLY DO NOT AUTO-FILL ANY OTHER DATA (except client)
+      console.log('🚫 DEBUG: SKIPPING ALL OTHER WORKFLOW DATA:');
+      console.log('🚫 DEBUG: NOT auto-filling case data');
+      console.log('🚫 DEBUG: NOT auto-filling forms data'); 
+      console.log('🚫 DEBUG: NOT auto-filling questionnaire selection');
+      console.log('🚫 DEBUG: NOT auto-filling form case IDs');
+      console.log('🚫 DEBUG: NOT auto-filling client responses');
+      console.log('🚫 DEBUG: NOT auto-filling questionnaire assignments');
+      console.log('🚫 DEBUG: NOT auto-filling form details');
+      console.log('🚫 DEBUG: NOT changing current step');
 
-      // Auto-fill form details if available
-      if (workflowData.formDetails && Array.isArray(workflowData.formDetails)) {
-        // Form details auto-filled
-        setFormDetails(workflowData.formDetails);
-      }
+      // Summary - only client details
+      console.log('✅ DEBUG: ========== AUTO-FILL COMPLETED ==========');
+      console.log('✅ DEBUG: Auto-fill completed - ONLY client details filled, all other data skipped:', {
+        clientName: client.name,
+        clientEmail: client.email,
+        currentStep: currentStep, // Should stay exactly the same
+        allOtherDataSkipped: true
+      });
 
-      // Auto-fill current step (but don't go backwards)
-      if (workflowData.currentStep && workflowData.currentStep > currentStep) {
-        // Current step updated
-        setCurrentStep(workflowData.currentStep);
-      }
-
-      // Workflow auto-fill complete
-      // Workflow data auto-filled from saved progress
-
+      toast.success('Client details loaded - only Create Client step filled');
+      
     } catch (error) {
-      // Auto-fill error
-      toast.error('Failed to auto-fill workflow data');
+      console.error('❌ DEBUG: Auto-fill error:', error);
+      toast.error('Error during auto-fill: ' + (error as Error).message);
     }
   };
 
-  // Function to find and auto-fill matching workflow
-  const findAndAutoFillWorkflow = async (clientEmail?: string) => {
+  // Function to find and auto-fill matching workflow for existing clients
+  const findAndAutoFillWorkflow = async (clientEmail?: string, clientId?: string) => {
     try {
-      // Search for matching workflows
+      console.log('🔄 DEBUG: ========== WORKFLOW SEARCH STARTED ==========');
+      console.log('🔄 DEBUG: Searching for existing client workflows:', { 
+        clientEmail, 
+        clientId,
+        timestamp: new Date().toISOString()
+      });
 
-      // Fetch workflows from API only
-      // Fetching workflows from API
-      const apiWorkflows = await fetchWorkflowsFromAPI();
-      // API workflows summary
+      // Try multiple approaches to fetch workflow data
+      let apiWorkflows: any[] = [];
 
-      // Use only API workflows
+      // Approach 1: Use the general fetchWorkflowsFromAPI to find workflow IDs
+      console.log('🔄 DEBUG: ========== APPROACH 1: GENERAL API WORKFLOWS ==========');
+      console.log('🔄 DEBUG: Calling fetchWorkflowsFromAPI...');
+      
+      try {
+        apiWorkflows = await fetchWorkflowsFromAPI();
+        
+        console.log('🔄 DEBUG: fetchWorkflowsFromAPI response details:', {
+          responseType: typeof apiWorkflows,
+          isArray: Array.isArray(apiWorkflows),
+          length: Array.isArray(apiWorkflows) ? apiWorkflows.length : 'N/A',
+          rawResponse: apiWorkflows
+        });
+        
+        // Ensure apiWorkflows is always an array
+        if (!Array.isArray(apiWorkflows)) {
+          console.warn('⚠️ DEBUG: fetchWorkflowsFromAPI did not return an array:', typeof apiWorkflows, apiWorkflows);
+          apiWorkflows = [];
+        }
+        
+        console.log('✅ DEBUG: General API workflows found:', apiWorkflows.length);
+        
+        // Log detailed structure of each workflow found
+        if (apiWorkflows.length > 0) {
+          console.log('🔍 DEBUG: ========== DETAILED WORKFLOW ANALYSIS ==========');
+          apiWorkflows.forEach((workflow, index) => {
+            console.log(`🔍 DEBUG: Workflow ${index + 1}/${apiWorkflows.length}:`, {
+              workflowId: workflow.id || workflow._id || workflow.workflowId,
+              createdBy: workflow.createdBy,
+              currentStep: workflow.currentStep,
+              status: workflow.status,
+              workflowType: workflow.workflowType,
+              client: {
+                id: workflow.client?.id || workflow.client?._id || workflow.clientId,
+                name: workflow.client?.name || `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.trim(),
+                firstName: workflow.client?.firstName,
+                lastName: workflow.client?.lastName,
+                email: workflow.client?.email,
+                phone: workflow.client?.phone,
+                hasClientData: !!workflow.client
+              },
+              case: {
+                id: workflow.case?.id || workflow.case?._id,
+                category: workflow.case?.category,
+                hasCaseData: !!workflow.case
+              },
+              questionnaire: {
+                selectedQuestionnaire: workflow.selectedQuestionnaire,
+                questionnaireAssignment: !!workflow.questionnaireAssignment,
+                hasResponses: !!(workflow.responses && Object.keys(workflow.responses).length > 0),
+                responseCount: workflow.responses ? Object.keys(workflow.responses).length : 0,
+                isComplete: workflow.responses?.is_complete,
+                submittedAt: workflow.responses?.submitted_at,
+                questionnaireTitle: workflow.questionnaireAssignment?.questionnaire_title,
+                assignmentId: workflow.questionnaireAssignment?.assignment_id,
+                responseId: workflow.questionnaireAssignment?.response_id
+              },
+              forms: {
+                selectedForms: workflow.selectedForms ? workflow.selectedForms.length : 0,
+                formTemplates: workflow.formTemplates ? workflow.formTemplates.length : 0,
+                formCaseIds: !!workflow.formCaseIds
+              },
+              timestamps: {
+                createdAt: workflow.createdAt,
+                updatedAt: workflow.updatedAt
+              },
+              stepsProgress: workflow.stepsProgress ? workflow.stepsProgress.length : 0,
+              allKeys: Object.keys(workflow)
+            });
+          });
+        }
+      } catch (fetchError: any) {
+        console.error('❌ DEBUG: fetchWorkflowsFromAPI failed:', {
+          error: fetchError,
+          message: fetchError.message,
+          stack: fetchError.stack
+        });
+        apiWorkflows = [];
+      }
+
+      // Approach 2: If no workflows found, try fetchWorkflowsForClientSearch with email
+      if (apiWorkflows.length === 0 && clientEmail) {
+        console.log('🔄 DEBUG: Approach 2 - Trying fetchWorkflowsForClientSearch with email');
+        try {
+          const clientSearchWorkflows = await fetchWorkflowsForClientSearch(clientEmail);
+          
+          // Ensure result is an array
+          if (Array.isArray(clientSearchWorkflows)) {
+            apiWorkflows = clientSearchWorkflows;
+            console.log('✅ DEBUG: Client search API workflows found:', apiWorkflows.length);
+          } else {
+            console.warn('⚠️ DEBUG: fetchWorkflowsForClientSearch did not return an array:', typeof clientSearchWorkflows);
+          }
+        } catch (error: any) {
+          console.log('⚠️ DEBUG: Client search API failed:', error.message);
+        }
+      }
+
+      // Approach 3: If still no workflows, try the clients from workflows method
+      if (apiWorkflows.length === 0) {
+        console.log('🔄 DEBUG: Approach 3 - Trying fetchClientsFromWorkflows');
+        try {
+          const clientsFromWorkflows = await fetchClientsFromWorkflows(clientEmail);
+          console.log('✅ DEBUG: Clients from workflows found:', clientsFromWorkflows.length);
+          
+          // If we found clients, try to get their workflows
+          if (clientsFromWorkflows.length > 0) {
+            // Try to get all workflows again to find the ones for these clients
+            const allWorkflows = await fetchWorkflows({ limit: 200, offset: 0 });
+            
+            // Ensure result is an array
+            if (Array.isArray(allWorkflows)) {
+              apiWorkflows = allWorkflows;
+              console.log('✅ DEBUG: All workflows retrieved for client matching:', apiWorkflows.length);
+            } else {
+              console.warn('⚠️ DEBUG: fetchWorkflows did not return an array:', typeof allWorkflows);
+            }
+          }
+        } catch (error: any) {
+          console.log('⚠️ DEBUG: fetchClientsFromWorkflows failed:', error.message);
+        }
+      }
+
+      console.log('✅ DEBUG: Workflow IDs found:', {
+        total: apiWorkflows.length,
+        isArray: Array.isArray(apiWorkflows),
+        workflowIds: Array.isArray(apiWorkflows) ? apiWorkflows.map(w => ({
+          id: w.id || w._id,
+          workflowId: w.workflowId,
+          clientEmail: w.client?.email,
+          clientId: w.clientId || w.client?.id || w.client?._id,
+          clientName: w.client?.name || `${w.client?.firstName} ${w.client?.lastName}`.trim(),
+          status: w.status
+        })) : 'apiWorkflows is not an array'
+      });
+
+      // Use all found workflows to find matching workflow ID
       const allWorkflows = apiWorkflows;
-      // Total workflows available
+      console.log('🔄 DEBUG: ========== WORKFLOW MATCHING PHASE ==========');
+      console.log('🔄 DEBUG: Searching for matching workflow among', allWorkflows.length, 'workflows');
+      console.log('🔄 DEBUG: Search criteria:', {
+        clientId: clientId || 'Not provided',
+        clientEmail: clientEmail || 'Not provided'
+      });
 
       if (allWorkflows.length === 0) {
-        // No workflows found
+        console.log('⚠️ DEBUG: No workflows found from any source');
         toast('No saved workflows found to auto-fill from');
         return false;
       }
 
-      // Searching for matching workflow
-
-
-      // Find matching workflow by client email or most recent
+      // Find matching workflow by client email, client ID, or most recent
       let matchingWorkflow = null;
 
-      if (clientEmail) {
-        // Searching by client email
-        // Find by client email
+      // First try to match by client ID if provided
+      if (clientId) {
+        console.log('🔄 DEBUG: ========== SEARCHING BY CLIENT ID ==========');
+        console.log('🔄 DEBUG: Target client ID:', clientId);
+        
+        matchingWorkflow = allWorkflows.find((w: any, index: number) => {
+          const workflowClientId = w.clientId || w.client?.id || w.client?._id;
+          console.log(`� DEBUG: Workflow ${index + 1}: Comparing client IDs:`, { 
+            workflowIndex: index,
+            workflowId: w.id || w._id,
+            workflowClientId, 
+            searchClientId: clientId,
+            workflowClient: w.client?.name || w.client?.email,
+            matches: workflowClientId === clientId
+          });
+          return workflowClientId === clientId;
+        });
+
+        if (matchingWorkflow) {
+          console.log('✅ DEBUG: ========== FOUND MATCHING WORKFLOW BY CLIENT ID ==========');
+          console.log('✅ DEBUG: Matching workflow details:', {
+            workflowId: matchingWorkflow.id || matchingWorkflow._id,
+            workflowIdField: matchingWorkflow.workflowId,
+            clientId: matchingWorkflow.clientId || matchingWorkflow.client?.id,
+            clientName: matchingWorkflow.client?.name || `${matchingWorkflow.client?.firstName} ${matchingWorkflow.client?.lastName}`.trim(),
+            clientEmail: matchingWorkflow.client?.email,
+            status: matchingWorkflow.status,
+            currentStep: matchingWorkflow.currentStep
+          });
+        } else {
+          console.log('⚠️ DEBUG: No workflow found for client ID:', clientId);
+        }
+      }
+
+      // If not found by ID, try email
+      if (!matchingWorkflow && clientEmail) {
+        console.log('🔄 DEBUG: ========== SEARCHING BY CLIENT EMAIL ==========');
+        console.log('🔄 DEBUG: Target client email:', clientEmail);
+        
         matchingWorkflow = allWorkflows.find((w: any) => {
           const workflowEmail = w.client?.email?.toLowerCase();
           const searchEmail = clientEmail.toLowerCase();
-          // Email comparison
+          console.log('🔄 DEBUG: Email comparison:', { 
+            workflowEmail, 
+            searchEmail,
+            workflowClient: w.client?.name 
+          });
           return workflowEmail === searchEmail;
         });
 
         if (matchingWorkflow) {
-          // Found matching workflow by email
+          console.log('✅ DEBUG: Found matching workflow by email:', {
+            workflowId: matchingWorkflow.id || matchingWorkflow._id,
+            email: matchingWorkflow.client?.email,
+            clientName: matchingWorkflow.client?.name || `${matchingWorkflow.client?.firstName} ${matchingWorkflow.client?.lastName}`.trim()
+          });
         } else {
-          // No workflow found for this email
+          console.log('⚠️ DEBUG: No workflow found for email:', clientEmail);
         }
       }
 
+      // If still not found, look for most recent workflow for this client (any status)
       if (!matchingWorkflow) {
-        // Looking for in-progress workflows
-        const inProgressWorkflows = allWorkflows.filter((w: any) => w.status === 'in-progress');
-        // Found in-progress workflows
+        console.log('🔄 DEBUG: Looking for any workflows for this client (any status)');
+        const clientWorkflows = allWorkflows.filter((w: any) => {
+          const matchesClient = (clientId && (w.clientId === clientId || w.client?.id === clientId || w.client?._id === clientId)) ||
+                               (clientEmail && w.client?.email?.toLowerCase() === clientEmail.toLowerCase());
+          return matchesClient;
+        });
+        
+        console.log('🔄 DEBUG: Found workflows for client (any status):', clientWorkflows.length);
 
-        if (inProgressWorkflows.length > 0) {
-          matchingWorkflow = inProgressWorkflows
-            .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-          // Selected most recent workflow
+        if (clientWorkflows.length > 0) {
+          matchingWorkflow = clientWorkflows
+            .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())[0];
+          console.log('✅ DEBUG: Selected most recent workflow:', {
+            workflowId: matchingWorkflow.id || matchingWorkflow._id,
+            updatedAt: matchingWorkflow.updatedAt || matchingWorkflow.createdAt,
+            status: matchingWorkflow.status
+          });
         }
       }
 
       if (matchingWorkflow) {
-        // Found workflow to auto-fill
+        // Extract the workflow ID to use with getWorkflowProgress
+        // Try multiple field names as different APIs might return different structures
+        const workflowId = matchingWorkflow.workflowId || 
+                          matchingWorkflow.id || 
+                          matchingWorkflow._id ||
+                          matchingWorkflow.workflow_id;
+        
+        if (!workflowId) {
+          console.error('❌ DEBUG: No valid workflow ID found in matching workflow:', {
+            matchingWorkflow: matchingWorkflow,
+            availableKeys: Object.keys(matchingWorkflow)
+          });
+          toast.error('Invalid workflow data found - missing workflow ID');
+          return false;
+        }
+        
+        console.log('✅ DEBUG: Found workflow, now fetching detailed data using getWorkflowProgress:', {
+          workflowId: workflowId,
+          originalWorkflowData: {
+            workflowId: matchingWorkflow.workflowId,
+            id: matchingWorkflow.id,
+            _id: matchingWorkflow._id,
+            workflow_id: matchingWorkflow.workflow_id
+          },
+          clientName: matchingWorkflow.client?.name || `${matchingWorkflow.client?.firstName} ${matchingWorkflow.client?.lastName}`.trim(),
+          clientEmail: matchingWorkflow.client?.email,
+          status: matchingWorkflow.status
+        });
 
-        // Auto-filling workflow
-        await autoFillFromSavedWorkflow(matchingWorkflow);
-        return true;
+        try {
+          // Use getWorkflowProgress to get the complete workflow data
+          console.log('🔄 DEBUG: ========== FETCHING DETAILED WORKFLOW DATA ==========');
+          console.log('🔄 DEBUG: Calling getWorkflowProgress with ID:', workflowId);
+          const detailedWorkflowData = await getWorkflowProgress(workflowId);
+          
+          console.log('✅ DEBUG: ========== DETAILED WORKFLOW DATA RECEIVED ==========');
+          console.log('✅ DEBUG: Raw response structure:', {
+            dataType: typeof detailedWorkflowData,
+            isObject: typeof detailedWorkflowData === 'object',
+            hasData: !!detailedWorkflowData,
+            responseKeys: detailedWorkflowData ? Object.keys(detailedWorkflowData) : []
+          });
+
+          // Log comprehensive workflow data from DB
+          if (detailedWorkflowData) {
+            console.log('✅ DEBUG: ========== COMPLETE WORKFLOW FROM DATABASE ==========');
+            console.log('✅ DEBUG: Workflow Metadata:', {
+              _id: detailedWorkflowData._id,
+              workflowId: detailedWorkflowData.workflowId,
+              createdBy: detailedWorkflowData.createdBy,
+              currentStep: detailedWorkflowData.currentStep,
+              status: detailedWorkflowData.status,
+              workflowType: detailedWorkflowData.workflowType,
+              createdAt: detailedWorkflowData.createdAt,
+              updatedAt: detailedWorkflowData.updatedAt
+            });
+
+            console.log('✅ DEBUG: Client Data from DB:', {
+              hasClient: !!detailedWorkflowData.client,
+              clientData: detailedWorkflowData.client || 'No client data',
+              clientKeys: detailedWorkflowData.client ? Object.keys(detailedWorkflowData.client) : []
+            });
+
+            console.log('✅ DEBUG: Client Credentials from DB:', {
+              hasClientCredentials: !!detailedWorkflowData.clientCredentials,
+              clientCredentials: detailedWorkflowData.clientCredentials || 'No client credentials',
+              credentialsKeys: detailedWorkflowData.clientCredentials ? Object.keys(detailedWorkflowData.clientCredentials) : []
+            });
+
+            console.log('✅ DEBUG: Case Data from DB:', {
+              hasCase: !!detailedWorkflowData.case,
+              caseData: detailedWorkflowData.case || 'No case data',
+              caseKeys: detailedWorkflowData.case ? Object.keys(detailedWorkflowData.case) : []
+            });
+
+            console.log('✅ DEBUG: Selected Forms from DB:', {
+              hasSelectedForms: !!(detailedWorkflowData.selectedForms && detailedWorkflowData.selectedForms.length > 0),
+              selectedFormsCount: detailedWorkflowData.selectedForms ? detailedWorkflowData.selectedForms.length : 0,
+              selectedForms: detailedWorkflowData.selectedForms || 'No selected forms'
+            });
+
+            console.log('✅ DEBUG: Form Templates from DB:', {
+              hasFormTemplates: !!(detailedWorkflowData.formTemplates && detailedWorkflowData.formTemplates.length > 0),
+              formTemplatesCount: detailedWorkflowData.formTemplates ? detailedWorkflowData.formTemplates.length : 0,
+              formTemplates: detailedWorkflowData.formTemplates || 'No form templates'
+            });
+
+            console.log('✅ DEBUG: Form Case IDs from DB:', {
+              hasFormCaseIds: !!detailedWorkflowData.formCaseIds,
+              formCaseIds: detailedWorkflowData.formCaseIds || 'No form case IDs',
+              formCaseIdsKeys: detailedWorkflowData.formCaseIds ? Object.keys(detailedWorkflowData.formCaseIds) : []
+            });
+
+            console.log('✅ DEBUG: ========== QUESTIONNAIRE DATA FROM DATABASE ==========');
+            console.log('✅ DEBUG: Selected Questionnaire:', {
+              hasSelectedQuestionnaire: !!detailedWorkflowData.selectedQuestionnaire,
+              selectedQuestionnaire: detailedWorkflowData.selectedQuestionnaire || 'No selected questionnaire'
+            });
+
+            console.log('✅ DEBUG: Available Questionnaires Summary:', {
+              hasAvailableQuestionnairesSummary: !!(detailedWorkflowData.availableQuestionnairesSummary && detailedWorkflowData.availableQuestionnairesSummary.length > 0),
+              availableQuestionnairesCount: detailedWorkflowData.availableQuestionnairesSummary ? detailedWorkflowData.availableQuestionnairesSummary.length : 0,
+              availableQuestionnairesSummary: detailedWorkflowData.availableQuestionnairesSummary || 'No available questionnaires summary'
+            });
+
+            console.log('✅ DEBUG: Questionnaire Assignment from DB:', {
+              hasQuestionnaireAssignment: !!detailedWorkflowData.questionnaireAssignment,
+              questionnaireAssignment: detailedWorkflowData.questionnaireAssignment || 'No questionnaire assignment',
+              assignmentKeys: detailedWorkflowData.questionnaireAssignment ? Object.keys(detailedWorkflowData.questionnaireAssignment) : []
+            });
+
+            console.log('✅ DEBUG: ========== QUESTIONNAIRE RESPONSES FROM DATABASE ==========');
+            console.log('✅ DEBUG: Responses Object:', {
+              hasResponses: !!detailedWorkflowData.responses,
+              responsesType: typeof detailedWorkflowData.responses,
+              responsesIsObject: typeof detailedWorkflowData.responses === 'object',
+              responsesKeys: detailedWorkflowData.responses ? Object.keys(detailedWorkflowData.responses) : [],
+              responsesCount: detailedWorkflowData.responses ? Object.keys(detailedWorkflowData.responses).length : 0,
+              rawResponses: detailedWorkflowData.responses || 'No responses'
+            });
+
+            if (detailedWorkflowData.responses) {
+              console.log('✅ DEBUG: Individual Response Fields:', {
+                responseFields: Object.entries(detailedWorkflowData.responses).map(([key, value]) => ({
+                  fieldKey: key,
+                  fieldValue: value,
+                  valueType: typeof value
+                }))
+              });
+            }
+
+            console.log('✅ DEBUG: Steps Progress from DB:', {
+              hasStepsProgress: !!(detailedWorkflowData.stepsProgress && detailedWorkflowData.stepsProgress.length > 0),
+              stepsProgressCount: detailedWorkflowData.stepsProgress ? detailedWorkflowData.stepsProgress.length : 0,
+              stepsProgress: detailedWorkflowData.stepsProgress || 'No steps progress'
+            });
+
+            console.log('✅ DEBUG: ========== COMPLETE WORKFLOW OBJECT ==========');
+            console.log('✅ DEBUG: Full workflow object from database:', detailedWorkflowData);
+          }
+
+          // Check if the response has the expected structure
+          if (!detailedWorkflowData || typeof detailedWorkflowData !== 'object') {
+            console.warn('⚠️ DEBUG: getWorkflowProgress returned invalid data:', detailedWorkflowData);
+            throw new Error('Invalid workflow data structure returned from API');
+          }
+
+          console.log('🔄 DEBUG: Auto-filling workflow data from getWorkflowProgress');
+          await autoFillFromSavedWorkflow(detailedWorkflowData);
+          
+          // Also check for and load previous questionnaire responses
+          console.log('🔄 DEBUG: Checking for previous questionnaire responses in workflow');
+          await loadPreviousQuestionnaireFromWorkflow(detailedWorkflowData);
+          
+          const clientName = detailedWorkflowData.client?.name || 
+                           `${detailedWorkflowData.client?.firstName} ${detailedWorkflowData.client?.lastName}`.trim() || 
+                           matchingWorkflow.client?.name || 
+                           `${matchingWorkflow.client?.firstName} ${matchingWorkflow.client?.lastName}`.trim() || 
+                           'client';
+          
+          toast.success(`Complete workflow data loaded for ${clientName}`);
+          return true;
+          
+        } catch (progressError: any) {
+          console.error('❌ DEBUG: Failed to get detailed workflow progress:', {
+            error: progressError,
+            errorMessage: progressError.message,
+            errorStatus: progressError.response?.status,
+            errorData: progressError.response?.data,
+            workflowId: workflowId
+          });
+          
+          // Fallback to using the basic workflow data if getWorkflowProgress fails
+          console.log('🔄 DEBUG: Falling back to basic workflow data from matching workflow');
+          console.log('🔄 DEBUG: Basic workflow data structure:', {
+            hasClient: !!matchingWorkflow.client,
+            hasCase: !!matchingWorkflow.case,
+            hasSelectedForms: !!(matchingWorkflow.selectedForms && matchingWorkflow.selectedForms.length > 0),
+            hasQuestionnaire: !!matchingWorkflow.selectedQuestionnaire,
+            allKeys: Object.keys(matchingWorkflow)
+          });
+          
+          await autoFillFromSavedWorkflow(matchingWorkflow);
+          
+          // Also check for and load previous questionnaire responses from fallback data
+          console.log('🔄 DEBUG: Checking for previous questionnaire responses in fallback workflow data');
+          await loadPreviousQuestionnaireFromWorkflow(matchingWorkflow);
+          
+          const clientName = matchingWorkflow.client?.name || `${matchingWorkflow.client?.firstName} ${matchingWorkflow.client?.lastName}`.trim() || 'client';
+          toast.success(`Basic workflow data loaded for ${clientName} (API error: ${progressError.message})`);
+          return true;
+        }
       } else {
-        // No matching workflow found
+        console.log('⚠️ DEBUG: No matching workflow found after all attempts');
         toast('No matching workflow found for this client');
         return false;
       }
 
     } catch (error) {
-      // Auto-fill error
+      console.error('❌ DEBUG: Auto-fill error:', error);
       toast.error('Error during auto-fill: ' + (error as Error).message);
       return false;
     }
@@ -1609,7 +2282,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const saveWorkflowProgressLocal = async () => {
     try {
       // Prepare comprehensive workflow data
-      const workflowData = {
+      const workflowData: {
+        workflowId: string;
+        createdAt: string;
+        updatedAt: string;
+        currentStep: number;
+        status: string;
+        client: any;
+        case: any;
+        selectedForms: string[];
+        formCaseIds: Record<string, string>;
+        formTemplates: FormTemplate[];
+        selectedQuestionnaire: string;
+        availableQuestionnairesSummary: any[];
+        clientCredentials: any;
+        stepsProgress: any[];
+        questionnaireAssignment?: any;
+      } = {
         // Workflow metadata
         workflowId: `workflow_${Date.now()}`,
         createdAt: new Date().toISOString(),
@@ -1680,6 +2369,58 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           completedAt: index < currentStep ? new Date().toISOString() : undefined
         }))
       };
+
+      // Add questionnaire assignment if using existing response
+      if (useExistingResponse && selectedExistingResponse) {
+        console.log('🔄 DEBUG: Adding questionnaire assignment with previous response to workflow data:', {
+          selectedExistingResponse,
+          hasExistingResponses: existingQuestionnaireResponses.length > 0
+        });
+
+        // Find the selected existing response
+        const existingResponse = existingQuestionnaireResponses.find(r => r.id === selectedExistingResponse);
+        if (existingResponse) {
+          workflowData.questionnaireAssignment = {
+            id: `assignment_${Date.now()}`,
+            caseId: caseData.id || caseData._id,
+            clientId: client.id || client._id,
+            questionnaireId: existingResponse.questionnaireId,
+            questionnaireName: existingResponse.questionnaireTitle,
+            status: 'completed-reused',
+            assignedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            responses: existingResponse.responses || {},
+            // Metadata about reused response
+            reuseMetadata: {
+              originalResponseId: existingResponse.id,
+              originalCaseId: existingResponse.caseId,
+              originalSubmittedAt: existingResponse.submittedAt,
+              reusedAt: new Date().toISOString(),
+              newCaseId: caseData.id || caseData._id,
+              newFormSelection: selectedForms
+            },
+            // Include form and case context
+            formCaseIds: formCaseIds,
+            selectedForms: selectedForms
+          };
+
+          console.log('✅ DEBUG: Questionnaire assignment added with response data:', {
+            assignmentId: workflowData.questionnaireAssignment.id,
+            responseCount: Object.keys(existingResponse.responses || {}).length,
+            questionnaireTitle: existingResponse.questionnaireTitle,
+            originalCaseId: existingResponse.caseId,
+            newCaseId: caseData.id || caseData._id
+          });
+        } else {
+          console.warn('⚠️ DEBUG: Selected existing response not found in available responses');
+        }
+      } else {
+        console.log('🔍 DEBUG: Not using existing response - no questionnaire assignment added to workflow data:', {
+          useExistingResponse,
+          selectedExistingResponse,
+          willAddQuestionnaireAssignment: false
+        });
+      }
 
 
 
@@ -1873,17 +2614,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         return null;
       }
 
-      const requestData = {
-        questionnaireId,
-        dueDate: caseData.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        notes: `Questionnaire assigned for ${caseData.category || 'immigration'} case`,
-        tempPassword
-      };
-
-
-
-              // Make API call to assign questionnaire
-        const response = await assignQuestionnaireToFormDetailsLocal(questionnaireId, tempPassword);
+      // Make API call to assign questionnaire
+      const response = await assignQuestionnaireToFormDetailsLocal(questionnaireId, tempPassword);
 
 
 
@@ -1901,19 +2633,444 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
   };
 
+  // Function to save existing client filled details separately in the database
+  const saveExistingClientDetailsToDatabase = async (existingResponse: any, currentClient: any, currentCase: any) => {
+    try {
+      console.log('🔄 DEBUG: Saving existing client filled details separately to database:', {
+        existingResponseId: existingResponse.id,
+        clientId: currentClient.id,
+        newCaseId: currentCase.id || currentCase._id,
+        responseCount: Object.keys(existingResponse.responses || {}).length
+      });
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      // Extract client information from the existing response
+      const clientDetailsFromResponse = {
+        // Basic client info
+        clientId: currentClient.id || currentClient._id,
+        clientName: currentClient.name,
+        clientEmail: currentClient.email,
+        
+        // Response metadata
+        originalResponseId: existingResponse.id,
+        originalCaseId: existingResponse.caseId,
+        originalQuestionnaireTitle: existingResponse.questionnaireTitle,
+        originalSubmittedAt: existingResponse.submittedAt,
+        
+        // New case context
+        newCaseId: currentCase.id || currentCase._id,
+        newCaseTitle: currentCase.title || 'Untitled Case',
+        newSelectedForms: selectedForms,
+        
+        // Filled details from responses
+        filledDetails: existingResponse.responses || {},
+        
+        // Metadata
+        reuseTimestamp: new Date().toISOString(),
+        questionnaireId: existingResponse.questionnaireId,
+        totalAnswers: Object.keys(existingResponse.responses || {}).length,
+        
+        // Attorney information
+        attorneyId: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user') || '{}').id : null,
+        companyId: localStorage.getItem('companyId')
+      };
+
+      // Import the api utility
+      const { default: api } = await import('../utils/api');
+
+      // Try to save to multiple possible endpoints
+      const saveEndpoints = [
+        '/api/v1/client-response-reuse',
+        '/api/client-response-reuse',
+        '/client-response-reuse',
+        '/api/v1/existing-client-details',
+        '/api/existing-client-details'
+      ];
+
+      let saveSuccess = false;
+      let lastError = null;
+
+      for (const endpoint of saveEndpoints) {
+        try {
+          console.log(`🔄 DEBUG: Attempting to save client details to endpoint: ${endpoint}`);
+          
+          const response = await api.post(endpoint, clientDetailsFromResponse, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          console.log(`✅ DEBUG: Successfully saved client details to ${endpoint}:`, response.data);
+          saveSuccess = true;
+          
+          toast.success(
+            <div>
+              <p>✅ Client details saved separately to database</p>
+              <p className="text-sm mt-1">📊 {clientDetailsFromResponse.totalAnswers} responses archived</p>
+              <p className="text-xs text-green-600">🔗 Linked to new case: {currentCase.title || 'Untitled Case'}</p>
+            </div>,
+            { duration: 6000 }
+          );
+          
+          break;
+        } catch (endpointError: any) {
+          console.log(`⚠️ DEBUG: Endpoint ${endpoint} failed:`, endpointError.message);
+          lastError = endpointError;
+        }
+      }
+
+      if (!saveSuccess) {
+        console.error('❌ DEBUG: All endpoints failed to save client details:', lastError);
+        toast.error(
+          <div>
+            <p>⚠️ Client details could not be saved separately</p>
+            <p className="text-sm mt-1">Response will still be reused for the workflow</p>
+          </div>,
+          { duration: 5000 }
+        );
+      }
+
+    } catch (error: any) {
+      console.error('❌ ERROR: Failed to save existing client details to database:', error);
+      toast.error(
+        <div>
+          <p>⚠️ Could not save client details separately</p>
+          <p className="text-sm mt-1">Response will still be reused for the workflow</p>
+        </div>,
+        { duration: 5000 }
+      );
+    }
+  };
+
   const handleQuestionnaireAssignment = async () => {
     if (!selectedQuestionnaire) return;
 
-    // Check if client account creation is enabled
-    if (!clientCredentials.createAccount) {
-      toast.error('Client account creation must be enabled to assign questionnaires. Please check "Create Account" option and set a password.');
-      return;
+    // Check if using existing response
+    if (useExistingResponse && selectedExistingResponse) {
+      console.log('🔄 DEBUG: Processing existing response selection for workflow save:', {
+        selectedExistingResponse,
+        useExistingResponse,
+        clientId: client.id,
+        clientName: client.name,
+        newCaseId: caseData.id || caseData._id,
+        selectedForms
+      });
+
+      try {
+        setLoading(true);
+
+        // Find the selected existing response
+        const existingResponse = existingQuestionnaireResponses.find(r => r.id === selectedExistingResponse);
+        if (!existingResponse) {
+          toast.error('Selected response not found.');
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ DEBUG: Found existing response to reuse:', {
+          responseId: existingResponse.id,
+          questionnaireTitle: existingResponse.questionnaireTitle,
+          originalCaseId: existingResponse.caseId,
+          responseCount: Object.keys(existingResponse.responses || {}).length
+        });
+
+        // Save the existing client filled details separately in the database
+        await saveExistingClientDetailsToDatabase(existingResponse, client, caseData);
+
+        // Save the existing response data to client responses for the UI
+        setClientResponses(existingResponse.responses || {});
+
+        // Create comprehensive workflow data with existing response
+        const workflowDataWithExistingResponse = {
+          // Workflow metadata
+          workflowId: `workflow_${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          currentStep,
+          status: 'in-progress',
+          
+          // Client information
+          client: {
+            ...client,
+            firstName: client.firstName,
+            middleName: client.middleName || '',
+            lastName: client.lastName,
+            name: client.name,
+            address: {
+              street: client.address?.street || '',
+              aptSuiteFlr: client.address?.aptSuiteFlr || '',
+              aptNumber: client.address?.aptNumber || '',
+              city: client.address?.city || '',
+              state: client.address?.state || '',
+              zipCode: client.address?.zipCode || '',
+              province: client.address?.province || '',
+              postalCode: client.address?.postalCode || '',
+              country: client.address?.country || 'United States'
+            }
+          },
+
+          // Case details (NEW CASE)
+          case: {
+            ...caseData,
+            id: caseData.id || generateObjectId(),
+            _id: caseData._id || caseData.id || generateObjectId()
+          },
+
+          // Selected forms and case IDs (NEW FORMS)
+          selectedForms,
+          formCaseIds,
+          formTemplates: formTemplates.filter(template => selectedForms.includes(template.name)),
+
+          // Questionnaire information
+          selectedQuestionnaire,
+          
+          // EXISTING RESPONSE DATA - This is the key addition
+          questionnaireAssignment: {
+            id: `assignment_${Date.now()}`,
+            caseId: caseData.id || caseData._id,
+            clientId: client.id || client._id,
+            questionnaireId: existingResponse.questionnaireId,
+            questionnaireName: existingResponse.questionnaireTitle,
+            status: 'completed-reused',
+            assignedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            responses: existingResponse.responses,
+            // Metadata about reused response
+            reuseMetadata: {
+              originalResponseId: existingResponse.id,
+              originalCaseId: existingResponse.caseId,
+              originalSubmittedAt: existingResponse.submittedAt,
+              reusedAt: new Date().toISOString(),
+              newCaseId: caseData.id || caseData._id,
+              newFormSelection: selectedForms
+            },
+            // Include new case and form information
+            formCaseIds: formCaseIds,
+            selectedForms: selectedForms
+          },
+
+          // Client credentials info
+          clientCredentials: {
+            email: clientCredentials.email || client.email,
+            createAccount: clientCredentials.createAccount,
+            hasPassword: !!clientCredentials.password
+          },
+
+          // Workflow steps progress
+          stepsProgress: NEW_WORKFLOW_STEPS.map((step, index) => ({
+            ...step,
+            index,
+            status: index < currentStep ? 'completed' : index === currentStep ? 'current' : 'pending',
+            completedAt: index < currentStep ? new Date().toISOString() : undefined
+          }))
+        };
+
+        console.log('🔄 DEBUG: Saving workflow with existing response data to database:', {
+          workflowId: workflowDataWithExistingResponse.workflowId,
+          newCaseId: workflowDataWithExistingResponse.case.id,
+          responseCount: Object.keys(existingResponse.responses || {}).length,
+          selectedForms: workflowDataWithExistingResponse.selectedForms,
+          dataSize: JSON.stringify(workflowDataWithExistingResponse).length,
+          hasQuestionnaireAssignment: !!workflowDataWithExistingResponse.questionnaireAssignment,
+          hasClientData: !!workflowDataWithExistingResponse.client,
+          hasCaseData: !!workflowDataWithExistingResponse.case
+        });
+
+        // Log the complete data structure being sent (truncated for readability)
+        console.log('📤 DEBUG: Complete workflow data structure:', {
+          ...workflowDataWithExistingResponse,
+          questionnaireAssignment: {
+            ...workflowDataWithExistingResponse.questionnaireAssignment,
+            responses: `${Object.keys(workflowDataWithExistingResponse.questionnaireAssignment.responses || {}).length} responses`
+          }
+        });
+
+        // Save the comprehensive workflow data to the database
+        const token = localStorage.getItem('token');
+        if (token) {
+          // Validate required fields before API call
+          const validationErrors = [];
+          if (!workflowDataWithExistingResponse.workflowId) validationErrors.push('Missing workflowId');
+          if (!workflowDataWithExistingResponse.client) validationErrors.push('Missing client data');
+          if (!workflowDataWithExistingResponse.case) validationErrors.push('Missing case data');
+          if (!workflowDataWithExistingResponse.status) validationErrors.push('Missing status');
+          
+          if (validationErrors.length > 0) {
+            console.error('❌ DEBUG: Validation errors before API call:', validationErrors);
+            toast.error(
+              <div>
+                <p>❌ Data validation failed</p>
+                <p className="text-sm mt-1">Errors: {validationErrors.join(', ')}</p>
+              </div>,
+              { duration: 8000 }
+            );
+            setLoading(false);
+            return;
+          }
+
+          try {
+            console.log('🔄 DEBUG: Calling saveWorkflowProgress with token present');
+            
+            // Test API connectivity before the actual call
+            console.log('🔄 DEBUG: Testing API connectivity...');
+            const { default: api } = await import('../utils/api');
+            
+            // Simple connectivity test
+            try {
+              const testResponse = await api.get('/api/v1/auth/profile', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              console.log('✅ DEBUG: API connectivity test passed:', testResponse.status);
+            } catch (connectivityError: any) {
+              console.warn('⚠️ DEBUG: API connectivity test failed:', {
+                status: connectivityError?.response?.status,
+                message: connectivityError?.message
+              });
+            }
+            
+            let response = await saveWorkflowProgress(workflowDataWithExistingResponse);
+            
+            // Alternative direct API call for testing
+            if (!response || !response.success) {
+              console.log('🔄 DEBUG: Trying direct API call as fallback...');
+              try {
+                const directResponse = await api.post('/api/v1/workflows/progress', workflowDataWithExistingResponse, {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+                console.log('✅ DEBUG: Direct API call succeeded:', directResponse.data);
+                response = directResponse.data;
+              } catch (directError: any) {
+                console.error('❌ DEBUG: Direct API call also failed:', {
+                  status: directError?.response?.status,
+                  data: directError?.response?.data,
+                  message: directError?.message
+                });
+              }
+            }
+            console.log('✅ DEBUG: Workflow with existing response saved to database:', {
+              success: response?.success,
+              dataId: response?.data?.id || response?.data?._id,
+              message: response?.message,
+              fullResponse: response
+            });
+            
+            toast.success(
+              <div>
+                <p>✅ Previous response selected and saved for client {client.name}</p>
+                <p className="text-sm mt-1">📋 Response: {existingResponse.questionnaireTitle}</p>
+                <p className="text-sm text-green-600">📁 New case: {caseData.title || 'Untitled Case'}</p>
+                <p className="text-xs text-blue-600">💾 Workflow saved to database with existing response data</p>
+              </div>,
+              { duration: 8000 }
+            );
+
+            // Set the questionnaire assignment for the UI
+            const assignment: QuestionnaireAssignment = {
+              id: workflowDataWithExistingResponse.questionnaireAssignment.id,
+              caseId: caseData.id || caseData._id || '',
+              clientId: client.id || client._id || '',
+              questionnaireId: existingResponse.questionnaireId,
+              questionnaireName: existingResponse.questionnaireTitle,
+              status: 'completed',
+              assignedAt: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              responses: existingResponse.responses,
+              dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              notes: `Reused response from previous case. Original case: ${existingResponse.caseId}`,
+              clientEmail: client.email,
+              formCaseIds: formCaseIds,
+              selectedForms: selectedForms
+            };
+
+            setQuestionnaireAssignment(assignment);
+
+            // Move to next step
+            handleNext();
+            
+          } catch (apiError: any) {
+            console.error('❌ DEBUG: Failed to save workflow with existing response:', {
+              error: apiError,
+              message: apiError?.message,
+              status: apiError?.response?.status,
+              statusText: apiError?.response?.statusText,
+              data: apiError?.response?.data,
+              config: {
+                url: apiError?.config?.url,
+                method: apiError?.config?.method,
+                headers: apiError?.config?.headers
+              }
+            });
+            
+            // Show detailed error to user
+            const errorMessage = apiError?.response?.data?.message || 
+                               apiError?.response?.data?.error || 
+                               apiError?.message || 
+                               'Unknown error occurred';
+            
+            toast.error(
+              <div>
+                <p>❌ Failed to save workflow to database</p>
+                <p className="text-sm mt-1">Error: {errorMessage}</p>
+                <p className="text-xs text-gray-600">Check console for detailed error information</p>
+              </div>,
+              { duration: 10000 }
+            );
+          }
+        } else {
+          toast.error('Authentication required to save workflow');
+        }
+
+        setLoading(false);
+        return;
+
+      } catch (error: any) {
+        console.error('❌ DEBUG: Error processing existing response selection:', error);
+        toast.error('Failed to process existing response selection. Please try again.');
+        setLoading(false);
+        return;
+      }
     }
 
-    // Ensure password is available
-    if (!clientCredentials.password) {
-      toast.error('Password is required for client account creation. Please generate a password first.');
-      return;
+    // Original questionnaire assignment logic continues below for new responses
+    // For existing clients, skip account creation validation since they already have accounts
+    const isExistingClientWithAccount = client.isExistingClient || client.hasUserAccount;
+    
+    if (!isExistingClientWithAccount) {
+      // Only validate account creation requirements for NEW clients
+      console.log('🔄 DEBUG: NEW client detected - validating account creation requirements:', {
+        clientEmail: client.email,
+        createAccount: clientCredentials.createAccount,
+        hasPassword: !!clientCredentials.password
+      });
+      
+      if (!clientCredentials.createAccount) {
+        toast.error('Client account creation must be enabled to assign questionnaires. Please check "Create Account" option and set a password.');
+        return;
+      }
+
+      // Ensure password is available for new clients
+      if (!clientCredentials.password) {
+        toast.error('Password is required for client account creation. Please generate a password first.');
+        return;
+      }
+    } else {
+      console.log('✅ DEBUG: EXISTING client detected - COMPLETELY SKIPPING all account creation validation:', {
+        clientId: client.id,
+        clientName: client.name,
+        clientEmail: client.email,
+        isExistingClient: client.isExistingClient,
+        hasUserAccount: client.hasUserAccount,
+        skipPasswordValidation: true,
+        skipAccountCreationValidation: true
+      });
     }
 
     setLoading(true);
@@ -1923,45 +3080,52 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     let clientUserId = undefined;
 
     try {
-      // First, check if we need to create a client account
-      if (clientCredentials.createAccount) {
+      // Handle client account creation only for new clients
+      if (!isExistingClientWithAccount) {
+        console.log('🔄 DEBUG: Processing new client - will create account:', {
+          clientEmail: client.email,
+          hasPassword: !!clientCredentials.password,
+          createAccount: clientCredentials.createAccount
+        });
+        
+        // First, check if we need to create a client account for new clients
+        if (clientCredentials.createAccount) {
+          if (!clientCredentials.password) {
+            toast.error('Password is required for client account creation. Please generate a password in the questionnaire assignment screen.');
+            setLoading(false);
+            return;
+          }
 
+          // Ensure the client object has the password before calling handleClientSubmit
+          const clientWithCredentials = {
+            ...client,
+            password: clientCredentials.password,
+            email: clientCredentials.email || client.email
+          };
 
-        if (!clientCredentials.password) {
-
-          toast.error('Password is required for client account creation. Please generate a password in the questionnaire assignment screen.');
-          setLoading(false);
-          return;
+          // Update both state and the direct object reference
+          setClient(clientWithCredentials);
+          Object.assign(client, clientWithCredentials);
         }
 
-        // Ensure the client object has the password before calling handleClientSubmit
-        const clientWithCredentials = {
-          ...client,
-          password: clientCredentials.password,
-          email: clientCredentials.email || client.email
-        };
+        // Call handleClientSubmit to create the client account for new clients
+        const createdUserId = await handleClientSubmit();
 
-
-
-
-
-        // Update both state and the direct object reference
-        setClient(clientWithCredentials);
-        Object.assign(client, clientWithCredentials);
-      }
-
-      // Call handleClientSubmit to create the client account if needed
-
-      const createdUserId = await handleClientSubmit();
-
-
-      // If client account creation is enabled, use the returned user ID
-      if (clientCredentials.createAccount && createdUserId) {
-
-        clientUserId = createdUserId;
-
+        // If client account creation is enabled, use the returned user ID
+        if (clientCredentials.createAccount && createdUserId) {
+          clientUserId = createdUserId;
+        }
       } else {
-
+        // For existing clients, use their existing ID and skip all account creation
+        clientUserId = client.id || client._id || client.userId;
+        console.log('✅ DEBUG: Using existing client ID for questionnaire assignment - NO ACCOUNT CREATION:', {
+          clientUserId,
+          clientName: client.name,
+          clientEmail: client.email,
+          isExistingClient: client.isExistingClient,
+          hasUserAccount: client.hasUserAccount,
+          skipAccountCreation: true
+        });
       }
       const selectedQ = availableQuestionnaires.find(q => {
         // Check all possible ID fields
@@ -2105,7 +3269,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       assignmentData = {
         questionnaireId,
         questionnaireName: normalizedQ.title || 'Questionnaire',
-        clientId,
+        clientId, // This should be the user account ID (clientUserId)
         caseId: caseId || undefined,
         status: 'pending',
         assignedAt: new Date().toISOString(),
@@ -2123,80 +3287,21 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       };
 
       // Debug log the validated data before making the API call
-      // Assignment data prepared
+      console.log('🔄 DEBUG: Assignment data prepared with client IDs:', {
+        originalClientId: client.id,
+        userAccountId: clientUserId,
+        finalClientId: clientId,
+        clientEmail: assignmentData.clientEmail,
+        questionnaireName: assignmentData.questionnaireName,
+        caseId: assignmentData.caseId
+      });
 
       // Check if we have an authentication token
       const token = localStorage.getItem('token');
       if (!token) {
-        // No authentication token
-        toast.error('You must be logged in to assign questionnaires through the API. Will use local storage instead.');
-        // Don't throw error, just set a flag to skip API call
-        // Use API only - no localStorage fallback
-
-        // Create assignment object (API only mode)
-        const localAssignment: QuestionnaireAssignment = {
-          id: `assignment_${Date.now()}`,
-          caseId: caseData.id,
-          clientId: client.id,
-          questionnaireId: selectedQuestionnaire,
-          questionnaireName: normalizedQ.title || normalizedQ.name || 'Questionnaire',
-          status: 'pending',
-          assignedAt: new Date().toISOString(),
-          completedAt: undefined,
-          responses: {},
-          dueDate: caseData.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          notes: `Please complete this questionnaire for your ${caseData.category || 'immigration'} case.`,
-          clientEmail: clientCredentials.email || client.email,
-          clientUserId: clientUserId, // Include the created user account ID
-          tempPassword: clientCredentials.createAccount ? clientCredentials.password : undefined, // Include password if account was created
-          accountCreated: !!clientUserId, // Track whether user account was successfully created
-          formCaseIds: formCaseIds,
-          selectedForms: selectedForms,
-          // Add form type and generated case ID for backend integration
-          formType: selectedForms.length > 0 ? selectedForms[0] : undefined,
-          formCaseIdGenerated: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : undefined,
-          // Include client name fields
-          clientFirstName: client.firstName,
-          clientMiddleName: client.middleName || '',
-          clientLastName: client.lastName,
-          clientFullName: client.name,
-          // Include client address
-          clientAddress: {
-            street: client.address?.street || '',
-            aptSuiteFlr: client.address?.aptSuiteFlr || '',
-            aptNumber: client.address?.aptNumber || '',
-            city: client.address?.city || '',
-            state: client.address?.state || '',
-            zipCode: client.address?.zipCode || '',
-            province: client.address?.province || '',
-            postalCode: client.address?.postalCode || '',
-            country: client.address?.country || 'United States'
-          },
-          // Include other client info
-          clientPhone: client.phone || '',
-          clientDateOfBirth: client.dateOfBirth || '',
-          clientNationality: client.nationality || ''
-        };
-
-        // Update state (no localStorage saving)
-        setQuestionnaireAssignment(localAssignment);
-
-        // Show success and proceed
-        if (clientCredentials.createAccount && clientUserId) {
-          toast.success(
-            <div>
-              <p>✅ Questionnaire "{normalizedQ.title || normalizedQ.name}" assigned to client {client.name}</p>
-              <p className="text-sm mt-1">🔐 Client account created:</p>
-              <p className="text-xs">Email: {clientCredentials.email || client.email}</p>
-              <p className="text-xs">Password: {clientCredentials.password}</p>
-            </div>,
-            { duration: 8000 }
-          );
-        } else {
-          toast.success(`Questionnaire "${normalizedQ.title || normalizedQ.name}" has been assigned to client ${client.name}.`);
-        }
+        // No authentication token - require login
+        toast.error('You must be logged in to assign questionnaires. Please log in and try again.');
         setLoading(false);
-        handleNext();
         return;
       }
 
@@ -2209,76 +3314,38 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Log and notify user about API availability
 
-
       if (!endpointAvailable) {
-        toast.error('API endpoint not available. Assignment will be saved locally only.');
+        toast.error('API endpoint not available. Cannot assign questionnaire without server connection.');
+        setLoading(false);
+        return;
       }
 
       let assignment: QuestionnaireAssignment;
-      // Track success state for future use
 
-      // Only attempt API call if the endpoint is available
-      if (endpointAvailable) {
-        try {
-          // Add debugging for the request
+      // Attempt API call since endpoint is available
+      try {
+        // Add debugging for the request
 
+        // Send directly with fetch for creating the assignment
+        const response = await createQuestionnaireAssignment(assignmentData);
 
-
-
-          // Send directly with fetch for creating the assignment
-          const response = await createQuestionnaireAssignment(assignmentData);
-
-          // Handle the response which returns json directly
-          const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
-
-
-          assignment = {
-            id: responseId,
-            caseId: caseData.id,
-            clientId: client.id,
-            questionnaireId: selectedQuestionnaire,
-            questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
-            status: 'pending',
-            assignedAt: new Date().toISOString(),
-            completedAt: undefined,
-            responses: {},
-            dueDate: assignmentData.dueDate,
-            notes: assignmentData.notes,
-            clientEmail: assignmentData.clientEmail,
-            clientUserId: assignmentData.clientUserId,
-            accountCreated: assignmentData.accountCreated, // Track whether user account was successfully created
-            formCaseIds: assignmentData.formCaseIds,
-            selectedForms: assignmentData.selectedForms,
-            // Add form type and generated case ID for backend integration
-            formType: assignmentData.formType,
-            formCaseIdGenerated: assignmentData.formCaseIdGenerated
-          };
-
-          // API save succeeded
-
-        } catch (apiError: any) {
-
-          throw apiError; // Re-throw to be caught by the main catch block
-        }
-      } else {
-        // API not available, create assignment object only
+        // Handle the response which returns json directly
+        const responseId = response?.data?.id || response?.id || `assignment_${Date.now()}`;
 
         assignment = {
-          id: `assignment_${Date.now()}`,
+          id: responseId,
           caseId: caseData.id,
-          clientId: client.id,
+          clientId: clientUserId || client.id, // Use the user account ID for proper linking
           questionnaireId: selectedQuestionnaire,
           questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
           status: 'pending',
           assignedAt: new Date().toISOString(),
           completedAt: undefined,
           responses: {},
-          // Include fields from assignmentData
           dueDate: assignmentData.dueDate,
           notes: assignmentData.notes,
           clientEmail: assignmentData.clientEmail,
-          clientUserId: assignmentData.clientUserId, // Include the created user account ID
-          tempPassword: assignmentData.tempPassword, // Include password if account was created
+          clientUserId: assignmentData.clientUserId,
           accountCreated: assignmentData.accountCreated, // Track whether user account was successfully created
           formCaseIds: assignmentData.formCaseIds,
           selectedForms: assignmentData.selectedForms,
@@ -2287,7 +3354,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           formCaseIdGenerated: assignmentData.formCaseIdGenerated
         };
 
-        toast.error('API server not available. Assignment created but not saved.', { duration: 3000 });
+        // API save succeeded
+
+      } catch (apiError: any) {
+        throw apiError; // Re-throw to be caught by the main catch block
       }
 
       setQuestionnaireAssignment(assignment);
@@ -2335,17 +3405,133 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Save all accumulated workflow data to backend now
       try {
+        // Create comprehensive workflow data for new questionnaire assignment (similar to existing response path)
+        const workflowDataWithNewAssignment = {
+          // Workflow metadata
+          workflowId: `workflow_${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          currentStep,
+          status: 'in-progress',
+          
+          // Client information
+          client: {
+            ...client,
+            firstName: client.firstName,
+            middleName: client.middleName || '',
+            lastName: client.lastName,
+            name: client.name,
+            address: {
+              street: client.address?.street || '',
+              aptSuiteFlr: client.address?.aptSuiteFlr || '',
+              aptNumber: client.address?.aptNumber || '',
+              city: client.address?.city || '',
+              state: client.address?.state || '',
+              zipCode: client.address?.zipCode || '',
+              province: client.address?.province || '',
+              postalCode: client.address?.postalCode || '',
+              country: client.address?.country || 'United States'
+            }
+          },
 
+          // Case details (NEW CASE or EXISTING CASE)
+          case: {
+            ...caseData,
+            id: caseData.id || generateObjectId(),
+            _id: caseData._id || caseData.id || generateObjectId()
+          },
 
+          // Selected forms and case IDs
+          selectedForms,
+          formCaseIds,
+          formTemplates: formTemplates.filter(template => selectedForms.includes(template.name)),
 
-        // Save workflow progress
+          // Questionnaire information
+          selectedQuestionnaire,
+          
+          // NEW QUESTIONNAIRE ASSIGNMENT DATA
+          questionnaireAssignment: {
+            id: assignment.id,
+            caseId: assignment.caseId,
+            clientId: assignment.clientId,
+            questionnaireId: assignment.questionnaireId,
+            questionnaireName: assignment.questionnaireName,
+            status: 'pending',
+            assignedAt: assignment.assignedAt,
+            completedAt: assignment.completedAt,
+            responses: assignment.responses || {},
+            // Metadata about new assignment
+            assignmentMetadata: {
+              isNewAssignment: true,
+              assignedAt: new Date().toISOString(),
+              caseId: caseData.id || caseData._id,
+              formSelection: selectedForms,
+              clientAccountCreated: !!clientUserId,
+              tempPassword: clientCredentials.createAccount ? clientCredentials.password : undefined
+            },
+            // Include case and form information
+            formCaseIds: formCaseIds,
+            selectedForms: selectedForms
+          },
+
+          // Client credentials info
+          clientCredentials: {
+            email: clientCredentials.email || client.email,
+            createAccount: clientCredentials.createAccount,
+            hasPassword: !!clientCredentials.password
+          },
+
+          // Workflow steps progress
+          stepsProgress: NEW_WORKFLOW_STEPS.map((step, index) => ({
+            ...step,
+            index,
+            status: index < currentStep ? 'completed' : index === currentStep ? 'current' : 'pending',
+            completedAt: index < currentStep ? new Date().toISOString() : undefined
+          }))
+        };
+
+        console.log('🔄 DEBUG: Saving workflow with new questionnaire assignment to database:', {
+          workflowId: workflowDataWithNewAssignment.workflowId,
+          caseId: workflowDataWithNewAssignment.case.id,
+          questionnaireId: assignment.questionnaireId,
+          questionnaireName: assignment.questionnaireName,
+          selectedForms: workflowDataWithNewAssignment.selectedForms,
+          clientAccountCreated: !!clientUserId
+        });
+
+        // Save the comprehensive workflow data to the database using saveWorkflowProgress
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const response = await saveWorkflowProgress(workflowDataWithNewAssignment);
+            console.log('✅ DEBUG: Workflow with new assignment saved to database:', response);
+            
+            toast.success(
+              <div>
+                <p>✅ New questionnaire assigned and workflow saved for client {client.name}</p>
+                <p className="text-sm mt-1">📋 Questionnaire: {assignment.questionnaireName}</p>
+                <p className="text-sm text-green-600">📁 Case: {caseData.title || 'Untitled Case'}</p>
+                <p className="text-xs text-blue-600">💾 Complete workflow saved to database</p>
+              </div>,
+              { duration: 8000 }
+            );
+            
+          } catch (workflowSaveError: any) {
+            console.error('❌ DEBUG: Failed to save workflow with new assignment:', workflowSaveError);
+            // Don't fail the entire process - just log and continue
+            toast.error('Questionnaire assigned but workflow save failed. Assignment is still active.');
+          }
+        } else {
+          console.warn('⚠️ DEBUG: No authentication token - skipping workflow save');
+        }
+
+        // Also keep the local save as fallback
         await saveWorkflowProgressLocal();
 
-
-        // All workflow data saved to server successfully
+        console.log('✅ DEBUG: All workflow data saved successfully (both main workflow and local backup)');
 
       } catch (error) {
-
+        console.error('❌ DEBUG: Error saving workflow data:', error);
         toast.error('Questionnaire assigned but some data may not be saved to server', { duration: 3000 });
       }
 
@@ -2353,100 +3539,33 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       handleNext();
     } catch (error: any) {
 
-
       // Display more specific error messages
       if (error?.message && error.message.includes('Invalid')) {
         // This is our validation error
         toast.error(error.message);
+        setLoading(false);
+        return;
       } else if (error?.message && error.message.includes('Authentication required')) {
         // Authentication error
         toast.error('You must be logged in to assign questionnaires. Please log in first.');
-        // Could navigate to login page here if needed
-        // navigate('/login');
+        setLoading(false);
+        return;
       } else if (error?.response?.status === 404 || error?.message?.includes('not found')) {
-        // API endpoint not found - show simple message
-        toast.error('API endpoint not found. Assignment saved locally.', { duration: 4000 });
+        // API endpoint not found
+        toast.error('API endpoint not found. Cannot assign questionnaire without server connection.', { duration: 4000 });
+        setLoading(false);
+        return;
       } else if (error?.response?.data?.error) {
         // This is an API error with details
         toast.error(`API Error: ${error.response.data.error}`);
+        setLoading(false);
+        return;
       } else {
         // Generic fallback error
-        toast.error('Failed to assign questionnaire. Using local storage as fallback.');
-      }
-
-      // Don't proceed to next step if it's an ID validation error
-      if (error?.message && error.message.includes('Invalid')) {
+        toast.error('Failed to assign questionnaire. Please check your connection and try again.');
+        setLoading(false);
         return;
       }
-
-      // Create a local assignment as fallback
-
-      // Enhanced flexible matching to find the selected questionnaire
-      const selectedQ = availableQuestionnaires.find(q => {
-        // Check all possible ID fields
-        const possibleIds = [
-          q._id,          // MongoDB ObjectId
-          q.id,           // Original ID or API ID
-          q.originalId,   // Original ID before conversion
-          q.name          // Fallback to name if used as ID
-        ].filter(Boolean); // Remove undefined/null values
-
-        // For API questionnaires, prioritize matching the q_ prefixed ID
-        if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
-
-          return true;
-        }
-
-        // Check if any of the possible IDs match
-        const matches = possibleIds.includes(selectedQuestionnaire);
-        if (matches) {
-
-        }
-        return matches;
-      });
-
-      // Create a local assignment with the same data format as the API would return
-      const localAssignment: QuestionnaireAssignment = {
-        id: `assignment_${Date.now()}`,
-        caseId: caseData.id,
-        clientId: client.id,
-        questionnaireId: selectedQuestionnaire,
-        questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
-        status: 'pending',
-        assignedAt: new Date().toISOString(),
-        completedAt: undefined,
-        responses: {},
-        // Include all fields from the assignment data if available
-        dueDate: assignmentData ? assignmentData.dueDate : undefined,
-        notes: assignmentData ? assignmentData.notes : undefined,
-        clientEmail: assignmentData ? assignmentData.clientEmail : client.email,
-        clientUserId: assignmentData ? assignmentData.clientUserId : clientUserId, // Include the created user account ID
-        tempPassword: assignmentData ? assignmentData.tempPassword : (clientCredentials.createAccount ? clientCredentials.password : undefined), // Include password if account was created
-        accountCreated: assignmentData ? assignmentData.accountCreated : !!clientUserId, // Track whether user account was successfully created
-        formCaseIds: assignmentData ? assignmentData.formCaseIds : formCaseIds,
-        selectedForms: assignmentData ? assignmentData.selectedForms : selectedForms
-      };
-
-      // Update the state with our local assignment
-      setQuestionnaireAssignment(localAssignment);
-
-      // Show warning message to the user that data is not persisted
-      if (clientCredentials.createAccount && clientUserId) {
-        toast.error(
-          <div>
-            <p>⚠️ Questionnaire "{selectedQ?.title || selectedQ?.name}" assigned to client {client.name} (not saved to server)</p>
-            <p className="text-sm mt-1">🔐 Client account created:</p>
-            <p className="text-xs">Email: {clientCredentials.email || client.email}</p>
-            <p className="text-xs">Password: {clientCredentials.password}</p>
-          </div>,
-          { duration: 8000 }
-        );
-      } else {
-        // Questionnaire assigned to client (local storage mode)
-      }
-
-      // Only proceed to next step if it's not an ID validation error
-      handleNext();
     } finally {
       setLoading(false);
     }
@@ -2823,6 +3942,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             <h3 className="text-lg font-semibold text-blue-900 mb-2">Start Workflow</h3>
             <p className="text-blue-700">Choose to create a new client or select an existing client to begin the workflow.</p>
           </div>
+          
+          {/* DEBUG BUTTON - Remove in production */}
+ 
+          
           <div className="flex flex-col md:flex-row gap-8">
             {/* New Client */}
             <div className="flex-1 bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-between">
@@ -2835,7 +3958,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             <div className="flex-1 bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-between">
               <Users className="w-10 h-10 text-green-500 mb-2" />
               <h4 className="font-medium text-gray-900 mb-2">Existing Client</h4>
-              <p className="text-gray-600 mb-4 text-center">Select an existing client to auto-load their information.</p>
+              <p className="text-gray-600 mb-4 text-center">Select an existing client to auto-load their information and previous workflow data.</p>
               <div className="w-full mb-4">
                 {fetchingClients ? (
                   <div className="text-gray-500 text-center">Loading clients...</div>
@@ -2851,12 +3974,35 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     options={[
                       { value: '', label: 'Choose a client' },
                       ...existingClients
-                        .filter(c => typeof (c as any)._id === 'string' && (c as any)._id.length === 24 && (c as any).userType === 'companyClient')
+                        .filter(c => {
+                          const anyClient = c as any;
+                          // Check if client has a valid ID
+                          const hasValidId = typeof anyClient._id === 'string' && anyClient._id.length === 24;
+                          // Check if client has valid role and userType (allow both companyClient and individual client types)
+                          const hasValidType = anyClient.role === 'client' && (anyClient.userType === 'companyClient' || anyClient.userType === 'client' || !anyClient.userType);
+                          
+                          return hasValidId && hasValidType;
+                        })
                         .map(c => {
                           const anyClient = c as any;
+                          // Try to construct name from multiple possible fields
+                          let displayName = '';
+                          
+                          if (anyClient.name) {
+                            displayName = anyClient.name;
+                          } else if (anyClient.firstName || anyClient.lastName) {
+                            displayName = `${anyClient.firstName || ''} ${anyClient.lastName || ''}`.trim();
+                          } else if (anyClient.fullName) {
+                            displayName = anyClient.fullName;
+                          } else {
+                            displayName = 'Unnamed Client';
+                          }
+                          
+                          const email = anyClient.email || 'No email';
+                          
                           return {
                             value: anyClient._id,
-                            label: `${anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim()} (${anyClient.email || ''})`
+                            label: `${displayName} (${email})`
                           };
                         })
                     ]}
@@ -2868,12 +4014,179 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   if (!selectedExistingClientId) return;
                   setLoading(true);
                   try {
-                    const fullClient = await getClientById(selectedExistingClientId);
+                    console.log('🔄 Fetching client details from workflow DB for ID:', selectedExistingClientId);
+                    
+                    // First try to get client details from regular client API
+                    let fullClient = null;
+                    try {
+                      fullClient = await getClientById(selectedExistingClientId);
+                      console.log('✅ Retrieved client from client API:', fullClient);
+                    } catch (clientApiError) {
+                      console.warn('⚠️ Failed to get client from client API, trying workflow DB:', clientApiError);
+                    }
+                    
+                    // If client API fails, try to get from workflow DB
+                    if (!fullClient) {
+                      try {
+                        const workflows = await fetchWorkflowsForClientSearch();
+                        const workflowWithClient = workflows.find(w => 
+                          w.clientId === selectedExistingClientId || 
+                          w.client?._id === selectedExistingClientId ||
+                          w.client?.id === selectedExistingClientId
+                        );
+                        
+                        if (workflowWithClient && workflowWithClient.client) {
+                          fullClient = workflowWithClient.client;
+                          console.log('✅ Retrieved client from workflow DB:', fullClient);
+                        }
+                      } catch (workflowError) {
+                        console.error('❌ Failed to get client from workflow DB:', workflowError);
+                      }
+                    }
+                    
+                    if (!fullClient) {
+                      toast.error('Unable to retrieve client details. Please try again.');
+                      return;
+                    }
+                    
                     const anyClient = fullClient as any;
-                    const name = anyClient.name || ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim();
-                    setClient({ ...fullClient, name });
+                    // Try multiple fields for client name
+                    let name = '';
+                    if (anyClient.name) {
+                      name = anyClient.name;
+                    } else if (anyClient.firstName || anyClient.lastName) {
+                      name = ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim();
+                    } else if (anyClient.fullName) {
+                      name = anyClient.fullName;
+                    } else {
+                      name = 'Unnamed Client';
+                    }
+                    
+                    // Populate the client form with retrieved details
+                    const clientWithDetails = {
+                      _id: selectedExistingClientId,
+                      id: selectedExistingClientId,
+                      name: name,
+                      firstName: anyClient.firstName || '',
+                      middleName: anyClient.middleName || '',
+                      lastName: anyClient.lastName || '',
+                      email: anyClient.email || '',
+                      phone: anyClient.phone || '',
+                      dateOfBirth: anyClient.dateOfBirth || '',
+                      nationality: anyClient.nationality || '',
+                      address: {
+                        street: anyClient.address?.street || '',
+                        aptSuiteFlr: anyClient.address?.aptSuiteFlr || '',
+                        aptNumber: anyClient.address?.aptNumber || '',
+                        city: anyClient.address?.city || '',
+                        state: anyClient.address?.state || anyClient.address?.province || '',
+                        province: anyClient.address?.province || anyClient.address?.state || '',
+                        zipCode: anyClient.address?.zipCode || anyClient.address?.postalCode || '',
+                        postalCode: anyClient.address?.postalCode || anyClient.address?.zipCode || '',
+                        country: anyClient.address?.country || 'United States'
+                      },
+                      isExistingClient: true,
+                      hasUserAccount: true,
+                      role: anyClient.role || 'client',
+                      userType: anyClient.userType || 'companyClient'
+                    };
+                    
+                    console.log('✅ Setting client with populated details:', clientWithDetails);
+                    console.log('🔍 DEBUG: Client flags before workflow auto-fill:', {
+                      isExistingClient: clientWithDetails.isExistingClient,
+                      hasUserAccount: clientWithDetails.hasUserAccount,
+                      role: clientWithDetails.role,
+                      userType: clientWithDetails.userType
+                    });
+                    
+                    setClient(clientWithDetails);
+                    
+                    // IMMEDIATE VERIFICATION: Check client state right after setClient
+                    console.log('🔍 DEBUG: IMMEDIATE VERIFICATION after setClient:', {
+                      timestamp: new Date().toISOString(),
+                      clientId: clientWithDetails.id,
+                      isExistingClient: clientWithDetails.isExistingClient,
+                      hasUserAccount: clientWithDetails.hasUserAccount,
+                      setClientCalled: true,
+                      stateBeingSet: {
+                        isExistingClient: clientWithDetails.isExistingClient,
+                        hasUserAccount: clientWithDetails.hasUserAccount
+                      }
+                    });
+                    
+                    // ADDITIONAL SAFETY: Force update client state with explicit flag preservation
+                    setClient((prevClient: any) => {
+                      const updatedClient = {
+                        ...prevClient,
+                        ...clientWithDetails,
+                        // FORCE these flags to be true for existing clients
+                        isExistingClient: true,
+                        hasUserAccount: true,
+                        role: clientWithDetails.role || 'client',
+                        userType: clientWithDetails.userType || 'companyClient'
+                      };
+                      
+                      console.log('🔍 DEBUG: FORCED CLIENT UPDATE with explicit flags:', {
+                        updatedClientFlags: {
+                          isExistingClient: updatedClient.isExistingClient,
+                          hasUserAccount: updatedClient.hasUserAccount,
+                          role: updatedClient.role,
+                          userType: updatedClient.userType
+                        },
+                        clientId: updatedClient.id,
+                        clientEmail: updatedClient.email
+                      });
+                      
+                      return updatedClient;
+                    });
                     setCaseData(prev => ({ ...prev, clientId: selectedExistingClientId }));
-                    setCurrentStep(2); // Advance immediately after fetching
+                    
+                    // Fetch existing questionnaire responses for this client
+                    await fetchExistingQuestionnaireResponses(selectedExistingClientId);
+                    
+                    // Try to find and auto-fill workflow data for this client
+                    console.log('🔄 DEBUG: Attempting to auto-fill workflow data for client:', {
+                      clientId: selectedExistingClientId,
+                      clientEmail: clientWithDetails.email,
+                      clientName: clientWithDetails.name,
+                      flagsSetBeforeAutoFill: {
+                        isExistingClient: clientWithDetails.isExistingClient,
+                        hasUserAccount: clientWithDetails.hasUserAccount
+                      }
+                    });
+                    
+                    // IMMEDIATE auto-fill - no timeout to prevent race condition
+                    let workflowAutoFilled = false;
+                    try {
+                      workflowAutoFilled = await findAndAutoFillWorkflow(
+                        clientWithDetails.email, 
+                        selectedExistingClientId
+                      );
+                      
+                      // After auto-fill, verify flags are still preserved
+                      console.log('🔍 DEBUG: Verifying client flags after workflow auto-fill are preserved');
+                    } catch (autoFillError) {
+                      console.warn('⚠️ DEBUG: Workflow auto-fill failed, but continuing with existing client data:', autoFillError);
+                    }
+
+                    // For existing client workflow, always go to step 1 (Create Client) to show populated details
+                    // Don't auto-advance to subsequent steps
+                    console.log('✅ DEBUG: Setting current step to 1 (Create Client) to show populated client details');
+                    setCurrentStep(1);
+                    
+                    if (workflowAutoFilled) {
+                      console.log('✅ DEBUG: Workflow data auto-filled successfully');
+                      toast.success(`Client details loaded for ${name} - ready to create client`);
+                    } else {
+                      console.log('⚠️ DEBUG: No workflow data found, showing client details only');
+                      toast.success(`Client details loaded for ${name} - ready to create client`);
+                    }
+                    
+                    // Remove this duplicate toast since we have specific ones above
+                    // toast.success(`Client details loaded: ${name}`);
+                  } catch (error) {
+                    console.error('❌ Error fetching client details:', error);
+                    toast.error('Failed to load client details. Please try again.');
                   } finally {
                     setLoading(false);
                   }
@@ -2881,7 +4194,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 disabled={!selectedExistingClientId || loading}
                 className="w-full"
               >
-                {loading ? 'Loading...' : 'Use Selected Client'}
+                {loading ? 'Loading...' : 'Load Client & Workflow Data'}
               </Button>
             </div>
           </div>
@@ -2893,8 +4206,21 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // <div>Create Client</div>
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-blue-900 mb-2">Client Information</h3>
-              <p className="text-blue-700">Enter the client's personal details to create their profile.</p>
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                {client.isExistingClient ? 'Existing Client Information' : 'Client Information'}
+              </h3>
+              <p className="text-blue-700">
+                {client.isExistingClient 
+                  ? `Review and update client details for: ${client.name || 'Selected Client'}` 
+                  : 'Enter the client\'s personal details to create their profile.'
+                }
+              </p>
+              {client.isExistingClient && (
+                <div className="mt-2 flex items-center text-green-700">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  <span className="text-sm">Client details loaded from database</span>
+                </div>
+              )}
             </div>
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900">Personal Information</h4>
@@ -3595,6 +4921,239 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 );
               })()}
 
+              {/* Enhanced UI for existing clients with previous questionnaire responses */}
+              {(client.isExistingClient || client.hasUserAccount || existingQuestionnaireResponses.length > 0) && (
+                <div className="mt-6 p-6 border-2 border-purple-300 rounded-lg bg-gradient-to-r from-purple-50 to-indigo-50">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-purple-900 flex items-center">
+                      <ClipboardList className="w-5 h-5 mr-2" />
+                      Questionnaire Options for Existing Client
+                    </h4>
+                    <div className="flex items-center space-x-2">
+                      {existingQuestionnaireResponses.length > 0 && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {existingQuestionnaireResponses.length} Previous Response{existingQuestionnaireResponses.length !== 1 ? 's' : ''} Found
+                        </span>
+                      )}
+                      {/* Debug info for development */}
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-gray-500 hover:text-gray-700">Debug Info</summary>
+                        <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                          <div><strong>Client ID:</strong> {client.id || 'None'}</div>
+                          <div><strong>Client Email:</strong> {client.email || 'None'}</div>
+                          <div><strong>Is Existing:</strong> {client.isExistingClient ? 'Yes' : 'No'}</div>
+                          <div><strong>Has Account:</strong> {client.hasUserAccount ? 'Yes' : 'No'}</div>
+                          <div><strong>Responses Found:</strong> {existingQuestionnaireResponses.length}</div>
+                          {existingQuestionnaireResponses.length > 0 && (
+                            <div className="mt-2">
+                              <strong>Response Details:</strong>
+                              {existingQuestionnaireResponses.map((resp, idx) => (
+                                <div key={idx} className="ml-2">
+                                  • ID: {resp.id || resp._id} | Title: {resp.questionnaireTitle || 'Unknown'}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+                  
+                  {existingQuestionnaireResponses.length > 0 ? (
+                    <>
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start">
+                          <div className="flex-shrink-0 mr-2">
+                            <InfoIcon className="h-5 w-5 text-blue-500" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-blue-700">
+                              <strong>Great news!</strong> This client has previously completed questionnaires. 
+                              You can save time by reusing their previous responses or assign a new questionnaire if needed.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <label className="relative flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all hover:bg-purple-50 border-purple-200 bg-white">
+                            <input
+                              type="radio"
+                              name="responseChoice"
+                              checked={useExistingResponse}
+                              onChange={() => setUseExistingResponse(true)}
+                              className="sr-only"
+                            />
+                            <div className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${useExistingResponse ? 'border-purple-600 bg-purple-600' : 'border-gray-300'}`}>
+                              {useExistingResponse && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                            </div>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-purple-800 block">✨ Use Previous Response</span>
+                              <span className="text-xs text-purple-600">Reuse existing answers (Recommended)</span>
+                            </div>
+                          </label>
+                          
+                          <label className="relative flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all hover:bg-gray-50 border-gray-200 bg-white">
+                            <input
+                              type="radio"
+                              name="responseChoice"
+                              checked={!useExistingResponse}
+                              onChange={() => {
+                                setUseExistingResponse(false);
+                                setSelectedExistingResponse('');
+                                setClientResponses({});
+                                setIsExistingResponse(false);
+                              }}
+                              className="sr-only"
+                            />
+                            <div className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${!useExistingResponse ? 'border-gray-600 bg-gray-600' : 'border-gray-300'}`}>
+                              {!useExistingResponse && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                            </div>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-gray-800 block">📝 Assign New Questionnaire</span>
+                              <span className="text-xs text-gray-600">Start fresh with new questions</span>
+                            </div>
+                          </label>
+                        </div>
+
+                        {useExistingResponse && (
+                          <div className="mt-4 p-4 bg-white border border-purple-200 rounded-lg">
+                            <Select
+                              id="existingResponse"
+                              label="Select Previous Response to Reuse"
+                              value={selectedExistingResponse}
+                              onChange={(e) => {
+                                setSelectedExistingResponse(e.target.value);
+                                // When existing response is selected, populate the form fields
+                                const response = existingQuestionnaireResponses.find(r => r.id === e.target.value);
+                                if (response && response.responses) {
+                                  setClientResponses(response.responses);
+                                  setIsExistingResponse(true);
+                                  console.log('✅ Previous questionnaire response loaded:', {
+                                    responseId: response.id,
+                                    questionnaireTitle: response.questionnaireTitle,
+                                    responseCount: Object.keys(response.responses).length
+                                  });
+                                }
+                              }}
+                              options={[
+                                { value: '', label: '👆 Choose a previous response to reuse' },
+                                ...existingQuestionnaireResponses.map(response => {
+                                  const responseCount = Object.keys(response.responses || {}).length;
+                                  const submittedDate = new Date(response.submittedAt || response.createdAt).toLocaleDateString();
+                                  const isComplete = response.isComplete ? '✅' : '⚠️';
+                                  return {
+                                    value: response.id || response._id,
+                                    label: `${isComplete} ${response.questionnaireTitle || 'Unknown Questionnaire'} - ${submittedDate} (${responseCount} answers)`
+                                  };
+                                })
+                              ]}
+                            />
+                            {selectedExistingResponse && (() => {
+                              const selectedResponse = existingQuestionnaireResponses.find(r => r.id === selectedExistingResponse);
+                              return (
+                                <div className="mt-3 space-y-3">
+                                  <div className="p-3 bg-green-50 border border-green-200 rounded">
+                                    <div className="flex items-start">
+                                      <div className="flex-shrink-0 mr-2">
+                                        <svg className="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                        </svg>
+                                      </div>
+                                      <div>
+                                        <p className="text-sm text-green-700">
+                                          <strong>Perfect!</strong> The previous responses have been loaded and will be reused for this new case.
+                                          The original response will remain unchanged, and a new entry will be created for this case.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {selectedResponse && selectedResponse.responses && (
+                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                      <h4 className="text-sm font-medium text-blue-900 mb-3">📋 Previous Response Details</h4>
+                                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                                        {Object.entries(selectedResponse.responses).map(([questionKey, answer]) => (
+                                          <div key={questionKey} className="bg-white p-2 rounded border border-blue-100">
+                                            <div className="text-xs font-medium text-blue-700 mb-1">
+                                              {questionKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                                            </div>
+                                            <div className="text-sm text-gray-700">
+                                              {typeof answer === 'object' ? JSON.stringify(answer, null, 2) : String(answer || 'No answer')}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="mt-3 pt-2 border-t border-blue-200">
+                                        <div className="text-xs text-blue-600">
+                                          <strong>Total responses:</strong> {Object.keys(selectedResponse.responses).length} answers
+                                          {selectedResponse.submittedAt && (
+                                            <span className="ml-3">
+                                              <strong>Submitted:</strong> {new Date(selectedResponse.submittedAt).toLocaleString()}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start">
+                          <div className="flex-shrink-0 mr-2">
+                            <svg className="h-5 w-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-sm text-yellow-700">
+                              <strong>No previous responses found</strong> for this client. 
+                              You'll need to assign a new questionnaire from the options above.
+                            </p>
+                            <p className="text-xs text-yellow-600 mt-1">
+                              Client ID: {client.id} | Email: {client.email}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            console.log('🔄 DEBUG: Manual refresh of questionnaire responses triggered');
+                            console.log('🔄 DEBUG: Current client data:', {
+                              clientId: client.id,
+                              clientEmail: client.email,
+                              clientName: client.name,
+                              isExistingClient: client.isExistingClient,
+                              hasUserAccount: client.hasUserAccount
+                            });
+                            
+                            if (client.id) {
+                              await fetchExistingQuestionnaireResponses(client.id);
+                            } else {
+                              console.warn('⚠️ DEBUG: No client ID available for refresh');
+                              toast.error('No client ID available to fetch responses');
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1 border border-yellow-300 rounded text-xs font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Refresh
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Set due date (optional) */}
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (Optional)</label>
@@ -3640,8 +5199,109 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 </div>
               )}
 
-              {/* Client account creation section */}
-              <div className="mt-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
+              {/* Client account status section */}
+              {(() => {
+                // COMPREHENSIVE DEBUG: Capture complete client state and component context
+                const currentTimestamp = new Date().toISOString();
+                const clientState = {
+                  id: client.id,
+                  name: client.name,
+                  email: client.email,
+                  isExistingClient: client.isExistingClient,
+                  hasUserAccount: client.hasUserAccount,
+                  role: client.role,
+                  userType: client.userType,
+                  // All client properties for debugging
+                  completeClient: client
+                };
+                
+                // EMERGENCY SAFETY CHECK: If we have a client ID and it's from selectedExistingClientId, force the flags
+                const isDefinitelyExistingClient = (
+                  selectedExistingClientId && 
+                  client.id && 
+                  (client.id === selectedExistingClientId || client._id === selectedExistingClientId)
+                );
+                
+                if (isDefinitelyExistingClient && (client.isExistingClient !== true || client.hasUserAccount !== true)) {
+                  console.log('� DEBUG: EMERGENCY SAFETY - Detected existing client with undefined flags, FORCING correction:', {
+                    selectedExistingClientId,
+                    clientId: client.id,
+                    clientIdMatch: client.id === selectedExistingClientId,
+                    currentFlags: {
+                      isExistingClient: client.isExistingClient,
+                      hasUserAccount: client.hasUserAccount
+                    },
+                    forcingToTrue: true
+                  });
+                  
+                  // Emergency correction moved to useEffect to avoid render cycle issues
+                  console.log('Emergency correction will be handled by useEffect');
+                }
+                
+                console.log('🔍 DEBUG: ========== ACCOUNT CREATION CONDITIONAL CHECK ==========');
+                console.log('🔍 DEBUG: Account creation conditional check:', {
+                  timestamp: currentTimestamp,
+                  currentStep,
+                  selectedExistingClientId,
+                  isDefinitelyExistingClient,
+                  isExistingClient: client.isExistingClient,
+                  hasUserAccount: client.hasUserAccount,
+                  hasSelectedExistingClientId: !!selectedExistingClientId,
+                  willShowAccountCreation: !(client.isExistingClient || client.hasUserAccount || isDefinitelyExistingClient || selectedExistingClientId),
+                  clientObject: clientState,
+                  exactFlagValues: {
+                    isExistingClientType: typeof client.isExistingClient,
+                    isExistingClientValue: client.isExistingClient,
+                    isExistingClientStrictBoolean: client.isExistingClient === true,
+                    hasUserAccountType: typeof client.hasUserAccount,
+                    hasUserAccountValue: client.hasUserAccount,
+                    hasUserAccountStrictBoolean: client.hasUserAccount === true
+                  },
+                  conditionalResult: {
+                    orCondition: (client.isExistingClient || client.hasUserAccount || selectedExistingClientId),
+                    negatedCondition: !(client.isExistingClient || client.hasUserAccount || isDefinitelyExistingClient || selectedExistingClientId),
+                    willShowExistingClient: (client.isExistingClient || client.hasUserAccount || isDefinitelyExistingClient || selectedExistingClientId),
+                    willShowAccountCreation: !(client.isExistingClient || client.hasUserAccount || isDefinitelyExistingClient || selectedExistingClientId)
+                  }
+                });
+                
+                const isExistingClientAccount = (
+                  client.isExistingClient || 
+                  client.hasUserAccount || 
+                  isDefinitelyExistingClient ||
+                  selectedExistingClientId // Additional check for when existing client is selected
+                );
+                console.log('🔍 DEBUG: Final decision - isExistingClientAccount:', isExistingClientAccount);
+                console.log('🔍 DEBUG: ================================================');
+                
+                return isExistingClientAccount;
+              })() ? (
+                // Show existing client info - no account creation needed
+                <div className="mt-6 p-4 border border-green-200 rounded-lg bg-green-50">
+                  <div className="flex items-center mb-4">
+                    <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                    <h4 className="text-sm font-medium text-green-800">
+                      Existing Client Account Found
+                    </h4>
+                  </div>
+                  <div className="space-y-2">
+                    {useExistingResponse ? (
+                      <p className="text-sm text-green-700">
+                        ✅ <strong>Using Previous Response:</strong> Will reuse existing questionnaire answers for new case {caseData.id || 'pending'}.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-green-700">
+                        ✅ <strong>New Questionnaire:</strong> Will assign new questionnaire to existing client account.
+                      </p>
+                    )}
+                    <p className="text-xs text-green-600 mt-2">
+                      No account setup required - client already has access to the system.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                // Show account creation section for new clients only
+                <div className="mt-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
                 <div className="flex items-center mb-4">
                   <input
                     type="checkbox"
@@ -3734,7 +5394,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     </div>
                   </div>
                 )}
-              </div>
+                </div>
+              )}
             </div>
             <div className="flex justify-between">
               <Button variant="outline" onClick={handlePrevious}>
@@ -3745,35 +5406,69 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               {/* New button with disable/enable based on details entered */}
               <div className="flex gap-3">
                 <Button
-                  onClick={() => {
-                    // Check if questionnaire details are entered
-                    if (selectedQuestionnaire) {
+                  onClick={async () => {
+                    // Check if questionnaire details are entered or existing response is selected
+                    if (useExistingResponse) {
+                      if (selectedExistingResponse) {
+                        console.log('🔄 DEBUG: Response Selected - saving workflow progress and calling handleQuestionnaireAssignment:', {
+                          selectedExistingResponse,
+                          clientName: client.name,
+                          newCaseId: caseData.id || caseData._id
+                        });
+                        
+                        try {
+                          // First save the workflow progress to backend
+                          console.log('🔄 DEBUG: Saving workflow progress to backend before questionnaire assignment...');
+                          const workflowData = await saveWorkflowProgressLocal();
+                          console.log('✅ DEBUG: Workflow progress saved successfully:', workflowData?.workflowId);
+                          
+                          // Then call the main questionnaire assignment handler which handles existing responses
+                          await handleQuestionnaireAssignment();
+                          
+                          console.log('✅ DEBUG: Response Selected process completed successfully');
+                        } catch (error) {
+                          console.error('❌ ERROR: Failed during Response Selected process:', error);
+                          toast.error('Failed to save workflow progress: ' + (error as Error).message);
+                        }
+                      } else {
+                        toast.error('Please select a previous response first.');
+                      }
+                    } else if (selectedQuestionnaire) {
                       const questionnaire = availableQuestionnaires.find(q => {
                         const possibleIds = [q._id, q.id, q.originalId, q.name].filter(Boolean);
                         return q.apiQuestionnaire && q.id === selectedQuestionnaire || possibleIds.includes(selectedQuestionnaire);
                       });
 
                       if (questionnaire) {
-                        toast.success('Questionnaire details are complete!');
+                        console.log('🔄 DEBUG: New questionnaire selected - saving workflow progress...');
+                        try {
+                          // Save workflow progress for new questionnaire selection as well
+                          const workflowData = await saveWorkflowProgressLocal();
+                          console.log('✅ DEBUG: Workflow progress saved for new questionnaire:', workflowData?.workflowId);
+                          toast.success('Questionnaire details are complete and saved!');
+                        } catch (error) {
+                          console.error('❌ ERROR: Failed to save workflow progress for new questionnaire:', error);
+                          toast.error('Failed to save workflow progress: ' + (error as Error).message);
+                        }
                       } else {
                         toast.error('Please select a valid questionnaire first.');
                       }
                     } else {
-                      toast.error('Please select a questionnaire first.');
+                      toast.error('Please select a questionnaire or previous response first.');
                     }
                   }}
-                  disabled={!selectedQuestionnaire}
-                  className={`${!selectedQuestionnaire ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                  disabled={!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse)}
+                  className={`${(!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse)) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
                 >
-                  {selectedQuestionnaire ? (
+                  {(selectedQuestionnaire || (useExistingResponse && selectedExistingResponse)) ? (
                     <>
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      Details Complete
+                      {useExistingResponse ? 'Response Selected' : 'Details Complete'}
                     </>
                   ) : (
                     <>
                       <AlertCircle className="w-4 h-4 mr-2" />
-                      Details Required
+                      {useExistingResponse ? 'Response Required' : 'Details Required'}
                     </>
                   )}
                 </Button>

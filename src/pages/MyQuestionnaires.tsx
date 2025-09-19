@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../controllers/AuthControllers';
 import { useQuestionnaireAssignments } from '../hooks/useQuestionnaireAssignments';
+import { APPCONSTANTS } from '../utils/constants';
 import toast from 'react-hot-toast';
 
 const MyQuestionnaires: React.FC = () => {
@@ -35,6 +36,61 @@ const MyQuestionnaires: React.FC = () => {
       loadAssignments();
     }
   }, [isClient, user, navigate, loadAssignments]);
+
+  // Test direct API call to diagnose the issue
+  const testDirectAPICall = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = userObj.id || userObj._id || userObj.userId || userObj.user_id;
+
+      console.log('🧪 Testing direct API call with:', {
+        userId,
+        token: token ? 'present' : 'missing',
+        endpoint: `/api/v1/questionnaire-assignments?clientId=${userId}`
+      });
+
+      // Test the specific endpoint format you mentioned works
+      console.log('🧪 Testing /my-assignments endpoint:');
+      const myAssignmentsResponse = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments/my-assignments`, {
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const myAssignmentsData = await myAssignmentsResponse.json();
+      
+      console.log('🧪 /my-assignments test results:', {
+        status: myAssignmentsResponse.status,
+        ok: myAssignmentsResponse.ok,
+        data: myAssignmentsData,
+        assignmentCount: myAssignmentsData.assignments?.length || myAssignmentsData.data?.length || 0
+      });
+
+      // Also test the clientId approach for comparison
+      const response = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/questionnaire-assignments?clientId=${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      console.log('🧪 Direct clientId query test results:', {
+        status: response.status,
+        ok: response.ok,
+        data: data,
+        assignmentCount: data.assignments?.length || data.data?.length || 0
+      });
+
+      toast.success(`API tests complete - check console for details`);
+    } catch (error) {
+      console.error('🧪 API tests failed:', error);
+      toast.error('API tests failed - check console');
+    }
+  };
 
  
   const getStatusColor = (status: string, isOverdue?: boolean): string => {
@@ -89,12 +145,15 @@ const MyQuestionnaires: React.FC = () => {
     <div className="container mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">My Questionnaires</h1>
-        <button 
-          onClick={loadAssignments}
-          className="text-primary-600 hover:text-primary-700 font-medium flex items-center"
-        >
-          Refresh
-        </button>
+        <div className="flex gap-2">
+         
+          <button 
+            onClick={loadAssignments}
+            className="text-primary-600 hover:text-primary-700 font-medium flex items-center"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -129,8 +188,7 @@ const MyQuestionnaires: React.FC = () => {
             >
               <div className="flex justify-between items-start mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {(assignment as any).questionnaire?.title || 
-                   (assignment as any).questionnaireId?.title || 
+                  {(assignment as any).questionnaireDetails?.title || 
                    'Untitled Questionnaire'}
                 </h2>
                 <span 
