@@ -23,7 +23,7 @@ import toast from 'react-hot-toast';
 
 interface QuestionnaireAssignment {
   _id: string;
-  questionnaireId: string; // Now a string ID
+  questionnaireId: string | { _id: string; id: string; title: string; [key: string]: any }; // Can be string ID or questionnaire object
   questionnaireDetails?: {
     title: string;
     category: string;
@@ -104,6 +104,10 @@ interface QuestionnaireAssignment {
     is_complete?: boolean;
     notes?: string;
     responses?: Record<string, any>;
+    questionnaire_title?: string;
+    questionnaire_id?: string;
+    response_id?: string;
+    submitted_at?: string;
     reuseMetadata?: {
       isReused: boolean;
       originalAssignmentId?: string;
@@ -114,6 +118,9 @@ interface QuestionnaireAssignment {
   };
   workflowSelectedForms?: string[];
   workflowId?: string;
+  workflowStatus?: string;
+  workflowIndex?: number;
+  workflowTotal?: number;
   enhancedWithWorkflow?: boolean;
 }
 
@@ -139,11 +146,16 @@ const QuestionnaireResponses: React.FC = () => {
         return [];
       }
 
-      // Use the controller function
+      // Fetch ALL workflows regardless of status to get complete data
       const workflows = await getWorkflowsFromAPI({
-        status: 'in-progress',
+        // Remove status filter to get ALL workflows
         page: 1,
-        limit: 50
+        limit: 100 // Increase limit to get more workflows
+      });
+      
+      console.log('📊 Fetched ALL workflows (including same client):', {
+        totalWorkflows: workflows.length,
+        workflowStatuses: workflows.map((w: any) => ({ id: w.id || w._id, status: w.status, client: w.client?.email }))
       });
       
       return workflows;
@@ -263,15 +275,19 @@ const QuestionnaireResponses: React.FC = () => {
           console.log(`🔍 Enhanced Assignment ${index + 1}:`, {
             assignmentId: assignment._id,
             clientEmail: assignment.actualClient?.email,
+            // Case ID debugging
+            formCaseIdGenerated: assignment.formCaseIdGenerated,
+            workflowFormCaseIdGenerated: assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated,
+            workflowFormCaseIds: assignment.workflowFormCaseIds,
+            workflowCaseNumber: assignment.workflowCase?.caseNumber,
+            // Workflow details
             hasWorkflowCase: !!assignment.workflowCase,
             workflowCaseDetails: assignment.workflowCase,
             hasWorkflowFormCaseIds: !!assignment.workflowFormCaseIds,
-            workflowFormCaseIds: assignment.workflowFormCaseIds,
             hasWorkflowQuestionnaireAssignment: !!assignment.workflowQuestionnaireAssignment,
             workflowQuestionnaireAssignment: assignment.workflowQuestionnaireAssignment,
             hasWorkflowSelectedForms: !!assignment.workflowSelectedForms,
-            workflowSelectedForms: assignment.workflowSelectedForms,
-            formCaseIdGenerated: assignment.formCaseIdGenerated
+            workflowSelectedForms: assignment.workflowSelectedForms
           });
         }
       });
@@ -370,10 +386,32 @@ const QuestionnaireResponses: React.FC = () => {
     const questionnaireInfo = assignment.questionnaireDetails;
     const responseInfo = assignment.responseId;
     
-    if (!clientInfo || !questionnaireInfo) {
-      toast.error('Cannot navigate - missing client or questionnaire data');
+    console.log('🖱️ Client clicked - assignment data:', {
+      assignmentId: assignment._id,
+      hasClientInfo: !!clientInfo,
+      clientInfo: clientInfo,
+      hasQuestionnaireInfo: !!questionnaireInfo,
+      questionnaireInfo: questionnaireInfo,
+      hasResponseInfo: !!responseInfo,
+      questionnaireId: assignment.questionnaireId,
+      enhancedWithWorkflow: assignment.enhancedWithWorkflow
+    });
+    
+    if (!clientInfo) {
+      toast.error('Cannot navigate - missing client information');
+      console.error('❌ Missing client info:', { assignment });
       return;
     }
+    
+    // For questionnaire info, we can use either questionnaireDetails or fallback to basic questionnaire data
+    const questionnaire = questionnaireInfo || {
+      title: 'Questionnaire',
+      category: 'general',
+      description: 'Questionnaire response',
+      fields: []
+    };
+    
+    console.log('✅ Using questionnaire data:', questionnaire);
 
     setLoadingWorkflows(true);
 
@@ -384,28 +422,47 @@ const QuestionnaireResponses: React.FC = () => {
 
       console.log('Fetched workflows for auto-fill:', apiWorkflows);
       if (apiWorkflows && apiWorkflows.length > 0) {
-        // Try to find a matching workflow by client email
-        matchingWorkflow = apiWorkflows.find((workflow: any) => {
+        // Find ALL matching workflows for this client (not just the first one)
+        const clientEmail = clientInfo.email?.toLowerCase();
+        const clientName = `${clientInfo.firstName} ${clientInfo.lastName}`.toLowerCase();
+        
+        const allMatchingWorkflows = apiWorkflows.filter((workflow: any) => {
           const workflowEmail = workflow.client?.email?.toLowerCase();
-          const clientEmail = clientInfo.email?.toLowerCase();
-          return workflowEmail === clientEmail;
+          const workflowClientName = `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.toLowerCase();
+          
+          return workflowEmail === clientEmail || workflowClientName === clientName;
         });
-
-        if (!matchingWorkflow) {
-          // If no exact match, try to find by client name
-          matchingWorkflow = apiWorkflows.find((workflow: any) => {
-            const workflowClientName = `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.toLowerCase();
-            const clientName = `${clientInfo.firstName} ${clientInfo.lastName}`.toLowerCase();
-            return workflowClientName === clientName;
+        
+        console.log('🔍 Found matching workflows for client:', {
+          clientEmail,
+          clientName,
+          matchingWorkflows: allMatchingWorkflows.length,
+          workflowDetails: allMatchingWorkflows.map((w: any) => ({
+            id: w.id || w._id,
+            status: w.status,
+            updatedAt: w.updatedAt,
+            hasQuestionnaireAssignment: !!w.questionnaireAssignment,
+            hasFormCaseIds: !!w.formCaseIds,
+            formCaseIds: w.formCaseIds
+          }))
+        });
+        
+        if (allMatchingWorkflows.length > 0) {
+          // Use the most recent workflow as the primary match
+          matchingWorkflow = allMatchingWorkflows
+            .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+          
+          console.log('✅ Selected most recent workflow:', {
+            workflowId: matchingWorkflow.id || matchingWorkflow._id,
+            status: matchingWorkflow.status,
+            updatedAt: matchingWorkflow.updatedAt
           });
-        }
-
-        if (!matchingWorkflow) {
-          // If still no match, get the most recent workflow
+        } else {
+          // If no client match, get the most recent workflow overall
           matchingWorkflow = apiWorkflows
             .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-        } else {
-          // Found matching workflow for client
+          
+          console.log('📝 No client match found, using most recent workflow overall');
         }
       }
 
@@ -414,10 +471,12 @@ const QuestionnaireResponses: React.FC = () => {
         clientId: clientInfo._id,
         clientEmail: clientInfo.email,
         clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
-        questionnaireId: assignment.questionnaireId,
-        questionnaireTitle: questionnaireInfo?.title,
+        questionnaireId: typeof assignment.questionnaireId === 'string' 
+          ? assignment.questionnaireId 
+          : (assignment.questionnaireId as any)?._id || (assignment.questionnaireId as any)?.id || 'unknown',
+        questionnaireTitle: questionnaire?.title,
         existingResponses: sanitizeObject(responseInfo?.responses || {}),
-        fields: sanitizeObject(questionnaireInfo?.fields || []),
+        fields: sanitizeObject(questionnaire?.fields || []),
         mode: responseInfo?.responses ? 'edit' : 'new',
         originalAssignmentId: assignment._id,
         
@@ -484,8 +543,8 @@ const QuestionnaireResponses: React.FC = () => {
             createAccount: matchingWorkflow.clientCredentials?.createAccount || true
           }),
           
-          // Set target step to Form Details (step 1 in EXIST_WORKFLOW_STEPS) for edit mode
-          targetStep: responseInfo?.responses ? 1 : 2,
+          // Set target step to Review Responses (step 0) for edit mode with existing responses
+          targetStep: responseInfo?.responses ? 0 : 2,
           autoFillMode: true, // Flag to indicate this is auto-fill mode (no saving)
           currentStep: matchingWorkflow.currentStep || 1
         })
@@ -522,8 +581,13 @@ const QuestionnaireResponses: React.FC = () => {
   };
 
   const handleViewResponse = async (assignmentId: string) => {
+    // Handle composite IDs for multiple workflows
+    const originalAssignmentId = assignmentId.includes('_workflow_') 
+      ? assignmentId.split('_workflow_')[0]
+      : assignmentId;
+    
     // Validate assignmentId is a valid MongoDB ObjectId
-    if (!/^[0-9a-fA-F]{24}$/.test(assignmentId)) {
+    if (!/^[0-9a-fA-F]{24}$/.test(originalAssignmentId)) {
       toast.error('Invalid assignment ID format');
       return;
     }
@@ -547,8 +611,8 @@ const QuestionnaireResponses: React.FC = () => {
     }
     
     try {
-      // Use the controller function to get assignment response
-      const responseData = await getAssignmentResponse(assignmentId);
+      // Use the original assignment ID for API calls
+      const responseData = await getAssignmentResponse(originalAssignmentId);
    
       // Create a comprehensive assignment object with all necessary data
       const completeAssignment = {
@@ -558,7 +622,7 @@ const QuestionnaireResponses: React.FC = () => {
         responseId: assignment.responseId || responseData?.data
       };
       // Pass the assignment data through navigation state to avoid refetching in ResponseView
-      navigate(`/questionnaires/response/${assignmentId}`, {
+      navigate(`/questionnaires/response/${originalAssignmentId}`, {
         state: {
           assignmentData: completeAssignment,
           responseData: responseData?.data,
@@ -680,6 +744,11 @@ const QuestionnaireResponses: React.FC = () => {
                             `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}` : 
                             'Client Name Not Available'
                           }
+                          {assignment.workflowTotal && assignment.workflowTotal > 1 && (
+                            <span className="ml-2 text-xs text-purple-600 font-medium">
+                              (Workflow {assignment.workflowIndex}/{assignment.workflowTotal})
+                            </span>
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">
                           {assignment.actualClient?.email || assignment.clientUserId?.email || 'No email available'}
@@ -694,78 +763,49 @@ const QuestionnaireResponses: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">{assignment.questionnaireDetails?.title || 'Untitled'}</div>
-                    <div className="text-xs text-gray-500">{assignment.questionnaireDetails?.category || 'No category'}</div>
+                    <div className="text-sm text-gray-900">
+                      {assignment.questionnaireDetails?.title || 
+                       assignment.workflowQuestionnaireAssignment?.questionnaire_title ||
+                       assignment.workflowQuestionnaireAssignment?.formType ||
+                       'Untitled'}
+                      {assignment.workflowTotal && assignment.workflowTotal > 1 && (
+                        <span className="ml-2 text-xs text-purple-600 font-medium">
+                          (Workflow {assignment.workflowIndex}/{assignment.workflowTotal})
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {assignment.questionnaireDetails?.category || 
+                       assignment.workflowQuestionnaireAssignment?.formType ||
+                       assignment.workflowCase?.category ||
+                       'No category'}
+                    </div>
+                    {assignment.enhancedWithWorkflow && (
+                      <div className="text-xs text-blue-500 mt-1">
+                        From workflow
+                        {assignment.workflowStatus && (
+                          <span className={`ml-1 px-1 rounded ${
+                            assignment.workflowStatus === 'completed' ? 'bg-green-100 text-green-600' :
+                            assignment.workflowStatus === 'in-progress' ? 'bg-blue-100 text-blue-600' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {assignment.workflowStatus}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     {assignment.formCaseIdGenerated ? (
-                      <div>
-                        <div className="text-sm text-gray-900 font-medium">{assignment.formCaseIdGenerated}</div>
-                        {assignment.enhancedWithWorkflow && (
-                          <div className="text-xs text-blue-500 mt-1">Enhanced with workflow data</div>
-                        )}
-                        
-                        {/* Show workflow case information even when formCaseIdGenerated exists */}
-                        {assignment.workflowCase && (
-                          <div className="mt-2 p-2 bg-green-50 rounded border border-green-200">
-                            <div className="text-xs text-green-700 font-medium">Workflow Case Details:</div>
-                            <div className="text-xs text-gray-700 mt-1">
-                              {assignment.workflowCase.title || assignment.workflowCase.caseNumber || 'Workflow Case'}
-                            </div>
-                            {assignment.workflowCase.category && (
-                              <div className="text-xs text-gray-600">{assignment.workflowCase.category}</div>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Show workflow form case IDs */}
-                        {assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated && (
-                          <div className="text-xs text-blue-600 mt-1">
-                            Workflow Form Case ID: {assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}
-                          </div>
-                        )}
-                        
-                        {/* Show all workflow form case IDs */}
-                        {assignment.workflowFormCaseIds && Object.keys(assignment.workflowFormCaseIds).length > 0 && (
-                          <div className="text-xs text-purple-600 mt-1">
-                            Workflow Forms: {Object.entries(assignment.workflowFormCaseIds).map(([form, caseId]) => 
-                              `${form}: ${caseId}`
-                            ).join(', ')}
-                          </div>
-                        )}
-                        
-                        {/* Show selected forms from workflow */}
-                        {assignment.workflowSelectedForms && assignment.workflowSelectedForms.length > 0 && (
-                          <div className="text-xs text-indigo-600 mt-1">
-                            Selected Forms: {assignment.workflowSelectedForms.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    ) : assignment.workflowCase ? (
-                      <div>
-                        <div className="text-sm text-gray-900 font-medium">
-                          {assignment.workflowCase.title || assignment.workflowCase.caseNumber || 'Workflow Case'}
-                        </div>
-                        <div className="text-xs text-gray-500">{assignment.workflowCase.category || 'Workflow'}</div>
-                        {assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated && (
-                          <div className="text-xs text-blue-600 mt-1">
-                            Form Case ID: {assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}
-                          </div>
-                        )}
-                        {assignment.workflowFormCaseIds && Object.keys(assignment.workflowFormCaseIds).length > 0 && (
-                          <div className="text-xs text-purple-600 mt-1">
-                            Forms: {Object.entries(assignment.workflowFormCaseIds).map(([form, caseId]) => 
-                              `${form}: ${caseId}`
-                            ).join(', ')}
-                          </div>
-                        )}
-                        <div className="text-xs text-green-600 mt-1">From saved workflow</div>
-                      </div>
+                      <div className="text-sm text-gray-900 font-medium">{assignment.formCaseIdGenerated}</div>
+                    ) : assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated ? (
+                      <div className="text-sm text-gray-900 font-medium">{assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}</div>
+                    ) : assignment.workflowCase?.caseNumber ? (
+                      <div className="text-sm text-gray-900 font-medium">{assignment.workflowCase.caseNumber}</div>
+                    ) : assignment.workflowCase?.title ? (
+                      <div className="text-sm text-gray-900 font-medium">{assignment.workflowCase.title}</div>
                     ) : assignment.caseId ? (
-                      <div>
-                        <div className="text-sm text-gray-900">{assignment.caseId.title}</div>
-                        <div className="text-xs text-gray-500">{assignment.caseId.category}</div>
-                      </div>
+                      <div className="text-sm text-gray-900 font-medium">{assignment.caseId.title}</div>
                     ) : (
                       <span className="text-sm text-gray-500">No case linked</span>
                     )}
