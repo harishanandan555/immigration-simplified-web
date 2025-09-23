@@ -118,6 +118,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  console.log('🚀 LegalFirmWorkflow component initialized:', {
+    initialCurrentStep: 0,
+    initialIsExistResponse: false,
+    timestamp: new Date().toISOString(),
+    note: 'Will only load sessionStorage data if coming from QuestionnaireResponses'
+  });
+
   // Client data
   const [client, setClient] = useState<any>({
     id: '',
@@ -439,6 +446,157 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
     // Delay check to allow questionnaires to load first
     setTimeout(checkForWorkflowResumption, 1000);
+  }, []);
+
+  // Load workflow data from sessionStorage ONLY when coming from QuestionnaireResponses
+  useEffect(() => {
+    // Check URL parameters first to determine if we're coming from QuestionnaireResponses
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses') === 'true';
+    
+    if (!fromQuestionnaireResponses) {
+      console.log('🚫 Not from QuestionnaireResponses - starting with clean workflow (New/Existing Client)');
+      // Ensure we start from the beginning for normal access
+      setCurrentStep(0);
+      setIsExistResponse(false);
+      // Clean up any existing sessionStorage data to prevent confusion
+      sessionStorage.removeItem('legalFirmWorkflowData');
+      return;
+    }
+    
+    console.log('🔗 Navigated from QuestionnaireResponses - loading stored workflow data');
+    
+    const loadWorkflowFromSessionStorage = () => {
+      try {
+        const storedData = sessionStorage.getItem('legalFirmWorkflowData');
+        if (storedData) {
+          const workflowData = JSON.parse(storedData);
+          console.log('🔄 Loading workflow data from sessionStorage:', workflowData);
+          
+          // Load client data
+          if (workflowData.workflowClient || workflowData.clientName) {
+            const clientData = {
+              id: workflowData.clientId || '',
+              _id: workflowData.clientId || '',
+              name: workflowData.clientName || `${workflowData.workflowClient?.firstName || ''} ${workflowData.workflowClient?.lastName || ''}`.trim(),
+              firstName: workflowData.workflowClient?.firstName || workflowData.clientName?.split(' ')[0] || '',
+              lastName: workflowData.workflowClient?.lastName || workflowData.clientName?.split(' ').slice(1).join(' ') || '',
+              email: workflowData.clientEmail || workflowData.workflowClient?.email || '',
+              phone: workflowData.workflowClient?.phone || '',
+              dateOfBirth: workflowData.workflowClient?.dateOfBirth || '',
+              nationality: workflowData.workflowClient?.nationality || '',
+              address: workflowData.workflowClient?.address || {
+                street: '',
+                city: '',
+                state: '',
+                zipCode: '',
+                country: 'United States'
+              },
+              isExistingClient: true,
+              hasUserAccount: true
+            };
+            setClient(clientData);
+            console.log('✅ Loaded client data:', clientData);
+          }
+          
+          // Load case data
+          if (workflowData.workflowCase) {
+            const caseInfo = {
+              id: workflowData.workflowCase.id || workflowData.workflowCase._id || '',
+              _id: workflowData.workflowCase._id || workflowData.workflowCase.id || '',
+              clientId: workflowData.clientId || '',
+              title: workflowData.workflowCase.title || 'Case',
+              description: workflowData.workflowCase.description || '',
+              category: workflowData.workflowCase.category || 'family-based',
+              subcategory: workflowData.workflowCase.subcategory || '',
+              status: workflowData.workflowCase.status || 'draft',
+              priority: workflowData.workflowCase.priority || 'medium',
+              assignedForms: [],
+              questionnaires: [],
+              createdAt: workflowData.workflowCase.openDate || new Date().toISOString(),
+              dueDate: workflowData.workflowCase.dueDate || '',
+              startDate: workflowData.workflowCase.openDate || '',
+              expectedClosureDate: workflowData.workflowCase.dueDate || '',
+              assignedAttorney: ''
+            };
+            setCaseData(caseInfo);
+            console.log('✅ Loaded case data:', caseInfo);
+          }
+          
+          // Load selected forms
+          if (workflowData.selectedForms && Array.isArray(workflowData.selectedForms)) {
+            setSelectedForms(workflowData.selectedForms);
+            console.log('✅ Loaded selected forms:', workflowData.selectedForms);
+          }
+          
+          // Load form case IDs
+          if (workflowData.formCaseIds) {
+            setFormCaseIds(workflowData.formCaseIds);
+            console.log('✅ Loaded form case IDs:', workflowData.formCaseIds);
+          }
+          
+          // Load questionnaire assignment
+          if (workflowData.questionnaireId) {
+            // Ensure questionnaireId is a string
+            const questionnaireId = typeof workflowData.questionnaireId === 'string' 
+              ? workflowData.questionnaireId 
+              : workflowData.questionnaireId?._id || workflowData.questionnaireId?.id || '';
+              
+            const assignment = {
+              id: workflowData.originalAssignmentId || '',
+              caseId: workflowData.workflowCase?.id || workflowData.workflowCase?._id || '',
+              questionnaireId: questionnaireId,
+              questionnaireName: workflowData.questionnaireTitle || 'Workflow Questionnaire',
+              clientId: workflowData.clientId,
+              status: 'completed' as const,
+              assignedAt: new Date().toISOString(),
+              responses: workflowData.existingResponses || workflowData.questionnaireAssignment?.responses || {}
+            };
+            setQuestionnaireAssignment(assignment);
+            setSelectedQuestionnaire(questionnaireId);
+            console.log('✅ Loaded questionnaire assignment:', assignment);
+          }
+          
+          // Load existing responses - THIS IS THE KEY PART
+          if (workflowData.existingResponses || workflowData.questionnaireAssignment?.responses) {
+            const responses = workflowData.existingResponses || workflowData.questionnaireAssignment?.responses || {};
+            setClientResponses(responses);
+            console.log('✅ Loaded client responses:', responses);
+            console.log('🔍 Response keys:', Object.keys(responses));
+            console.log('🔍 Response values sample:', Object.entries(responses).slice(0, 3));
+          }
+          
+          // Set the workflow to existing response mode and go to Review Responses step
+          if (workflowData.mode === 'edit' || workflowData.existingResponses) {
+            setIsExistResponse(true);
+            // Set target step if specified, otherwise default to Review Responses (step 0)
+            const targetStep = workflowData.targetStep !== undefined ? workflowData.targetStep : 0;
+            setCurrentStep(targetStep);
+            console.log('✅ Set to existing response mode - target step:', targetStep);
+          } else {
+            // Set target step if specified for non-edit mode
+            if (workflowData.targetStep !== undefined) {
+              setCurrentStep(workflowData.targetStep);
+              console.log('✅ Set target step:', workflowData.targetStep);
+            }
+          }
+          
+          // Clean up sessionStorage after loading
+          // sessionStorage.removeItem('legalFirmWorkflowData');
+          console.log('🧹 Workflow data loaded from sessionStorage');
+        } else {
+          console.log('⚠️ No workflow data found in sessionStorage despite coming from QuestionnaireResponses');
+        }
+      } catch (error) {
+        console.error('❌ Error loading workflow data from sessionStorage:', error);
+      }
+    };
+    
+    // Load workflow data when coming from QuestionnaireResponses
+    loadWorkflowFromSessionStorage();
+    
+    // Also try again after a small delay to ensure data is available
+    setTimeout(loadWorkflowFromSessionStorage, 500);
   }, []);
 
   // Removed sessionStorage workflow data loading - API only workflow management

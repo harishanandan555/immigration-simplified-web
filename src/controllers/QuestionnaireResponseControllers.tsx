@@ -223,59 +223,150 @@ export const getClientResponses = async (filters: Record<string, any> = {}) => {
     
     // Also fetch workflow data to get saved questionnaire assignment data
     try {
-      console.log('🔍 Fetching workflow data to enhance questionnaire responses...');
-      const workflowResponse = await api.get(`${QUESTIONNAIRE_RESPONSE_END_POINTS.GET_WORKFLOWS}`);
+      console.log('🔍 Fetching ALL workflow data to enhance questionnaire responses...');
+      // Fetch ALL workflows without status filter to get complete data
+      const workflowResponse = await api.get(`${QUESTIONNAIRE_RESPONSE_END_POINTS.GET_WORKFLOWS}?limit=100`);
       const workflows = workflowResponse.data?.data || workflowResponse.data || [];
       
-      console.log('📊 Retrieved workflows for enhancement:', {
+      console.log('📊 Retrieved ALL workflows for enhancement:', {
         workflowCount: workflows.length,
-        assignmentCount: assignmentsData.data?.assignments?.length || 0
+        assignmentCount: assignmentsData.data?.assignments?.length || 0,
+        workflowStatuses: workflows.map((w: any) => ({ id: w.id || w._id, status: w.status, client: w.client?.email }))
       });
       
       // Enhance assignments with workflow data
       if (assignmentsData.data?.assignments && Array.isArray(workflows)) {
-        assignmentsData.data.assignments = assignmentsData.data.assignments.map((assignment: any) => {
-          // Find matching workflow that contains questionnaire assignment data
-          const matchingWorkflow = workflows.find((workflow: any) => {
+        console.log('🔍 Original assignments before enhancement:', 
+          assignmentsData.data.assignments.map((a: any) => ({
+            id: a._id,
+            questionnaireId: a.questionnaireId,
+            hasQuestionnaireDetails: !!a.questionnaireDetails,
+            questionnaireDetails: a.questionnaireDetails
+          }))
+        );
+        
+        // Create enhanced assignments - one for each matching workflow
+        const enhancedAssignments: any[] = [];
+        
+        assignmentsData.data.assignments.forEach((assignment: any) => {
+          // Find ALL matching workflows for this assignment/client
+          const allMatchingWorkflows = workflows.filter((workflow: any) => {
             const workflowQA = workflow.questionnaireAssignment;
-            if (!workflowQA) return false;
+            const clientEmail = assignment.actualClient?.email || assignment.clientUserId?.email;
+            const workflowEmail = workflow.client?.email;
             
-            // Match by assignment ID, client ID, or email
-            return workflowQA.assignment_id === assignment._id ||
-                   workflowQA.client_id === assignment.clientId ||
-                   (workflow.client?.email && assignment.actualClient?.email && 
-                    workflow.client.email.toLowerCase() === assignment.actualClient.email.toLowerCase());
+            // Match by various criteria
+            return (
+              // Direct assignment ID match
+              (workflowQA && workflowQA.assignment_id === assignment._id) ||
+              // Client ID match
+              (workflowQA && workflowQA.client_id === assignment.clientId) ||
+              // Email match
+              (clientEmail && workflowEmail && 
+               clientEmail.toLowerCase() === workflowEmail.toLowerCase()) ||
+              // Client name match
+              (assignment.actualClient?.firstName && assignment.actualClient?.lastName &&
+               workflow.client?.firstName && workflow.client?.lastName &&
+               `${assignment.actualClient.firstName} ${assignment.actualClient.lastName}`.toLowerCase() ===
+               `${workflow.client.firstName} ${workflow.client.lastName}`.toLowerCase())
+            );
           });
           
-          if (matchingWorkflow) {
-            console.log('🔗 Enhanced assignment with workflow data:', {
-              assignmentId: assignment._id,
-              workflowId: matchingWorkflow.id || matchingWorkflow._id,
-              hasQuestionnaireAssignment: !!matchingWorkflow.questionnaireAssignment,
-              hasCase: !!matchingWorkflow.case,
-              hasFormCaseIds: !!matchingWorkflow.formCaseIds
-            });
-            
-            // Enhance assignment with workflow data
-            return {
-              ...assignment,
-              // Add workflow case information
-              workflowCase: matchingWorkflow.case,
-              // Add form case IDs from workflow
-              workflowFormCaseIds: matchingWorkflow.formCaseIds,
-              // Add questionnaire assignment details from workflow
-              workflowQuestionnaireAssignment: matchingWorkflow.questionnaireAssignment,
-              // Add selected forms from workflow
-              workflowSelectedForms: matchingWorkflow.selectedForms,
-              // Add workflow ID for reference
-              workflowId: matchingWorkflow.id || matchingWorkflow._id,
-              // Flag to indicate this has been enhanced with workflow data
-              enhancedWithWorkflow: true
-            };
-          }
+          console.log('🔍 Found matching workflows for assignment:', {
+            assignmentId: assignment._id,
+            clientEmail: assignment.actualClient?.email || assignment.clientUserId?.email,
+            matchingWorkflows: allMatchingWorkflows.length,
+            workflowDetails: allMatchingWorkflows.map((w: any) => ({
+              id: w.id || w._id,
+              status: w.status,
+              hasQuestionnaireAssignment: !!w.questionnaireAssignment,
+              formCaseIds: w.formCaseIds
+            }))
+          });
           
-          return assignment;
+          if (allMatchingWorkflows.length > 0) {
+            // Create a separate assignment for EACH matching workflow
+            allMatchingWorkflows.forEach((matchingWorkflow: any, index: number) => {
+              // Determine the case ID for this specific workflow
+              const workflowSpecificCaseId = matchingWorkflow.questionnaireAssignment?.formCaseIdGenerated || 
+                                           (matchingWorkflow.formCaseIds ? Object.values(matchingWorkflow.formCaseIds)[0] : null) ||
+                                           matchingWorkflow.case?.caseNumber ||
+                                           assignment.formCaseIdGenerated;
+              
+              console.log(`🔗 Creating enhanced assignment ${index + 1}/${allMatchingWorkflows.length} with workflow data:`, {
+                assignmentId: assignment._id,
+                workflowId: matchingWorkflow.id || matchingWorkflow._id,
+                workflowStatus: matchingWorkflow.status,
+                hasQuestionnaireAssignment: !!matchingWorkflow.questionnaireAssignment,
+                hasCase: !!matchingWorkflow.case,
+                hasFormCaseIds: !!matchingWorkflow.formCaseIds,
+                originalQuestionnaireDetails: assignment.questionnaireDetails,
+                workflowQuestionnaireAssignment: matchingWorkflow.questionnaireAssignment,
+                // Case ID assignment details
+                originalFormCaseIdGenerated: assignment.formCaseIdGenerated,
+                workflowFormCaseIdGenerated: matchingWorkflow.questionnaireAssignment?.formCaseIdGenerated,
+                workflowFormCaseIds: matchingWorkflow.formCaseIds,
+                workflowCaseNumber: matchingWorkflow.case?.caseNumber,
+                finalAssignedCaseId: workflowSpecificCaseId
+              });
+              
+              // Create enhanced assignment with workflow data
+              const enhancedAssignment = {
+                ...assignment,
+                // Create unique ID for multiple workflows of same client
+                _id: allMatchingWorkflows.length > 1 
+                  ? `${assignment._id}_workflow_${matchingWorkflow.id || matchingWorkflow._id}` 
+                  : assignment._id,
+                // Override formCaseIdGenerated with workflow-specific case ID
+                formCaseIdGenerated: matchingWorkflow.questionnaireAssignment?.formCaseIdGenerated || 
+                                   (matchingWorkflow.formCaseIds ? Object.values(matchingWorkflow.formCaseIds)[0] : null) ||
+                                   matchingWorkflow.case?.caseNumber ||
+                                   assignment.formCaseIdGenerated,
+                // Enhance questionnaire details with workflow data if original is missing/incomplete
+                questionnaireDetails: assignment.questionnaireDetails || {
+                  title: matchingWorkflow.questionnaireAssignment?.questionnaire_title || 
+                         matchingWorkflow.selectedQuestionnaire?.title || 
+                         'Workflow Questionnaire',
+                  category: matchingWorkflow.questionnaireAssignment?.formType || 
+                           matchingWorkflow.case?.category || 
+                           'general',
+                  description: matchingWorkflow.questionnaireAssignment?.notes || 
+                              'Questionnaire from workflow',
+                  fields: matchingWorkflow.questionnaireAssignment?.responses ? 
+                         Object.keys(matchingWorkflow.questionnaireAssignment.responses).map(key => ({
+                           id: key,
+                           type: 'text',
+                           label: key
+                         })) : []
+                },
+                // Add workflow case information
+                workflowCase: matchingWorkflow.case,
+                // Add form case IDs from workflow
+                workflowFormCaseIds: matchingWorkflow.formCaseIds,
+                // Add questionnaire assignment details from workflow
+                workflowQuestionnaireAssignment: matchingWorkflow.questionnaireAssignment,
+                // Add selected forms from workflow
+                workflowSelectedForms: matchingWorkflow.selectedForms,
+                // Add workflow ID for reference
+                workflowId: matchingWorkflow.id || matchingWorkflow._id,
+                // Add workflow status for identification
+                workflowStatus: matchingWorkflow.status,
+                // Flag to indicate this has been enhanced with workflow data
+                enhancedWithWorkflow: true,
+                // Add index if multiple workflows
+                workflowIndex: allMatchingWorkflows.length > 1 ? index + 1 : undefined,
+                workflowTotal: allMatchingWorkflows.length > 1 ? allMatchingWorkflows.length : undefined
+              };
+              
+              enhancedAssignments.push(enhancedAssignment);
+            });
+          } else {
+            // No matching workflow, keep original assignment
+            enhancedAssignments.push(assignment);
+          }
         });
+        
+        assignmentsData.data.assignments = enhancedAssignments;
         
         console.log('✅ Enhanced assignments with workflow data completed');
       }
