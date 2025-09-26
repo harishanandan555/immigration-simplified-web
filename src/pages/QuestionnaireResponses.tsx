@@ -14,16 +14,16 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../controllers/AuthControllers';
-import { 
-  getClientResponses, 
-  getWorkflowsFromAPI, 
-  getAssignmentResponse 
+import {
+  getClientResponses,
+  getWorkflowsFromAPI,
+  getAssignmentResponse
 } from '../controllers/QuestionnaireResponseControllers';
 import toast from 'react-hot-toast';
 
 interface QuestionnaireAssignment {
   _id: string;
-  questionnaireId: string | { _id: string; id: string; title: string; [key: string]: any }; // Can be string ID or questionnaire object
+  questionnaireId: string | { _id: string; id: string; title: string;[key: string]: any }; // Can be string ID or questionnaire object
   questionnaireDetails?: {
     title: string;
     category: string;
@@ -81,7 +81,7 @@ interface QuestionnaireAssignment {
   completedAt?: string;
   dueDate?: string;
   isOverdue?: boolean;
-  
+
   // Enhanced workflow data fields
   workflowCase?: {
     id?: string;
@@ -134,13 +134,13 @@ const QuestionnaireResponses: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [, setLoadingWorkflows] = useState<boolean>(false);
-  
+
   // Function to fetch workflows from API for auto-fill
   const fetchWorkflowsFromAPI = async () => {
     try {
       setLoadingWorkflows(true);
       const token = localStorage.getItem('token');
-      
+
       // Check token availability
       if (!token) {
         return [];
@@ -152,14 +152,14 @@ const QuestionnaireResponses: React.FC = () => {
         page: 1,
         limit: 100 // Increase limit to get more workflows
       });
-      
+
       console.log('📊 Fetched ALL workflows (including same client):', {
         totalWorkflows: workflows.length,
         workflowStatuses: workflows.map((w: any) => ({ id: w.id || w._id, status: w.status, client: w.client?.email }))
       });
-      
+
       return workflows;
-      
+
     } catch (error: any) {
       console.error('Error fetching workflows:', error);
       return [];
@@ -167,7 +167,7 @@ const QuestionnaireResponses: React.FC = () => {
       setLoadingWorkflows(false);
     }
   };
-  
+
   useEffect(() => {
     // Only attorneys, paralegals, and superadmins can access this page
     if (user && !['attorney', 'paralegal', 'superadmin'].includes(user.role)) {
@@ -181,14 +181,14 @@ const QuestionnaireResponses: React.FC = () => {
   useEffect(() => {
     // Apply filters
     let filtered = [...assignments];
-    
+
     // Search term filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(assignment => {
         // Safely get questionnaire title
         const questionnaireTitle = assignment.questionnaireDetails?.title?.toLowerCase() || '';
-        
+
         // Safely get client name
         let clientName = '';
         if (assignment.actualClient?.firstName && assignment.actualClient?.lastName) {
@@ -196,39 +196,39 @@ const QuestionnaireResponses: React.FC = () => {
         } else if (assignment.clientUserId?.firstName && assignment.clientUserId?.lastName) {
           clientName = `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}`.toLowerCase();
         }
-        
+
         // Safely get case title and form case ID (original data)
         const caseTitle = assignment.caseId?.title?.toLowerCase() || '';
         const formCaseId = assignment.formCaseIdGenerated?.toLowerCase() || '';
-        
+
         // Enhanced search: also check workflow case data
         const workflowCaseTitle = assignment.workflowCase?.title?.toLowerCase() || '';
         const workflowCaseNumber = assignment.workflowCase?.caseNumber?.toLowerCase() || '';
         const workflowFormCaseId = assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated?.toLowerCase() || '';
-        
+
         // Check workflow form case IDs
-        const workflowFormCaseIdValues = assignment.workflowFormCaseIds ? 
+        const workflowFormCaseIdValues = assignment.workflowFormCaseIds ?
           Object.values(assignment.workflowFormCaseIds).join(' ').toLowerCase() : '';
-        
+
         // Check workflow selected forms
-        const workflowSelectedForms = assignment.workflowSelectedForms ? 
+        const workflowSelectedForms = assignment.workflowSelectedForms ?
           assignment.workflowSelectedForms.join(' ').toLowerCase() : '';
-        
-        const matches = questionnaireTitle.includes(term) || 
-               clientName.includes(term) || 
-               caseTitle.includes(term) ||
-               formCaseId.includes(term) ||
-               // Enhanced workflow data search
-               workflowCaseTitle.includes(term) ||
-               workflowCaseNumber.includes(term) ||
-               workflowFormCaseId.includes(term) ||
-               workflowFormCaseIdValues.includes(term) ||
-               workflowSelectedForms.includes(term);
-        
+
+        const matches = questionnaireTitle.includes(term) ||
+          clientName.includes(term) ||
+          caseTitle.includes(term) ||
+          formCaseId.includes(term) ||
+          // Enhanced workflow data search
+          workflowCaseTitle.includes(term) ||
+          workflowCaseNumber.includes(term) ||
+          workflowFormCaseId.includes(term) ||
+          workflowFormCaseIdValues.includes(term) ||
+          workflowSelectedForms.includes(term);
+
         return matches;
       });
     }
-    
+
     // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(assignment => {
@@ -236,14 +236,14 @@ const QuestionnaireResponses: React.FC = () => {
         return matches;
       });
     }
-    
+
     setFilteredAssignments(filtered);
   }, [assignments, searchTerm, statusFilter]);
 
   const loadAssignments = async () => {
     try {
       setLoading(true);
-      
+
       // Get all questionnaire assignments, not just completed ones
       // This will help us see assignments that are marked as completed but have missing response data
       const responseData = await getClientResponses({
@@ -251,24 +251,24 @@ const QuestionnaireResponses: React.FC = () => {
         page: 1,
         limit: 50 // Get more results for better demo
       });
-      
+
       const assignmentsData = responseData.data.assignments || [];
-      
+
       // Filter to only show completed assignments in the UI
       // This way we can see completed assignments even if they have missing response data
-      const completedAssignments = assignmentsData.filter((assignment: any) => 
+      const completedAssignments = assignmentsData.filter((assignment: any) =>
         assignment.status === 'completed'
       );
-      
+
       setAssignments(completedAssignments);
       setError(null);
-      
+
       console.log('📋 Loaded questionnaire responses:', {
         totalAssignments: assignmentsData.length,
         completedAssignments: completedAssignments.length,
         enhancedWithWorkflow: completedAssignments.filter((a: any) => a.enhancedWithWorkflow).length
       });
-      
+
       // Debug: Log detailed information about enhanced assignments
       completedAssignments.forEach((assignment: any, index: number) => {
         if (assignment.enhancedWithWorkflow) {
@@ -300,7 +300,7 @@ const QuestionnaireResponses: React.FC = () => {
 
   const getStatusColor = (status: string, isOverdue?: boolean): string => {
     if (isOverdue) return 'text-red-600 bg-red-50 border-red-200';
-    
+
     switch (status) {
       case 'completed':
         return 'text-green-600 bg-green-50 border-green-200';
@@ -314,7 +314,7 @@ const QuestionnaireResponses: React.FC = () => {
 
   const getStatusIcon = (status: string, isOverdue?: boolean) => {
     if (isOverdue) return <AlertTriangle className="w-4 h-4" />;
-    
+
     switch (status) {
       case 'completed':
         return <CheckCircle className="w-4 h-4" />;
@@ -328,7 +328,7 @@ const QuestionnaireResponses: React.FC = () => {
 
   const formatDate = (dateString?: string): string => {
     if (!dateString) return 'No date set';
-    
+
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -340,33 +340,33 @@ const QuestionnaireResponses: React.FC = () => {
   // Function to sanitize complex MongoDB objects and remove prototype chains
   const sanitizeObject = (obj: any): any => {
     if (obj === null || obj === undefined) return obj;
-    
+
     // Handle arrays
     if (Array.isArray(obj)) {
       return obj.map(item => sanitizeObject(item));
     }
-    
+
     // Handle dates
     if (obj instanceof Date) {
       return obj.toISOString();
     }
-    
+
     // Handle primitive types
     if (typeof obj !== 'object') {
       return obj;
     }
-    
+
     // Handle objects - create clean plain object
     const cleanObj: any = {};
-    
+
     // Only include enumerable own properties, skip prototype and MongoDB metadata
     for (const key in obj) {
       if (obj.hasOwnProperty(key) && !key.startsWith('$__') && !key.startsWith('_') && key !== '__v') {
         const value = obj[key];
-        
+
         // Skip functions and complex objects that could cause issues
         if (typeof value === 'function') continue;
-        
+
         // Recursively sanitize nested objects
         try {
           cleanObj[key] = sanitizeObject(value);
@@ -376,7 +376,7 @@ const QuestionnaireResponses: React.FC = () => {
         }
       }
     }
-    
+
     return cleanObj;
   };
 
@@ -385,7 +385,7 @@ const QuestionnaireResponses: React.FC = () => {
     const clientInfo = assignment.actualClient || assignment.clientUserId;
     const questionnaireInfo = assignment.questionnaireDetails;
     const responseInfo = assignment.responseId;
-    
+
     console.log('🖱️ Client clicked - assignment data:', {
       assignmentId: assignment._id,
       hasClientInfo: !!clientInfo,
@@ -396,13 +396,13 @@ const QuestionnaireResponses: React.FC = () => {
       questionnaireId: assignment.questionnaireId,
       enhancedWithWorkflow: assignment.enhancedWithWorkflow
     });
-    
+
     if (!clientInfo) {
       toast.error('Cannot navigate - missing client information');
       console.error('❌ Missing client info:', { assignment });
       return;
     }
-    
+
     // For questionnaire info, we can use either questionnaireDetails or fallback to basic questionnaire data
     const questionnaire = questionnaireInfo || {
       title: 'Questionnaire',
@@ -410,7 +410,7 @@ const QuestionnaireResponses: React.FC = () => {
       description: 'Questionnaire response',
       fields: []
     };
-    
+
     console.log('✅ Using questionnaire data:', questionnaire);
 
     setLoadingWorkflows(true);
@@ -425,14 +425,14 @@ const QuestionnaireResponses: React.FC = () => {
         // Find ALL matching workflows for this client (not just the first one)
         const clientEmail = clientInfo.email?.toLowerCase();
         const clientName = `${clientInfo.firstName} ${clientInfo.lastName}`.toLowerCase();
-        
+
         const allMatchingWorkflows = apiWorkflows.filter((workflow: any) => {
           const workflowEmail = workflow.client?.email?.toLowerCase();
           const workflowClientName = `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.toLowerCase();
-          
+
           return workflowEmail === clientEmail || workflowClientName === clientName;
         });
-        
+
         console.log('🔍 Found matching workflows for client:', {
           clientEmail,
           clientName,
@@ -446,12 +446,12 @@ const QuestionnaireResponses: React.FC = () => {
             formCaseIds: w.formCaseIds
           }))
         });
-        
+
         if (allMatchingWorkflows.length > 0) {
           // Use the most recent workflow as the primary match
           matchingWorkflow = allMatchingWorkflows
             .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-          
+
           console.log('✅ Selected most recent workflow:', {
             workflowId: matchingWorkflow.id || matchingWorkflow._id,
             status: matchingWorkflow.status,
@@ -461,7 +461,7 @@ const QuestionnaireResponses: React.FC = () => {
           // If no client match, get the most recent workflow overall
           matchingWorkflow = apiWorkflows
             .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-          
+
           console.log('📝 No client match found, using most recent workflow overall');
         }
       }
@@ -471,15 +471,15 @@ const QuestionnaireResponses: React.FC = () => {
         clientId: clientInfo._id,
         clientEmail: clientInfo.email,
         clientName: `${clientInfo.firstName} ${clientInfo.lastName}`,
-        questionnaireId: typeof assignment.questionnaireId === 'string' 
-          ? assignment.questionnaireId 
+        questionnaireId: typeof assignment.questionnaireId === 'string'
+          ? assignment.questionnaireId
           : (assignment.questionnaireId as any)?._id || (assignment.questionnaireId as any)?.id || 'unknown',
         questionnaireTitle: questionnaire?.title,
         existingResponses: sanitizeObject(responseInfo?.responses || {}),
         fields: sanitizeObject(questionnaire?.fields || []),
         mode: responseInfo?.responses ? 'edit' : 'new',
         originalAssignmentId: assignment._id,
-        
+
         // Enhanced workflow data from API - all sanitized
         ...(matchingWorkflow && {
           // Client data from workflow - sanitized
@@ -499,7 +499,7 @@ const QuestionnaireResponses: React.FC = () => {
               country: 'United States'
             }
           }),
-          
+
           // Case data from workflow - sanitized
           workflowCase: sanitizeObject({
             id: matchingWorkflow.case?.id || matchingWorkflow.case?._id,
@@ -516,12 +516,12 @@ const QuestionnaireResponses: React.FC = () => {
             priorityDate: matchingWorkflow.case?.priorityDate || '',
             dueDate: matchingWorkflow.case?.dueDate || ''
           }),
-          
+
           // Form data from workflow - sanitized
           selectedForms: sanitizeObject(matchingWorkflow.selectedForms || []),
           formCaseIds: sanitizeObject(matchingWorkflow.formCaseIds || {}),
           selectedQuestionnaire: matchingWorkflow.selectedQuestionnaire || assignment.questionnaireId,
-          
+
           // Questionnaire assignment data - sanitized
           questionnaireAssignment: sanitizeObject({
             assignment_id: matchingWorkflow.questionnaireAssignment?.assignment_id || '',
@@ -536,24 +536,24 @@ const QuestionnaireResponses: React.FC = () => {
             responses: sanitizeObject(matchingWorkflow.questionnaireAssignment?.responses || {}),
             submitted_at: matchingWorkflow.questionnaireAssignment?.submitted_at || ''
           }),
-          
+
           // Client credentials from workflow - sanitized
           clientCredentials: sanitizeObject({
             email: matchingWorkflow.clientCredentials?.email || clientInfo.email,
             createAccount: matchingWorkflow.clientCredentials?.createAccount || true
           }),
-          
+
           // Set target step to Review Responses (step 0) for edit mode with existing responses
           targetStep: responseInfo?.responses ? 0 : 2,
           autoFillMode: true, // Flag to indicate this is auto-fill mode (no saving)
           currentStep: matchingWorkflow.currentStep || 1
         })
       };
-      
+
       // Store the sanitized workflow data in sessionStorage for the Legal Firm Workflow to pick up
       console.log('Storing sanitized workflow data:', JSON.stringify(workflowData, null, 2));
       sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(workflowData));
-      
+
     } catch (error) {
       // Fallback to basic data if API fails - with sanitization
       const basicWorkflowData = {
@@ -568,13 +568,13 @@ const QuestionnaireResponses: React.FC = () => {
         originalAssignmentId: assignment._id,
         autoFillMode: true
       };
-      
+
       console.log('Storing basic sanitized workflow data:', JSON.stringify(basicWorkflowData, null, 2));
       sessionStorage.setItem('legalFirmWorkflowData', JSON.stringify(basicWorkflowData));
-      
+
     } finally {
       setLoadingWorkflows(false);
-      
+
       // Navigate to the Legal Firm Workflow page with existing response parameter
       navigate('/legal-firm-workflow?fromQuestionnaireResponses=true');
     }
@@ -582,38 +582,38 @@ const QuestionnaireResponses: React.FC = () => {
 
   const handleViewResponse = async (assignmentId: string) => {
     // Handle composite IDs for multiple workflows
-    const originalAssignmentId = assignmentId.includes('_workflow_') 
+    const originalAssignmentId = assignmentId.includes('_workflow_')
       ? assignmentId.split('_workflow_')[0]
       : assignmentId;
-    
+
     // Validate assignmentId is a valid MongoDB ObjectId
     if (!/^[0-9a-fA-F]{24}$/.test(originalAssignmentId)) {
       toast.error('Invalid assignment ID format');
       return;
     }
-    
+
     // Find the assignment to check if response data exists
     const assignment = filteredAssignments.find(a => a._id === assignmentId);
     if (!assignment) {
       toast.error('Assignment not found');
       return;
     }
-    
+
     // Check if responseId exists and has response data
     if (!assignment.responseId) {
       toast.error('No response data available for this assignment');
       return;
     }
-    
+
     if (!assignment.responseId.responses) {
       toast.error('Response data is empty or corrupted');
       return;
     }
-    
+
     try {
       // Use the original assignment ID for API calls
       const responseData = await getAssignmentResponse(originalAssignmentId);
-   
+
       // Create a comprehensive assignment object with all necessary data
       const completeAssignment = {
         ...assignment,
@@ -640,7 +640,7 @@ const QuestionnaireResponses: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Client Questionnaire Responses</h1>
       </div>
-      
+
       {/* Filters and Search */}
       <div className="mb-6 flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
         <div className="relative md:w-1/2">
@@ -655,7 +655,7 @@ const QuestionnaireResponses: React.FC = () => {
             className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <Filter className="h-5 w-5 text-gray-400" />
           <select
@@ -688,8 +688,8 @@ const QuestionnaireResponses: React.FC = () => {
           <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-700 mb-2">No Completed Questionnaire Responses</h2>
           <p className="text-gray-600 mb-4">
-            {searchTerm || statusFilter !== 'all' ? 
-              'No completed responses match your search criteria.' : 
+            {searchTerm || statusFilter !== 'all' ?
+              'No completed responses match your search criteria.' :
               'There are no completed questionnaire responses available yet.'}
           </p>
           <p className="text-sm text-gray-500">
@@ -728,7 +728,7 @@ const QuestionnaireResponses: React.FC = () => {
               {filteredAssignments.map(assignment => (
                 <tr key={assignment._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div 
+                    <div
                       className="flex items-center cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
                       onClick={() => handleClientClick(assignment)}
                       title="Click to edit client responses in Legal Firm Workflow"
@@ -738,24 +738,22 @@ const QuestionnaireResponses: React.FC = () => {
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
-                          {assignment.actualClient?.firstName && assignment.actualClient?.lastName ? 
+                          {assignment.actualClient?.firstName && assignment.actualClient?.lastName ?
                             `${assignment.actualClient.firstName} ${assignment.actualClient.lastName}` :
-                            assignment.clientUserId?.firstName && assignment.clientUserId?.lastName ? 
-                            `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}` : 
-                            'Client Name Not Available'
+                            assignment.clientUserId?.firstName && assignment.clientUserId?.lastName ?
+                              `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}` :
+                              'Client Name Not Available'
                           }
-                          {assignment.workflowTotal && assignment.workflowTotal > 1 && (
+                          {/* {assignment.workflowTotal && assignment.workflowTotal > 1 && (
                             <span className="ml-2 text-xs text-purple-600 font-medium">
                               (Workflow {assignment.workflowIndex}/{assignment.workflowTotal})
                             </span>
-                          )}
+                          )} */}
                         </div>
                         <div className="text-sm text-gray-500">
                           {assignment.actualClient?.email || assignment.clientUserId?.email || 'No email available'}
                         </div>
-                        <div className="text-xs text-gray-400">
-                          Client ID: {String(assignment.actualClient?.client_id || assignment.clientId || assignment.clientUserId?._id || 'N/A')}
-                        </div>
+
                         <div className="text-xs text-blue-600 mt-1">
                           Click to {assignment.responseId?.responses ? 'edit' : 'create'} responses →
                         </div>
@@ -764,23 +762,23 @@ const QuestionnaireResponses: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900">
-                      {assignment.questionnaireDetails?.title || 
-                       assignment.workflowQuestionnaireAssignment?.questionnaire_title ||
-                       assignment.workflowQuestionnaireAssignment?.formType ||
-                       'Untitled'}
-                      {assignment.workflowTotal && assignment.workflowTotal > 1 && (
+                      {assignment.questionnaireDetails?.title ||
+                        assignment.workflowQuestionnaireAssignment?.questionnaire_title ||
+                        assignment.workflowQuestionnaireAssignment?.formType ||
+                        'Untitled'}
+                      {/* {assignment.workflowTotal && assignment.workflowTotal > 1 && (
                         <span className="ml-2 text-xs text-purple-600 font-medium">
                           (Workflow {assignment.workflowIndex}/{assignment.workflowTotal})
                         </span>
-                      )}
+                      )} */}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {assignment.questionnaireDetails?.category || 
-                       assignment.workflowQuestionnaireAssignment?.formType ||
-                       assignment.workflowCase?.category ||
-                       'No category'}
+                      {assignment.questionnaireDetails?.category ||
+                        assignment.workflowQuestionnaireAssignment?.formType ||
+                        assignment.workflowCase?.category ||
+                        'No category'}
                     </div>
-                    {assignment.enhancedWithWorkflow && (
+                    {/* {assignment.enhancedWithWorkflow && (
                       <div className="text-xs text-blue-500 mt-1">
                         From workflow
                         {assignment.workflowStatus && (
@@ -793,23 +791,34 @@ const QuestionnaireResponses: React.FC = () => {
                           </span>
                         )}
                       </div>
-                    )}
+                    )} */}
                   </td>
                   <td className="px-6 py-4">
                     {assignment.formCaseIdGenerated ? (
-                      <div className="text-sm text-gray-900 font-medium">{assignment.formCaseIdGenerated}</div>
+                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                        {assignment.formCaseIdGenerated}
+                      </div>
                     ) : assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated ? (
-                      <div className="text-sm text-gray-900 font-medium">{assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}</div>
+                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                        {assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}
+                      </div>
                     ) : assignment.workflowCase?.caseNumber ? (
-                      <div className="text-sm text-gray-900 font-medium">{assignment.workflowCase.caseNumber}</div>
+                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                        {assignment.workflowCase.caseNumber}
+                      </div>
                     ) : assignment.workflowCase?.title ? (
-                      <div className="text-sm text-gray-900 font-medium">{assignment.workflowCase.title}</div>
+                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                        {assignment.workflowCase.title}
+                      </div>
                     ) : assignment.caseId ? (
-                      <div className="text-sm text-gray-900 font-medium">{assignment.caseId.title}</div>
+                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                        {assignment.caseId.title}
+                      </div>
                     ) : (
-                      <span className="text-sm text-gray-500">No case linked</span>
+                      <span className="text-sm text-gray-500 whitespace-nowrap">No case linked</span>
                     )}
                   </td>
+
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center">
@@ -817,21 +826,21 @@ const QuestionnaireResponses: React.FC = () => {
                       </div>
                       <div className="ml-3">
                         <div className="text-sm font-medium text-gray-900">
-                          {assignment.attorneyInfo?.firstName && assignment.attorneyInfo?.lastName ? 
+                          {assignment.attorneyInfo?.firstName && assignment.attorneyInfo?.lastName ?
                             `${assignment.attorneyInfo.firstName} ${assignment.attorneyInfo.lastName}` :
-                            assignment.assignedBy?.firstName && assignment.assignedBy?.lastName ? 
-                            `${assignment.assignedBy.firstName} ${assignment.assignedBy.lastName}` : 
-                            'Attorney Not Available'
+                            assignment.assignedBy?.firstName && assignment.assignedBy?.lastName ?
+                              `${assignment.assignedBy.firstName} ${assignment.assignedBy.lastName}` :
+                              'Attorney Not Available'
                           }
                         </div>
-                        <div className="text-xs text-gray-400">
+                        {/* <div className="text-xs text-gray-400">
                           Attorney ID: {String(assignment.attorneyInfo?.attorney_id || assignment.assignedBy?._id || 'N/A')}
-                        </div>
+                        </div> */}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span 
+                    <span
                       className={`px-2 py-1 text-xs rounded-full inline-flex items-center ${getStatusColor(assignment.status, assignment.isOverdue)}`}
                     >
                       {getStatusIcon(assignment.status, assignment.isOverdue)}
@@ -880,24 +889,23 @@ const QuestionnaireResponses: React.FC = () => {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right text-sm font-medium">
+                  <td className="px-4 py-4 text-right text-sm font-medium">
                     <div className="flex flex-col space-y-2">
                       <button
                         onClick={() => handleViewResponse(assignment._id)}
                         disabled={assignment.status !== 'completed' || !assignment.responseId || !assignment.responseId.responses}
-                        className={`inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 ${
-                          assignment.status === 'completed' && assignment.responseId?.responses
+                        className={`inline-flex items-center px-2 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 ${assignment.status === 'completed' && assignment.responseId?.responses
                             ? 'bg-white hover:bg-gray-50'
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }`}
+                          }`}
                         title={
-                          assignment.status !== 'completed' 
+                          assignment.status !== 'completed'
                             ? 'Assignment not completed'
-                            : !assignment.responseId 
-                            ? 'No response data available'
-                            : !assignment.responseId.responses
-                            ? 'Response data is empty'
-                            : 'View the completed response'
+                            : !assignment.responseId
+                              ? 'No response data available'
+                              : !assignment.responseId.responses
+                                ? 'Response data is empty'
+                                : 'View the completed response'
                         }
                       >
                         <Eye className="w-4 h-4 mr-2" />

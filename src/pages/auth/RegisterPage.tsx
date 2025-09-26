@@ -756,8 +756,8 @@ const RegisterPage: React.FC = () => {
       <div className="bg-gray-50 p-4 rounded-lg">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Identification Documents</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="passportNumber" className="block text-sm font-medium text-gray-700">
+          <div className="space-y-1">
+            <label htmlFor="passportNumber" className="block text-sm font-medium text-gray-700 leading-5 h-10 flex items-center">
               Passport Number
             </label>
             <input
@@ -766,12 +766,12 @@ const RegisterPage: React.FC = () => {
               name="passportNumber"
               value={formData.passportNumber}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 h-10"
             />
           </div>
-          <div>
-            <label htmlFor="alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
-              Alien Registration Number (A-Number)
+          <div className="space-y-1">
+            <label htmlFor="alienRegistrationNumber" className="block text-sm font-medium text-gray-700 leading-4 h-10 flex items-center whitespace-nowrap overflow-hidden text-ellipsis">
+              A-Number (Alien Registration)
             </label>
             <input
               type="text"
@@ -779,10 +779,10 @@ const RegisterPage: React.FC = () => {
               name="alienRegistrationNumber"
               value={formData.alienRegistrationNumber}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 h-10"
             />
           </div>
-          <div>
+          <div className="md:col-span-2">
             <label htmlFor="nationalIdNumber" className="block text-sm font-medium text-gray-700">
               National ID Number
             </label>
