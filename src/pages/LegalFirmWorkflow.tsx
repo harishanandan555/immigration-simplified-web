@@ -351,6 +351,48 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     autoFillOnFormDetailsStep();
   }, [currentStep]); // Trigger when currentStep changes
 
+  // Load workflow data when existing client reaches Create Client step (step 1)
+  useEffect(() => {
+    const loadWorkflowDataForExistingClient = async () => {
+      console.log('🔍 DEBUG: useEffect triggered - checking conditions:', {
+        currentStep,
+        selectedExistingClientId,
+        clientIsExistingClient: client.isExistingClient,
+        clientEmail: client.email,
+        clientName: client.name,
+        allConditionsMet: currentStep === 1 && selectedExistingClientId && client.isExistingClient
+      });
+      
+      // Only load workflow data when reaching step 1 (Create Client) for existing clients
+      if (currentStep === 1 && selectedExistingClientId && client.isExistingClient) {
+        console.log('🔄 DEBUG: All conditions met - Existing client reached Create Client step - loading workflow data from DB');
+        
+        // Add a small delay to ensure the client state is fully updated
+        setTimeout(async () => {
+          try {
+            // Find and load workflow data for this existing client
+            const workflowLoaded = await findAndAutoFillWorkflow(client.email, selectedExistingClientId);
+            console.log('🔍 DEBUG: Workflow load result:', { workflowLoaded });
+            if (workflowLoaded) {
+              console.log('✅ DEBUG: Workflow data loaded for existing client on Create Client step');
+              // toast.success(`Complete workflow data loaded for ${client.name}`);
+            } else {
+              console.log('⚠️ DEBUG: No workflow data found for existing client');
+              // toast(`Client details ready for ${client.name} - no previous workflow found`);
+            }
+          } catch (error) {
+            console.error('❌ DEBUG: Failed to load workflow data for existing client:', error);
+            toast.error('Failed to load workflow data');
+          }
+        }, 100); // Small delay to ensure state is updated
+      } else {
+        console.log('⚠️ DEBUG: Conditions not met for workflow data loading');
+      }
+    };
+
+    loadWorkflowDataForExistingClient();
+  }, [currentStep, selectedExistingClientId, client.isExistingClient, client.email, client.name]);
+
   // Function to resume workflow from saved progress
   const resumeWorkflow = async (workflowId: string) => {
     try {
@@ -1772,17 +1814,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         currentClientName: client.name
       });
       
-      // SAFETY CHECK: If client is already marked as existing, DO NOT OVERRIDE
-      if (client.isExistingClient === true || client.hasUserAccount === true) {
-        console.log('🛡️ DEBUG: SAFETY CHECK - Client already marked as existing, SKIPPING workflow auto-fill to preserve flags:', {
+      // MODIFIED SAFETY CHECK: For existing clients, we DO want to load workflow data to populate Create Client step
+      // But we need to preserve their existing client flags
+      const isExistingClientLoad = client.isExistingClient === true || client.hasUserAccount === true;
+      if (isExistingClientLoad) {
+        console.log('� DEBUG: EXISTING CLIENT LOAD - Loading workflow data while preserving client flags:', {
           isExistingClient: client.isExistingClient,
           hasUserAccount: client.hasUserAccount,
           clientId: client.id,
           clientEmail: client.email,
-          reason: 'Preserving existing client flags - no auto-fill needed'
+          reason: 'Loading complete workflow data for existing client on Create Client step'
         });
-        toast.success('Existing client detected - preserving account status');
-        return;
       }
       
       console.log('🔄 DEBUG: Auto-filling ONLY client data for Create Client step - SKIPPING all other data:', {
@@ -1942,7 +1984,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           });
         }
         
-        toast.success('Client details filled from previous workflow - ready for Create Client step');
+        toast.success(`Client details loaded from workflow: ${newClientData.name}`);
       } else {
         console.log('⚠️ DEBUG: No client data in workflow, keeping existing client data:', {
           clientId: client.id,
@@ -1950,6 +1992,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           clientEmail: client.email
         });
         // Client data is already set from selection, no need to change anything
+        toast.success(`Client details preserved: ${client.name}`);
       }
 
       // EXPLICITLY DO NOT AUTO-FILL ANY OTHER DATA (except client)
@@ -2144,7 +2187,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         return false;
       }
 
-      // Find matching workflow by client email, client ID, or most recent
+      // Find matching workflow by client email, client ID, or oldest (first created)
       let matchingWorkflow = null;
 
       // First try to match by client ID if provided
@@ -2152,7 +2195,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         console.log('🔄 DEBUG: ========== SEARCHING BY CLIENT ID ==========');
         console.log('🔄 DEBUG: Target client ID:', clientId);
         
-        matchingWorkflow = allWorkflows.find((w: any, index: number) => {
+        const clientIdMatches = allWorkflows.filter((w: any, index: number) => {
           const workflowClientId = w.clientId || w.client?.id || w.client?._id;
           console.log(`� DEBUG: Workflow ${index + 1}: Comparing client IDs:`, { 
             workflowIndex: index,
@@ -2164,6 +2207,27 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           });
           return workflowClientId === clientId;
         });
+
+        if (clientIdMatches.length > 0) {
+          // Sort by createdAt ascending to get the oldest (first created) workflow
+          // Handle cases where createdAt might be missing by using a fallback date
+          matchingWorkflow = clientIdMatches.sort((a: any, b: any) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateA - dateB;
+          })[0];
+          
+          if (clientIdMatches.length > 1) {
+            console.log(`🔄 DEBUG: Found ${clientIdMatches.length} workflows with same client ID - selected oldest:`, {
+              selectedWorkflowId: matchingWorkflow.id || matchingWorkflow._id,
+              selectedCreatedAt: matchingWorkflow.createdAt,
+              allMatches: clientIdMatches.map((w: any) => ({
+                id: w.id || w._id,
+                createdAt: w.createdAt
+              }))
+            });
+          }
+        }
 
         if (matchingWorkflow) {
           console.log('✅ DEBUG: ========== FOUND MATCHING WORKFLOW BY CLIENT ID ==========');
@@ -2186,7 +2250,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         console.log('🔄 DEBUG: ========== SEARCHING BY CLIENT EMAIL ==========');
         console.log('🔄 DEBUG: Target client email:', clientEmail);
         
-        matchingWorkflow = allWorkflows.find((w: any) => {
+        const emailMatches = allWorkflows.filter((w: any) => {
           const workflowEmail = w.client?.email?.toLowerCase();
           const searchEmail = clientEmail.toLowerCase();
           console.log('🔄 DEBUG: Email comparison:', { 
@@ -2196,6 +2260,27 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           });
           return workflowEmail === searchEmail;
         });
+
+        if (emailMatches.length > 0) {
+          // Sort by createdAt ascending to get the oldest (first created) workflow
+          // Handle cases where createdAt might be missing by using a fallback date
+          matchingWorkflow = emailMatches.sort((a: any, b: any) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateA - dateB;
+          })[0];
+          
+          if (emailMatches.length > 1) {
+            console.log(`🔄 DEBUG: Found ${emailMatches.length} workflows with same email - selected oldest:`, {
+              selectedWorkflowId: matchingWorkflow.id || matchingWorkflow._id,
+              selectedCreatedAt: matchingWorkflow.createdAt,
+              allMatches: emailMatches.map((w: any) => ({
+                id: w.id || w._id,
+                createdAt: w.createdAt
+              }))
+            });
+          }
+        }
 
         if (matchingWorkflow) {
           console.log('✅ DEBUG: Found matching workflow by email:', {
@@ -2208,7 +2293,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }
       }
 
-      // If still not found, look for most recent workflow for this client (any status)
+      // If still not found, look for oldest (first created) workflow for this client (any status)
       if (!matchingWorkflow) {
         console.log('🔄 DEBUG: Looking for any workflows for this client (any status)');
         const clientWorkflows = allWorkflows.filter((w: any) => {
@@ -2219,13 +2304,29 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         
         console.log('🔄 DEBUG: Found workflows for client (any status):', clientWorkflows.length);
 
+        // Log all workflows for this client to show date comparison
+        if (clientWorkflows.length > 1) {
+          console.log('🔄 DEBUG: Multiple workflows found for client - showing creation dates for comparison:');
+          clientWorkflows.forEach((workflow: any, index: number) => {
+            console.log(`  Workflow ${index + 1}: ID=${workflow.id || workflow._id}, createdAt=${workflow.createdAt}, updatedAt=${workflow.updatedAt}, status=${workflow.status}`);
+          });
+          console.log('🔄 DEBUG: Will select the OLDEST (first created) workflow to get original client data');
+        }
+
         if (clientWorkflows.length > 0) {
-          matchingWorkflow = clientWorkflows
-            .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())[0];
-          console.log('✅ DEBUG: Selected most recent workflow:', {
+          // Sort by createdAt in ascending order to get the OLDEST (first created) workflow data
+          // This ensures we load the initial/original client data, not the most recently updated one
+          matchingWorkflow = clientWorkflows.sort((a: any, b: any) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateA - dateB;
+          })[0];
+          console.log('✅ DEBUG: Selected oldest (first created) workflow:', {
             workflowId: matchingWorkflow.id || matchingWorkflow._id,
-            updatedAt: matchingWorkflow.updatedAt || matchingWorkflow.createdAt,
-            status: matchingWorkflow.status
+            createdAt: matchingWorkflow.createdAt,
+            updatedAt: matchingWorkflow.updatedAt,
+            status: matchingWorkflow.status,
+            reason: 'Loading first created data as it contains original client information'
           });
         }
       }
@@ -4313,32 +4414,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       }
                     });
                     
-                    // IMMEDIATE auto-fill - no timeout to prevent race condition
-                    let workflowAutoFilled = false;
-                    try {
-                      workflowAutoFilled = await findAndAutoFillWorkflow(
-                        clientWithDetails.email, 
-                        selectedExistingClientId
-                      );
-                      
-                      // After auto-fill, verify flags are still preserved
-                      console.log('🔍 DEBUG: Verifying client flags after workflow auto-fill are preserved');
-                    } catch (autoFillError) {
-                      console.warn('⚠️ DEBUG: Workflow auto-fill failed, but continuing with existing client data:', autoFillError);
-                    }
-
-                    // For existing client workflow, always go to step 1 (Create Client) to show populated details
-                    // Don't auto-advance to subsequent steps
-                    console.log('✅ DEBUG: Setting current step to 1 (Create Client) to show populated client details');
+                    // For existing client workflow, always go to step 1 (Create Client) to show client details
+                    // Workflow data will be loaded when user reaches the Create Client step
+                    console.log('✅ DEBUG: Setting current step to 1 (Create Client) - workflow data will load on that step');
                     setCurrentStep(1);
                     
-                    if (workflowAutoFilled) {
-                      console.log('✅ DEBUG: Workflow data auto-filled successfully');
-                      toast.success(`Client details loaded for ${name} - ready to create client`);
-                    } else {
-                      console.log('⚠️ DEBUG: No workflow data found, showing client details only');
-                      toast.success(`Client details loaded for ${name} - ready to create client`);
-                    }
+                    console.log('✅ DEBUG: Basic client data loaded - workflow data will load on Create Client step');
+                    toast.success(`Client ${name} selected - proceed to Create Client step to load complete data`);
                     
                     // Remove this duplicate toast since we have specific ones above
                     // toast.success(`Client details loaded: ${name}`);
@@ -4352,7 +4434,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 disabled={!selectedExistingClientId || loading}
                 className="w-full"
               >
-                {loading ? 'Loading...' : 'Load Client & Workflow Data'}
+                {loading ? 'Loading...' : 'Proceed for New case '}
               </Button>
             </div>
           </div>
@@ -4376,7 +4458,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               {client.isExistingClient && (
                 <div className="mt-2 flex items-center text-green-700">
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  <span className="text-sm">Client details loaded from database</span>
+                  <span className="text-sm">Client details loaded </span>
                 </div>
               )}
             </div>
@@ -4579,7 +4661,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   }}
                   disabled={!client.name || !client.email}
                 >
-                  Create Client & Continue
+                  {client.isExistingClient ? 'Proceed to Next Step' : 'Create Client & Continue'}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               )}

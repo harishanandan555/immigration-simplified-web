@@ -377,22 +377,6 @@ const ClientFormPage = () => {
             </div>
 
             <div>
-              <label htmlFor="nationality" className="block text-sm font-medium text-gray-700 mb-1">
-                Nationality
-              </label>
-              <input
-                type="text"
-                id="nationality"
-                name="nationality"
-                required
-                value={formData.nationality}
-                onChange={handleInputChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Enter nationality"
-              />
-            </div>
-
-            <div>
               <label htmlFor="alienRegistrationNumber" className="block text-sm font-medium text-gray-700 mb-1">
                 Alien Registration Number
               </label>
@@ -421,6 +405,22 @@ const ClientFormPage = () => {
                 onChange={handleInputChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Enter passport number"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="nationality" className="block text-sm font-medium text-gray-700 mb-1">
+                Nationality
+              </label>
+              <input
+                type="text"
+                id="nationality"
+                name="nationality"
+                required
+                value={formData.nationality}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Enter nationality"
               />
             </div>
 
