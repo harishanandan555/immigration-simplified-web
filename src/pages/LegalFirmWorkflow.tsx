@@ -36,7 +36,12 @@ import {
   generateSecurePassword
 } from '../controllers/UserCreationController';
 import { getCompanyClients as fetchClientsFromAPI, getClientById, createCompanyClient, Client as APIClient } from '../controllers/ClientControllers';
-import { getUscisFormNumbers, FormTemplate } from '../controllers/SettingsControllers';
+import { 
+  getAnvilTemplatesList, 
+  fillPdfTemplateBlob, 
+  getTemplateIdsByFormNumber 
+} from '../controllers/AnvilControllers';
+import { FormTemplate } from '../controllers/SettingsControllers';
 import { 
   LEGAL_WORKFLOW_ENDPOINTS,
   FORM_TEMPLATE_CATEGORIES,
@@ -648,33 +653,31 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     const fetchTemplates = async () => {
       setLoadingFormTemplates(true);
       try {
-        // You may want to pass userId or params as needed
-        // const response = await getFormTemplates('');
-        const response = await getUscisFormNumbers();
-        // setFormTemplates(response.data.templates || []);
+        const response = await getAnvilTemplatesList();
+        const templates = response.data?.data?.templates || [];
         
-        // Map the API response to FormTemplate structure
-        const mappedTemplates: FormTemplate[] = (response.data || []).map((form: any) => ({
-          _id: form._id,
-          name: form.title || form.formNumber,
-          description: form.description || '',
+        // Map the Anvil templates response to FormTemplate structure
+        const mappedTemplates: FormTemplate[] = templates.map((template: any) => ({
+          _id: template.templateId,
+          name: template.formNumber,
+          description: template.description || '',
           category: 'USCIS' as keyof typeof FORM_TEMPLATE_CATEGORIES,
           type: 'uscis' as keyof typeof FORM_TEMPLATE_TYPES,
-          status: form.isActive ? 'active' as keyof typeof FORM_TEMPLATE_STATUS : 'inactive' as keyof typeof FORM_TEMPLATE_STATUS,
+          status: template.isActive ? 'active' as keyof typeof FORM_TEMPLATE_STATUS : 'inactive' as keyof typeof FORM_TEMPLATE_STATUS,
           fields: [], // Empty fields array for now
           version: '1.0',
-          effectiveDate: form.createdAt || new Date().toISOString(),
-          expirationDate: form.expirationDate,
-          isActive: form.isActive || false,
+          effectiveDate: template.createdAt || new Date().toISOString(),
+          expirationDate: template.expirationDate,
+          isActive: template.isActive || false,
           createdBy: 'system',
           updatedBy: 'system',
-          createdAt: form.createdAt || new Date().toISOString(),
-          updatedAt: form.updatedAt || new Date().toISOString(),
+          createdAt: template.createdAt || new Date().toISOString(),
+          updatedAt: template.updatedAt || new Date().toISOString(),
           metadata: {
-            uscisFormNumber: form.formNumber,
-            uscisFormLink: form.detailsUrl,
-            fee: form.fee,
-            instructions: form.metadata?.instructions
+            uscisFormNumber: template.formNumber,
+            templateId: template.templateId,
+            isFieldsValidated: template.isFieldsValidated,
+            instructions: template.description
           }
         }));
         
@@ -4126,34 +4129,63 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             template.metadata?.uscisFormNumber === formName
           );
           
-          // Use the form number from the template metadata, or fallback to form name
-          const templateId = formTemplate?.metadata?.uscisFormNumber || formName;
+          // Get the form number from the template metadata, or fallback to form name
+          const rawFormNumber = formTemplate?.metadata?.uscisFormNumber || formName;
+          
+          // Normalize form number by removing "Form " prefix if present
+          const formNumber = rawFormNumber.replace(/^Form\s+/i, '');
 
           // Add a placeholder for generating status
           newGeneratedForms.push({
             formName,
-            templateId,
+            templateId: '',
             blob: new Blob(),
             downloadUrl: '',
             fileName: `${formName}_${new Date().toISOString().split('T')[0]}.pdf`,
             status: 'generating' as const
           });
 
-          // Call renderFormWithData
-          const response = await renderFormWithData(templateId, preparedData);
+          // Fetch template IDs for this form number using Anvil API
+          const templatesResponse = await getTemplateIdsByFormNumber(formNumber);
+          
+          if (!templatesResponse.data.success || !templatesResponse.data.data.templates.length) {
+            throw new Error(`No Anvil templates found for form ${formNumber}`);
+          }
 
-          if (response.data) {
+          // Use the first available template (you might want to add logic to select the best one)
+          const anvilTemplate = templatesResponse.data.data.templates[0];
+          const templateId = anvilTemplate.templateId;
+
+          // Update the template ID in the form
+          const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
+          if (formIndex !== -1) {
+            newGeneratedForms[formIndex].templateId = templateId;
+          }
+
+          // Use Anvil API to fill the PDF template
+          const anvilResponse = await fillPdfTemplateBlob(
+            templateId,
+            preparedData,
+            {
+              title: `${formName} - ${client.firstName} ${client.lastName}`,
+              fontFamily: 'Arial',
+              fontSize: 12,
+              textColor: '#000000',
+              useInteractiveFields: true
+            }
+          );
+
+          if (anvilResponse.data) {
             // Create download URL
-            const downloadUrl = createPdfBlobUrl(response.data);
+            const downloadUrl = createPdfBlobUrl(anvilResponse.data);
             const fileName = `${formName}_${new Date().toISOString().split('T')[0]}.pdf`;
 
             // Update the form with success status
-            const formIndex: number = newGeneratedForms.findIndex(f => f.formName === formName);
             if (formIndex !== -1) {
               newGeneratedForms[formIndex] = {
                 formName,
                 templateId,
-                blob: response.data,
+                blob: anvilResponse.data,
                 downloadUrl,
                 fileName,
                 status: 'success' as const
@@ -4161,6 +4193,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             }
 
             // Generated form successfully
+          } else {
+            throw new Error('No data returned from Anvil API');
           }
         } catch (error) {
           // Update the form with error status
