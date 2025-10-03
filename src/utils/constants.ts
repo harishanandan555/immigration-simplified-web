@@ -669,6 +669,15 @@ export const QUESTIONNAIRE_RESPONSE_END_POINTS = {
     GET_WORKFLOWS: "/api/v1/workflows"
 } as const;
 
+export const ANVIL_END_POINTS = {
+    // Fill PDF template using Anvil API
+    FILL_PDF_TEMPLATE: "/api/v1/anvil/fill/:templateId",
+    // Get list of available Anvil templates
+    GET_TEMPLATES_LIST: "/api/v1/anvil/templates/list",
+    // Get template payload by template ID
+    GET_TEMPLATE_PAYLOAD: "/api/v1/anvil/template/:templateId/payload"
+} as const;
+
 
 
 
