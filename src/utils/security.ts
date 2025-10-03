@@ -64,7 +64,7 @@ export class EncryptionService {
   private algorithm: string;
 
   private constructor() {
-    this.encryptionKey = process.env.REACT_APP_ENCRYPTION_KEY || 'default-key-change-in-production';
+    this.encryptionKey = import.meta.env.VITE_REACT_APP_ENCRYPTION_KEY || 'default-key-change-in-production';
     this.algorithm = DEFAULT_SECURITY_CONFIG.encryption.algorithm;
   }
 

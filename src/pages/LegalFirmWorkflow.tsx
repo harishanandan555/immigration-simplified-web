@@ -1843,7 +1843,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           workflowClientName: workflowData.client.name || `${workflowData.client.firstName} ${workflowData.client.lastName}`.trim(),
           workflowClientEmail: workflowData.client.email,
           workflowClientPhone: workflowData.client.phone,
-          workflowClientAddress: workflowData.client.address
+          workflowClientAddress: workflowData.client.address,
+          workflowAptNumber: workflowData.client.address?.aptNumber,
+          workflowAptSuiteFlr: workflowData.client.address?.aptSuiteFlr
         });
 
         const newClientData = {
@@ -1925,6 +1927,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           nationality: newClientData.nationality,
           hasAddress: !!newClientData.address,
           addressDetails: newClientData.address,
+          aptNumber: newClientData.address?.aptNumber,
+          aptSuiteFlr: newClientData.address?.aptSuiteFlr,
           temporaryPassword: !!newClientData.temporaryPassword,
           // IMPORTANT: Check existing client flags
           isExistingClient: newClientData.isExistingClient,
@@ -1942,6 +1946,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         });
 
         setClient(newClientData);
+        
+        // DEBUG: Confirm apartment number was set
+        console.log('✅ DEBUG: Client data set, apartment number check:', {
+          aptNumber: newClientData.address?.aptNumber,
+          aptSuiteFlr: newClientData.address?.aptSuiteFlr,
+          fullAddress: newClientData.address,
+          setClientCalled: true
+        });
         
         // Immediately verify the client flags were preserved
         console.log('🔍 DEBUG: Client flags immediately after setClient:', {
@@ -2540,6 +2552,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Function to save all workflow progress before questionnaire assignment
   const saveWorkflowProgressLocal = async () => {
     try {
+      // DEBUG: Log the current client address state before saving
+      console.log('🔍 DEBUG: Client address before saving:', {
+        fullAddress: client.address,
+        aptNumber: client.address?.aptNumber,
+        aptSuiteFlr: client.address?.aptSuiteFlr,
+        street: client.address?.street,
+        city: client.address?.city,
+        state: client.address?.state,
+        zipCode: client.address?.zipCode
+      });
+
       // Prepare comprehensive workflow data
       const workflowData: {
         workflowId: string;
@@ -2688,6 +2711,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       if (token) {
         try {
+          // DEBUG: Log the address data being sent to API
+          console.log('🔍 DEBUG: Address data being sent to API:', {
+            clientAddress: workflowData.client.address,
+            aptNumber: workflowData.client.address?.aptNumber,
+            aptSuiteFlr: workflowData.client.address?.aptSuiteFlr,
+            fullWorkflowData: JSON.stringify(workflowData.client.address, null, 2)
+          });
+
           // Save to API only
           const response = await saveWorkflowProgress(workflowData);
 
@@ -2696,6 +2727,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           if (response?.workflowId) {
             workflowData.workflowId = response.workflowId;
           }
+
+          // DEBUG: Log successful save response
+          console.log('✅ DEBUG: Workflow saved successfully to API:', {
+            workflowId: response?.workflowId,
+            savedAptNumber: response?.client?.address?.aptNumber,
+            responseKeys: Object.keys(response || {}),
+            fullResponse: response
+          });
 
           // Workflow progress saved to server
 
