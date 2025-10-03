@@ -165,10 +165,25 @@ const RegisterPage: React.FC = () => {
         };
       });
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: type === 'number' ? Number(value) : value
-      }));
+      setFormData(prev => {
+        const newData = {
+          ...prev,
+          [name]: type === 'number' ? Number(value) : value
+        };
+        
+        // Clear spouse data if marital status is changed to single
+        if (name === 'maritalStatus' && value === 'single') {
+          newData.spouse = {
+            firstName: '',
+            lastName: '',
+            dateOfBirth: '',
+            nationality: '',
+            alienRegistrationNumber: ''
+          };
+        }
+        
+        return newData;
+      });
     }
   };
 
@@ -391,12 +406,12 @@ const RegisterPage: React.FC = () => {
   );
 
   const renderSectionNavigation = () => (
-    <div className="mb-8">
+    <div className="mb-8 bg-white sticky top-0 z-10 pb-4 border-b border-gray-200 -mx-8 px-8">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold text-gray-900">
           {sections[currentSection]}
         </h2>
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 font-medium">
           Step {currentSection + 1} of {sections.length}
         </div>
       </div>
@@ -756,8 +771,8 @@ const RegisterPage: React.FC = () => {
       <div className="bg-gray-50 p-4 rounded-lg">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Identification Documents</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="passportNumber" className="block text-sm font-medium text-gray-700">
+          <div className="space-y-1">
+            <label htmlFor="passportNumber" className="block text-sm font-medium text-gray-700 leading-5 h-10 flex items-center">
               Passport Number
             </label>
             <input
@@ -766,12 +781,12 @@ const RegisterPage: React.FC = () => {
               name="passportNumber"
               value={formData.passportNumber}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 h-10"
             />
           </div>
-          <div>
-            <label htmlFor="alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
-              Alien Registration Number (A-Number)
+          <div className="space-y-1">
+            <label htmlFor="alienRegistrationNumber" className="block text-sm font-medium text-gray-700 leading-4 h-10 flex items-center whitespace-nowrap overflow-hidden text-ellipsis">
+              A-Number (Alien Registration)
             </label>
             <input
               type="text"
@@ -779,10 +794,10 @@ const RegisterPage: React.FC = () => {
               name="alienRegistrationNumber"
               value={formData.alienRegistrationNumber}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 h-10"
             />
           </div>
-          <div>
+          <div className="md:col-span-2">
             <label htmlFor="nationalIdNumber" className="block text-sm font-medium text-gray-700">
               National ID Number
             </label>
@@ -802,76 +817,79 @@ const RegisterPage: React.FC = () => {
 
   const renderFamilyInformation = () => (
     <div className="space-y-6">
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Spouse Information</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="spouse.firstName" className="block text-sm font-medium text-gray-700">
-              Spouse First Name
-            </label>
-            <input
-              type="text"
-              id="spouse.firstName"
-              name="spouse.firstName"
-              value={formData.spouse.firstName}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="spouse.lastName" className="block text-sm font-medium text-gray-700">
-              Spouse Last Name
-            </label>
-            <input
-              type="text"
-              id="spouse.lastName"
-              name="spouse.lastName"
-              value={formData.spouse.lastName}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="spouse.dateOfBirth" className="block text-sm font-medium text-gray-700">
-              Spouse Date of Birth
-            </label>
-            <input
-              type="date"
-              id="spouse.dateOfBirth"
-              name="spouse.dateOfBirth"
-              value={formData.spouse.dateOfBirth}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="spouse.nationality" className="block text-sm font-medium text-gray-700">
-              Spouse Nationality
-            </label>
-            <input
-              type="text"
-              id="spouse.nationality"
-              name="spouse.nationality"
-              value={formData.spouse.nationality}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="spouse.alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
-              Spouse A-Number
-            </label>
-            <input
-              type="text"
-              id="spouse.alienRegistrationNumber"
-              name="spouse.alienRegistrationNumber"
-              value={formData.spouse.alienRegistrationNumber}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-            />
+      {/* Only show spouse information if not single */}
+      {formData.maritalStatus !== 'single' && (
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Spouse Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="spouse.firstName" className="block text-sm font-medium text-gray-700">
+                Spouse First Name
+              </label>
+              <input
+                type="text"
+                id="spouse.firstName"
+                name="spouse.firstName"
+                value={formData.spouse.firstName}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="spouse.lastName" className="block text-sm font-medium text-gray-700">
+                Spouse Last Name
+              </label>
+              <input
+                type="text"
+                id="spouse.lastName"
+                name="spouse.lastName"
+                value={formData.spouse.lastName}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="spouse.dateOfBirth" className="block text-sm font-medium text-gray-700">
+                Spouse Date of Birth
+              </label>
+              <input
+                type="date"
+                id="spouse.dateOfBirth"
+                name="spouse.dateOfBirth"
+                value={formData.spouse.dateOfBirth}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="spouse.nationality" className="block text-sm font-medium text-gray-700">
+                Spouse Nationality
+              </label>
+              <input
+                type="text"
+                id="spouse.nationality"
+                name="spouse.nationality"
+                value={formData.spouse.nationality}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="spouse.alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
+                Spouse A-Number
+              </label>
+              <input
+                type="text"
+                id="spouse.alienRegistrationNumber"
+                name="spouse.alienRegistrationNumber"
+                value={formData.spouse.alienRegistrationNumber}
+                onChange={handleInputChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="bg-gray-50 p-4 rounded-lg">
         <div className="flex items-center justify-between mb-4">
@@ -885,6 +903,15 @@ const RegisterPage: React.FC = () => {
             Add Child
           </button>
         </div>
+        
+        {/* Show message for single people */}
+        {formData.maritalStatus === 'single' && formData.children.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <p className="text-sm">
+              Children information is optional. Click "Add Child" if you have children to include.
+            </p>
+          </div>
+        )}
         
         {formData.children.map((child, index) => (
           <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
@@ -1022,7 +1049,7 @@ const RegisterPage: React.FC = () => {
         
         <div className="mt-4">
           <h4 className="text-md font-medium text-gray-800 mb-2">Employer Address</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label htmlFor="employment.currentEmployer.address.street" className="block text-sm font-medium text-gray-700">
                 Street Address
@@ -1033,7 +1060,7 @@ const RegisterPage: React.FC = () => {
                 name="employment.currentEmployer.address.street"
                 value={formData.employment.currentEmployer.address.street}
                 onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className="mt-4 block w-328 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
               />
             </div>
             <div>
@@ -1455,7 +1482,7 @@ const RegisterPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white flex">
       {/* Left side - Features */}
-      <div className="hidden lg:flex lg:flex-1 p-12 items-start border-r border-gray-100 overflow-y-auto h-screen [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <div className="hidden lg:flex lg:flex-1 p-12 items-start border-r border-gray-100">
         <div className="max-w-2xl mx-auto">
           <div className="bg-gray-50 rounded-2xl p-8 shadow-lg">
             <h2 className="text-3xl font-bold mb-8 flex items-center text-gray-900">
@@ -1496,8 +1523,8 @@ const RegisterPage: React.FC = () => {
       </div>
 
       {/* Right side - Registration form */}
-      <div className="flex-1 flex items-center justify-center p-8 sticky top-0 h-screen">
-        <div className="w-full max-w-2xl">
+      <div className="flex-1 p-8 min-h-screen overflow-y-auto">
+        <div className="w-full max-w-2xl mx-auto">
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
             <div className="text-center mb-8">
               <div className="inline-block p-3 rounded-full bg-primary-50 mb-4">
