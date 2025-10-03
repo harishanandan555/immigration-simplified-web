@@ -182,7 +182,7 @@ import {
 import CompanySelect from '../../components/settings/CompanySelect';
 import { QuestionnaireBuilder } from '../../components/settings/QuestionnaireBuilder';
 
-import {getAllUscisForms, getUscisFormPdf} from '../../controllers/UscisFormsControllers'
+import { getAllUscisForms, getUscisFormPdf } from '../../controllers/UscisFormsControllers'
 
 import {
   ROLE_TYPES,
@@ -2314,7 +2314,10 @@ const SettingsPage = () => {
         <form onSubmit={(e) => { e.preventDefault(); handleSecuritySubmit(); }}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="currentPassword"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Current Password
               </label>
               <input
@@ -2323,11 +2326,15 @@ const SettingsPage = () => {
                 name="currentPassword"
                 value={securityData.currentPassword}
                 onChange={handleSecurityChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-2 border-gray-500 shadow-md focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600 text-base font-semibold"
               />
             </div>
+
             <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="newPassword"
+                className="block text-sm font-medium text-gray-700"
+              >
                 New Password
               </label>
               <input
@@ -2336,11 +2343,15 @@ const SettingsPage = () => {
                 name="newPassword"
                 value={securityData.newPassword}
                 onChange={handleSecurityChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-2 border-gray-500 shadow-md focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600 text-base font-semibold"
               />
             </div>
+
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Confirm New Password
               </label>
               <input
@@ -2349,9 +2360,10 @@ const SettingsPage = () => {
                 name="confirmPassword"
                 value={securityData.confirmPassword}
                 onChange={handleSecurityChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-2 border-gray-500 shadow-md focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600 text-base font-semibold"
               />
             </div>
+
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -2378,7 +2390,7 @@ const SettingsPage = () => {
 
         {/* Security Information */}
         <div className="mt-6 pt-6 border-t border-gray-200">
-          <h4 className="text-sm font-medium text-gray-900 mb-4">Security 
+          <h4 className="text-sm font-medium text-gray-900 mb-4">Security
           </h4>
           <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
             <div>
@@ -2565,7 +2577,7 @@ const SettingsPage = () => {
   const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
-    
+
     // Handle nested object fields
     if (name.startsWith('address.')) {
       const addressField = name.split('.')[1];
@@ -4646,7 +4658,7 @@ const SettingsPage = () => {
         ipAddresses: auditLogsData.filters.ipAddresses
       });
 
-      
+
     } catch (error) {
       console.error('Error filtering audit logs:', error);
     }
@@ -5157,7 +5169,7 @@ const SettingsPage = () => {
                         >
                           Change Photo
                         </label>
-                        <p className="mt-1 text-sm text-gray-500">JPG, GIF or PNG. Max size of 2MB.</p>
+                        <p className="mt-4 text-sm text-gray-500">JPG, GIF or PNG. Max size of 2MB.</p>
                       </div>
                     </div>
 
@@ -5785,28 +5797,28 @@ const SettingsPage = () => {
                         <div className="space-y-4">
                           {/* Basic Information */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
+                            <div>
                               <label className="block text-sm font-medium text-gray-700">First Name *</label>
-                            <input
-                              type="text"
-                              name="firstName"
-                              value={newUser.firstName}
-                              onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                              required
-                            />
-                          </div>
+                              <input
+                                type="text"
+                                name="firstName"
+                                value={newUser.firstName}
+                                onChange={handleNewUserChange}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                              />
+                            </div>
 
-                          <div>
+                            <div>
                               <label className="block text-sm font-medium text-gray-700">Last Name *</label>
-                            <input
-                              type="text"
-                              name="lastName"
-                              value={newUser.lastName}
-                              onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                              required
-                            />
+                              <input
+                                type="text"
+                                name="lastName"
+                                value={newUser.lastName}
+                                onChange={handleNewUserChange}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                              />
                             </div>
                           </div>
 
@@ -5887,7 +5899,7 @@ const SettingsPage = () => {
                           <div className="border-t pt-4">
                             <h4 className="text-md font-medium text-gray-900 mb-3">Address Information</h4>
                             <div className="space-y-4">
-                          <div>
+                              <div>
                                 <label className="block text-sm font-medium text-gray-700">Street Address</label>
                                 <input
                                   type="text"
@@ -6473,28 +6485,28 @@ const SettingsPage = () => {
                             <div className="space-y-4">
                               <div>
                                 <label className="block text-sm font-medium text-gray-700">Password *</label>
-                            <input
-                              type="password"
-                              name="password"
-                              value={newUser.password}
-                              onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                              required
-                              minLength={8}
-                            />
-                          </div>
+                                <input
+                                  type="password"
+                                  name="password"
+                                  value={newUser.password}
+                                  onChange={handleNewUserChange}
+                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  required
+                                  minLength={8}
+                                />
+                              </div>
 
-                          <div>
+                              <div>
                                 <label className="block text-sm font-medium text-gray-700">Confirm Password *</label>
-                            <input
-                              type="password"
-                              name="confirmPassword"
-                              value={newUser.confirmPassword}
-                              onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                              required
-                              minLength={8}
-                            />
+                                <input
+                                  type="password"
+                                  name="confirmPassword"
+                                  value={newUser.confirmPassword}
+                                  onChange={handleNewUserChange}
+                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  required
+                                  minLength={8}
+                                />
                               </div>
                             </div>
                           </div>
