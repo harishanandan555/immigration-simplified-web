@@ -11,8 +11,7 @@ import {
   X,
   BarChart,
   FileSearch,
-  UserCheck,
-  Star
+  UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../controllers/AuthControllers';
 import Logo from './Logo';
@@ -38,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
     // { name: 'Questionnaire Responses', href: '/questionnaires/responses', icon: FileText, visible: isAttorney || isParalegal || isSuperAdmin },
     { name: 'Cases', href: '/cases', icon: Briefcase, visible: isAttorney || (isClient && user?.userType === 'individualUser') || isSuperAdmin },
     { name: 'FOIA Cases', href: '/foia-cases', icon: FileSearch, visible: isAttorney || (isClient && user?.userType === 'individualUser') || isSuperAdmin },
-    { name: 'FOIA Case Status Tracker', href: '/foia-tracker', icon: FileSearch, visible: isAttorney || (isClient && user?.userType === 'individualUser') || isSuperAdmin },
+    { name: 'Case Status Tracker', href: '/foia-tracker', icon: FileSearch, visible: isAttorney || (isClient && user?.userType === 'individualUser') || isSuperAdmin },
     { name: 'Clients', href: '/clients', icon: Users, visible: !isClient || isSuperAdmin },
     // { name: 'Forms', href: '/forms', icon: FileText, visible: true },
     { name: 'Documents', href: '/documents', icon: Folder, visible: true },
@@ -59,6 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
     <div className={`${isMobile ? 'fixed inset-0 flex z-40 transition-all transform duration-300 ease-in-out' : 'hidden lg:flex lg:flex-shrink-0'} ${isMobile ? (isOpen ? 'translate-x-0' : '-translate-x-full') : ''
       }`}>
       <div className="flex h-full flex-col w-64 bg-white border-r border-gray-200">
+        
         {isMobile && (
           <div className="absolute top-0 right-0 -mr-12 pt-2">
             <button
@@ -73,10 +73,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
         )}
 
         {/* Logo */}
-        <div className="flex-shrink-0 px-6 py-6">
+        <div className="flex-shrink-0 px-4 py-4">
           <Link to="/" className="flex items-center">
             <Logo className="h-8 w-auto" />
-            <span className="ml-2 text-xl font-semibold text-primary-800">Immigration-Simplified</span>
+            <span className="ml-2 text-lg font-semibold text-primary-800 whitespace-nowrap">Immigration-Simplified</span>
           </Link>
         </div>
 
@@ -89,18 +89,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-colors ${isActive(item.href)
+                  className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${isActive(item.href)
                     ? 'bg-primary-50 text-primary-700'
                     : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   onClick={isMobile ? onClose : undefined}
                 >
                   <item.icon
-                    className={`mr-3 h-5 w-5 ${isActive(item.href) ? 'text-primary-500' : 'text-gray-400'
+                    className={`mr-3 h-5 w-5 flex-shrink-0 ${isActive(item.href) ? 'text-primary-500' : 'text-gray-400'
                       }`}
                     aria-hidden="true"
                   />
-                  {item.name}
+                  <span className="truncate">{item.name}</span>
                 </Link>
               ))}
           </nav>

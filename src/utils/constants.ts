@@ -675,7 +675,9 @@ export const ANVIL_END_POINTS = {
     // Get list of available Anvil templates
     GET_TEMPLATES_LIST: "/api/v1/anvil/templates/list",
     // Get template payload by template ID
-    GET_TEMPLATE_PAYLOAD: "/api/v1/anvil/template/:templateId/payload"
+    GET_TEMPLATE_PAYLOAD: "/api/v1/anvil/template/:templateId/payload",
+    // Get templates by form number
+    GET_TEMPLATES_BY_FORM: "/api/v1/anvil/templates/form/:formNumber"
 } as const;
 
 
