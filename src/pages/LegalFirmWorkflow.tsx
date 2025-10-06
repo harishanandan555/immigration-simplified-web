@@ -3823,10 +3823,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           console.warn('⚠️ DEBUG: No authentication token - skipping workflow save');
         }
 
-        // Also keep the local save as fallback
-        await saveWorkflowProgressLocal();
-
-        console.log('✅ DEBUG: All workflow data saved successfully (both main workflow and local backup)');
+        console.log('✅ DEBUG: Workflow data saved successfully to database');
 
       } catch (error) {
         console.error('❌ DEBUG: Error saving workflow data:', error);
@@ -4799,13 +4796,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   type="date"
                   value={caseData.expectedClosureDate || ''}
                   onChange={e => setCaseData({ ...caseData, expectedClosureDate: e.target.value })}
-                />
-                <Input
-                  id="assignedAttorney"
-                  label="Assigned Attorney"
-                  placeholder="Enter attorney name"
-                  value={caseData.assignedAttorney || ''}
-                  onChange={e => setCaseData({ ...caseData, assignedAttorney: e.target.value })}
                 />
               </div>
               <div className="mt-6">
@@ -6378,7 +6368,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   <div><strong>Case Title:</strong> {caseData.title}</div>
                   <div><strong>Case Type:</strong> {caseData.type || caseData.visaType}</div>
                   <div><strong>Status:</strong> {caseData.status}</div>
-                  <div><strong>Assigned Attorney:</strong> {caseData.assignedTo || 'Not assigned'}</div>
                   <div><strong>Open Date:</strong> {caseData.openDate}</div>
                   <div><strong>Priority Date:</strong> {caseData.priorityDate}</div>
                   <div><strong>Due Date:</strong> {caseData.dueDate || 'Not set'}</div>
