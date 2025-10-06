@@ -3135,11 +3135,11 @@ const SettingsPage = () => {
 
   const renderBillingSection = () => (
     <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <h2 className="text-2xl font-semibold mb-4">Billing Settings</h2>
+      <h2 className="text-lg font-medium text-gray-900 mb-6">Billing Settings</h2>
 
       {/* Current Plan */}
       <div className="mb-6">
-        <h3 className="text-lg font-medium mb-3">Current Plan</h3>
+        <h3 className="text-base font-medium text-gray-900 mb-3">Current Plan</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Plan</label>
@@ -3172,7 +3172,7 @@ const SettingsPage = () => {
 
       {/* Payment Method */}
       <div className="mb-6">
-        <h3 className="text-lg font-medium mb-3">Payment Method</h3>
+        <h3 className="text-base font-medium text-gray-900 mb-3">Payment Method</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Card Type</label>
@@ -3228,7 +3228,7 @@ const SettingsPage = () => {
 
       {/* Subscription Actions */}
       <div className="mb-6">
-        <h3 className="text-lg font-medium mb-3">Subscription Actions</h3>
+        <h3 className="text-base font-medium text-gray-900 mb-3">Subscription Actions</h3>
         <div className="flex space-x-4">
           <button
             onClick={handleCancelSubscription}
@@ -3247,7 +3247,7 @@ const SettingsPage = () => {
 
       {/* Payment History */}
       <div>
-        <h3 className="text-lg font-medium mb-3">Payment History</h3>
+        <h3 className="text-base font-medium text-gray-900 mb-3">Payment History</h3>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -5440,8 +5440,8 @@ const SettingsPage = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-sm font-medium text-gray-900 mb-4">Email Templates</h3>
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
+                        <div className="flex items-start space-x-4">
+                          <div className="w-48 flex-shrink-0">
                             <p className="text-sm font-medium text-gray-900">Welcome Email</p>
                             <p className="text-xs text-gray-500">Sent to new clients</p>
                           </div>
@@ -5449,12 +5449,12 @@ const SettingsPage = () => {
                             name="templates.welcome"
                             value={emailData.templates.welcome}
                             onChange={handleEmailChange}
-                            className="form-input"
+                            className="form-input flex-1"
                             rows={3}
                           ></textarea>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <div>
+                        <div className="flex items-start space-x-4">
+                          <div className="w-48 flex-shrink-0">
                             <p className="text-sm font-medium text-gray-900">Case Update Email</p>
                             <p className="text-xs text-gray-500">Sent when case status changes</p>
                           </div>
@@ -5462,7 +5462,7 @@ const SettingsPage = () => {
                             name="templates.caseUpdate"
                             value={emailData.templates.caseUpdate}
                             onChange={handleEmailChange}
-                            className="form-input"
+                            className="form-input flex-1"
                             rows={3}
                           ></textarea>
                         </div>
