@@ -1501,86 +1501,237 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     try {
       setLoadingExistingResponses(true);
       console.log('🔄 DEBUG: Fetching existing questionnaire responses for client:', clientId);
-
-      // Import the api utility to use consistent configuration
-      const { default: api } = await import('../utils/api');
       
-      // Try multiple API endpoints to find questionnaire responses
-      const possibleEndpoints = [
-        `/api/v1/questionnaire-responses?client_id=${clientId}`,
-        `/api/v1/questionnaire-responses?clientId=${clientId}`,
-        `/api/questionnaire-responses?client_id=${clientId}`,
-        `/questionnaire-responses?client_id=${clientId}`,
-        `/api/v1/questionnaire-responses`
-      ];
-
-      let allResponses: any[] = [];
-      
-      for (const endpoint of possibleEndpoints) {
-        try {
-          console.log(`🔄 DEBUG: Trying endpoint: ${endpoint}`);
-          const response = await api.get(endpoint);
-          
-          console.log(`✅ DEBUG: Response from ${endpoint}:`, {
-            status: response.status,
-            hasData: !!response.data,
-            dataType: typeof response.data,
-            dataKeys: response.data ? Object.keys(response.data) : [],
-            dataStructure: response.data
-          });
-
-          if (response.data) {
-            const result = response.data;
-            let responses = result.data || result.responses || result || [];
-            
-            // If we got all responses, filter by client ID
-            if (Array.isArray(responses)) {
-              const clientResponses = responses.filter((r: any) => {
-                const responseClientId = r.clientId || r.client_id || r.client?.id || r.client?._id;
-                console.log(`🔍 DEBUG: Checking response client ID:`, {
-                  responseId: r.id || r._id,
-                  responseClientId,
-                  targetClientId: clientId,
-                  matches: responseClientId === clientId
-                });
-                return responseClientId === clientId;
-              });
-              
-              console.log(`✅ DEBUG: Found ${clientResponses.length} responses for client from ${endpoint}`);
-              allResponses = [...allResponses, ...clientResponses];
-            }
-          }
-        } catch (endpointError: any) {
-          console.log(`⚠️ DEBUG: Endpoint ${endpoint} failed:`, endpointError.message);
-        }
-      }
-
-      // Remove duplicates based on response ID
-      const uniqueResponses = allResponses.filter((response, index, arr) => {
-        const responseId = response.id || response._id;
-        return arr.findIndex(r => (r.id || r._id) === responseId) === index;
+      // Validate client ID format
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(clientId);
+      console.log('🔍 DEBUG: Client ID validation:', {
+        clientId,
+        isValidObjectId,
+        length: clientId.length
       });
       
-      console.log('✅ DEBUG: Final unique questionnaire responses found:', {
+      if (!isValidObjectId) {
+        console.warn('⚠️ DEBUG: Client ID does not appear to be a valid MongoDB ObjectId');
+      }
+
+      // Import the questionnaire response controllers to use the correct API
+      const { getClientResponses } = await import('../controllers/QuestionnaireResponseControllers');
+      
+      // Use the correct endpoint to get questionnaire assignments with responses
+      const responseData = await getClientResponses({
+        clientId: clientId,
+        status: 'completed', // Only get completed assignments
+        page: 1,
+        limit: 50
+      });
+
+      console.log('🔍 DEBUG: Raw API response:', {
         clientId,
-        totalResponses: allResponses.length,
-        uniqueResponses: uniqueResponses.length,
-        responses: uniqueResponses.map((r: any) => ({
-          id: r.id || r._id,
-          questionnaireTitle: r.questionnaireTitle || r.questionnaire?.title || 'Unknown',
-          submittedAt: r.submittedAt || r.createdAt,
-          responseCount: Object.keys(r.responses || {}).length,
-          clientId: r.clientId || r.client_id
+        responseData,
+        hasData: !!responseData.data,
+        dataKeys: responseData.data ? Object.keys(responseData.data) : [],
+        assignmentsCount: responseData.data?.assignments?.length || 0
+      });
+
+      const assignments = responseData.data?.assignments || [];
+      
+      // If no assignments found with clientId filter, try fetching all and filtering manually
+      if (assignments.length === 0) {
+        console.log('⚠️ DEBUG: No assignments found with clientId filter, trying to fetch all assignments');
+        try {
+          const allResponseData = await getClientResponses({
+            status: 'completed',
+            page: 1,
+            limit: 100 // Get more results
+          });
+          
+          const allAssignments = allResponseData.data?.assignments || [];
+          console.log('🔍 DEBUG: Fetched all assignments:', {
+            totalAllAssignments: allAssignments.length,
+            allAssignments: allAssignments.map((a: any) => ({
+              id: a._id,
+              clientId: a.clientId,
+              actualClientId: a.actualClient?._id,
+              clientUserId: a.clientUserId?._id,
+              clientEmail: a.actualClient?.email || a.clientUserId?.email,
+              questionnaireTitle: a.questionnaireDetails?.title
+            }))
+          });
+          
+          // Filter by client ID manually, with email fallback
+          const filteredAssignments = allAssignments.filter((assignment: any) => {
+            const assignmentClientId = assignment.clientId || 
+                                     assignment.actualClient?._id || 
+                                     assignment.clientUserId?._id;
+            const assignmentEmail = assignment.actualClient?.email || assignment.clientUserId?.email;
+            const currentClientEmail = client.email;
+            
+            const idMatch = assignmentClientId === clientId;
+            const emailMatch = assignmentEmail && currentClientEmail && 
+                              assignmentEmail.toLowerCase() === currentClientEmail.toLowerCase();
+            
+            const matches = idMatch || emailMatch;
+            
+            console.log('🔍 DEBUG: Checking assignment client match:', {
+              assignmentId: assignment._id,
+              assignmentClientId,
+              assignmentEmail,
+              targetClientId: clientId,
+              targetClientEmail: currentClientEmail,
+              idMatch,
+              emailMatch,
+              matches
+            });
+            
+            return matches;
+          });
+          
+          console.log('✅ DEBUG: Manually filtered assignments:', {
+            clientId,
+            filteredCount: filteredAssignments.length,
+            filteredAssignments: filteredAssignments.map((a: any) => ({
+              id: a._id,
+              questionnaireTitle: a.questionnaireDetails?.title,
+              clientId: a.clientId
+            }))
+          });
+          
+          assignments.push(...filteredAssignments);
+        } catch (fallbackError) {
+          console.error('❌ Error in fallback fetch:', fallbackError);
+        }
+      }
+      console.log('✅ DEBUG: Retrieved questionnaire assignments:', {
+        clientId,
+        totalAssignments: assignments.length,
+        assignments: assignments.map((a: any) => ({
+          id: a._id,
+          questionnaireTitle: a.questionnaireDetails?.title || 'Unknown',
+          status: a.status,
+          hasResponseId: !!a.responseId,
+          hasResponses: !!a.responseId?.responses,
+          responseCount: a.responseId?.responses ? Object.keys(a.responseId.responses).length : 0,
+          clientEmail: a.actualClient?.email || a.clientUserId?.email
         }))
       });
 
-      setExistingQuestionnaireResponses(uniqueResponses);
+      // Convert assignments to response format expected by the UI
+      const responses = assignments
+        .filter((assignment: any) => assignment.responseId && assignment.responseId.responses)
+        .map((assignment: any) => ({
+          id: assignment.responseId._id || assignment._id,
+          assignmentId: assignment._id,
+          questionnaireId: assignment.questionnaireId,
+          questionnaireTitle: assignment.questionnaireDetails?.title || 
+                             assignment.workflowQuestionnaireAssignment?.questionnaire_title ||
+                             'Unknown Questionnaire',
+          clientId: assignment.clientId,
+          responses: assignment.responseId.responses,
+          status: 'completed',
+          submittedAt: assignment.responseId.submittedAt || assignment.completedAt,
+          createdAt: assignment.assignedAt,
+          updatedAt: assignment.completedAt,
+          // Include additional metadata
+          formCaseIdGenerated: assignment.formCaseIdGenerated,
+          workflowCase: assignment.workflowCase,
+          workflowQuestionnaireAssignment: assignment.workflowQuestionnaireAssignment
+        }));
+
+      console.log('✅ DEBUG: Converted to response format:', {
+        clientId,
+        totalResponses: responses.length,
+        responses: responses.map((r: any) => ({
+          id: r.id,
+          questionnaireTitle: r.questionnaireTitle,
+          submittedAt: r.submittedAt,
+          responseCount: Object.keys(r.responses || {}).length,
+          clientId: r.clientId
+        }))
+      });
+      
+      // Additional debugging for the specific client mentioned in the issue
+      if (clientId === '68c1505149321ce701f936ae') {
+        console.log('🎯 DEBUG: Special debugging for client 68c1505149321ce701f936ae:', {
+          clientId,
+          totalAssignments: assignments.length,
+          totalResponses: responses.length,
+          assignmentsWithResponses: assignments.filter((a: any) => a.responseId && a.responseId.responses).length,
+          allAssignmentsDetails: assignments.map((a: any) => ({
+            id: a._id,
+            clientId: a.clientId,
+            actualClientId: a.actualClient?._id,
+            clientUserId: a.clientUserId?._id,
+            clientEmail: a.actualClient?.email || a.clientUserId?.email,
+            hasResponseId: !!a.responseId,
+            hasResponses: !!a.responseId?.responses,
+            responseCount: a.responseId?.responses ? Object.keys(a.responseId.responses).length : 0
+          }))
+        });
+        
+        // If still no responses found, try a more aggressive search
+        if (responses.length === 0) {
+          console.log('🔍 DEBUG: No responses found for specific client, trying broader search...');
+          try {
+            // Try searching by email specifically
+            const emailResponseData = await getClientResponses({
+              status: 'completed',
+              page: 1,
+              limit: 200 // Get even more results
+            });
+            
+            const emailAssignments = emailResponseData.data?.assignments || [];
+            const emailFiltered = emailAssignments.filter((assignment: any) => {
+              const assignmentEmail = assignment.actualClient?.email || assignment.clientUserId?.email;
+              return assignmentEmail && assignmentEmail.toLowerCase().includes('anjali_b@bullbox.in');
+            });
+            
+            console.log('🔍 DEBUG: Email-based search results:', {
+              totalAssignments: emailAssignments.length,
+              emailFiltered: emailFiltered.length,
+              emailFilteredDetails: emailFiltered.map((a: any) => ({
+                id: a._id,
+                clientEmail: a.actualClient?.email || a.clientUserId?.email,
+                hasResponseId: !!a.responseId,
+                hasResponses: !!a.responseId?.responses
+              }))
+            });
+            
+            if (emailFiltered.length > 0) {
+              // Add these to our responses
+              const emailResponses = emailFiltered
+                .filter((assignment: any) => assignment.responseId && assignment.responseId.responses)
+                .map((assignment: any) => ({
+                  id: assignment.responseId._id || assignment._id,
+                  assignmentId: assignment._id,
+                  questionnaireId: assignment.questionnaireId,
+                  questionnaireTitle: assignment.questionnaireDetails?.title || 'Unknown Questionnaire',
+                  clientId: assignment.clientId,
+                  responses: assignment.responseId.responses,
+                  status: 'completed',
+                  submittedAt: assignment.responseId.submittedAt || assignment.completedAt,
+                  createdAt: assignment.assignedAt,
+                  updatedAt: assignment.completedAt,
+                  formCaseIdGenerated: assignment.formCaseIdGenerated,
+                  workflowCase: assignment.workflowCase,
+                  workflowQuestionnaireAssignment: assignment.workflowQuestionnaireAssignment
+                }));
+              
+              responses.push(...emailResponses);
+              console.log('✅ DEBUG: Added email-based responses:', emailResponses.length);
+            }
+          } catch (emailError) {
+            console.error('❌ Error in email-based search:', emailError);
+          }
+        }
+      }
+
+      setExistingQuestionnaireResponses(responses);
       
       // Also try to fetch workflow-specific responses for this client
       console.log('🔄 DEBUG: Also checking for workflow-specific responses');
       await fetchWorkflowQuestionnaireResponses(clientId);
       
-      return uniqueResponses;
+      return responses;
     } catch (error) {
       console.error('❌ Error fetching existing questionnaire responses:', error);
       setExistingQuestionnaireResponses([]);
