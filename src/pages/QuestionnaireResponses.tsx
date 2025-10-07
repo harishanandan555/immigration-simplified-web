@@ -269,6 +269,68 @@ const QuestionnaireResponses: React.FC = () => {
         enhancedWithWorkflow: completedAssignments.filter((a: any) => a.enhancedWithWorkflow).length
       });
 
+      // Debug: Check for specific client mentioned in issue
+      const specificClientAssignments = assignmentsData.filter((assignment: any) => {
+        const clientId = assignment.clientId || assignment.actualClient?._id || assignment.clientUserId?._id;
+        const clientEmail = assignment.actualClient?.email || assignment.clientUserId?.email;
+        return clientId === '68c1505149321ce701f936ae' || 
+               (clientEmail && clientEmail.toLowerCase().includes('anjali_b@bullbox.in'));
+      });
+
+      if (specificClientAssignments.length > 0) {
+        console.log('🎯 DEBUG: Found assignments for specific client:', {
+          clientId: '68c1505149321ce701f936ae',
+          clientEmail: 'anjali_b@bullbox.in',
+          totalAssignments: specificClientAssignments.length,
+          assignments: specificClientAssignments.map((a: any) => ({
+            id: a._id,
+            status: a.status,
+            clientId: a.clientId,
+            actualClientId: a.actualClient?._id,
+            clientUserId: a.clientUserId?._id,
+            clientEmail: a.actualClient?.email || a.clientUserId?.email,
+            hasResponseId: !!a.responseId,
+            hasResponses: !!a.responseId?.responses,
+            responseCount: a.responseId?.responses ? Object.keys(a.responseId.responses).length : 0,
+            questionnaireTitle: a.questionnaireDetails?.title
+          }))
+        });
+      } else {
+        console.log('⚠️ DEBUG: No assignments found for specific client:', {
+          clientId: '68c1505149321ce701f936ae',
+          clientEmail: 'anjali_b@bullbox.in',
+          totalAssignmentsChecked: assignmentsData.length
+        });
+        
+        // Check if there are any assignments for this client with different status
+        const allClientAssignments = assignmentsData.filter((assignment: any) => {
+          const clientId = assignment.clientId || assignment.actualClient?._id || assignment.clientUserId?._id;
+          const clientEmail = assignment.actualClient?.email || assignment.clientUserId?.email;
+          return clientId === '68c1505149321ce701f936ae' || 
+                 (clientEmail && clientEmail.toLowerCase().includes('anjali_b@bullbox.in'));
+        });
+        
+        if (allClientAssignments.length > 0) {
+          console.log('🔍 DEBUG: Found assignments for specific client with different status:', {
+            clientId: '68c1505149321ce701f936ae',
+            clientEmail: 'anjali_b@bullbox.in',
+            totalAssignments: allClientAssignments.length,
+            assignments: allClientAssignments.map((a: any) => ({
+              id: a._id,
+              status: a.status,
+              clientId: a.clientId,
+              actualClientId: a.actualClient?._id,
+              clientUserId: a.clientUserId?._id,
+              clientEmail: a.actualClient?.email || a.clientUserId?.email,
+              hasResponseId: !!a.responseId,
+              hasResponses: !!a.responseId?.responses,
+              responseCount: a.responseId?.responses ? Object.keys(a.responseId.responses).length : 0,
+              questionnaireTitle: a.questionnaireDetails?.title
+            }))
+          });
+        }
+      }
+
       // Debug: Log detailed information about enhanced assignments
       completedAssignments.forEach((assignment: any, index: number) => {
         if (assignment.enhancedWithWorkflow) {
@@ -934,3 +996,5 @@ const QuestionnaireResponses: React.FC = () => {
 };
 
 export default QuestionnaireResponses;
+
+
