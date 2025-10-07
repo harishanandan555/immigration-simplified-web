@@ -148,7 +148,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       zipCode: '',
       province: '',
       postalCode: '',
-      country: 'United States'
+      country: '',
     },
     dateOfBirth: '',
     nationality: '',
@@ -537,7 +537,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 city: '',
                 state: '',
                 zipCode: '',
-                country: 'United States'
+                country: '',
               },
               isExistingClient: true,
               hasUserAccount: true
@@ -1102,7 +1102,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             city: client.address?.city || '',
             state: client.address?.state || '',
             zipCode: client.address?.zipCode || '',
-            country: client.address?.country || 'United States'
+            country: client.address?.country || ''
           },
           role: 'client',
           userType: 'companyClient',
@@ -1136,7 +1136,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 city: client.employment.currentEmployer.address.city || '',
                 state: client.employment.currentEmployer.address.state || '',
                 zipCode: client.employment.currentEmployer.address.zipCode || '',
-                country: client.employment.currentEmployer.address.country || 'United States'
+                country: client.employment.currentEmployer.address.country || ''
               } : undefined
             } : undefined,
             jobTitle: client.employment.jobTitle || undefined,
@@ -1217,7 +1217,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             zipCode: client.address?.zipCode || '',
             province: client.address?.province || '',
             postalCode: client.address?.postalCode || '',
-            country: client.address?.country || 'United States'
+            country: client.address?.country || ''
           },
           status: 'active'
         };
@@ -1453,7 +1453,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   city: '',
                   state: '',
                   zipCode: '',
-                  country: 'United States'
+                  country: ''
                 },
                 role: 'client', // Set role as client since these are from workflows
                 userType: 'individualUser', // Set userType for consistency
@@ -1874,7 +1874,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             zipCode: workflowData.client.address?.zipCode || client.address?.zipCode || '',
             province: workflowData.client.address?.province || client.address?.province || '',
             postalCode: workflowData.client.address?.postalCode || client.address?.postalCode || '',
-            country: workflowData.client.address?.country || client.address?.country || 'United States',
+            country: workflowData.client.address?.country || client.address?.country || '',
             formattedAddress: workflowData.client.address?.formattedAddress || client.address?.formattedAddress
           },
           dateOfBirth: workflowData.client.dateOfBirth || client.dateOfBirth,
@@ -2609,7 +2609,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             zipCode: client.address?.zipCode || '',
             province: client.address?.province || '',
             postalCode: client.address?.postalCode || '',
-            country: client.address?.country || 'United States'
+            country: client.address?.country || ''
           },
           // Remove sensitive data from storage
           password: undefined,
@@ -2779,10 +2779,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         return null;
       }
 
+      // Get current workflow steps based on mode
+      const workflowSteps = getWorkflowSteps();
+      const stepConfig = workflowSteps[step];
+      
       // Prepare data based on step
       let requestData: any = {
         step,
-        notes: `Workflow step ${step} completed`
+        stepId: stepConfig?.id || `step-${step}`,
+        stepTitle: stepConfig?.title || `Step ${step}`,
+        notes: `Workflow step ${step} (${stepConfig?.title || 'Unknown'}) completed`
       };
 
       // Add form details ID if updating existing record
@@ -2812,7 +2818,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               zipCode: client.address?.zipCode || '',
               province: client.address?.province || '',
               postalCode: client.address?.postalCode || '',
-              country: client.address?.country || 'United States'
+              country: client.address?.country || ''
             },
             clientId: client.id || client._id,
             status: client.status || 'active'
@@ -2886,9 +2892,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
     } catch (error: any) {
       // Error saving to server
+      console.error('❌ DEBUG: Error saving step to server:', {
+        step,
+        stepId: getWorkflowSteps()[step]?.id,
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
 
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to save to server';
-      // Error details logged
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to save to server';
+      
+      // Provide more specific error information
+      console.error('❌ DEBUG: Detailed error information:', {
+        fullError: error,
+        responseData: error.response?.data,
+        responseStatus: error.response?.status,
+        responseHeaders: error.response?.headers
+      });
 
       // Don't show error toast for non-critical failures
       if (error.response?.status !== 404) {
@@ -3111,7 +3131,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               zipCode: client.address?.zipCode || '',
               province: client.address?.province || '',
               postalCode: client.address?.postalCode || '',
-              country: client.address?.country || 'United States'
+              country: client.address?.country || ''
             }
           },
 
@@ -3293,8 +3313,72 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
             setQuestionnaireAssignment(assignment);
 
-            // Move to next step
-            handleNext();
+            // Move to initial screen after successful assignment
+            console.log('✅ DEBUG: Questionnaire assignment completed - redirecting to initial screen');
+            
+            // Reset workflow state for new client creation
+            setCurrentStep(0);
+            setClient({
+              id: '',
+              name: '',
+              firstName: '',
+              middleName: '',
+              lastName: '',
+              email: '',
+              phone: '',
+              address: {
+                street: '',
+                aptSuiteFlr: '',
+                aptNumber: '',
+                city: '',
+                state: '',
+                zipCode: '',
+                province: '',
+                postalCode: '',
+                country: '',
+              },
+              dateOfBirth: '',
+              nationality: '',
+              status: 'active',
+              createdAt: ''
+            });
+            setCaseData({
+              id: '',
+              clientId: '',
+              title: '',
+              description: '',
+              category: '',
+              subcategory: '',
+              status: 'draft',
+              priority: 'medium',
+              assignedForms: [],
+              questionnaires: [],
+              createdAt: '',
+              dueDate: '',
+              startDate: '',
+              expectedClosureDate: '',
+              assignedAttorney: ''
+            });
+            setSelectedForms([]);
+            setFormCaseIds({});
+            setSelectedQuestionnaire('');
+            setClientCredentials({
+              email: '',
+              password: '',
+              createAccount: false
+            });
+            
+            // Show success message for new client creation completion
+            toast.success(
+              <div>
+                <p>🎉 <strong>New Client Successfully Created!</strong></p>
+                <p className="text-sm mt-1">✅ Client: {client.name}</p>
+                <p className="text-sm">✅ Case: {caseData.title || 'Untitled Case'}</p>
+                <p className="text-sm">✅ Questionnaire: {assignment.questionnaireName}</p>
+                <p className="text-xs text-green-600 mt-2">Ready to create another client or process existing clients.</p>
+              </div>,
+              { duration: 10000 }
+            );
             
           } catch (apiError: any) {
             console.error('❌ DEBUG: Failed to save workflow with existing response:', {
@@ -3731,7 +3815,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               zipCode: client.address?.zipCode || '',
               province: client.address?.province || '',
               postalCode: client.address?.postalCode || '',
-              country: client.address?.country || 'United States'
+              country: client.address?.country || ''
             }
           },
 
@@ -3833,8 +3917,72 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         toast.error('Questionnaire assigned but some data may not be saved to server', { duration: 3000 });
       }
 
-      // Move to next step
-      handleNext();
+      // Move to initial screen after successful assignment
+      console.log('✅ DEBUG: New questionnaire assignment completed - redirecting to initial screen');
+      
+      // Reset workflow state for new client creation
+      setCurrentStep(0);
+      setClient({
+        id: '',
+        name: '',
+        firstName: '',
+        middleName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        address: {
+          street: '',
+          aptSuiteFlr: '',
+          aptNumber: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          province: '',
+          postalCode: '',
+          country: '',
+        },
+        dateOfBirth: '',
+        nationality: '',
+        status: 'active',
+        createdAt: ''
+      });
+      setCaseData({
+        id: '',
+        clientId: '',
+        title: '',
+        description: '',
+        category: '',
+        subcategory: '',
+        status: 'draft',
+        priority: 'medium',
+        assignedForms: [],
+        questionnaires: [],
+        createdAt: '',
+        dueDate: '',
+        startDate: '',
+        expectedClosureDate: '',
+        assignedAttorney: ''
+      });
+      setSelectedForms([]);
+      setFormCaseIds({});
+      setSelectedQuestionnaire('');
+      setClientCredentials({
+        email: '',
+        password: '',
+        createAccount: false
+      });
+      
+      // Show success message for new client creation completion
+      toast.success(
+        <div>
+          <p>🎉 <strong>New Client Successfully Created!</strong></p>
+          <p className="text-sm mt-1">✅ Client: {client.name}</p>
+          <p className="text-sm">✅ Case: {caseData.title || 'Untitled Case'}</p>
+          <p className="text-sm">✅ Questionnaire: {selectedQuestionnaire}</p>
+          <p className="text-xs text-green-600 mt-2">Ready to create another client or process existing clients.</p>
+        </div>,
+        { duration: 10000 }
+      );
     } catch (error: any) {
 
       // Display more specific error messages
@@ -4084,7 +4232,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         clientCity: client.address?.city || '',
         clientState: client.address?.state || '',
         clientZipCode: client.address?.zipCode || '',
-        clientCountry: client.address?.country || 'United States',
+        clientCountry: client.address?.country || '',
 
         // Case information
         caseCategory: caseData.category || '',
@@ -4412,7 +4560,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                         province: anyClient.address?.province || anyClient.address?.state || '',
                         zipCode: anyClient.address?.zipCode || anyClient.address?.postalCode || '',
                         postalCode: anyClient.address?.postalCode || anyClient.address?.zipCode || '',
-                        country: anyClient.address?.country || 'United States'
+                        country: anyClient.address?.country || ''
                       },
                       isExistingClient: true,
                       hasUserAccount: true,
@@ -4692,7 +4840,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   <Input
                     id="country"
                     label="Country"
-                    value={client.address?.country || 'United States'}
+                    value={client.address?.country || ''}
                     onChange={(e) => setClient({
                       ...client,
                       address: { ...(client.address || {}), country: e.target.value }
@@ -4717,13 +4865,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 // Original Create Client button in normal mode
                 <Button
                   onClick={async () => {
-                    // Save client data to backend (Step 1)
-                    try {
-                      await saveFormDetailsToBackend(1);
-
-                    } catch (error) {
-
-                    }
+                    // For Step 1 (Create Client), we don't need to save form details to backend
+                    // Client data will be saved when account is actually created later
+                    // Skip backend save for client step as it's not form data
+                    console.log('🔄 DEBUG: Create Client step - skipping form details save');
 
                     // Simply advance to next step without creating client account
                     // Client account will only be created later if password is provided from questionnaire assignment
@@ -4853,12 +4998,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               </Button>
               <Button
                 onClick={async () => {
-                  // Save case data to backend (Step 2)
-                  try {
-                    await saveFormDetailsToBackend(2);
-                  } catch (error) {
-
-                  }
+                  // For Step 2 (Create Case), we don't need to save form details to backend
+                  // Case data will be saved when the workflow is actually processed
+                  // Skip backend save for case step as it's not form data
+                  console.log('🔄 DEBUG: Create Case step - skipping form details save');
+                  
                   setCurrentStep(3);
                 }}
                 disabled={!caseData.title || !caseData.category}
