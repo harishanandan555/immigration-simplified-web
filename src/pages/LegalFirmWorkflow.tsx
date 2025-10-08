@@ -152,6 +152,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     },
     dateOfBirth: '',
     nationality: '',
+    // Immigration-specific fields
+    alienRegistrationNumber: '',
+    uscisOnlineAccountNumber: '',
+    socialSecurityNumber: '',
     status: 'active',
     createdAt: ''
   });
@@ -3491,6 +3495,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               },
               dateOfBirth: '',
               nationality: '',
+              // Immigration-specific fields
+              alienRegistrationNumber: '',
+              uscisOnlineAccountNumber: '',
+              socialSecurityNumber: '',
               status: 'active',
               createdAt: ''
             });
@@ -4095,6 +4103,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         },
         dateOfBirth: '',
         nationality: '',
+        // Immigration-specific fields
+        alienRegistrationNumber: '',
+        uscisOnlineAccountNumber: '',
+        socialSecurityNumber: '',
         status: 'active',
         createdAt: ''
       });
@@ -4911,6 +4923,38 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   onChange={(e) => setClient({ ...client, nationality: e.target.value })}
                   required
                 />
+              </div>
+            </div>
+            
+            {/* Immigration Information Section */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">Immigration Information</h4>
+              <p className="text-sm text-gray-600">Optional immigration-specific identifiers (if applicable)</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  id="alienRegistrationNumber"
+                  label="Alien Registration Number (A-Number)"
+                  value={client.alienRegistrationNumber || ''}
+                  onChange={(e) => setClient({ ...client, alienRegistrationNumber: e.target.value })}
+                  placeholder="A-123456789 (if any)"
+                />
+                <Input
+                  id="uscisOnlineAccountNumber"
+                  label="USCIS Online Account Number"
+                  value={client.uscisOnlineAccountNumber || ''}
+                  onChange={(e) => setClient({ ...client, uscisOnlineAccountNumber: e.target.value })}
+                  placeholder="Enter USCIS account number (if any)"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  id="socialSecurityNumber"
+                  label="U.S. Social Security Number"
+                  value={client.socialSecurityNumber || ''}
+                  onChange={(e) => setClient({ ...client, socialSecurityNumber: e.target.value })}
+                  placeholder="XXX-XX-XXXX (if any)"
+                />
+                <div></div> {/* Empty div for spacing */}
               </div>
             </div>
             <div className="space-y-4">
