@@ -660,6 +660,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         const mappedTemplates: FormTemplate[] = templates.map((template: any) => ({
           _id: template.templateId,
           name: template.formNumber,
+          formNumber: template.formNumber,
           description: template.description || '',
           category: 'USCIS' as keyof typeof FORM_TEMPLATE_CATEGORIES,
           type: 'uscis' as keyof typeof FORM_TEMPLATE_TYPES,
@@ -1882,7 +1883,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           assignmentId: questionnaireAssignmentData.assignment_id,
           attorneyId: questionnaireAssignmentData.attorney_id,
           notes: questionnaireAssignmentData.notes,
-          formType: questionnaireAssignmentData.formType,
+          formNumber: questionnaireAssignmentData.formNumber,
           formCaseIdGenerated: questionnaireAssignmentData.formCaseIdGenerated
         };
 
@@ -2778,7 +2779,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Selected forms and case IDs
         selectedForms,
         formCaseIds,
-        formTemplates: formTemplates.filter(template => selectedForms.includes(template.name)),
+        formTemplates: formTemplates.filter(template => selectedForms.includes(template.formNumber)),
 
         // Questionnaire selection
         selectedQuestionnaire,
@@ -2997,7 +2998,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Form selection step
           if (selectedForms.length > 0) {
             const selectedForm = selectedForms[0]; // Single form selection
-            const formTemplate = formTemplates.find(t => t.name === selectedForm);
+            const formTemplate = formTemplates.find(t => t.formNumber === selectedForm);
 
             requestData.selectedForm = selectedForm;
             requestData.formTemplate = formTemplate ? {
@@ -3025,7 +3026,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // Make API call
       const response = await createFormDetails({
         clientId: requestData.clientInfo?.clientId || '',
-        formType: 'workflow-step',
+        formNumber: 'workflow-step',
         formData: requestData,
         status: 'draft'
       });
@@ -3296,7 +3297,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Selected forms and case IDs (NEW FORMS)
           selectedForms,
           formCaseIds,
-          formTemplates: formTemplates.filter(template => selectedForms.includes(template.name)),
+          formTemplates: formTemplates.filter(template => selectedForms.includes(template.formNumber)),
 
           // Questionnaire information
           selectedQuestionnaire,
@@ -3818,7 +3819,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         formCaseIds: formCaseIds, // Include the generated case IDs for each form
         selectedForms: selectedForms, // Include the selected forms
         // Add form type and generated case ID for backend integration
-        formType: selectedForms.length > 0 ? selectedForms[0] : undefined, // Use the first selected form as primary form type
+        formNumber: selectedForms.length > 0 ? selectedForms[0] : undefined, // Use the first selected form as primary form number
         formCaseIdGenerated: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : undefined // Use the case ID for the primary form
       };
 
@@ -3886,7 +3887,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           formCaseIds: assignmentData.formCaseIds,
           selectedForms: assignmentData.selectedForms,
           // Add form type and generated case ID for backend integration
-          formType: assignmentData.formType,
+          formNumber: assignmentData.formNumber,
           formCaseIdGenerated: assignmentData.formCaseIdGenerated
         };
 
@@ -3980,7 +3981,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Selected forms and case IDs
           selectedForms,
           formCaseIds,
-          formTemplates: formTemplates.filter(template => selectedForms.includes(template.name)),
+          formTemplates: formTemplates.filter(template => selectedForms.includes(template.formNumber)),
 
           // Questionnaire information
           selectedQuestionnaire,
@@ -4368,7 +4369,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const formData = {
         // Required fields for validation
         clientId: client.id || client._id || '',
-        formType: selectedForms && selectedForms.length > 0 ? selectedForms[0] : 'workflow-step',
+        formNumber: selectedForms && selectedForms.length > 0 ? selectedForms[0] : 'workflow-step',
 
         // Client information
         clientFirstName: client.firstName || '',
@@ -4421,7 +4422,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         try {
           // Find the form template that matches the selected form name
           const formTemplate = formTemplates.find(template => 
-            template.name === formName || 
+            template.formNumber === formName || 
             template.metadata?.uscisFormNumber === formName
           );
           
@@ -5218,28 +5219,28 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {formTemplates.map((template) => (
                     <div
-                      key={template.name}
+                      key={template.formNumber}
                       onClick={() => {
-                        if (selectedForms.includes(template.name)) {
+                        if (selectedForms.includes(template.formNumber)) {
                           setSelectedForms([]); // Deselect if clicking the same form
                         } else {
-                          setSelectedForms([template.name]); // Select only this form
+                          setSelectedForms([template.formNumber]); // Select only this form
                         }
                       }}
-                      className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${selectedForms.includes(template.name)
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${selectedForms.includes(template.formNumber)
                           ? 'border-blue-500 bg-blue-50'
                           : 'border-gray-200 hover:border-gray-300'
                         }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h5 className="font-medium text-gray-900">{template.name}</h5>
+                          <h5 className="font-medium text-gray-900">{template.formNumber}</h5>
                           {template.description && (
                             <p className="text-sm text-gray-600 mt-1">{template.description}</p>
                           )}
                           <div className="text-xs text-gray-400 mt-1">Category: {template.category}</div>
                         </div>
-                        {selectedForms.includes(template.name) && (
+                        {selectedForms.includes(template.formNumber) && (
                           <Check className="w-5 h-5 text-blue-500" />
                         )}
                       </div>

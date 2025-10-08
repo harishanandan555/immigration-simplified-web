@@ -374,7 +374,7 @@ const AnvilUsageExample: React.FC = () => {
                 }}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-lg">{template.name}</h3>
+                  <h3 className="font-semibold text-lg">{template.formNumber}</h3>
                   <span className={`px-2 py-1 text-xs rounded-full ${
                     template.status === 'active' ? 'bg-green-100 text-green-800' :
                     template.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :

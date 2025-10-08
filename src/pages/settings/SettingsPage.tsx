@@ -7209,7 +7209,7 @@ const SettingsPage = () => {
                                   <div className="flex items-center">
                                     <FileText className="h-5 w-5 text-gray-400 mr-2" />
                                     <div>
-                                      <div className="text-sm font-medium text-gray-900">{template.name}</div>
+                                      <div className="text-sm font-medium text-gray-900">{template.formNumber}</div>
                                       <div className="text-sm text-gray-500">{template.description}</div>
                                     </div>
                                   </div>

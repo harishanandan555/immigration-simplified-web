@@ -327,7 +327,7 @@ export const getClientResponses = async (filters: Record<string, any> = {}) => {
                   title: matchingWorkflow.questionnaireAssignment?.questionnaire_title || 
                          matchingWorkflow.selectedQuestionnaire?.title || 
                          'Workflow Questionnaire',
-                  category: matchingWorkflow.questionnaireAssignment?.formType || 
+                  category: matchingWorkflow.questionnaireAssignment?.formNumber || 
                            matchingWorkflow.case?.category || 
                            'general',
                   description: matchingWorkflow.questionnaireAssignment?.notes || 

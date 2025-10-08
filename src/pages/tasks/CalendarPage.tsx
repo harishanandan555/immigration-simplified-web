@@ -115,9 +115,9 @@ const CalendarPage = () => {
             
             // Extract case numbers from formCaseIds
             if (caseData && caseData.formCaseIds) {
-              Object.entries(caseData.formCaseIds).forEach(([formType, caseNumber]: [string, any]) => {
+              Object.entries(caseData.formCaseIds).forEach(([formNumber, caseNumber]: [string, any]) => {
                 const caseItem: Case = {
-                  id: `${workflow._id}_${formType}`,
+                  id: `${workflow._id}_${formNumber}`,
                   caseNumber: caseNumber,
                   clientId: clientId,
                   category: caseData.category || '',

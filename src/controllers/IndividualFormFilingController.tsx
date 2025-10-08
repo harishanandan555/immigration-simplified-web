@@ -460,8 +460,8 @@ export const validateFormData = (formData: Record<string, any>): {
     errors.push('Client ID is required');
   }
   
-  if (!formData.formType) {
-    errors.push('Form type is required');
+  if (!formData.formNumber) {
+    errors.push('Form number is required');
   }
 
   return {

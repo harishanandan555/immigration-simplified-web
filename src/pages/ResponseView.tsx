@@ -114,7 +114,7 @@ interface QuestionnaireAssignment {
     status: string;
   } | string;
   formCaseIdGenerated?: string; // Generated case ID from form processing
-  formType?: string; // Form type information
+  formNumber?: string; // Form number information
   clientEmail?: string; // Client email from assignment
   status: 'pending' | 'in-progress' | 'completed';
   assignedAt: string;
@@ -320,7 +320,7 @@ const ResponseView: React.FC = () => {
       attorneyInfo: assignmentData.attorneyInfo,
       caseId: assignmentData.caseId,
       formCaseIdGenerated: assignmentData.formCaseIdGenerated,
-      formType: assignmentData.formType,
+      formNumber: assignmentData.formNumber,
       
       // Map status and dates with proper validation
       status: (assignmentData.status && typeof assignmentData.status === 'string' && assignmentData.status.trim() !== '') 
@@ -590,8 +590,8 @@ const ResponseView: React.FC = () => {
               <div>
                 <p className="font-medium text-lg text-blue-900">{assignment.formCaseIdGenerated}</p>
                 <p className="text-sm text-gray-500 mb-2">Generated Case ID</p>
-                {assignment.formType && (
-                  <p className="text-sm text-gray-600 mb-2">Form Type: {assignment.formType}</p>
+                {assignment.formNumber && (
+                  <p className="text-sm text-gray-600 mb-2">Form Number: {assignment.formNumber}</p>
                 )}
                 <div className="mt-4">
                   <button
@@ -681,10 +681,10 @@ const ResponseView: React.FC = () => {
                   <span>Assigned by: Not available</span>
                 </div>
               )}
-              {assignment.formType && (
+              {assignment.formNumber && (
                 <div className="flex items-center">
                   <FileText className="w-4 h-4 text-gray-400 mr-2" />
-                  <span>Form Type: {assignment.formType}</span>
+                  <span>Form Number: {assignment.formNumber}</span>
                 </div>
               )}
               {assignment.notes && (

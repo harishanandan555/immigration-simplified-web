@@ -835,7 +835,7 @@ const IndividualImmigrationProcess: React.FC = () => {
         // Selected forms and case IDs
         selectedForms,
         formCaseIds,
-        formTemplates: formTemplates.filter(template => selectedForms.includes(template.name)),
+        formTemplates: formTemplates.filter(template => selectedForms.includes(template.formNumber)),
 
         // Workflow steps progress
         stepsProgress: [
@@ -1798,15 +1798,15 @@ const IndividualImmigrationProcess: React.FC = () => {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {formTemplates.map((template) => (
             <motion.div
-              key={template._id || template.name}
+              key={template._id || template.formNumber}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedForms.includes(template.name)
+              className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedForms.includes(template.formNumber)
                   ? 'border-blue-500 bg-blue-50 shadow-lg'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
-              onClick={() => handleFormSelection(template.name)}
+              onClick={() => handleFormSelection(template.formNumber)}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -1818,7 +1818,7 @@ const IndividualImmigrationProcess: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{template.name}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{template.formNumber}</h3>
               <p className="text-sm text-gray-600 leading-relaxed">{template.description}</p>
               
               {template.metadata?.uscisFormNumber && (
@@ -1833,7 +1833,7 @@ const IndividualImmigrationProcess: React.FC = () => {
                 </div>
               )}
 
-              {selectedForms.includes(template.name) && (
+              {selectedForms.includes(template.formNumber) && (
                 <div className="absolute top-4 right-4">
                   <CheckCircle className="h-6 w-6 text-blue-500" />
                 </div>
@@ -2124,12 +2124,12 @@ const IndividualImmigrationProcess: React.FC = () => {
 
       {/* Selected Form Template Details */}
       {selectedForms[0] && (() => {
-        const selectedTemplate = formTemplates.find(t => t.name === selectedForms[0]);
+        const selectedTemplate = formTemplates.find(t => t.formNumber === selectedForms[0]);
         return selectedTemplate ? (
           <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <FileText className="h-5 w-5 text-green-600 mr-2" />
-              Selected Form Template: {selectedTemplate.name}
+              Selected Form Template: {selectedTemplate.formNumber}
             </h3>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
