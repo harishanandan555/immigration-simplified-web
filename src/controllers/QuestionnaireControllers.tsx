@@ -37,27 +37,40 @@ export interface QuestionnaireListResponse {
 }
 
 /**
- * Check if the questionnaire API is available
- * @returns A boolean indicating whether the API is available
- */
-export const isQuestionnaireApiAvailable = async (): Promise<boolean> => {
-  try {
-    return await questionnaireService.isAPIAvailable();
-  } catch (error) {
-    console.error('Error checking questionnaire API availability:', error);
-    return false;
-  }
-};
-
-/**
  * Get a list of questionnaires based on provided parameters
  * @param params Optional parameters to filter and paginate the results
  * @returns A list of questionnaires and pagination information
  */
 export const getQuestionnaires = async (params?: QuestionnaireListParams): Promise<QuestionnaireListResponse> => {
   try {
-    const response = await questionnaireService.getQuestionnaires(params || {});
-    return response;
+    const response = await questionnaireService.getQuestionnaires();
+    
+    // Apply client-side filtering if params are provided
+    let filteredQuestionnaires = response.questionnaires;
+    
+    if (params) {
+      if (params.category) {
+        filteredQuestionnaires = filteredQuestionnaires.filter(q => q.category === params.category);
+      }
+      
+      if (params.is_active !== undefined) {
+        filteredQuestionnaires = filteredQuestionnaires.filter(q => q.is_active === params.is_active);
+      }
+      
+      if (params.search) {
+        const searchLower = params.search.toLowerCase();
+        filteredQuestionnaires = filteredQuestionnaires.filter(q => 
+          q.title.toLowerCase().includes(searchLower) ||
+          q.description.toLowerCase().includes(searchLower) ||
+          q.category.toLowerCase().includes(searchLower)
+        );
+      }
+    }
+    
+    return {
+      questionnaires: filteredQuestionnaires,
+      pagination: response.pagination
+    };
   } catch (error) {
     console.error('Error fetching questionnaires:', error);
     // Return an empty response rather than throwing to make the UI more resilient
@@ -66,6 +79,81 @@ export const getQuestionnaires = async (params?: QuestionnaireListParams): Promi
       pagination: {
         page: 1,
         limit: 10,
+        total: 0,
+        total_pages: 0,
+        has_next: false,
+        has_previous: false
+      }
+    };
+  }
+};
+
+/**
+ * Get ALL questionnaires without any filtering or pagination limits
+ * @returns A list of all questionnaires available in the system
+ */
+export const getAllQuestionnaires = async (): Promise<QuestionnaireListResponse> => {
+  try {
+    // Get all questionnaires and filter for active ones
+    const response = await questionnaireService.getQuestionnaires();
+    const activeQuestionnaires = response.questionnaires.filter(q => q.is_active);
+    
+    return {
+      questionnaires: activeQuestionnaires,
+      pagination: {
+        page: 1,
+        limit: 1000,
+        total: activeQuestionnaires.length,
+        total_pages: 1,
+        has_next: false,
+        has_previous: false
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching all questionnaires:', error);
+    // Return an empty response rather than throwing to make the UI more resilient
+    return {
+      questionnaires: [],
+      pagination: {
+        page: 1,
+        limit: 1000,
+        total: 0,
+        total_pages: 0,
+        has_next: false,
+        has_previous: false
+      }
+    };
+  }
+};
+
+/**
+ * Get ALL questionnaires including inactive ones, without any filtering
+ * @returns A list of all questionnaires in the system (active and inactive)
+ */
+export const getAllQuestionnairesUnfiltered = async (): Promise<QuestionnaireListResponse> => {
+  try {
+    // Get all questionnaires without any filters at all
+    const response = await questionnaireService.getQuestionnaires();
+    
+    return {
+      questionnaires: response.questionnaires,
+      pagination: {
+        page: 1,
+        limit: 1000,
+        total: response.questionnaires.length,
+        total_pages: 1,
+        has_next: false,
+        has_previous: false
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching all questionnaires (unfiltered):', error);
+    // Return an empty response rather than throwing to make the UI more resilient
+    return {
+      questionnaires: [],
+      pagination: {
+        page: 1,
+        limit: 1000,
         total: 0,
         total_pages: 0,
         has_next: false,

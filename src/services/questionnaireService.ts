@@ -84,9 +84,16 @@ class QuestionnaireService {
       },
     };
     
+    const fullUrl = `${this.baseURL}${url}`;
+    console.log('[QuestionnaireService] Making request:', {
+      url: fullUrl,
+      method: config.method || 'GET',
+      hasToken: !!token,
+      tokenStart: token ? token.substring(0, 10) + '...' : 'none'
+    });
 
     try {
-      const response = await fetch(`${this.baseURL}${url}`, config);
+      const response = await fetch(fullUrl, config);
       
       if (!response.ok) {
         // Try to get the error response as text first
@@ -100,6 +107,18 @@ class QuestionnaireService {
           console.error(`[QuestionnaireService] Parsed error data:`, errorData);
         } catch (parseError) {
           console.error(`[QuestionnaireService] Could not parse error response as JSON:`, parseError);
+        }
+        
+        // Handle authentication errors (including 500 errors that are auth-related)
+        if (response.status === 401 || response.status === 403 || 
+            (response.status === 500 && (
+              errorData?.error?.code === 'unauthorized' || 
+              errorData?.error?.message?.includes('unauthorized') ||
+              errorData?.error?.message?.includes('Not authorized') ||
+              errorText.includes('unauthorized') ||
+              errorText.includes('Not authorized')
+            ))) {
+          throw new Error('Authentication failed. Please log in again.');
         }
         
         const errorMessage = errorData?.error?.message || `HTTP ${response.status}: ${response.statusText}`;
@@ -135,33 +154,29 @@ class QuestionnaireService {
     const sessionAccessToken = sessionStorage.getItem('access_token');
     const regularToken = localStorage.getItem('token');
     
+    const foundToken = authToken || sessionAuthToken || accessToken || sessionAccessToken || regularToken;
+    
+    // Debug logging
+    console.log('[QuestionnaireService] Token check:', {
+      authToken: authToken ? 'present' : 'missing',
+      sessionAuthToken: sessionAuthToken ? 'present' : 'missing', 
+      accessToken: accessToken ? 'present' : 'missing',
+      sessionAccessToken: sessionAccessToken ? 'present' : 'missing',
+      regularToken: regularToken ? 'present' : 'missing',
+      foundToken: foundToken ? `present (${foundToken.substring(0, 10)}...)` : 'missing'
+    });
+    
     // Return the first valid token found
-    return authToken || sessionAuthToken || accessToken || sessionAccessToken || regularToken;
+    return foundToken;
   }
 
   // ==================== QUESTIONNAIRE CRUD OPERATIONS ====================
 
   /**
-   * Get all questionnaires with optional filtering
+   * Get all questionnaires
    */
-  async getQuestionnaires(params?: {
-    category?: string;
-    is_active?: boolean;
-    page?: number;
-    limit?: number;
-    search?: string;
-  }): Promise<QuestionnaireListResponse> {
-    const queryParams = new URLSearchParams();
-    
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          queryParams.append(key, String(value));
-        }
-      });
-    }
-
-    const url = `/questionnaires${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  async getQuestionnaires(): Promise<QuestionnaireListResponse> {
+    const url = `/questionnaires`;
     return this.makeRequest<QuestionnaireListResponse>(url);
   }
 
@@ -324,16 +339,25 @@ class QuestionnaireService {
    * Get questionnaires by category (for immigration process integration)
    */
   async getQuestionnairesByCategory(category: string): Promise<ImmigrationQuestionnaire[]> {
-    const response = await this.getQuestionnaires({ category, is_active: true });
-    return response.questionnaires;
+    const response = await this.getQuestionnaires();
+    // Filter by category on the client side
+    return response.questionnaires.filter(q => q.category === category && q.is_active);
   }
 
   /**
    * Search questionnaires
    */
   async searchQuestionnaires(query: string): Promise<ImmigrationQuestionnaire[]> {
-    const response = await this.getQuestionnaires({ search: query, is_active: true });
-    return response.questionnaires;
+    const response = await this.getQuestionnaires();
+    // Filter by search query on the client side
+    const searchLower = query.toLowerCase();
+    return response.questionnaires.filter(q => 
+      q.is_active && (
+        q.title.toLowerCase().includes(searchLower) ||
+        q.description.toLowerCase().includes(searchLower) ||
+        q.category.toLowerCase().includes(searchLower)
+      )
+    );
   }
 
   /**
@@ -447,6 +471,13 @@ class QuestionnaireService {
           })
         }
       });
+      
+      // Consider API available if we get any response (including 401 unauthorized)
+      // 401 means API is working but requires authentication, which is fine
+      if (response.status === 401) {
+        console.log('[QuestionnaireService] API is available but requires authentication');
+        return true;
+      }
       
       if (!response.ok) {
         console.error(`[QuestionnaireService] API test failed with status ${response.status}`);

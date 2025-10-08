@@ -17,7 +17,7 @@ import Select from '../components/common/Select';
 import TextArea from '../components/common/TextArea';
 import { downloadFilledI130PDF } from '../utils/pdfUtils';
 import {
-  isQuestionnaireApiAvailable,
+  
   getQuestionnaires
 } from '../controllers/QuestionnaireControllers';
 import {
@@ -788,78 +788,24 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const loadQuestionnaires = async () => {
     try {
       setLoading(true);
-      const isAPIAvailable = await isQuestionnaireApiAvailable();
+      
+      const response = await getQuestionnaires();
 
-      if (isAPIAvailable) {
-        const response = await getQuestionnaires({
-          is_active: true,
-          limit: 50
-        });
-
-
-
+      // Questionnaires loaded successfully from API
+      if (response.questionnaires && response.questionnaires.length > 0) {
         // Questionnaires loaded successfully from API
-        if (response.questionnaires && response.questionnaires.length > 0) {
-          // Questionnaires loaded successfully from API
-        }
-
-        // Normalize questionnaire data to ensure consistent structure
-        const normalizedQuestionnaires = response.questionnaires.map((q: any) => {
-          // Special handling for API response format
-          if (q.id && q.id.startsWith('q_') && q.fields) {
-            // Found API questionnaire with q_ prefix
-          }
-          return normalizeQuestionnaireStructure(q);
-        });
-
-        setAvailableQuestionnaires(normalizedQuestionnaires);
-      } else {
-        // Fallback to demo questionnaires if nothing is available
-        const demoQuestionnaires = [
-          {
-            _id: '507f1f77bcf86cd799439011', // Valid MongoDB ObjectId for demo
-            title: 'I-130 Family Petition Questionnaire',
-            category: 'FAMILY_BASED',
-            description: 'Basic information needed for family-based petitions',
-            fields: [
-              { id: 'fullName', type: 'text', label: 'Full Name', required: true },
-              { id: 'birthDate', type: 'date', label: 'Date of Birth', required: true },
-              { id: 'birthCountry', type: 'text', label: 'Country of Birth', required: true },
-              {
-                id: 'relationship', type: 'select', label: 'Relationship to Petitioner', required: true,
-                options: ['Spouse', 'Parent', 'Child', 'Sibling']
-              }
-            ]
-          },
-          {
-            _id: '507f1f77bcf86cd799439012', // Valid MongoDB ObjectId for demo
-            title: 'I-485 Adjustment of Status',
-            category: 'FAMILY_BASED',
-            description: 'Information required for adjustment of status applications',
-            fields: [
-              { id: 'usEntry', type: 'date', label: 'Date of Last Entry to US', required: true },
-              { id: 'i94Number', type: 'text', label: 'I-94 Number', required: true },
-              { id: 'currentStatus', type: 'text', label: 'Current Immigration Status', required: true }
-            ]
-          },
-          {
-            _id: '507f1f77bcf86cd799439013', // Valid MongoDB ObjectId for demo
-            title: 'N-400 Naturalization Questionnaire',
-            category: 'NATURALIZATION',
-            description: 'Information needed for citizenship application',
-            fields: [
-              { id: 'residenceYears', type: 'number', label: 'Years as Permanent Resident', required: true },
-              { id: 'absences', type: 'textarea', label: 'List all absences from the US', required: true },
-              {
-                id: 'criminalHistory', type: 'radio', label: 'Do you have any criminal history?', required: true,
-                options: ['Yes', 'No']
-              }
-            ]
-          }
-        ];
-
-        setAvailableQuestionnaires(demoQuestionnaires);
       }
+
+      // Normalize questionnaire data to ensure consistent structure
+      const normalizedQuestionnaires = response.questionnaires.map((q: any) => {
+        // Special handling for API response format
+        if (q.id && q.id.startsWith('q_') && q.fields) {
+          // Found API questionnaire with q_ prefix
+        }
+        return normalizeQuestionnaireStructure(q);
+      });
+
+      setAvailableQuestionnaires(normalizedQuestionnaires);
     } catch (error) {
       // Load demo questionnaires in case of error
       const demoQuestionnaires = [

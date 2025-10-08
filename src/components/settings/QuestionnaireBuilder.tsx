@@ -1,10 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus,
   Trash2,
   Edit3,
   Save,
-  Eye,
   Copy,
   Download,
   Upload,
@@ -111,7 +110,6 @@ export interface ImmigrationQuestionnaire {
 }
 
 interface QuestionnaireBuilderProps {
-  userId: string;
   isSuperAdmin: boolean;
   isAttorney: boolean;
 }
@@ -144,7 +142,6 @@ const immigrationCategories = [
 ];
 
 export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
-  userId,
   isSuperAdmin,
   isAttorney
 }) => {
@@ -153,14 +150,11 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
   const [editingField, setEditingField] = useState<QuestionnaireField | null>(null);
   const [showQuestionnaireSettings, setShowQuestionnaireSettings] = useState(false);
   const [showFieldEditor, setShowFieldEditor] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddQuestionsGuide, setShowAddQuestionsGuide] = useState(false);
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
 
   // Load questionnaires from API on component mount
   useEffect(() => {
@@ -172,56 +166,27 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       setLoading(true);
       setError(null);
       
-      // Check if API is available
-      const isAPIAvailable = await questionnaireService.isAPIAvailable();
-      let loadedQuestionnaires = [];
+      // Load from API
+      const response = await questionnaireService.getQuestionnaires();
       
-      if (isAPIAvailable) {
-        // Load from API
-        const response = await questionnaireService.getQuestionnaires({
-          is_active: true,
-          limit: 100
-        });
-        
-        // Convert API format to local format
-        const convertedQuestionnaires = response.questionnaires.map(convertAPIToLocal);
-        setQuestionnaires(convertedQuestionnaires);
-        loadedQuestionnaires = convertedQuestionnaires;
-        
-        // Export function to make questionnaires available globally
-        (window as any).getImmigrationQuestionnaires = () => convertedQuestionnaires;
-        (window as any).getQuestionnaireByCategory = (category: string) => 
-          convertedQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
-      } else {
-        // Fallback to localStorage
-        const savedQuestionnaires = localStorage.getItem('immigration-questionnaires');
-        if (savedQuestionnaires) {
-          const localQuestionnaires = JSON.parse(savedQuestionnaires);
-          setQuestionnaires(localQuestionnaires);
-          loadedQuestionnaires = localQuestionnaires;
-          
-          (window as any).getImmigrationQuestionnaires = () => localQuestionnaires;
-          (window as any).getQuestionnaireByCategory = (category: string) => 
-            localQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
-        }
-      }
+      console.log('API Response:', response);
+      // Convert API format to local format and filter for active questionnaires
+      const convertedQuestionnaires = response.questionnaires
+        .filter(q => q.is_active)
+        .map(convertAPIToLocal);
+      setQuestionnaires(convertedQuestionnaires);
       
-      return loadedQuestionnaires;
+      // Export function to make questionnaires available globally
+      (window as any).getImmigrationQuestionnaires = () => convertedQuestionnaires;
+      (window as any).getQuestionnaireByCategory = (category: string) => 
+        convertedQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
+      
+      return convertedQuestionnaires;
         
     } catch (error: any) {
       console.error('Error loading questionnaires:', error);
       setError('Failed to load questionnaires: ' + error.message);
       toast.error('Failed to load questionnaires');
-      
-      // Fallback to localStorage on error
-      try {
-        const savedQuestionnaires = localStorage.getItem('immigration-questionnaires');
-        if (savedQuestionnaires) {
-          setQuestionnaires(JSON.parse(savedQuestionnaires));
-        }
-      } catch (localError) {
-        console.error('Error loading from localStorage:', localError);
-      }
     } finally {
       setLoading(false);
     }
@@ -434,20 +399,10 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
         return;
       }
       
-      // Check if API is available
-      const isAPIAvailable = await questionnaireService.isAPIAvailable();
-      
-      if (!isAPIAvailable) {
-        toast.error('API is not available. Please check your internet connection and try again.');
-        setError('API is not available. Please check your internet connection and try again.');
-        setLoading(false);
-        return;
-      }
-      
       // Format and validate questionnaire data
-      const apiData = convertLocalToAPI(selectedQuestionnaire);
+      const apiData: any = convertLocalToAPI(selectedQuestionnaire);
       
-      if (Object.keys(apiData).length === 0 || !apiData.title || apiData.title.trim() === '') {
+      if (!apiData || Object.keys(apiData).length === 0 || !apiData.title || apiData.title.trim() === '') {
         toast.error('Questionnaire title is required');
         setError('Questionnaire title is required');
         setLoading(false);
@@ -465,7 +420,9 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
             const createdQuestionnaire = await questionnaireService.getQuestionnaireById(response.id);
             
             // Update UI with created questionnaire but keep the questionnaire selected
-            const updatedQuestionnaires = await loadQuestionnaires();              // Find the newly created questionnaire and select it
+            const updatedQuestionnaires = await loadQuestionnaires();
+            if (updatedQuestionnaires) {
+              // Find the newly created questionnaire and select it
               const newlyCreated = updatedQuestionnaires.find((q: ImmigrationQuestionnaire) => q.id === response.id);
               if (newlyCreated) {
                 setSelectedQuestionnaire(newlyCreated);
@@ -487,8 +444,8 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                 setSelectedQuestionnaire(formattedNewQuestionnaire);
                 setShowAddQuestionsGuide(true);
               }
-              setShowQuestionnaireSettings(false);
-            setShowAddQuestionsGuide(true);
+            }
+            setShowQuestionnaireSettings(false);
             
           } catch (verifyError) {
             toast.warning('Questionnaire may not have been saved correctly. Please check and try again.');
@@ -507,16 +464,18 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       } else {
         // Update existing questionnaire
         try {
-          const response = await questionnaireService.updateQuestionnaire(selectedQuestionnaire.id, apiData as any);
+          await questionnaireService.updateQuestionnaire(selectedQuestionnaire.id, apiData as any);
           toast.success('Questionnaire updated successfully');
           
           // Reload questionnaires but keep the questionnaire selected
           const updatedQuestionnaires = await loadQuestionnaires();
           
           // Find the updated questionnaire and keep it selected
-          const updatedQuestionnaire = updatedQuestionnaires.find((q: ImmigrationQuestionnaire) => q.id === selectedQuestionnaire.id);
-          if (updatedQuestionnaire) {
-            setSelectedQuestionnaire(updatedQuestionnaire);
+          if (updatedQuestionnaires) {
+            const updatedQuestionnaire = updatedQuestionnaires.find((q: ImmigrationQuestionnaire) => q.id === selectedQuestionnaire.id);
+            if (updatedQuestionnaire) {
+              setSelectedQuestionnaire(updatedQuestionnaire);
+            }
           }
           setShowQuestionnaireSettings(false);
           
@@ -564,33 +523,29 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
         return;
       }
       
-      // Check if API is available
-      const isAPIAvailable = await questionnaireService.isAPIAvailable();
-      
-      if (isAPIAvailable) {
-        try {
-          // Direct fetch approach for better error visibility
-          const baseURL = import.meta.env.VITE_API_BASE_URL || 
-                         (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-                           ? "http://localhost:5005/api/v1"
-                           : "https://immigration-simplified-api.onrender.com/api/v1");
+      try {
+        // Direct fetch approach for better error visibility
+        const baseURL = import.meta.env.VITE_API_BASE_URL || 
+                       (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+                         ? "http://localhost:5005/api/v1"
+                         : "https://immigration-simplified-api.onrender.com/api/v1");
+        
+        const response = await fetch(`${baseURL}/questionnaires/${questionnaireId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (!response.ok) {
+          await response.text();
           
-          const response = await fetch(`${baseURL}/questionnaires/${questionnaireId}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${authToken}`
-            }
-          });
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            
-            // Handle specific error codes
-            if (response.status === 401) {
-              toast.error('Authentication failed. Please log in again.');
-            } else if (response.status === 404) {
-              toast.error('Questionnaire not found. It may have been already deleted.');
-            } else if (response.status === 403) {
+          // Handle specific error codes
+          if (response.status === 401) {
+            toast.error('Authentication failed. Please log in again.');
+          } else if (response.status === 404) {
+            toast.error('Questionnaire not found. It may have been already deleted.');
+          } else if (response.status === 403) {
               toast.error('You do not have permission to delete this questionnaire.');
             } else {
               toast.error(`Failed to delete: ${response.statusText}`);
@@ -599,36 +554,19 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
             throw new Error(`Delete failed: ${response.statusText}`);
           }
           
-          // Successfully deleted
-          toast.success('Questionnaire deleted successfully');
-          
-          // Remove from local state
-          setQuestionnaires(prev => prev.filter((q: ImmigrationQuestionnaire) => q.id !== questionnaireId));
-          
-          // Clear selection if the deleted questionnaire was selected
-          if (selectedQuestionnaire?.id === questionnaireId) {
-            setSelectedQuestionnaire(null);
-          }
-        } catch (apiError: any) {
-          toast.error(`Delete failed: ${apiError.message}`);
-          throw apiError; // Re-throw to be caught by the outer catch
-        }
-      } else {
-        // Fallback to localStorage
-        const updatedQuestionnaires = questionnaires.filter((q: ImmigrationQuestionnaire) => q.id !== questionnaireId);
-        setQuestionnaires(updatedQuestionnaires);
-        localStorage.setItem('immigration-questionnaires', JSON.stringify(updatedQuestionnaires));
-        toast.success('Questionnaire deleted successfully (offline)');
+        // Successfully deleted
+        toast.success('Questionnaire deleted successfully');
         
-        // Update global functions
-        (window as any).getImmigrationQuestionnaires = () => updatedQuestionnaires;
-        (window as any).getQuestionnaireByCategory = (category: string) => 
-          updatedQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
-          
+        // Remove from local state
+        setQuestionnaires(prev => prev.filter((q: ImmigrationQuestionnaire) => q.id !== questionnaireId));
+        
         // Clear selection if the deleted questionnaire was selected
         if (selectedQuestionnaire?.id === questionnaireId) {
           setSelectedQuestionnaire(null);
         }
+      } catch (apiError: any) {
+        toast.error(`Delete failed: ${apiError.message}`);
+        throw apiError; // Re-throw to be caught by the outer catch
       }
     } catch (error: any) {
       toast.error(`Failed to delete questionnaire: ${error.message || 'Unknown error'}`);
@@ -642,39 +580,13 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     try {
       setLoading(true);
       
-      // Check if API is available
-      const isAPIAvailable = await questionnaireService.isAPIAvailable();
-      
-      if (isAPIAvailable) {
-        // Duplicate via API
-        await questionnaireService.duplicateQuestionnaire(questionnaire.id, {
-          title: `${questionnaire.title} (Copy)`,
-          description: questionnaire.description
-        });
-        toast.success('Questionnaire duplicated successfully');
-        await loadQuestionnaires();
-      } else {
-        // Fallback to localStorage
-        const duplicated = {
-          ...questionnaire,
-          id: Date.now().toString(),
-          title: `${questionnaire.title} (Copy)`,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          version: 1,
-          fields: questionnaire.fields || []
-        };
-        
-        const updatedQuestionnaires = [...questionnaires, duplicated];
-        setQuestionnaires(updatedQuestionnaires);
-        localStorage.setItem('immigration-questionnaires', JSON.stringify(updatedQuestionnaires));
-        toast.success('Questionnaire duplicated successfully (offline)');
-        
-        // Update global functions
-        (window as any).getImmigrationQuestionnaires = () => updatedQuestionnaires;
-        (window as any).getQuestionnaireByCategory = (category: string) => 
-          updatedQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
-      }
+      // Duplicate via API
+      await questionnaireService.duplicateQuestionnaire(questionnaire.id, {
+        title: `${questionnaire.title} (Copy)`,
+        description: questionnaire.description
+      });
+      toast.success('Questionnaire duplicated successfully');
+      await loadQuestionnaires();
     } catch (error: any) {
       console.error('Error duplicating questionnaire:', error);
       toast.error('Failed to duplicate questionnaire: ' + error.message);
@@ -700,7 +612,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     try {
       setLoading(true);
       const importedData = await questionnaireService.importQuestionnaire(file);
-      const response = await questionnaireService.createQuestionnaire(importedData as any);
+      await questionnaireService.createQuestionnaire(importedData as any);
       
       toast.success('Questionnaire imported successfully');
       await loadQuestionnaires(); // Reload to show imported questionnaire
@@ -1335,7 +1247,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                 <div className="space-y-2">
                   {(selectedQuestionnaire.fields || [])
                     .sort((a, b) => a.order - b.order)
-                    .map((question, index) => (
+                    .map((question) => (
                       <div
                         key={question.id}
                         className="p-3 border border-gray-200 rounded-md bg-white hover:bg-gray-50"

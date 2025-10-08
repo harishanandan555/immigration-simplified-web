@@ -652,105 +652,39 @@ const IndividualImmigrationProcess: React.FC = () => {
       try {
         setLoadingQuestionnaires(true);
 
-        // Check if API is available
-        const isAPIAvailable = await questionnaireService.isAPIAvailable();
+        // Load from API
+        const response = await questionnaireService.getQuestionnaires();
 
-        if (isAPIAvailable) {
-          // Load from API
-          const response = await questionnaireService.getQuestionnaires({
-            is_active: true,
-            limit: 50
-          });
+        // Convert API questionnaires to local format and filter for active ones
+        const convertedQuestionnaires: LoadedQuestionnaire[] = response.questionnaires
+          .filter(q => q.is_active)
+          .map(q => ({
+          id: q.id,
+          title: q.title,
+          description: q.description,
+          category: q.category,
+          fields: q.fields.map(field => ({
+            id: field.id,
+            type: field.type,
+            label: field.label,
+            required: field.required,
+            options: field.options,
+            help_text: field.help_text,
+            eligibility_impact: field.eligibility_impact
+          }))
+        }));
 
-          // Convert API questionnaires to local format
-          const convertedQuestionnaires: LoadedQuestionnaire[] = response.questionnaires.map(q => ({
-            id: q.id,
-            title: q.title,
-            description: q.description,
-            category: q.category,
-            fields: q.fields.map(field => ({
-              id: field.id,
-              type: field.type,
-              label: field.label,
-              required: field.required,
-              options: field.options,
-              help_text: field.help_text,
-              eligibility_impact: field.eligibility_impact
-            }))
-          }));
+        setCustomQuestionnaires(convertedQuestionnaires);
 
-          setCustomQuestionnaires(convertedQuestionnaires);
-
-          // Also make available globally for other components
-          (window as any).getImmigrationQuestionnaires = () => convertedQuestionnaires;
-          (window as any).getQuestionnaireByCategory = (category: string) =>
-            convertedQuestionnaires.filter(q => q.category === category);
-        } else {
-          // Fallback to localStorage
-          try {
-            const savedQuestionnaires = localStorage.getItem('immigration-questionnaires');
-            if (savedQuestionnaires) {
-              const localQuestionnaires = JSON.parse(savedQuestionnaires);
-
-              // Convert local format to LoadedQuestionnaire format
-              const convertedLocal: LoadedQuestionnaire[] = localQuestionnaires.map((q: any) => ({
-                id: q.id,
-                title: q.title || q.name,
-                description: q.description,
-                category: q.category,
-                fields: q.fields?.map((field: any) => ({
-                  id: field.id,
-                  type: field.type,
-                  label: field.label,
-                  required: field.required,
-                  options: field.options,
-                  help_text: field.help_text || field.helpText,
-                  eligibility_impact: field.eligibility_impact || field.eligibilityImpact
-                })) || []
-              }));
-
-              setCustomQuestionnaires(convertedLocal);
-
-              (window as any).getImmigrationQuestionnaires = () => convertedLocal;
-              (window as any).getQuestionnaireByCategory = (category: string) =>
-                convertedLocal.filter(q => q.category === category);
-            }
-          } catch (localError) {
-            console.error('Error loading from localStorage:', localError);
-            setCustomQuestionnaires([]);
-          }
-        }
+        // Also make available globally for other components
+        (window as any).getImmigrationQuestionnaires = () => convertedQuestionnaires;
+        (window as any).getQuestionnaireByCategory = (category: string) =>
+          convertedQuestionnaires.filter(q => q.category === category);
 
       } catch (error) {
         console.error('Error loading questionnaires:', error);
         // Fallback to empty array on error
         setCustomQuestionnaires([]);
-
-        // Try localStorage as final fallback
-        try {
-          const savedQuestionnaires = localStorage.getItem('immigration-questionnaires');
-          if (savedQuestionnaires) {
-            const localQuestionnaires = JSON.parse(savedQuestionnaires);
-            const convertedLocal: LoadedQuestionnaire[] = localQuestionnaires.map((q: any) => ({
-              id: q.id,
-              title: q.title || q.name,
-              description: q.description,
-              category: q.category,
-              fields: q.fields?.map((field: any) => ({
-                id: field.id,
-                type: field.type,
-                label: field.label,
-                required: field.required,
-                options: field.options,
-                help_text: field.help_text || field.helpText,
-                eligibility_impact: field.eligibility_impact || field.eligibilityImpact
-              })) || []
-            }));
-            setCustomQuestionnaires(convertedLocal);
-          }
-        } catch (fallbackError) {
-          console.error('Final fallback failed:', fallbackError);
-        }
       } finally {
         setLoadingQuestionnaires(false);
       }
@@ -1109,31 +1043,14 @@ const IndividualImmigrationProcess: React.FC = () => {
     if (!selectedCustomQuestionnaire) return;
 
     try {
-      // Check if API is available
-      const isAPIAvailable = await questionnaireService.isAPIAvailable();
-
-      if (isAPIAvailable) {
-        // Submit via API
-        const response = await questionnaireService.submitQuestionnaireResponse(
-          selectedCustomQuestionnaire.id,
-          {
-            responses: customQuestionnaireAnswers,
-            auto_save: false
-          }
-        );
-
-
-      } else {
-        
-        // Save to localStorage for later sync
-        const offlineResponses = JSON.parse(localStorage.getItem('offline-questionnaire-responses') || '[]');
-        offlineResponses.push({
-          questionnaire_id: selectedCustomQuestionnaire.id,
+      // Submit via API
+      const response = await questionnaireService.submitQuestionnaireResponse(
+        selectedCustomQuestionnaire.id,
+        {
           responses: customQuestionnaireAnswers,
-          timestamp: new Date().toISOString()
-        });
-        localStorage.setItem('offline-questionnaire-responses', JSON.stringify(offlineResponses));
-      }
+          auto_save: false
+        }
+      );
 
       setShowCustomQuestionnaire(false);
       setShowQuestionnaire(false);
