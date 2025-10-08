@@ -9193,7 +9193,7 @@ const SettingsPage = () => {
             {activeTab === 'form-builder' && (isSuperAdmin || isAttorney) && (
               <div className="p-6">
                 <QuestionnaireBuilder
-                  userId={user?._id || ''}
+                 
                   isSuperAdmin={isSuperAdmin}
                   isAttorney={isAttorney}
                 />
