@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 interface EnhancedImmigrationWizardProps {
-  formType: string;
+  formNumber: string;
   caseId?: string;
   initialData?: Record<string, any>;
   onComplete?: (data: Record<string, any>) => void;
@@ -73,7 +73,7 @@ interface FormField {
 }
 
 const EnhancedImmigrationWizard: React.FC<EnhancedImmigrationWizardProps> = ({
-  formType,
+  formNumber,
   caseId = '',
   initialData = {},
   onComplete,
@@ -369,7 +369,7 @@ const EnhancedImmigrationWizard: React.FC<EnhancedImmigrationWizardProps> = ({
   const handleSave = () => {
     if (onSave) {
       onSave({
-        formType,
+        formNumber,
         eligibilityAnswers,
         formData,
         uploadedDocuments: Object.keys(uploadedDocuments)
@@ -385,7 +385,7 @@ const EnhancedImmigrationWizard: React.FC<EnhancedImmigrationWizardProps> = ({
       
       if (onComplete) {
         onComplete({
-          formType,
+          formNumber,
           eligibilityAnswers,
           formData,
           uploadedDocuments: Object.keys(uploadedDocuments)
@@ -409,7 +409,7 @@ const EnhancedImmigrationWizard: React.FC<EnhancedImmigrationWizardProps> = ({
             <div className="text-center">
               <CheckCircle className="w-16 h-16 text-blue-600 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Eligibility Assessment</h2>
-              <p className="text-gray-600">Let's determine if you're eligible for {formType} Adjustment of Status</p>
+              <p className="text-gray-600">Let's determine if you're eligible for {formNumber} Adjustment of Status</p>
             </div>
 
             <div className="space-y-6">
@@ -496,7 +496,7 @@ const EnhancedImmigrationWizard: React.FC<EnhancedImmigrationWizardProps> = ({
             <div className="text-center">
               <FileText className="w-16 h-16 text-blue-600 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Document Preparation</h2>
-              <p className="text-gray-600">Gather all required documents for your {formType} application</p>
+              <p className="text-gray-600">Gather all required documents for your {formNumber} application</p>
             </div>
 
             <div className="grid gap-6">
@@ -568,7 +568,7 @@ const EnhancedImmigrationWizard: React.FC<EnhancedImmigrationWizardProps> = ({
             <div className="text-center">
               <User className="w-16 h-16 text-blue-600 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Form Completion</h2>
-              <p className="text-gray-600">Complete all required sections of the {formType} form</p>
+              <p className="text-gray-600">Complete all required sections of the {formNumber} form</p>
             </div>
 
             <div className="space-y-8">
@@ -776,14 +776,14 @@ const EnhancedImmigrationWizard: React.FC<EnhancedImmigrationWizardProps> = ({
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Application Complete</h3>
                 <p className="text-gray-600">
-                  Your {formType} application has been prepared and is ready for submission.
+                  Your {formNumber} application has been prepared and is ready for submission.
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <span className="text-gray-700">Form Type</span>
-                  <span className="font-medium">{formType}</span>
+                  <span className="font-medium">{formNumber}</span>
                 </div>
                 
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -837,7 +837,7 @@ const EnhancedImmigrationWizard: React.FC<EnhancedImmigrationWizardProps> = ({
               <div className="flex items-center space-x-2">
                 <Shield className="w-6 h-6 text-blue-600" />
                 <h1 className="text-xl font-semibold text-gray-900">
-                  Enhanced Immigration Wizard - {formType}
+                  Enhanced Immigration Wizard - {formNumber}
                 </h1>
               </div>
             </div>

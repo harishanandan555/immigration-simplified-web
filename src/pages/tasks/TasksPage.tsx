@@ -117,9 +117,9 @@ const TasksPage = () => {
             // Extract case numbers from formCaseIds
             if (caseData && caseData.formCaseIds) {
               // formCaseIds is an object like { "G-1566": "CR-2025-0373" }
-              Object.entries(caseData.formCaseIds).forEach(([formType, caseNumber]: [string, any]) => {
+              Object.entries(caseData.formCaseIds).forEach(([formNumber, caseNumber]: [string, any]) => {
                 const caseItem: Case = {
-                  id: `${workflow._id}_${formType}`, // Unique ID combining workflow and form type
+                  id: `${workflow._id}_${formNumber}`, // Unique ID combining workflow and form number
                   caseNumber: caseNumber, // Use the actual case number like "CR-2025-0373"
                   clientId: clientId,
                   category: caseData.category || '',
@@ -326,11 +326,11 @@ const TasksPage = () => {
       
       if (selectedCase) {
         // Extract form type from case ID if it contains form info
-        const formType = selectedCase.id.includes('_') ? selectedCase.id.split('_')[1] : '';
+        const formNumber = selectedCase.id.includes('_') ? selectedCase.id.split('_')[1] : '';
         
-        if (formType) {
-          // Send only case number and form type: "CR-2025-9382 (G-28)"
-          relatedCaseId = `${selectedCase.caseNumber} (${formType})`;
+        if (formNumber) {
+          // Send only case number and form number: "CR-2025-9382 (G-28)"
+          relatedCaseId = `${selectedCase.caseNumber} (${formNumber})`;
         } else {
           // If no form type, just send case number
           relatedCaseId = selectedCase.caseNumber;
@@ -745,9 +745,9 @@ const TasksPage = () => {
                             })
                             .map((caseItem: any) => {
                               // Extract form type from case ID if it contains form info
-                              const formType = caseItem.id.includes('_') ? caseItem.id.split('_')[1] : '';
-                              const displayText = formType 
-                                ? `${caseItem.caseNumber} (${formType}) - ${caseItem.category || caseItem.subcategory || 'General'}`
+                              const formNumber = caseItem.id.includes('_') ? caseItem.id.split('_')[1] : '';
+                              const displayText = formNumber 
+                                ? `${caseItem.caseNumber} (${formNumber}) - ${caseItem.category || caseItem.subcategory || 'General'}`
                                 : `${caseItem.caseNumber} - ${caseItem.category || caseItem.subcategory || 'General'}`;
                               
                               return (

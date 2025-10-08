@@ -14,7 +14,7 @@ const assignment = {
   notificationSent: false,
   formCaseIds: {},
   selectedForms: [],
-  formType: "Form I-131",
+  formNumber: "Form I-131",
   formCaseIdGenerated: "CR-2025-2590",
   createdAt: "2025-09-19T06:24:54.478+00:00",
   updatedAt: "2025-09-19T06:24:54.478+00:00",

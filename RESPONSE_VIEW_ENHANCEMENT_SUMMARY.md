@@ -8,7 +8,7 @@ Added new fields to `QuestionnaireAssignment` interface to match the API respons
 ```tsx
 // Added fields:
 formCaseIdGenerated?: string; // Generated case ID from form processing
-formType?: string; // Form type information  
+formNumber?: string; // Form number information  
 clientEmail?: string; // Client email from assignment
 ```
 
@@ -110,7 +110,7 @@ Assignment Notes:
 | Case ID | `formCaseIdGenerated` → `caseId` → fallback | Prominent blue text |
 | Client Email | `clientEmail` → `client.email` → fallback | Standard text |
 | Assigned By | `assignedBy` → `attorneyInfo` → "Unknown" | With user icon |
-| Form Type | `formType` | With document icon |
+| Form Number | `formNumber` | With document icon |
 | Notes | `assignment.notes` | Yellow highlight box |
 
 ## 🎯 Expected Results

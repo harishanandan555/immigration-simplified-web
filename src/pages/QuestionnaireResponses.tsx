@@ -100,7 +100,7 @@ interface QuestionnaireAssignment {
     assignment_id?: string;
     attorney_id?: string;
     formCaseIdGenerated?: string;
-    formType?: string;
+    formNumber?: string;
     is_complete?: boolean;
     notes?: string;
     responses?: Record<string, any>;
@@ -589,7 +589,7 @@ const QuestionnaireResponses: React.FC = () => {
             assignment_id: matchingWorkflow.questionnaireAssignment?.assignment_id || '',
             attorney_id: matchingWorkflow.questionnaireAssignment?.attorney_id || '',
             formCaseIdGenerated: matchingWorkflow.questionnaireAssignment?.formCaseIdGenerated || '',
-            formType: matchingWorkflow.questionnaireAssignment?.formType || '',
+            formNumber: matchingWorkflow.questionnaireAssignment?.formNumber || '',
             is_complete: matchingWorkflow.questionnaireAssignment?.is_complete || false,
             notes: matchingWorkflow.questionnaireAssignment?.notes || '',
             questionnaire_id: matchingWorkflow.questionnaireAssignment?.questionnaire_id || '',
@@ -789,6 +789,7 @@ const QuestionnaireResponses: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAssignments.map(assignment => (
                 <tr key={assignment._id} className="hover:bg-gray-50">
+
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div
                       className="flex items-center cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
@@ -822,11 +823,12 @@ const QuestionnaireResponses: React.FC = () => {
                       </div>
                     </div>
                   </td>
+
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900">
                       {assignment.questionnaireDetails?.title ||
                         assignment.workflowQuestionnaireAssignment?.questionnaire_title ||
-                        assignment.workflowQuestionnaireAssignment?.formType ||
+                        assignment.workflowQuestionnaireAssignment?.formNumber ||
                         'Untitled'}
                       {/* {assignment.workflowTotal && assignment.workflowTotal > 1 && (
                         <span className="ml-2 text-xs text-purple-600 font-medium">
@@ -836,7 +838,7 @@ const QuestionnaireResponses: React.FC = () => {
                     </div>
                     <div className="text-xs text-gray-500">
                       {assignment.questionnaireDetails?.category ||
-                        assignment.workflowQuestionnaireAssignment?.formType ||
+                        assignment.workflowQuestionnaireAssignment?.formNumber ||
                         assignment.workflowCase?.category ||
                         'No category'}
                     </div>
@@ -855,6 +857,7 @@ const QuestionnaireResponses: React.FC = () => {
                       </div>
                     )} */}
                   </td>
+
                   <td className="px-6 py-4">
                     {assignment.formCaseIdGenerated ? (
                       <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
@@ -901,6 +904,7 @@ const QuestionnaireResponses: React.FC = () => {
                       </div>
                     </div>
                   </td>
+                  
                   <td className="px-6 py-4">
                     <span
                       className={`px-2 py-1 text-xs rounded-full inline-flex items-center ${getStatusColor(assignment.status, assignment.isOverdue)}`}
@@ -926,6 +930,7 @@ const QuestionnaireResponses: React.FC = () => {
                       </div>
                     )}
                   </td>
+
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-500">
                       {/* <div className="flex items-center mb-1">
@@ -951,6 +956,7 @@ const QuestionnaireResponses: React.FC = () => {
                       )}
                     </div>
                   </td>
+
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex flex-col items-end space-y-2">
                       <button
@@ -985,6 +991,7 @@ const QuestionnaireResponses: React.FC = () => {
                       ) : null} */}
                     </div>
                   </td>
+
                 </tr>
               ))}
             </tbody>

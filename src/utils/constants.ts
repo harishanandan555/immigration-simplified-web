@@ -626,6 +626,31 @@ export const COMMON_IMMIGRATION_FORMS = {
     I_589: 'i-589'
 } as const;
 
+export const INDIVIDUAL_FORM_FILING_END_POINTS = {
+    // Personal Details
+    GET_PERSONAL_DETAILS: "/api/v1/immigration/personal-details",
+    UPDATE_PERSONAL_DETAILS: "/api/v1/immigration/personal-details",
+    
+    // Available Forms
+    GET_AVAILABLE_FORMS: "/api/v1/immigration/forms",
+    
+    // Form Selection
+    SELECT_FORMS: "/api/v1/immigration/select-forms",
+    
+    // Case Management
+    CREATE_CASE: "/api/v1/immigration/create-case",
+    
+    // Form Review
+    GET_FORM_REVIEW: "/api/v1/immigration/form-review",
+    
+    // Auto Fill Forms
+    AUTO_FILL_FORMS: "/api/v1/immigration/auto-fill-forms",
+    
+    // Workflow Management
+    GET_WORKFLOW: "/api/v1/immigration/workflow",
+    GET_ALL_WORKFLOWS: "/api/v1/immigration/workflows"
+} as const;
+
 export const LEGAL_WORKFLOW_ENDPOINTS = {
     // Workflow Progress
     GET_WORKFLOW_PROGRESS: "/api/v1/workflows/progress/:workflowId",

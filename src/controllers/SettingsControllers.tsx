@@ -55,6 +55,7 @@ export interface FormTemplateField {
 export interface FormTemplate {
   _id?: string;
   name: string;
+  formNumber: string;
   description: string;
   category: keyof typeof FORM_TEMPLATE_CATEGORIES;
   type: keyof typeof FORM_TEMPLATE_TYPES;

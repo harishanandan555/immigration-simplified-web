@@ -68,7 +68,7 @@ export interface QuestionnaireAssignment {
   formCaseIds?: Record<string, string>;
   selectedForms?: string[];
   accountCreated?: boolean;
-  formType?: string;
+  formNumber?: string;
   formCaseIdGenerated?: string;
   clientFirstName?: string;
   clientMiddleName?: string;
@@ -91,7 +91,7 @@ export interface QuestionnaireAssignment {
 }
 
 export interface FormData {
-  formType: string;
+  formNumber: string;
   data: Record<string, any>;
   status: 'draft' | 'review' | 'completed';
 }
@@ -317,7 +317,7 @@ export const registerCompanyClient = async (userData: {
 
 export const createFormDetails = async (formData: {
   clientId: string;
-  formType: string;
+  formNumber: string;
   formData: Record<string, any>;
   status: string;
   caseId?: string;
@@ -325,7 +325,7 @@ export const createFormDetails = async (formData: {
   try {
     const requestData = {
       clientId: formData.clientId,
-      formType: formData.formType,
+      formNumber: formData.formNumber,
       formData: formData.formData,
       status: formData.status,
       caseId: formData.caseId
@@ -378,7 +378,7 @@ export const createQuestionnaireAssignment = async (assignmentData: {
   accountCreated?: boolean;
   formCaseIds?: Record<string, string>;
   selectedForms?: string[];
-  formType?: string;
+  formNumber?: string;
   formCaseIdGenerated?: string;
   tempPassword?: string;
 }): Promise<any> => {
@@ -419,13 +419,13 @@ export const clearWorkflowResumptionParams = (): void => {
   window.history.replaceState({}, '', url.toString());
 };
 
-export const generateMultipleCaseIds = async (formTypes: string[]): Promise<Record<string, string>> => {
+export const generateMultipleCaseIds = async (formNumbers: string[]): Promise<Record<string, string>> => {
   try {
     // This would typically call the case ID generation API
     // For now, returning a mock implementation
     const caseIds: Record<string, string> = {};
-    formTypes.forEach(formType => {
-      caseIds[formType] = `CASE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    formNumbers.forEach(formNumber => {
+      caseIds[formNumber] = `CASE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     });
     return caseIds;
   } catch (error) {
@@ -445,8 +445,8 @@ export const validateFormData = (formData: Record<string, any>): {
     errors.push('Client ID is required');
   }
   
-  if (!formData.formType) {
-    errors.push('Form type is required');
+  if (!formData.formNumber) {
+    errors.push('Form number is required');
   }
 
   return {

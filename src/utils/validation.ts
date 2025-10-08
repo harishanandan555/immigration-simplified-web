@@ -259,7 +259,7 @@ export const validateConsistency = (formData: Record<string, any>): ValidationRe
 };
 
 // Smart suggestions based on common errors
-export const getSmartSuggestions = (fieldName: string, value: any, formType: string): string[] => {
+export const getSmartSuggestions = (fieldName: string, value: any, formNumber: string): string[] => {
   const suggestions: string[] = [];
 
   switch (fieldName) {
@@ -310,10 +310,10 @@ export const getSmartSuggestions = (fieldName: string, value: any, formType: str
 };
 
 // Form-specific validation rules
-export const getFormValidationRules = (formType: string): Record<string, ValidationRule[]> => {
+export const getFormValidationRules = (formNumber: string): Record<string, ValidationRule[]> => {
   const baseRules = IMMIGRATION_VALIDATION_RULES;
   
-  switch (formType) {
+  switch (formNumber) {
     case 'I-130':
       return {
         ...baseRules,

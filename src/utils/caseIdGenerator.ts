@@ -5,10 +5,10 @@
 
 /**
  * Generate a unique case ID for a specific form (client-side fallback)
- * @param {string} formType - The form type (e.g., 'I-130', 'I-485', 'N-400')
+ * @param {string} formNumber - The form number (e.g., 'I-130', 'I-485', 'N-400')
  * @returns {string} - Generated case ID in format CR-2025-0001
  */
-export const generateCaseId = (formType: string = 'GENERAL'): string => {
+export const generateCaseId = (formNumber: string = 'GENERAL'): string => {
   try {
     // Use CR prefix for Case Reference
     const prefix = 'CR';
@@ -32,14 +32,14 @@ export const generateCaseId = (formType: string = 'GENERAL'): string => {
 
 /**
  * Generate multiple case IDs for multiple forms (client-side)
- * @param {string[]} formTypes - Array of form types
+ * @param {string[]} formNumbers - Array of form numbers
  * @returns {Object} - Object mapping form types to case IDs
  */
-export const generateMultipleCaseIds = (formTypes: string[] = []): Record<string, string> => {
+export const generateMultipleCaseIds = (formNumbers: string[] = []): Record<string, string> => {
   const caseIds: Record<string, string> = {};
   
-  for (const formType of formTypes) {
-    caseIds[formType] = generateCaseId(formType);
+  for (const formNumber of formNumbers) {
+    caseIds[formNumber] = generateCaseId(formNumber);
   }
   
   return caseIds;
@@ -47,10 +47,10 @@ export const generateMultipleCaseIds = (formTypes: string[] = []): Record<string
 
 /**
  * API call to generate case ID from backend
- * @param {string} formType - The form type
+ * @param {string} formNumber - The form number
  * @returns {Promise<string>} - Generated case ID from backend
  */
-export const generateCaseIdFromAPI = async (formType: string = 'GENERAL'): Promise<string> => {
+export const generateCaseIdFromAPI = async (formNumber: string = 'GENERAL'): Promise<string> => {
   try {
     const response = await fetch('/api/v1/cases/generate-id', {
       method: 'POST',
@@ -58,7 +58,7 @@ export const generateCaseIdFromAPI = async (formType: string = 'GENERAL'): Promi
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
-      body: JSON.stringify({ formType })
+      body: JSON.stringify({ formNumber })
     });
     
     if (!response.ok) {
@@ -70,16 +70,16 @@ export const generateCaseIdFromAPI = async (formType: string = 'GENERAL'): Promi
   } catch (error) {
     console.error('Error generating case ID from API:', error);
     // Fallback to client-side generation
-    return generateCaseId(formType);
+    return generateCaseId(formNumber);
   }
 };
 
 /**
  * API call to generate multiple case IDs from backend
- * @param {string[]} formTypes - Array of form types
+ * @param {string[]} formNumbers - Array of form numbers
  * @returns {Promise<Object>} - Object mapping form types to case IDs
  */
-export const generateMultipleCaseIdsFromAPI = async (formTypes: string[] = []): Promise<Record<string, string>> => {
+export const generateMultipleCaseIdsFromAPI = async (formNumbers: string[] = []): Promise<Record<string, string>> => {
   try {
     const response = await fetch('/api/v1/cases/generate-multiple-ids', {
       method: 'POST',
@@ -87,7 +87,7 @@ export const generateMultipleCaseIdsFromAPI = async (formTypes: string[] = []): 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
-      body: JSON.stringify({ formTypes })
+      body: JSON.stringify({ formNumbers })
     });
     
     if (!response.ok) {
@@ -99,7 +99,7 @@ export const generateMultipleCaseIdsFromAPI = async (formTypes: string[] = []): 
   } catch (error) {
     console.error('Error generating case IDs from API:', error);
     // Fallback to client-side generation
-    return generateMultipleCaseIds(formTypes);
+    return generateMultipleCaseIds(formNumbers);
   }
 };
 

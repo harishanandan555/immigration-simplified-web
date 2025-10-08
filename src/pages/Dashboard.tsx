@@ -77,7 +77,7 @@ const Dashboard = () => {
             _id: item._id || item.assignment_id || item.id,
             id: item.id || item.assignment_id || item._id,
             questionnaire_title: item.questionnaire_title || item.questionnaire?.title || 'Untitled',
-            formType: item.formType || 'Unknown Form',
+            formNumber: item.formNumber || 'Unknown Form',
             status: item.status || 'pending',
             dueDate: item.dueDate,
             createdAt: item.createdAt,
@@ -209,7 +209,7 @@ const Dashboard = () => {
               clientId: workflow.client?.id,
               clientName: workflow.client?.name,
               caseNumber: workflow.case.caseNumber || workflow.case.title,
-              formType: workflow.case.assignedForms?.[0] || 'Unknown',
+              formNumber: workflow.case.assignedForms?.[0] || 'Unknown',
               status: workflow.case.status || 'draft',
               type: formatCaseCategory(workflow.case.category), // Use category directly from case
               category: workflow.case.category,
@@ -1190,7 +1190,7 @@ const Dashboard = () => {
                     }
                     
                     const assignmentId = assignment.assignment_id || assignment._id || assignment.id;
-                    const title = String(assignment.questionnaire_title || assignment.formType || 'Questionnaire');
+                    const title = String(assignment.questionnaire_title || assignment.formNumber || 'Questionnaire');
                     const status = String(assignment.status || 'pending');
                     const dueDate = assignment.dueDate;
                     
