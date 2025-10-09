@@ -46,13 +46,17 @@ const Layout: React.FC = () => {
 
       {/* Main content */}
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
+        {/* Header */}
         <Header 
           onSidebarOpen={() => setSidebarOpen(true)} 
           onNotificationsOpen={() => setNotificationsOpen(!notificationsOpen)} 
         />
         
+        {/* Body */}
         <main className="flex-1 relative overflow-y-auto focus:outline-none py-6">
           <div className="px-4 sm:px-6 lg:px-8 pb-24">
+        {/* <main className="flex-1 relative overflow-y-auto focus:outline-none">
+          <div> */}
             <Outlet />
           </div>
         </main>
