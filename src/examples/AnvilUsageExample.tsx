@@ -183,9 +183,9 @@ const AnvilUsageExample: React.FC = () => {
         filename: `form-${templateId}-${Date.now()}.pdf`
       });
 
-      if (response.data instanceof Blob) {
+      if (response.data?.blob) {
         // Download the PDF
-        downloadFilledPdf(response.data, `form-${templateId}-${Date.now()}.pdf`);
+        downloadFilledPdf(response.data.blob, `form-${templateId}-${Date.now()}.pdf`);
       } else {
         setError('Invalid response format');
       }

@@ -248,9 +248,24 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     fileName: string;
     status: 'generating' | 'success' | 'error';
     error?: string;
+    filledPercentage?: number;
+    unfilledFields?: Record<string, any>;
+    metadata?: {
+      filename: string;
+      fileSize: number;
+      contentType: string;
+      createdAt: string;
+      validationDetails: {
+        totalFields: number;
+        filledFields: number;
+        unfilledFieldsCount: number;
+        openaiValidationUsed: boolean;
+      };
+    };
   }>>([]);
   const [generatingForms, setGeneratingForms] = useState(false);
   const [showPreview, setShowPreview] = useState<Record<string, boolean>>({});
+  const [showUnfilledFields, setShowUnfilledFields] = useState<Record<string, boolean>>({});
 
   // Function to get the appropriate workflow steps based on response type
   const getWorkflowSteps = () => {
@@ -4210,18 +4225,21 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
           if (anvilResponse.data) {
             // Create download URL
-            const downloadUrl = createPdfBlobUrl(anvilResponse.data);
-            const fileName = `${formName}_${new Date().toISOString().split('T')[0]}.pdf`;
+            const downloadUrl = createPdfBlobUrl(anvilResponse.data.blob);
+            const fileName = anvilResponse.data.metadata?.filename || `${formName}_${new Date().toISOString().split('T')[0]}.pdf`;
 
             // Update the form with success status
             if (formIndex !== -1) {
               newGeneratedForms[formIndex] = {
                 formName,
                 templateId,
-                blob: anvilResponse.data,
+                blob: anvilResponse.data.blob,
                 downloadUrl,
                 fileName,
-                status: 'success' as const
+                status: 'success' as const,
+                filledPercentage: anvilResponse.data.filledPercentage,
+                unfilledFields: anvilResponse.data.unfilledFields,
+                metadata: anvilResponse.data.metadata
               };
             }
 
@@ -4282,6 +4300,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     setShowPreview(prev => ({
       ...prev,
       [formName]: false
+    }));
+  };
+
+  // Function to toggle unfilled fields display
+  const handleToggleUnfilledFields = (formName: string) => {
+    setShowUnfilledFields(prev => ({
+      ...prev,
+      [formName]: !prev[formName]
     }));
   };
 
@@ -6868,6 +6894,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {generatedForms.map((form) => (
                         <div key={form.formName} className="border border-gray-200 rounded-lg p-4">
+                          
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center">
                               <FileText className="w-5 h-5 text-blue-500 mr-2" />
@@ -6893,6 +6920,51 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                           {form.status === 'success' && (
                             <div className="space-y-2">
                               <div className="text-sm text-gray-600">{form.fileName}</div>
+                              
+                              {/* Filled Percentage Display */}
+                              {form.filledPercentage !== undefined && (
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm text-gray-600">Filled:</span>
+                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                    <div 
+                                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                      style={{ width: `${form.filledPercentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-sm font-medium text-gray-700">
+                                    {Math.round(form.filledPercentage)}%
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Unfilled Fields Toggle */}
+                              {form.unfilledFields && Object.keys(form.unfilledFields).length > 0 && (
+                                <div className="space-y-2">
+                                  <Button
+                                    onClick={() => handleToggleUnfilledFields(form.formName)}
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-xs"
+                                  >
+                                    <AlertCircle className="w-3 h-3 mr-1" />
+                                    {showUnfilledFields[form.formName] ? 'Hide' : 'Show'} Unfilled Fields ({Object.keys(form.unfilledFields).length})
+                                  </Button>
+                                  
+                                  {showUnfilledFields[form.formName] && (
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                                      <h6 className="text-sm font-medium text-yellow-800 mb-2">Unfilled Fields:</h6>
+                                      <div className="space-y-1">
+                                        {Object.entries(form.unfilledFields).map(([fieldName, fieldValue]) => (
+                                          <div key={fieldName} className="text-xs text-yellow-700">
+                                            <span className="font-medium">{fieldName}:</span> {fieldValue || 'Empty'}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
                               <div className="flex gap-2">
                                 <Button
                                   onClick={() => handleDownloadForm(form.formName)}
