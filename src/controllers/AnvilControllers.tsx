@@ -40,15 +40,25 @@ export interface AnvilFillResponse {
   success: boolean;
   message: string;
   data?: {
-    pdfUrl: string;
-    downloadUrl: string;
     templateId: string;
     formNumber: string;
+    clientId: string;
+    pdfId: string;
+    filledPercentage: number;
+    unfilledFields: Record<string, any>;
+    validationRecordId: string;
+    pdfData: string; // Base64-encoded PDF data
     metadata: {
-      title: string;
-      pageCount: number;
+      filename: string;
       fileSize: number;
+      contentType: string;
       createdAt: string;
+      validationDetails: {
+        totalFields: number;
+        filledFields: number;
+        unfilledFieldsCount: number;
+        openaiValidationUsed: boolean;
+      };
     };
   };
 }
@@ -243,7 +253,7 @@ export const fillPdfTemplateBlob = async (
     textColor?: string;
     useInteractiveFields?: boolean;
   }
-): Promise<ApiResponse<Blob>> => {
+): Promise<ApiResponse<{ blob: Blob; metadata: any; filledPercentage: number; unfilledFields: Record<string, any> }>> => {
   try {
     const requestData: AnvilFillRequest = {
       data,
@@ -252,17 +262,28 @@ export const fillPdfTemplateBlob = async (
 
     const response = await api.post(
       ANVIL_END_POINTS.FILL_PDF_TEMPLATE.replace(':templateId', templateId),
-      requestData,
-      {
-        responseType: 'blob'
-      }
+      requestData
     );
     
-    return {
-      data: response.data,
-      status: response.status,
-      statusText: response.statusText
-    };
+    if (response.data.success && response.data.data?.pdfData) {
+      // Convert base64 to blob
+      const pdfBlob = new Blob([
+        Uint8Array.from(atob(response.data.data.pdfData), c => c.charCodeAt(0))
+      ], { type: 'application/pdf' });
+      
+      return {
+        data: {
+          blob: pdfBlob,
+          metadata: response.data.data.metadata,
+          filledPercentage: response.data.data.filledPercentage,
+          unfilledFields: response.data.data.unfilledFields
+        },
+        status: response.status,
+        statusText: response.statusText
+      };
+    } else {
+      throw new Error(response.data.message || 'Failed to fill PDF template');
+    }
   } catch (error) {
     return handleApiError(error);
   }
