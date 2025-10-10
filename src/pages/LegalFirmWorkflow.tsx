@@ -2710,6 +2710,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           middleName: client.middleName || '',
           lastName: client.lastName,
           name: client.name, // Full name
+          // Explicitly include immigration-specific identifiers
+          alienRegistrationNumber: client.alienRegistrationNumber || '',
+          uscisOnlineAccountNumber: client.uscisOnlineAccountNumber || '',
+          socialSecurityNumber: client.socialSecurityNumber || '',
           // Explicitly include complete address information
           address: {
             street: client.address?.street || '',
@@ -2825,6 +2829,24 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       if (token) {
         try {
+          // Validate required fields before saving
+          const missingFields = [];
+          if (!client.firstName?.trim()) missingFields.push('First Name');
+          if (!client.lastName?.trim()) missingFields.push('Last Name');
+          if (!client.email?.trim()) missingFields.push('Email');
+          if (!client.address?.street?.trim()) missingFields.push('Street Address');
+          if (!client.address?.city?.trim()) missingFields.push('City');
+          if (!client.address?.state?.trim()) missingFields.push('State/Province');
+          if (!client.address?.zipCode?.trim()) missingFields.push('ZIP/Postal Code');
+          if (!client.address?.country?.trim()) missingFields.push('Country');
+
+          if (missingFields.length > 0) {
+            const errorMessage = `Please fill in the following required fields: ${missingFields.join(', ')}`;
+            console.error('❌ DEBUG: Validation failed - missing required fields:', missingFields);
+            toast.error(errorMessage);
+            throw new Error(errorMessage);
+          }
+
           // DEBUG: Log the address data being sent to API
           console.log('🔍 DEBUG: Address data being sent to API:', {
             clientAddress: workflowData.client.address,
@@ -3047,6 +3069,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             middleName: client.middleName || '',
             lastName: client.lastName,
             name: client.name,
+            // Include immigration-specific identifiers
+            alienRegistrationNumber: client.alienRegistrationNumber || '',
+            uscisOnlineAccountNumber: client.uscisOnlineAccountNumber || '',
+            socialSecurityNumber: client.socialSecurityNumber || '',
             address: {
               street: client.address?.street || '',
               aptSuiteFlr: client.address?.aptSuiteFlr || '',
@@ -3161,6 +3187,25 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
           try {
             console.log('🔄 DEBUG: Calling saveWorkflowProgress with token present');
+            
+            // Validate required fields before saving
+            const missingFields = [];
+            if (!client.firstName?.trim()) missingFields.push('First Name');
+            if (!client.lastName?.trim()) missingFields.push('Last Name');
+            if (!client.email?.trim()) missingFields.push('Email');
+            if (!client.address?.street?.trim()) missingFields.push('Street Address');
+            if (!client.address?.city?.trim()) missingFields.push('City');
+            if (!client.address?.state?.trim()) missingFields.push('State/Province');
+            if (!client.address?.zipCode?.trim()) missingFields.push('ZIP/Postal Code');
+            if (!client.address?.country?.trim()) missingFields.push('Country');
+
+            if (missingFields.length > 0) {
+              const errorMessage = `Please fill in the following required fields: ${missingFields.join(', ')}`;
+              console.error('❌ DEBUG: Validation failed - missing required fields:', missingFields);
+              toast.error(errorMessage);
+              setLoading(false);
+              return;
+            }
             
             // Test API connectivity before the actual call
             console.log('🔄 DEBUG: Testing API connectivity...');
@@ -3709,6 +3754,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             middleName: client.middleName || '',
             lastName: client.lastName,
             name: client.name,
+            // Include immigration-specific identifiers
+            alienRegistrationNumber: client.alienRegistrationNumber || '',
+            uscisOnlineAccountNumber: client.uscisOnlineAccountNumber || '',
+            socialSecurityNumber: client.socialSecurityNumber || '',
             address: {
               street: client.address?.street || '',
               aptSuiteFlr: client.address?.aptSuiteFlr || '',
@@ -3791,6 +3840,24 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         const token = localStorage.getItem('token');
         if (token) {
           try {
+            // Validate required fields before saving
+            const missingFields = [];
+            if (!client.firstName?.trim()) missingFields.push('First Name');
+            if (!client.lastName?.trim()) missingFields.push('Last Name');
+            if (!client.email?.trim()) missingFields.push('Email');
+            if (!client.address?.street?.trim()) missingFields.push('Street Address');
+            if (!client.address?.city?.trim()) missingFields.push('City');
+            if (!client.address?.state?.trim()) missingFields.push('State/Province');
+            if (!client.address?.zipCode?.trim()) missingFields.push('ZIP/Postal Code');
+            if (!client.address?.country?.trim()) missingFields.push('Country');
+
+            if (missingFields.length > 0) {
+              const errorMessage = `Please fill in the following required fields: ${missingFields.join(', ')}`;
+              console.error('❌ DEBUG: Validation failed - missing required fields:', missingFields);
+              toast.error(errorMessage);
+              return;
+            }
+
             const response = await saveWorkflowProgress(workflowDataWithNewAssignment);
             console.log('✅ DEBUG: Workflow with new assignment saved to database:', response);
             
@@ -4398,6 +4465,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       phone: anyClient.phone || '',
                       dateOfBirth: anyClient.dateOfBirth || '',
                       nationality: anyClient.nationality || '',
+                      // Include immigration-specific identifiers
+                      alienRegistrationNumber: anyClient.alienRegistrationNumber || '',
+                      uscisOnlineAccountNumber: anyClient.uscisOnlineAccountNumber || '',
+                      socialSecurityNumber: anyClient.socialSecurityNumber || '',
                       address: {
                         street: anyClient.address?.street || '',
                         aptSuiteFlr: anyClient.address?.aptSuiteFlr || '',
@@ -4652,6 +4723,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     address: { ...(client.address || {}), street: e.target.value }
                   })}
                   placeholder="Enter street address"
+                  required
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Select
@@ -4736,7 +4808,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               </Button>
               {isViewEditMode ? (
                 // Simple Next button in view/edit mode
-                <Button onClick={handleNext} disabled={!client.name || !client.email}>
+                <Button 
+                  onClick={handleNext} 
+                  disabled={!client.name || !client.email || !client.address?.street || !client.address?.city || !client.address?.state || !client.address?.zipCode || !client.address?.country}
+                >
                   Next
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
@@ -4753,7 +4828,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     // Client account will only be created later if password is provided from questionnaire assignment
                     setCurrentStep(2);
                   }}
-                  disabled={!client.name || !client.email}
+                  disabled={!client.name || !client.email || !client.address?.street || !client.address?.city || !client.address?.state || !client.address?.zipCode || !client.address?.country}
                 >
                   {client.isExistingClient ? 'Proceed to Next Step' : 'Create Client & Continue'}
                   <ArrowRight className="w-4 h-4 ml-2" />

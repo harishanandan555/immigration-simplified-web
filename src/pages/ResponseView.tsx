@@ -27,6 +27,10 @@ interface QuestionnaireField {
   options?: string[];
 }
 
+interface EnhancedResponseData extends Record<string, any> {
+  // No special metadata structure needed - field titles are saved directly as keys
+}
+
 interface QuestionnaireResponse {
   _id: string;
   questionnaire_id: string;
@@ -42,7 +46,7 @@ interface QuestionnaireResponse {
     lastName: string;
     email: string;
   };
-  responses: Record<string, any>;
+  responses: EnhancedResponseData;
   is_complete: boolean;
   notes?: string;
   metadata?: any;
@@ -474,7 +478,7 @@ const ResponseView: React.FC = () => {
   const questionnaireInfo = getQuestionnaireInfo(assignment);
   
   // Extract responses with multiple fallback strategies
-  let responses = {};
+  let responses: EnhancedResponseData = {};
   
   // From the console log, we can see the structure is assignment.response.responses
   if ((assignment as any)?.response?.responses) {
@@ -713,7 +717,15 @@ const ResponseView: React.FC = () => {
               <h3 className="text-lg font-medium text-gray-900">Client Responses</h3>
               {Object.keys(responses).length > 0 && (
                 <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
-                  {Object.keys(responses).length} fields completed
+                  {(() => {
+                    // Count unique fields (prioritize field titles over field IDs)
+                    const titleKeys = Object.keys(responses).filter(key => !key.startsWith('field_'));
+                    const fieldIdKeys = Object.keys(responses).filter(key => key.startsWith('field_'));
+                    
+                    // If we have field titles, count those; otherwise count field IDs
+                    const uniqueFieldCount = titleKeys.length > 0 ? titleKeys.length : fieldIdKeys.length;
+                    return `${uniqueFieldCount} fields completed`;
+                  })()}
                 </span>
               )}
             </div>
@@ -744,56 +756,96 @@ const ResponseView: React.FC = () => {
                 )}
               </div>
             ) : fields.length > 0 ? (
-              // If we have field definitions, use them to render with labels
-              Object.entries(responses).map(([fieldId, value]) => {
-                // Find the corresponding field definition
-                const field = fields.find(f => f.id === fieldId);
+              // If we have field definitions, prioritize field titles over field IDs
+              (() => {
+                const displayedKeys = new Set();
+                const responseEntries = Object.entries(responses);
                 
-                if (field) {
-                  // We have a field definition, use it to render properly
-                  return (
-                    <div key={fieldId} className="p-6 hover:bg-gray-50">
-                      <div className="mb-1 font-medium text-gray-900">
-                        {field.label || field.question || fieldId}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                // First, show entries that are field titles (readable names)
+                const titleEntries = responseEntries.filter(([key]) => !key.startsWith('field_'));
+                // Then, show field ID entries that don't have corresponding titles
+                const fieldIdEntries = responseEntries.filter(([key]) => key.startsWith('field_'));
+                
+                const entriesToDisplay: Array<[string, any, 'title' | 'fieldId']> = [];
+                
+                // Add title entries first
+                titleEntries.forEach(([key, value]) => {
+                  entriesToDisplay.push([key, value, 'title']);
+                  displayedKeys.add(key);
+                });
+                
+                // Add field ID entries only if there's no corresponding title
+                fieldIdEntries.forEach(([fieldKey, value]) => {
+                  const field = fields.find(f => f.id === fieldKey);
+                  const fieldTitle = field?.label || field?.question;
+                  
+                  // Only show this field ID if we don't already have its title displayed
+                  if (!fieldTitle || !displayedKeys.has(fieldTitle)) {
+                    entriesToDisplay.push([fieldKey, value, 'fieldId']);
+                  }
+                });
+                
+                return entriesToDisplay.map(([key, value, type]) => {
+                  if (type === 'title') {
+                    // This is a field title, display it with blue styling
+                    return (
+                      <div key={key} className="p-6 hover:bg-gray-50">
+                        <div className="mb-1 font-medium text-blue-700">
+                          {key}
+                        </div>
+                        <div className="mt-2 text-gray-700">
+                          {value !== undefined && value !== null && value !== '' ? 
+                            String(value) : 
+                            <span className="text-gray-400 italic">Not provided</span>
+                          }
+                        </div>
                       </div>
-                      <div className="mt-2 text-gray-700">
-                        {renderResponseValue(field, value)}
+                    );
+                  } else {
+                    // This is a field ID, display it normally
+                    const field = fields.find(f => f.id === key);
+                    return (
+                      <div key={key} className="p-6 hover:bg-gray-50">
+                        <div className="mb-1 font-medium text-gray-900">
+                          {field?.label || field?.question || key}
+                          {field?.required && <span className="text-red-500 ml-1">*</span>}
+                        </div>
+                        <div className="mt-2 text-gray-700">
+                          {field ? renderResponseValue(field, value) : (
+                            value !== undefined && value !== null && value !== '' ? 
+                              String(value) : 
+                              <span className="text-gray-400 italic">Not provided</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                } else {
-                  // No field definition found, show with generic label
-                  return (
-                    <div key={fieldId} className="p-6 hover:bg-gray-50">
-                      <div className="mb-1 font-medium text-gray-900">
-                        Question {fieldId}
-                      </div>
-                      <div className="mt-2 text-gray-700">
-                        {value !== undefined && value !== null && value !== '' ? 
-                          String(value) : 
-                          <span className="text-gray-400 italic">Not provided</span>
-                        }
-                      </div>
-                    </div>
-                  );
-                }
-              })
+                    );
+                  }
+                });
+              })()
             ) : (
-              // If we don't have field definitions, just show the raw responses
-              Object.entries(responses).map(([fieldId, value]) => (
-                <div key={fieldId} className="p-6 hover:bg-gray-50">
-                  <div className="mb-1 font-medium text-gray-900">
-                    Field {fieldId}
+              // If we don't have field definitions, prioritize field titles over field IDs
+              (() => {
+                const responseEntries = Object.entries(responses);
+                const titleEntries = responseEntries.filter(([key]) => !key.startsWith('field_'));
+                const fieldIdEntries = responseEntries.filter(([key]) => key.startsWith('field_'));
+                
+                // If we have field titles, show only those; otherwise show field IDs
+                const entriesToShow = titleEntries.length > 0 ? titleEntries : fieldIdEntries;
+                
+                return entriesToShow.map(([fieldKey, value]) => (
+                  <div key={fieldKey} className="p-6 hover:bg-gray-50">
+                    <div className="mb-1 font-medium text-gray-900">
+                      {fieldKey.startsWith('field_') ? `Field ${fieldKey}` : fieldKey}
+                    </div>
+                    <div className="mt-2 text-gray-700">
+                      {value !== undefined && value !== null && value !== '' ? 
+                        String(value) : 
+                        <span className="text-gray-400 italic">Not provided</span>
+                      }
+                    </div>
                   </div>
-                  <div className="mt-2 text-gray-700">
-                    {value !== undefined && value !== null && value !== '' ? 
-                      String(value) : 
-                      <span className="text-gray-400 italic">Not provided</span>
-                    }
-                  </div>
-                </div>
-              ))
+                ));
+              })()
             )}
           </div>
         </div>
