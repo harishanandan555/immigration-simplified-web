@@ -35,7 +35,31 @@ describe('AnvilControllers', () => {
   describe('fillPdfTemplate', () => {
     it('should call the correct API endpoint with proper data', async () => {
       const mockResponse = {
-        data: { success: true, data: { pdfUrl: 'test-url' } },
+        data: { 
+          success: true, 
+          data: { 
+            templateId: 'test-template-123',
+            formNumber: 'I-130',
+            clientId: 'client-456',
+            pdfId: '507f1f77bcf86cd799439011',
+            filledPercentage: 85,
+            unfilledFields: { 'address.street': '', 'phoneNumber': '' },
+            validationRecordId: '507f1f77bcf86cd799439012',
+            pdfData: 'JVBERi0xLjQKJcfsj6IKNSAwIG9iago8PAovVHlwZSAvUGFnZQovUGFyZW50IDMgMCBSCi9NZWRpYUJveCBbMCAwIDU5NSA4NDJdCi9SZXNvdXJjZXMgPDwKL0ZvbnQgPDwKL0YxIDIgMCBSCj4+Cj4+Ci9Db250ZW50cyA0IDAgUgo+PgplbmRvYmoK...',
+            metadata: {
+              filename: 'filled-template-123.pdf',
+              fileSize: 45678,
+              contentType: 'application/pdf',
+              createdAt: '2024-01-15T10:30:00.000Z',
+              validationDetails: {
+                totalFields: 20,
+                filledFields: 17,
+                unfilledFieldsCount: 3,
+                openaiValidationUsed: true
+              }
+            }
+          } 
+        },
         status: 200,
         statusText: 'OK'
       };
@@ -51,8 +75,7 @@ describe('AnvilControllers', () => {
       expect(api.post).toHaveBeenCalledWith(
         '/api/v1/anvil/fill/test-template-123',
         {
-          templateId,
-          formData,
+          data: formData,
           options
         }
       );
@@ -79,10 +102,33 @@ describe('AnvilControllers', () => {
   });
 
   describe('fillPdfTemplateBlob', () => {
-    it('should call API with blob response type', async () => {
-      const mockBlob = new Blob(['test pdf content'], { type: 'application/pdf' });
+    it('should call API and return blob with metadata', async () => {
       const mockResponse = {
-        data: mockBlob,
+        data: {
+          success: true,
+          data: {
+            templateId: 'test-template',
+            formNumber: 'I-130',
+            clientId: 'client-123',
+            pdfId: 'pdf-456',
+            filledPercentage: 85,
+            unfilledFields: { 'address.street': '', 'phoneNumber': '' },
+            validationRecordId: 'validation-789',
+            pdfData: 'JVBERi0xLjQKJcfsj6IKNSAwIG9iago8PAovVHlwZSAvUGFnZQovUGFyZW50IDMgMCBSCi9NZWRpYUJveCBbMCAwIDU5NSA4NDJdCi9SZXNvdXJjZXMgPDwKL0ZvbnQgPDwKL0YxIDIgMCBSCj4+Cj4+Ci9Db250ZW50cyA0IDAgUgo+PgplbmRvYmoK...',
+            metadata: {
+              filename: 'filled-template-123.pdf',
+              fileSize: 45678,
+              contentType: 'application/pdf',
+              createdAt: '2024-01-15T10:30:00.000Z',
+              validationDetails: {
+                totalFields: 20,
+                filledFields: 17,
+                unfilledFieldsCount: 3,
+                openaiValidationUsed: true
+              }
+            }
+          }
+        },
         status: 200,
         statusText: 'OK'
       };
@@ -94,13 +140,14 @@ describe('AnvilControllers', () => {
       expect(api.post).toHaveBeenCalledWith(
         '/api/v1/anvil/fill/test-template',
         {
-          templateId: 'test-template',
-          formData: { name: 'John' },
-          options: { download: true }
-        },
-        { responseType: 'blob' }
+          data: { name: 'John' },
+          options: undefined
+        }
       );
-      expect(result.data).toBe(mockBlob);
+      expect(result.data.blob).toBeInstanceOf(Blob);
+      expect(result.data.filledPercentage).toBe(85);
+      expect(result.data.unfilledFields).toEqual({ 'address.street': '', 'phoneNumber': '' });
+      expect(result.data.metadata.filename).toBe('filled-template-123.pdf');
     });
   });
 
