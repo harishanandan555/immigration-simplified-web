@@ -143,8 +143,21 @@ const FillQuestionnaire: React.FC = () => {
         return;
       }
 
+      // Create enhanced draft responses with field titles
+      const enhancedDraftResponses = {
+        // Original field ID responses for backward compatibility
+        ...responses
+      };
+
+      // Add field titles directly as readable entries for drafts
+      assignment.questionnaireId.fields.forEach(field => {
+        if (responses[field.id] !== undefined) {
+          enhancedDraftResponses[`${field.label}`] = responses[field.id];
+        }
+      });
+
       // Save draft responses to localStorage
-      await questionnaireAssignmentService.saveDraftResponses(assignmentId, responses);
+      await questionnaireAssignmentService.saveDraftResponses(assignmentId, enhancedDraftResponses);
       toast.success('Draft saved successfully');
     } catch (err) {
       console.error('Error saving draft:', err);
@@ -172,9 +185,22 @@ const FillQuestionnaire: React.FC = () => {
         return;
       }
       
+      // Create enhanced responses with field titles displayed directly
+      const enhancedResponses = {
+       
+        ...responses
+      };
+
+      // Add field titles directly as readable entries
+      assignment.questionnaireId.fields.forEach(field => {
+        if (responses[field.id] !== undefined) {
+          enhancedResponses[`${field.label}`] = responses[field.id];
+        }
+      });
+
       await questionnaireAssignmentService.submitQuestionnaireResponses(
         assignment._id,
-        responses,
+        enhancedResponses,
         'Submitted by client' // Optional notes
       );
       

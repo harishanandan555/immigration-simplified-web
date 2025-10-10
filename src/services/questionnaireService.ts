@@ -76,6 +76,11 @@ class QuestionnaireService {
       ...(token && { 'Authorization': `Bearer ${token}` }),
     };
 
+    console.log('[QuestionnaireService] Request headers:', {
+      'Authorization': token ? `Bearer ${token.substring(0, 20)}...` : 'NO TOKEN',
+      'Content-Type': 'application/json'
+    });
+
     const config: RequestInit = {
       ...options,
       headers: {
@@ -94,6 +99,13 @@ class QuestionnaireService {
 
     try {
       const response = await fetch(fullUrl, config);
+      
+      console.log('[QuestionnaireService] Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        url: response.url
+      });
       
       if (!response.ok) {
         // Try to get the error response as text first
@@ -147,27 +159,15 @@ class QuestionnaireService {
   }
 
   private getAuthToken(): string | null {
-    // Try multiple storage locations for auth token with debug info
-    const authToken = localStorage.getItem('auth_token');
-    const sessionAuthToken = sessionStorage.getItem('auth_token');
-    const accessToken = localStorage.getItem('access_token');
-    const sessionAccessToken = sessionStorage.getItem('access_token');
-    const regularToken = localStorage.getItem('token');
+    // Use the same token retrieval pattern as the main API utility
+    const token = localStorage.getItem('token');
     
-    const foundToken = authToken || sessionAuthToken || accessToken || sessionAccessToken || regularToken;
-    
-    // Debug logging
     console.log('[QuestionnaireService] Token check:', {
-      authToken: authToken ? 'present' : 'missing',
-      sessionAuthToken: sessionAuthToken ? 'present' : 'missing', 
-      accessToken: accessToken ? 'present' : 'missing',
-      sessionAccessToken: sessionAccessToken ? 'present' : 'missing',
-      regularToken: regularToken ? 'present' : 'missing',
-      foundToken: foundToken ? `present (${foundToken.substring(0, 10)}...)` : 'missing'
+      foundToken: token ? `present (${token.substring(0, 10)}...)` : 'missing',
+      tokenLength: token ? token.length : 0
     });
     
-    // Return the first valid token found
-    return foundToken;
+    return token;
   }
 
   // ==================== QUESTIONNAIRE CRUD OPERATIONS ====================
@@ -416,9 +416,64 @@ class QuestionnaireService {
   }
 
   /**
-   * Import questionnaire from JSON
+   * Import questionnaire from file using backend import endpoint
    */
   async importQuestionnaire(file: File): Promise<ImmigrationQuestionnaire> {
+    try {
+      const token = this.getAuthToken();
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      // Create FormData for multipart/form-data upload
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const fullUrl = `${this.baseURL}/questionnaires/import`;
+      
+      console.log('[QuestionnaireService] Importing questionnaire:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        url: fullUrl
+      });
+
+      const response = await fetch(fullUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Note: Don't set Content-Type for FormData, let browser set it with boundary
+        },
+        body: formData
+      });
+
+      console.log('[QuestionnaireService] Import response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[QuestionnaireService] Import error response:', errorText);
+        throw new Error(`Import failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('[QuestionnaireService] Import successful:', result);
+      
+      return result;
+      
+    } catch (error: any) {
+      console.error('[QuestionnaireService] Import error:', error);
+      throw new Error(`Failed to import questionnaire: ${error.message}`);
+    }
+  }
+
+  /**
+   * Import questionnaire from JSON file (original functionality)
+   */
+  private async importFromJSON(file: File): Promise<ImmigrationQuestionnaire> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -452,6 +507,197 @@ class QuestionnaireService {
       };
       reader.readAsText(file);
     });
+  }
+
+  /**
+   * Import questionnaire from PDF file
+   */
+  private async importFromPDF(file: File): Promise<ImmigrationQuestionnaire> {
+    // Note: This is a simplified implementation
+    // For production, you might want to use PDF.js or similar library
+    console.log('Attempting to import PDF file:', file.name);
+    throw new Error('PDF import requires additional processing. Please convert PDF to text format first.');
+  }
+
+  /**
+   * Import questionnaire from Word document
+   */
+  private async importFromDocument(file: File): Promise<ImmigrationQuestionnaire> {
+    // Note: This is a simplified implementation
+    // For production, you might want to use mammoth.js or similar library
+    console.log('Attempting to import document file:', file.name);
+    throw new Error('Document import requires additional processing. Please convert document to text format first.');
+  }
+
+  /**
+   * Import questionnaire from text file
+   */
+  private async importFromText(file: File): Promise<ImmigrationQuestionnaire> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const textContent = e.target?.result as string;
+          const questionnaire = this.parseTextToQuestionnaire(textContent, file.name);
+          resolve(questionnaire);
+        } catch (error) {
+          reject(new Error('Failed to parse text file'));
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  /**
+   * Parse text content and create questionnaire structure
+   */
+  private parseTextToQuestionnaire(text: string, fileName: string): ImmigrationQuestionnaire {
+    const lines = text.split('\n').filter(line => line.trim());
+    const fields: any[] = [];
+    
+    // Enhanced parsing to handle different formats
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) return;
+      
+      let fieldType = 'text';
+      let fieldLabel = trimmedLine;
+      let fieldOptions: string[] = [];
+      
+      // Check if field type is specified in parentheses (e.g., "First Name(text)")
+      const typeMatch = trimmedLine.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (typeMatch) {
+        fieldLabel = typeMatch[1].trim();
+        const specifiedType = typeMatch[2].toLowerCase().trim();
+        
+        // Map specified types to our field types
+        switch (specifiedType) {
+          case 'text':
+          case 'string':
+            fieldType = 'text';
+            break;
+          case 'email':
+            fieldType = 'email';
+            break;
+          case 'phone':
+          case 'telephone':
+            fieldType = 'phone';
+            break;
+          case 'number':
+          case 'numeric':
+            fieldType = 'number';
+            break;
+          case 'date':
+            fieldType = 'date';
+            break;
+          case 'textarea':
+          case 'longtext':
+            fieldType = 'textarea';
+            break;
+          case 'radio':
+          case 'select':
+            fieldType = 'radio';
+            fieldOptions = ['Option 1', 'Option 2', 'Option 3'];
+            break;
+          case 'checkbox':
+          case 'multiselect':
+            fieldType = 'checkbox';
+            fieldOptions = ['Option 1', 'Option 2', 'Option 3'];
+            break;
+          case 'yesno':
+          case 'boolean':
+            fieldType = 'yesno';
+            fieldOptions = ['Yes', 'No'];
+            break;
+          case 'address':
+            fieldType = 'address';
+            break;
+          case 'file':
+          case 'upload':
+            fieldType = 'file';
+            break;
+          default:
+            fieldType = 'text';
+        }
+      } else {
+        // Fallback to original heuristic detection
+        if (trimmedLine.endsWith('?') || 
+            /^(what|how|when|where|why|which|who|do you|did you|have you|are you|will you|can you)/i.test(trimmedLine)) {
+          
+          // Determine field type based on content
+          if (/email/i.test(trimmedLine)) fieldType = 'email';
+          else if (/phone|telephone/i.test(trimmedLine)) fieldType = 'phone';
+          else if (/date|birth|when/i.test(trimmedLine)) fieldType = 'date';
+          else if (/address/i.test(trimmedLine)) fieldType = 'address';
+          else if (/yes|no|\(y\/n\)/i.test(trimmedLine)) {
+            fieldType = 'yesno';
+            fieldOptions = ['Yes', 'No'];
+          }
+          else if (trimmedLine.length > 100) fieldType = 'textarea';
+          
+          // Remove question marks and colons from label
+          fieldLabel = trimmedLine.replace(/[?:]+$/, '').trim();
+        } else if (/^(name|address|phone|email|date|age)/i.test(trimmedLine)) {
+          // Handle field names without questions
+          if (/email/i.test(trimmedLine)) fieldType = 'email';
+          else if (/phone/i.test(trimmedLine)) fieldType = 'phone';
+          else if (/date|birth/i.test(trimmedLine)) fieldType = 'date';
+          else if (/address/i.test(trimmedLine)) fieldType = 'address';
+          else if (/zip|postal/i.test(trimmedLine)) fieldType = 'number';
+        }
+      }
+      
+      // Create field object
+      if (fieldLabel) {
+        fields.push({
+          id: `field_${Date.now()}_${index}`,
+          type: fieldType,
+          label: fieldLabel,
+          required: false,
+          order: fields.length,
+          eligibility_impact: 'medium',
+          placeholder: '',
+          help_text: '',
+          options: fieldOptions.length > 0 ? fieldOptions : 
+                   (['radio', 'checkbox', 'select', 'multiselect'].includes(fieldType) ? ['Option 1', 'Option 2'] : [])
+        });
+      }
+    });
+
+    // If no fields found, create a basic field
+    if (fields.length === 0) {
+      fields.push({
+        id: `field_${Date.now()}_0`,
+        type: 'textarea',
+        label: `Content from ${fileName}`,
+        required: false,
+        order: 0,
+        eligibility_impact: 'medium',
+        help_text: 'Please review and edit this imported content',
+        placeholder: '',
+        options: []
+      });
+    }
+
+    const baseName = fileName.replace(/\.[^/.]+$/, '');
+    return {
+      id: 'new',
+      title: `Imported from ${baseName}`,
+      description: `Questionnaire automatically generated from text file: ${fileName}. Contains ${fields.length} fields.`,
+      category: 'general',
+      fields,
+      settings: {
+        show_progress_bar: true,
+        allow_back_navigation: true,
+        auto_save: true,
+        require_completion: false,
+        show_results: true,
+        theme: 'default'
+      },
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as ImmigrationQuestionnaire;
   }
 
   /**

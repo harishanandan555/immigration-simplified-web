@@ -155,6 +155,8 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddQuestionsGuide, setShowAddQuestionsGuide] = useState(false);
+  const [showImportNotice, setShowImportNotice] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Load questionnaires from API on component mount
   useEffect(() => {
@@ -611,11 +613,30 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
 
     try {
       setLoading(true);
-      const importedData = await questionnaireService.importQuestionnaire(file);
-      await questionnaireService.createQuestionnaire(importedData as any);
       
-      toast.success('Questionnaire imported successfully');
+      // Use the backend import endpoint directly
+      console.log('Importing questionnaire file:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+
+      // Import using the backend endpoint
+      const importedQuestionnaire = await questionnaireService.importQuestionnaire(file);
+      
+      toast.success(`Questionnaire imported successfully from ${file.name}`);
       await loadQuestionnaires(); // Reload to show imported questionnaire
+      
+      // Optionally select the imported questionnaire
+      if (importedQuestionnaire && importedQuestionnaire.id) {
+        // Find and select the imported questionnaire
+        const updatedQuestionnaires = await loadQuestionnaires();
+        const imported = updatedQuestionnaires?.find((q: ImmigrationQuestionnaire) => q.id === importedQuestionnaire.id);
+        if (imported) {
+          setSelectedQuestionnaire(imported);
+        }
+      }
+      
     } catch (error: any) {
       console.error('Error importing questionnaire:', error);
       toast.error('Failed to import questionnaire: ' + error.message);
@@ -625,9 +646,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       event.target.value = '';
     }
   };
-  
-
-
 
 
   const filteredQuestionnaires = questionnaires.filter(questionnaire => {
@@ -1028,6 +1046,117 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     </div>
   );
 
+  const renderImportNotice = () => {
+    const handleProceedWithImport = () => {
+      setShowImportNotice(false);
+      // Trigger file input
+      fileInputRef.current?.click();
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center">
+                <AlertCircle className="h-6 w-6 text-blue-600 mr-2" />
+                <h3 className="text-lg font-semibold text-gray-900">Import Format Requirements</h3>
+              </div>
+              <button
+                onClick={() => setShowImportNotice(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">Supported File Formats</h4>
+                <ul className="list-disc list-inside text-blue-800 space-y-1">
+                  <li><strong>JSON</strong> - Questionnaire data files</li>
+                  <li><strong>PDF</strong> - Text extraction from PDF documents</li>
+                  <li><strong>DOCX/DOC</strong> - Microsoft Word documents</li>
+                  <li><strong>TXT</strong> - Plain text files with field definitions</li>
+                </ul>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h4 className="font-medium text-green-900 mb-3">For Text Files - Use This Format</h4>
+                <div className="bg-white border border-green-300 rounded p-3 font-mono text-sm">
+                  <div className="text-green-700">
+                    First Name(text)<br />
+                    Last Name(text)<br />
+                    Email Address(email)<br />
+                    Phone Number(phone)<br />
+                    Date of Birth(date)<br />
+                    ZIP Code(number)<br />
+                    Gender(radio)<br />
+                    Are you a U.S. citizen?(yesno)<br />
+                    Additional Comments(textarea)
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-medium text-yellow-900 mb-2">Supported Field Types</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm text-yellow-800">
+                  <div><code>(text)</code> - Text input</div>
+                  <div><code>(email)</code> - Email field</div>
+                  <div><code>(phone)</code> - Phone number</div>
+                  <div><code>(number)</code> - Numeric input</div>
+                  <div><code>(date)</code> - Date picker</div>
+                  <div><code>(textarea)</code> - Long text</div>
+                  <div><code>(radio)</code> - Radio buttons</div>
+                  <div><code>(checkbox)</code> - Checkboxes</div>
+                  <div><code>(yesno)</code> - Yes/No options</div>
+                  <div><code>(address)</code> - Address field</div>
+                  <div><code>(file)</code> - File upload</div>
+                  <div><code>(select)</code> - Dropdown</div>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h4 className="font-medium text-red-900 mb-2">Important Notes</h4>
+                <ul className="list-disc list-inside text-red-800 space-y-1 text-sm">
+                  <li>Each field should be on a separate line</li>
+                  <li>Field type must be specified in parentheses</li>
+                  <li>If no type is specified, it will default to text</li>
+                  <li>Radio, checkbox, and select fields will get default options</li>
+                  <li>Files not following this format may not import correctly</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+              <button
+                onClick={() => setShowImportNotice(false)}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleProceedWithImport}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                I Understand, Proceed with Import
+              </button>
+            </div>
+          </div>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.pdf,.docx,.doc,.txt"
+            onChange={importQuestionnaire}
+            className="hidden"
+          />
+        </div>
+      </div>
+    );
+  };
+
 
 
   // Helper function to check auth token
@@ -1086,16 +1215,14 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
               <Plus size={18} className="mr-2" />
               New Questionnaire
             </button>
-            <label className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 cursor-pointer flex items-center justify-center font-medium shadow-sm whitespace-nowrap" style={{ minWidth: 0 }}>
+            <button
+              onClick={() => setShowImportNotice(true)}
+              className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center justify-center font-medium shadow-sm whitespace-nowrap"
+              style={{ minWidth: 0 }}
+            >
               <Upload size={18} className="mr-2" />
               Import
-              <input
-                type="file"
-                accept=".json"
-                onChange={importQuestionnaire}
-                className="hidden"
-              />
-            </label>
+            </button>
           </div>
         </div>
       </div>
@@ -1328,6 +1455,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       {/* Modals */}
       {showFieldEditor && renderFieldEditor()}
       {showQuestionnaireSettings && renderQuestionnaireSettings()}
+      {showImportNotice && renderImportNotice()}
     </div>
   );
 };
