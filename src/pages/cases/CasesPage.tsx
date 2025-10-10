@@ -314,11 +314,11 @@ const CasesPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="w-full">
+          <table className="w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('caseNumber')}
@@ -327,7 +327,7 @@ const CasesPage: React.FC = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/4 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('title')}
@@ -336,7 +336,7 @@ const CasesPage: React.FC = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/5 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('clientName')}
@@ -345,7 +345,7 @@ const CasesPage: React.FC = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('status')}
@@ -354,8 +354,8 @@ const CasesPage: React.FC = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('createdAt')}
@@ -369,7 +369,7 @@ const CasesPage: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loadingWorkflows ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-3 py-3 text-center text-gray-500">
                     Loading workflow cases...
                   </td>
                 </tr>
@@ -377,58 +377,65 @@ const CasesPage: React.FC = () => {
                 paginatedCases.map((workflowCase) => {
                   return (
                     <tr key={workflowCase._id} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">
+                      <td className="px-3 py-3 text-sm font-medium text-indigo-600">
                         <Link to={`/cases/${workflowCase._id}`} className="block">
-                          <div className="font-bold">{workflowCase.caseNumber}</div>
+                          <div className="font-bold truncate">{workflowCase.caseNumber}</div>
                           {workflowCase.formCaseIds && Object.keys(workflowCase.formCaseIds).length > 0 && (
                             <div className="mt-1 space-y-1">
                               {Object.entries(workflowCase.formCaseIds)
                                 .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
+                                .slice(0, 2) // Limit to first 2 form case IDs to save space
                                 .map(([formName, caseId]) => (
                                 <div 
                                   key={formName}
-                                  className="text-xs font-mono px-2 py-1 rounded inline-block mr-1 bg-green-50 text-green-600"
+                                  className="text-xs font-mono px-1 py-0.5 rounded bg-green-50 text-green-600 truncate"
+                                  title={`${formName}: ${caseId}`}
                                 >
                                   {formName}: {caseId}
                                 </div>
                               ))}
+                              {Object.keys(workflowCase.formCaseIds).length > 2 && (
+                                <div className="text-xs text-gray-500">
+                                  +{Object.keys(workflowCase.formCaseIds).length - 2} more
+                                </div>
+                              )}
                             </div>
                           )}
-                          <div className="text-xs text-purple-600 mt-1">
+                          <div className="text-xs text-purple-600 mt-1 truncate">
                             📋 Step {workflowCase.currentStep} • {workflowCase.status}
                           </div>
                         </Link>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-3 py-3 text-sm text-gray-900">
                         <Link to={`/cases/${workflowCase._id}`}>
-                          <div className="font-medium">{workflowCase.title}</div>
+                          <div className="font-medium truncate" title={workflowCase.title}>{workflowCase.title}</div>
                           {workflowCase.description && workflowCase.description !== workflowCase.title && (
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-xs text-gray-500 mt-1 truncate" title={workflowCase.description}>
                               {workflowCase.description}
                             </div>
                           )}
                           {workflowCase.subcategory && (
-                            <div className="text-xs text-blue-600 mt-1">
+                            <div className="text-xs text-blue-600 mt-1 truncate">
                               {workflowCase.category} • {workflowCase.subcategory}
                             </div>
                           )}
                         </Link>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-3 py-3 text-sm text-gray-500">
                         <div>
-                          <div className="font-medium">{workflowCase.client.name}</div>
-                          <div className="text-xs text-gray-400">{workflowCase.client.email}</div>
+                          <div className="font-medium truncate" title={workflowCase.client.name}>{workflowCase.client.name}</div>
+                          <div className="text-xs text-gray-400 truncate" title={workflowCase.client.email}>{workflowCase.client.email}</div>
                           {workflowCase.client.phone && (
-                            <div className="text-xs text-gray-400">{workflowCase.client.phone}</div>
+                            <div className="text-xs text-gray-400 truncate">{workflowCase.client.phone}</div>
                           )}
                           {workflowCase.client.nationality && (
-                            <div className="text-xs text-blue-600 mt-1">
+                            <div className="text-xs text-blue-600 mt-1 truncate">
                               🌍 {workflowCase.client.nationality}
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 py-3">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           workflowCase.status === 'active' || workflowCase.status === 'Active'
                             ? 'bg-green-100 text-green-800'
@@ -454,11 +461,12 @@ const CasesPage: React.FC = () => {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="capitalize">{workflowCase.category}</div>
+                      <td className="px-3 py-3 text-sm text-gray-500">
+                        <div className="capitalize truncate">{workflowCase.category}</div>
                         {workflowCase.selectedForms.length > 0 && (
-                          <div className="text-xs text-green-600 mt-1">
-                            Forms: {workflowCase.selectedForms.join(', ')}
+                          <div className="text-xs text-green-600 mt-1 truncate" title={workflowCase.selectedForms.join(', ')}>
+                            Forms: {workflowCase.selectedForms.slice(0, 2).join(', ')}
+                            {workflowCase.selectedForms.length > 2 && ` +${workflowCase.selectedForms.length - 2}`}
                           </div>
                         )}
                         {workflowCase.dueDate && (
@@ -467,14 +475,14 @@ const CasesPage: React.FC = () => {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-3 py-3 text-sm text-gray-500">
                         <div>{new Date(workflowCase.createdAt).toLocaleDateString()}</div>
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className="text-xs text-gray-400 mt-1 truncate">
                           by {workflowCase.createdBy.firstName} {workflowCase.createdBy.lastName}
                         </div>
                         {workflowCase.questionnaireAssignment?.is_complete && (
                           <div className="text-xs text-green-600 mt-1">
-                            ✅ Questionnaire Complete
+                            ✅ Complete
                           </div>
                         )}
                       </td>
@@ -483,7 +491,7 @@ const CasesPage: React.FC = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-3 py-3 text-center text-gray-500">
                     No workflow cases found matching your search criteria.
                   </td>
                 </tr>
