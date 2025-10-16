@@ -702,7 +702,9 @@ export const ANVIL_END_POINTS = {
     // Get template payload by template ID
     GET_TEMPLATE_PAYLOAD: "/api/v1/anvil/template/:templateId/payload",
     // Get templates by form number
-    GET_TEMPLATES_BY_FORM: "/api/v1/anvil/templates/form/:formNumber"
+    GET_TEMPLATES_BY_FORM: "/api/v1/anvil/templates/form/:formNumber",
+    // Save edited PDF to database
+    SAVE_EDITED_PDF: "/api/v1/anvil/save-edited-pdf"
 } as const;
 
 
