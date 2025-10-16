@@ -447,20 +447,11 @@ const QuestionnaireResponses: React.FC = () => {
     const questionnaireInfo = assignment.questionnaireDetails;
     const responseInfo = assignment.responseId;
 
-    console.log('🖱️ Client clicked - assignment data:', {
-      assignmentId: assignment._id,
-      hasClientInfo: !!clientInfo,
-      clientInfo: clientInfo,
-      hasQuestionnaireInfo: !!questionnaireInfo,
-      questionnaireInfo: questionnaireInfo,
-      hasResponseInfo: !!responseInfo,
-      questionnaireId: assignment.questionnaireId,
-      enhancedWithWorkflow: assignment.enhancedWithWorkflow
-    });
+    
 
     if (!clientInfo) {
       toast.error('Cannot navigate - missing client information');
-      console.error('❌ Missing client info:', { assignment });
+    
       return;
     }
 
@@ -472,14 +463,14 @@ const QuestionnaireResponses: React.FC = () => {
       fields: []
     };
 
-    console.log('✅ Using questionnaire data:', questionnaire);
 
     setLoadingWorkflows(true);
+
+    let matchingWorkflow = null; // Declare at function scope
 
     try {
       // Fetch workflows from API to get complete workflow data
       const apiWorkflows = await fetchWorkflowsFromAPI();
-      let matchingWorkflow = null;
 
       console.log('Fetched workflows for auto-fill:', apiWorkflows);
       if (apiWorkflows && apiWorkflows.length > 0) {
@@ -513,11 +504,7 @@ const QuestionnaireResponses: React.FC = () => {
           matchingWorkflow = allMatchingWorkflows
             .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
-          console.log('✅ Selected most recent workflow:', {
-            workflowId: matchingWorkflow.id || matchingWorkflow._id,
-            status: matchingWorkflow.status,
-            updatedAt: matchingWorkflow.updatedAt
-          });
+       
         } else {
           // If no client match, get the most recent workflow overall
           matchingWorkflow = apiWorkflows
@@ -540,6 +527,17 @@ const QuestionnaireResponses: React.FC = () => {
         fields: sanitizeObject(questionnaire?.fields || []),
         mode: responseInfo?.responses ? 'edit' : 'new',
         originalAssignmentId: assignment._id,
+
+        // Include workflow IDs for All Details Summary
+        ...(matchingWorkflow && {
+          workflowId: matchingWorkflow.workflowId || matchingWorkflow._id || matchingWorkflow.id,
+          databaseWorkflowId: matchingWorkflow._id, // MongoDB ObjectId
+          selectedWorkflow: {
+            _id: matchingWorkflow._id,
+            id: matchingWorkflow.id,
+            workflowId: matchingWorkflow.workflowId
+          }
+        }),
 
         // Enhanced workflow data from API - all sanitized
         ...(matchingWorkflow && {
@@ -636,8 +634,24 @@ const QuestionnaireResponses: React.FC = () => {
     } finally {
       setLoadingWorkflows(false);
 
-      // Navigate to the Legal Firm Workflow page with existing response parameter
-      navigate('/legal-firm-workflow?fromQuestionnaireResponses=true');
+      // Navigate to the Legal Firm Workflow page with existing response parameter and workflow ID
+      // Priority: use workflowId first, then fallback to _id or id
+      const workflowId = matchingWorkflow?.workflowId || matchingWorkflow?._id || matchingWorkflow?.id;
+      
+      // Console log the workflow ID values for debugging
+   
+      
+      const navigationUrl = workflowId 
+        ? `/legal-firm-workflow?fromQuestionnaireResponses=true&workflowId=${workflowId}`
+        : '/legal-firm-workflow?fromQuestionnaireResponses=true';
+      
+      console.log('🔗 Navigating to LegalFirmWorkflow with workflow ID:', {
+        workflowId,
+        navigationUrl,
+        hasWorkflowId: !!workflowId
+      });
+      
+      navigate(navigationUrl);
     }
   };
 

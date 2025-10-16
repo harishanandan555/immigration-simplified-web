@@ -171,7 +171,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       // Load from API
       const response = await questionnaireService.getQuestionnaires();
       
-      console.log('API Response:', response);
       // Convert API format to local format and filter for active questionnaires
       const convertedQuestionnaires = response.questionnaires
         .filter(q => q.is_active)
@@ -186,7 +185,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       return convertedQuestionnaires;
         
     } catch (error: any) {
-      console.error('Error loading questionnaires:', error);
       setError('Failed to load questionnaires: ' + error.message);
       toast.error('Failed to load questionnaires');
     } finally {
@@ -356,7 +354,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                  localStorage.getItem('token');
     
     if (!token) {
-      toast.error('You must be logged in to save questionnaires.');
       setError('Authentication error: No login token found. Please log in.');
       return false;
     }
@@ -366,7 +363,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
 
   const saveQuestionnaire = async () => {
     if (!selectedQuestionnaire) {
-      toast.error('No questionnaire selected to save');
       return;
     }
 
@@ -385,7 +381,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                          localStorage.getItem('token');
       
       if (!authToken) {
-        toast.error('Authentication token not found. Please log in again.');
         setError('No authentication token found. Please log in again.');
         setLoading(false);
         return;
@@ -395,7 +390,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       const authStatus = await questionnaireService.testAuthentication();
       
       if (!authStatus.isAuthenticated) {
-        toast.error(`Authentication error: ${authStatus.message}. Please log in again.`);
         setError(`Authentication error: ${authStatus.message}`);
         setLoading(false);
         return;
@@ -405,7 +399,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       const apiData: any = convertLocalToAPI(selectedQuestionnaire);
       
       if (!apiData || Object.keys(apiData).length === 0 || !apiData.title || apiData.title.trim() === '') {
-        toast.error('Questionnaire title is required');
         setError('Questionnaire title is required');
         setLoading(false);
         return;
@@ -415,7 +408,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
         // Create new questionnaire
         try {
           const response = await questionnaireService.createQuestionnaire(apiData as any);
-          toast.success('Questionnaire created successfully');
           
           // Verify the questionnaire was created and fetch it
           try {
@@ -428,7 +420,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
               const newlyCreated = updatedQuestionnaires.find((q: ImmigrationQuestionnaire) => q.id === response.id);
               if (newlyCreated) {
                 setSelectedQuestionnaire(newlyCreated);
-                toast.info('Now you can add questions to your questionnaire');
                 // Show the guide banner
                 setShowAddQuestionsGuide(true);
                 
@@ -450,24 +441,15 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
             setShowQuestionnaireSettings(false);
             
           } catch (verifyError) {
-            toast.warning('Questionnaire may not have been saved correctly. Please check and try again.');
+            // Questionnaire may not have been saved correctly
           }
         } catch (apiError: any) {
-          // Check for specific error types
-          if (apiError.message.includes('Authentication') || apiError.message.includes('log in')) {
-            toast.error('Authentication error. Please log in again.');
-          } else if (apiError.message.includes('title already exists')) {
-            toast.error('A questionnaire with this title already exists. Please choose a different title.');
-          } else {
-            toast.error(`Failed to create questionnaire: ${apiError.message}`);
-          }
           setError(`Failed to create questionnaire: ${apiError.message}`);
         }
       } else {
         // Update existing questionnaire
         try {
           await questionnaireService.updateQuestionnaire(selectedQuestionnaire.id, apiData as any);
-          toast.success('Questionnaire updated successfully');
           
           // Reload questionnaires but keep the questionnaire selected
           const updatedQuestionnaires = await loadQuestionnaires();
@@ -482,21 +464,10 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
           setShowQuestionnaireSettings(false);
           
         } catch (updateError: any) {
-          console.error('API error updating questionnaire:', updateError);
-          
-          // Check for specific error types
-          if (updateError.message.includes('Authentication') || updateError.message.includes('log in')) {
-            toast.error('Authentication error. Please log in again.');
-          } else {
-            toast.error(`Failed to update questionnaire: ${updateError.message}`);
-          }
-          
           setError(`Failed to update questionnaire: ${updateError.message}`);
         }
       }
     } catch (error: any) {
-      console.error('Error saving questionnaire:', error);
-      toast.error('Failed to save questionnaire: ' + error.message);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -590,7 +561,6 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       toast.success('Questionnaire duplicated successfully');
       await loadQuestionnaires();
     } catch (error: any) {
-      console.error('Error duplicating questionnaire:', error);
       toast.error('Failed to duplicate questionnaire: ' + error.message);
     } finally {
       setLoading(false);
@@ -602,44 +572,56 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       await questionnaireService.exportQuestionnaire(questionnaire.id);
       toast.success('Questionnaire exported successfully');
     } catch (error: any) {
-      console.error('Error exporting questionnaire:', error);
+      toast.error('Failed to export questionnaire: ' + error.message);
       toast.error('Failed to export questionnaire: ' + error.message);
     }
   };
 
   const importQuestionnaire = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+   
+    if (!file) {
+      return;
+    }
 
     try {
       setLoading(true);
       
-      // Use the backend import endpoint directly
-      console.log('Importing questionnaire file:', {
-        name: file.name,
-        type: file.type,
-        size: file.size
+      // Add a timeout to detect if the service call hangs
+      const importPromise = questionnaireService.importQuestionnaire(file);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Import timeout after 30 seconds')), 30000);
       });
-
-      // Import using the backend endpoint
-      const importedQuestionnaire = await questionnaireService.importQuestionnaire(file);
+      
+      const importedQuestionnaire = await Promise.race([importPromise, timeoutPromise]) as ImmigrationQuestionnaire;
       
       toast.success(`Questionnaire imported successfully from ${file.name}`);
+      
       await loadQuestionnaires(); // Reload to show imported questionnaire
       
       // Optionally select the imported questionnaire
-      if (importedQuestionnaire && importedQuestionnaire.id) {
+      if (importedQuestionnaire && (importedQuestionnaire as any).id) {
         // Find and select the imported questionnaire
         const updatedQuestionnaires = await loadQuestionnaires();
-        const imported = updatedQuestionnaires?.find((q: ImmigrationQuestionnaire) => q.id === importedQuestionnaire.id);
+        
+        const imported = updatedQuestionnaires?.find((q: ImmigrationQuestionnaire) => q.id === (importedQuestionnaire as any).id);
+        
         if (imported) {
           setSelectedQuestionnaire(imported);
         }
       }
       
     } catch (error: any) {
-      console.error('Error importing questionnaire:', error);
-      toast.error('Failed to import questionnaire: ' + error.message);
+      // More specific error messages
+      if (error.message.includes('timeout')) {
+        toast.error('Import timed out. The file may be too large or the server is busy. Please try again.');
+      } else if (error.message.includes('fetch') || error.message.includes('network')) {
+        toast.error('Network error during import. Please check your connection and try again.');
+      } else if (error.message.includes('Authentication') || error.message.includes('401')) {
+        toast.error('Authentication failed. Please log in again and try importing.');
+      } else {
+        toast.error('Failed to import questionnaire: ' + error.message);
+      }
     } finally {
       setLoading(false);
       // Reset file input
@@ -1048,9 +1030,53 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
 
   const renderImportNotice = () => {
     const handleProceedWithImport = () => {
-      setShowImportNotice(false);
-      // Trigger file input
-      fileInputRef.current?.click();
+      // Trigger file input immediately while still in user gesture context
+      if (fileInputRef.current) {
+        // Add a direct event listener as backup
+        const fileInput = fileInputRef.current;
+        const handleDirectChange = (e: Event) => {
+          if ((e.target as HTMLInputElement).files && (e.target as HTMLInputElement).files!.length > 0) {
+            const reactEvent = {
+              target: e.target as HTMLInputElement,
+              currentTarget: e.target as HTMLInputElement
+            } as React.ChangeEvent<HTMLInputElement>;
+            importQuestionnaire(reactEvent);
+          }
+          
+          // Remove the event listener after use
+          fileInput.removeEventListener('change', handleDirectChange);
+        };
+        
+        fileInput.addEventListener('change', handleDirectChange);
+        
+        fileInput.click();
+        
+        // Add a polling mechanism to check if file is selected
+        const checkForFile = () => {
+          if (fileInputRef.current?.files && fileInputRef.current.files.length > 0) {
+            const event = {
+              target: fileInputRef.current,
+              currentTarget: fileInputRef.current
+            } as React.ChangeEvent<HTMLInputElement>;
+            importQuestionnaire(event);
+            return; // Stop polling once file is found
+          } else {
+            // Check again in 500ms if no file found yet (max 10 times = 5 seconds)
+            if (checkCount < 10) {
+              setTimeout(checkForFile, 500);
+              checkCount++;
+            }
+          }
+        };
+        
+        let checkCount = 0;
+        setTimeout(checkForFile, 500); // Start checking after 500ms
+      }
+      
+      // Close modal after a short delay to allow file dialog to open
+      setTimeout(() => {
+        setShowImportNotice(false);
+      }, 200); // Increased delay to 200ms to ensure file dialog has time to open
     };
 
     return (
@@ -1144,13 +1170,31 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
             </div>
           </div>
 
-          {/* Hidden file input */}
+          {/* Hidden file input inside modal */}
           <input
             ref={fileInputRef}
             type="file"
             accept=".json,.pdf,.docx,.doc,.txt"
-            onChange={importQuestionnaire}
+            onChange={(e) => {
+              // Additional debugging
+              if (e.target.files && e.target.files.length > 0) {
+                importQuestionnaire(e);
+              }
+            }}
+            onBlur={() => {
+              // Check if files were selected during the blur event
+              setTimeout(() => {
+                if (fileInputRef.current?.files && fileInputRef.current.files.length > 0) {
+                  const event = {
+                    target: fileInputRef.current,
+                    currentTarget: fileInputRef.current
+                  } as React.ChangeEvent<HTMLInputElement>;
+                  importQuestionnaire(event);
+                }
+              }, 100);
+            }}
             className="hidden"
+            style={{ display: 'none' }}
           />
         </div>
       </div>
@@ -1216,9 +1260,12 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
               New Questionnaire
             </button>
             <button
-              onClick={() => setShowImportNotice(true)}
+              onClick={() => {
+                setShowImportNotice(true);
+              }}
               className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 flex items-center justify-center font-medium shadow-sm whitespace-nowrap"
               style={{ minWidth: 0 }}
+              title="Import questionnaire from file (JSON, PDF, DOCX, DOC, TXT)"
             >
               <Upload size={18} className="mr-2" />
               Import
