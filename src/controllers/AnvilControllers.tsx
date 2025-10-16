@@ -142,6 +142,45 @@ export interface AnvilTemplatePayload {
   };
 }
 
+export interface SaveEditedPdfRequest {
+  formNumber: string;
+  clientId: string;
+  caseId?: string;
+  workflowId?: string;
+  templateId: string;
+  pdfId: string;
+  pdfData: string; // Base64-encoded PDF data
+  metadata: {
+    filename: string;
+    fileSize: number;
+    contentType: string;
+    editedAt: string;
+    editSource: 'nutrient-sdk';
+  };
+}
+
+export interface SaveEditedPdfResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    pdfId: string;
+    formName: string;
+    clientId: string;
+    caseId?: string;
+    workflowId?: string;
+    originalTemplateId?: string;
+    downloadUrl: string;
+    metadata: {
+      filename: string;
+      fileSize: number;
+      contentType: string;
+      createdAt: string;
+      editedAt: string;
+      editSource: string;
+    };
+  };
+}
+
 // Anvil PDF Template Controllers
 
 /**
@@ -253,7 +292,7 @@ export const fillPdfTemplateBlob = async (
     textColor?: string;
     useInteractiveFields?: boolean;
   }
-): Promise<ApiResponse<{ blob: Blob; metadata: any; filledPercentage: number; unfilledFields: Record<string, any> }>> => {
+): Promise<ApiResponse<{ blob: Blob; metadata: any; filledPercentage: number; unfilledFields: Record<string, any>; pdfId: string }>> => {
   try {
     const requestData: AnvilFillRequest = {
       data,
@@ -276,7 +315,8 @@ export const fillPdfTemplateBlob = async (
           blob: pdfBlob,
           metadata: response.data.data.metadata,
           filledPercentage: response.data.data.filledPercentage,
-          unfilledFields: response.data.data.unfilledFields
+          unfilledFields: response.data.data.unfilledFields,
+          pdfId: response.data.data.pdfId
         },
         status: response.status,
         statusText: response.statusText
@@ -343,4 +383,71 @@ export const handleAnvilApiError = (error: any): string => {
     }
   }
   return 'An unexpected error occurred.';
+};
+
+/**
+ * Save edited PDF to database (with existing pdfId)
+ */
+export const saveEditedPdf = async (
+  pdfBlob: Blob,
+  formNumber: string,
+  clientId: string,
+  templateId: string,
+  pdfId: string,
+  options?: {
+    caseId?: string;
+    workflowId?: string;
+    filename?: string;
+  }
+): Promise<ApiResponse<SaveEditedPdfResponse>> => {
+  try {
+    
+    // Convert blob to base64
+    // const arrayBuffer = await pdfBlob.arrayBuffer();
+    // const base64String = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
+    //  Convert blob to base64 using FileReader for large files
+     const base64String = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data URL prefix (data:application/pdf;base64,)
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(pdfBlob);
+    });
+    
+    const requestData: SaveEditedPdfRequest = {
+      formNumber,
+      clientId,
+      caseId: options?.caseId,
+      workflowId: options?.workflowId,
+      templateId,
+      pdfId,
+      pdfData: base64String,
+      metadata: {
+        filename: options?.filename || `${formNumber}_edited_${Date.now()}.pdf`,
+        fileSize: pdfBlob.size,
+        contentType: 'application/pdf',
+        editedAt: new Date().toISOString(),
+        editSource: 'nutrient-sdk'
+      }
+    };
+
+    const response = await api.post(
+      ANVIL_END_POINTS.SAVE_EDITED_PDF,
+      requestData
+    );
+    
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+
+  } catch (error) {
+    return handleApiError(error);
+  }
 };

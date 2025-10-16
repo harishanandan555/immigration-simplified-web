@@ -3,7 +3,7 @@ import {
   Users, FileText, ClipboardList, Send, Download, CheckCircle,
   ArrowRight, ArrowLeft, User, Briefcase, FormInput,
   MessageSquare, FileCheck, AlertCircle, Info as InfoIcon,
-  Loader, Loader2, Check
+  Loader, Loader2, Check, Edit3
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -15,6 +15,7 @@ import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import TextArea from '../components/common/TextArea';
+import PdfEditor from '../components/pdf/PdfEditor';
 import {
   
   getQuestionnaires
@@ -37,7 +38,8 @@ import { getCompanyClients as fetchClientsFromAPI, getClientById, createCompanyC
 import { 
   getAnvilTemplatesList, 
   fillPdfTemplateBlob, 
-  getTemplateIdsByFormNumber 
+  getTemplateIdsByFormNumber,
+  saveEditedPdf
 } from '../controllers/AnvilControllers';
 import { FormTemplate } from '../controllers/SettingsControllers';
 import { 
@@ -246,6 +248,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     blob: Blob; 
     downloadUrl: string;
     fileName: string;
+    pdfId?: string;
     status: 'generating' | 'success' | 'error';
     error?: string;
     filledPercentage?: number;
@@ -266,6 +269,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [generatingForms, setGeneratingForms] = useState(false);
   const [showPreview, setShowPreview] = useState<Record<string, boolean>>({});
   const [showUnfilledFields, setShowUnfilledFields] = useState<Record<string, boolean>>({});
+  const [showEditor, setShowEditor] = useState<Record<string, boolean>>({});
 
   // Function to get the appropriate workflow steps based on response type
   const getWorkflowSteps = () => {
@@ -4236,6 +4240,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 blob: anvilResponse.data.blob,
                 downloadUrl,
                 fileName,
+                pdfId: anvilResponse.data.pdfId,
                 status: 'success' as const,
                 filledPercentage: anvilResponse.data.filledPercentage,
                 unfilledFields: anvilResponse.data.unfilledFields,
@@ -4293,6 +4298,99 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       ...prev,
       [formName]: !prev[formName]
     }));
+  };
+
+  // Function to open PDF editor
+  const handleEditForm = (formName: string) => {
+    setShowEditor(prev => ({
+      ...prev,
+      [formName]: !prev[formName]
+    }));
+  };
+
+  // Function to close PDF editor
+  const handleCloseEditor = (formName: string) => {
+    setShowEditor(prev => ({
+      ...prev,
+      [formName]: false
+    }));
+  };
+
+  // Function to handle saving edited PDF
+  const handleSaveEditedPdf = async (formName: string, editedPdfBlob: Blob) => {
+    try {
+      const form = generatedForms.find(f => f.formName === formName);
+      if (!form) return;
+
+      // Get current client and case information
+      const currentClient = existingClients.find(c => c._id === selectedExistingClientId) || client;
+      const currentCase = caseData;
+
+      // Save to backend database
+      const clientId = currentClient?._id || currentClient?.id || '';
+      const formNumber = formName; // formName should be the form number
+      const templateId = form.templateId;
+      
+      // Ensure we have a valid pdfId
+      if (!form.pdfId) {
+        toast.error(`Cannot save edited PDF: Missing pdfId for form ${formName}`);
+        return;
+      }
+
+      const saveResponse = await saveEditedPdf(
+        editedPdfBlob,
+        formNumber,
+        clientId,
+        templateId,
+        form.pdfId, // Use the existing pdfId
+        {
+          caseId: currentCase?._id || currentCase?.id,
+          workflowId: questionnaireAssignment?.id,
+          filename: form.fileName
+        }
+      );
+
+      if (saveResponse.data.success) {
+        // Update the form with the edited PDF and new backend data
+        const updatedForms = generatedForms.map(f => 
+          f.formName === formName 
+            ? { 
+                ...f, 
+                blob: editedPdfBlob, 
+                downloadUrl: saveResponse.data.data?.downloadUrl || URL.createObjectURL(editedPdfBlob),
+                pdfId: saveResponse.data.data?.pdfId,
+                savedToBackend: true
+              }
+            : f
+        );
+        setGeneratedForms(updatedForms);
+
+        toast.success('PDF saved successfully to database');
+        handleCloseEditor(formName);
+      } else {
+        throw new Error(saveResponse.data.message || 'Failed to save PDF to database');
+      }
+    } catch (error) {
+      console.error('Error saving edited PDF:', error);
+      toast.error('Failed to save PDF to database');
+      
+      // Fallback: still update local state even if backend save fails
+      try {
+        const form = generatedForms.find(f => f.formName === formName);
+        if (form) {
+          const updatedForms = generatedForms.map(f => 
+            f.formName === formName 
+              ? { ...f, blob: editedPdfBlob, downloadUrl: URL.createObjectURL(editedPdfBlob) }
+              : f
+          );
+          setGeneratedForms(updatedForms);
+          toast.success('PDF saved locally (backend save failed)');
+          handleCloseEditor(formName);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback save also failed:', fallbackError);
+      }
+    }
   };
 
   // Function to close preview
@@ -6982,6 +7080,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                   <FileText className="w-4 h-4 mr-1" />
                                   Preview
                                 </Button>
+                                <Button
+                                  onClick={() => handleEditForm(form.formName)}
+                                  size="sm"
+                                  variant="outline"
+                                  className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                                >
+                                  <Edit3 className="w-4 h-4 mr-1" />
+                                  Edit
+                                </Button>
                               </div>
                             </div>
                           )}
@@ -7025,6 +7132,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+
+                {/* PDF Editor Modal */}
+                {Object.entries(showEditor).map(([formName, isVisible]) => {
+                  if (!isVisible) return null;
+                  const form = generatedForms.find(f => f.formName === formName);
+                  if (!form || form.status !== 'success') return null;
+
+                  return (
+                    <PdfEditor
+                      key={formName}
+                      pdfUrl={form.downloadUrl}
+                      filename={form.fileName}
+                      onClose={() => handleCloseEditor(formName)}
+                      onSave={(editedPdfBlob) => handleSaveEditedPdf(formName, editedPdfBlob)}
+                    />
                   );
                 })}
               </div>

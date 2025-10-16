@@ -33,6 +33,18 @@
 }
 
 @layer components {
+  /* Nutrient PDF Editor Container Styles */
+  .nutrient-pdf-container {
+    position: relative !important;
+    display: block !important;
+    overflow: hidden;
+  }
+  
+  /* Ensure parent containers are also positioned */
+  .nutrient-pdf-container-parent {
+    position: relative !important;
+  }
+  
   .btn {
     @apply px-4 py-2 rounded-md font-medium transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
   }
