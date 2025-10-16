@@ -562,9 +562,9 @@ const ResponseView: React.FC = () => {
                 <p className="text-sm text-gray-500">
                   {getClientEmail(assignment)}
                 </p>
-                <p className="text-xs text-blue-600 mt-1">
+                {/* <p className="text-xs text-blue-600 mt-1">
                   Click to edit responses →
-                </p>
+                </p> */}
               </div>
             </div>
             <div className="space-y-2">

@@ -419,9 +419,48 @@ class QuestionnaireService {
    * Import questionnaire from file using backend import endpoint
    */
   async importQuestionnaire(file: File): Promise<ImmigrationQuestionnaire> {
+    console.log('[QuestionnaireService] ==================== IMPORT STARTED ====================');
+    console.log('[QuestionnaireService] File details:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      lastModified: new Date(file.lastModified).toISOString()
+    });
+
     try {
+      // Check if it's a text file - process it on frontend first to avoid backend category issues
+      if (file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')) {
+        console.log('[QuestionnaireService] 📝 Text file detected - processing on frontend first');
+        const questionnaireData = await this.importFromText(file);
+        
+        // Remove properties that shouldn't be sent to API
+        const apiData = {
+          title: questionnaireData.title,
+          description: questionnaireData.description,
+          category: questionnaireData.category,
+          fields: questionnaireData.fields,
+          settings: questionnaireData.settings,
+          is_active: questionnaireData.is_active
+        };
+        
+        // Now create the questionnaire using the standard create endpoint
+        console.log('[QuestionnaireService] 🚀 Creating questionnaire from processed text data:', apiData);
+        const createResult = await this.createQuestionnaire(apiData as any);
+        console.log('[QuestionnaireService] ✅ Questionnaire created, fetching full data:', createResult);
+        
+        // Fetch the complete questionnaire
+        return await this.getQuestionnaireById(createResult.id);
+      }
+
       const token = this.getAuthToken();
+      console.log('[QuestionnaireService] Auth token check:', {
+        hasToken: !!token,
+        tokenLength: token ? token.length : 0,
+        tokenStart: token ? token.substring(0, 20) + '...' : 'NO TOKEN'
+      });
+
       if (!token) {
+        console.error('[QuestionnaireService] ❌ Authentication token not found');
         throw new Error('Authentication token not found');
       }
 
@@ -431,11 +470,24 @@ class QuestionnaireService {
 
       const fullUrl = `${this.baseURL}/questionnaires/import`;
       
-      console.log('[QuestionnaireService] Importing questionnaire:', {
+      console.log('[QuestionnaireService] 📤 Making import request:', {
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
-        url: fullUrl
+        url: fullUrl,
+        baseURL: this.baseURL,
+        method: 'POST',
+        formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
+          key,
+          valueType: typeof value,
+          isFile: value instanceof File,
+          fileName: value instanceof File ? value.name : undefined
+        }))
+      });
+
+      console.log('[QuestionnaireService] 🔐 Request headers:', {
+        Authorization: `Bearer ${token.substring(0, 20)}...`,
+        ContentType: 'FormData (multipart/form-data with boundary)'
       });
 
       const response = await fetch(fullUrl, {
@@ -447,25 +499,82 @@ class QuestionnaireService {
         body: formData
       });
 
-      console.log('[QuestionnaireService] Import response:', {
+      console.log('[QuestionnaireService] 📨 Import response received:', {
         status: response.status,
         statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
+        ok: response.ok,
+        url: response.url,
+        headers: Object.fromEntries(response.headers.entries()),
+        responseSize: response.headers.get('content-length')
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[QuestionnaireService] Import error response:', errorText);
-        throw new Error(`Import failed: ${response.statusText}`);
+        console.error('[QuestionnaireService] ❌ Import error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText,
+          errorLength: errorText.length
+        });
+        throw new Error(`Import failed: ${response.statusText} - ${errorText}`);
       }
 
-      const result = await response.json();
-      console.log('[QuestionnaireService] Import successful:', result);
+      console.log('[QuestionnaireService] 📖 Reading response body...');
+      const responseText = await response.text();
+      console.log('[QuestionnaireService] Raw response text:', {
+        length: responseText.length,
+        preview: responseText.substring(0, 500),
+        isJson: responseText.trim().startsWith('{') || responseText.trim().startsWith('[')
+      });
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+        console.log('[QuestionnaireService] ✅ Response parsed as JSON:', {
+          resultType: typeof result,
+          resultKeys: typeof result === 'object' ? Object.keys(result) : 'N/A',
+          hasData: !!result.data,
+          hasQuestionnaire: !!result.questionnaire,
+          hasId: !!(result.id || result._id),
+          hasTitle: !!result.title,
+          hasFields: !!(result.fields && Array.isArray(result.fields))
+        });
+      } catch (parseError) {
+        console.error('[QuestionnaireService] ❌ Failed to parse response as JSON:', parseError);
+        console.error('[QuestionnaireService] Response content:', responseText);
+        throw new Error(`Invalid JSON response: ${parseError}`);
+      }
+
+      console.log('[QuestionnaireService] 🎯 Import result structure:', {
+        result: result,
+        resultData: result.data,
+        resultQuestionnaire: result.questionnaire,
+        finalQuestionnaire: result.data || result.questionnaire || result
+      });
+
+      const finalResult = result.data || result.questionnaire || result;
+      console.log('[QuestionnaireService] ✅ Import successful! Final questionnaire:', {
+        id: finalResult.id || finalResult._id,
+        title: finalResult.title,
+        fieldsCount: finalResult.fields ? finalResult.fields.length : 0,
+        category: finalResult.category,
+        isActive: finalResult.is_active
+      });
+
+      console.log('[QuestionnaireService] ==================== IMPORT COMPLETED ====================');
       
-      return result;
+      return finalResult;
       
     } catch (error: any) {
-      console.error('[QuestionnaireService] Import error:', error);
+      console.error('[QuestionnaireService] ❌ ==================== IMPORT FAILED ====================');
+      console.error('[QuestionnaireService] Import error details:', {
+        errorMessage: error.message,
+        errorType: error.constructor.name,
+        errorStack: error.stack,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
+      });
       throw new Error(`Failed to import questionnaire: ${error.message}`);
     }
   }
@@ -494,6 +603,13 @@ class QuestionnaireService {
           delete jsonData.created_by;
           delete jsonData.organization_id;
           delete jsonData.version;
+
+          // Ensure category is valid - backend only accepts specific values
+          const validCategories = ['family-based', 'employment-based', 'humanitarian', 'citizenship', 'temporary', 'assessment', 'general'];
+          if (!jsonData.category || !validCategories.includes(jsonData.category)) {
+            console.log('[QuestionnaireService] Invalid category detected, setting to "general":', jsonData.category);
+            jsonData.category = 'general';
+          }
 
           // Add "(Imported)" to title if not already present
           if (!jsonData.title.includes('(Imported)')) {

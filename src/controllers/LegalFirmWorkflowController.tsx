@@ -129,6 +129,7 @@ export const getWorkflowProgress = async (workflowId: string): Promise<any> => {
   try {
     const response = await api.get(LEGAL_WORKFLOW_ENDPOINTS.GET_WORKFLOW_PROGRESS.replace(':workflowId', workflowId));
     
+    console.log(' getWorkflowProgress:', response.data);
     // Handle the nested response structure
     const workflowData = response.data.data || response.data;
     
