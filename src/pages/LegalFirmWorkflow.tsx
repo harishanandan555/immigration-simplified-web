@@ -3321,9 +3321,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           currentStep,
           status: 'in-progress',
           
+          // Top-level client ID for database queries
+          clientId: client.clientId || client._id,
+          
           // Client information
           client: {
             ...client,
+            clientId: client.clientId || client._id, // Ensure client object has ID
             firstName: client.firstName,
             middleName: client.middleName || '',
             lastName: client.lastName,
@@ -3349,7 +3353,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           case: {
             ...caseData,
             id: caseData.id || generateObjectId(),
-            _id: caseData._id || caseData.id || generateObjectId()
+            _id: caseData._id || caseData.id || generateObjectId(),
+            clientId: client.clientId || client._id // Link case to client
           },
 
           // Selected forms and case IDs (NEW FORMS)
@@ -3401,26 +3406,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           }))
         };
 
-        console.log('🔄 DEBUG: Saving workflow with existing response data to database:', {
-          workflowId: workflowDataWithExistingResponse.workflowId,
-          newCaseId: workflowDataWithExistingResponse.case.id,
-          responseCount: Object.keys(existingResponse.responses || {}).length,
-          selectedForms: workflowDataWithExistingResponse.selectedForms,
-          dataSize: JSON.stringify(workflowDataWithExistingResponse).length,
-          hasQuestionnaireAssignment: !!workflowDataWithExistingResponse.questionnaireAssignment,
-          hasClientData: !!workflowDataWithExistingResponse.client,
-          hasCaseData: !!workflowDataWithExistingResponse.case
-        });
+        
 
         // Log the complete data structure being sent (truncated for readability)
-        console.log('📤 DEBUG: Complete workflow data structure:', {
-          ...workflowDataWithExistingResponse,
-          questionnaireAssignment: {
-            ...workflowDataWithExistingResponse.questionnaireAssignment,
-            responses: `${Object.keys(workflowDataWithExistingResponse.questionnaireAssignment.responses || {}).length} responses`
-          }
-        });
-
+     
         // Save the comprehensive workflow data to the database
         const token = localStorage.getItem('token');
         if (token) {
@@ -3543,7 +3532,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             setQuestionnaireAssignment(assignment);
 
             // Move to initial screen after successful assignment
-            console.log('✅ DEBUG: Questionnaire assignment completed - redirecting to initial screen');
             
             // Reset workflow state for new client creation
             setCurrentStep(0);
@@ -3905,14 +3893,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       };
 
       // Debug log the validated data before making the API call
-      console.log('🔄 DEBUG: Assignment data prepared with client IDs:', {
-        originalClientId: client.clientId,
-        userAccountId: clientUserId,
-        finalClientId: clientId,
-        clientEmail: assignmentData.clientEmail,
-        questionnaireName: assignmentData.questionnaireName,
-        caseId: assignmentData.caseId
-      });
+      
 
       // Check if we have an authentication token
       const token = localStorage.getItem('token');
@@ -4006,15 +3987,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           currentStep,
           status: 'in-progress',
           
+          // Top-level client ID for database queries - use the newly created client user ID
+          clientId: clientUserId || client.id || client._id,
+          
           // Client information
           client: {
             ...client,
+            id: clientUserId || client.id || client._id, // Use the newly created client user ID
             firstName: client.firstName,
             middleName: client.middleName || '',
             lastName: client.lastName,
             name: client.name,
-            // Include client ID fields
-            clientId: client.clientId || client._id || client.clientId, // MongoDB ObjectId reference
             // Include immigration-specific identifiers
             alienRegistrationNumber: client.alienRegistrationNumber || '',
             uscisOnlineAccountNumber: client.uscisOnlineAccountNumber || '',
@@ -4036,7 +4019,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           case: {
             ...caseData,
             id: caseData.id || generateObjectId(),
-            _id: caseData._id || caseData.id || generateObjectId()
+            _id: caseData._id || caseData.id || generateObjectId(),
+            clientId: clientUserId || client.id || client._id // Link case to the newly created client
           },
 
           // Selected forms and case IDs
@@ -4094,7 +4078,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           questionnaireId: assignment.questionnaireId,
           questionnaireName: assignment.questionnaireName,
           selectedForms: workflowDataWithNewAssignment.selectedForms,
-          clientAccountCreated: !!clientUserId
+          clientAccountCreated: !!clientUserId,
+          // Client ID information
+          topLevelClientId: workflowDataWithNewAssignment.clientId,
+          clientObjectId: workflowDataWithNewAssignment.client.id,
+          caseClientId: workflowDataWithNewAssignment.case.clientId,
+          assignmentClientId: assignment.clientId,
+          originalClientId: client.id,
+          newlyCreatedClientUserId: clientUserId
         });
 
         // Save the comprehensive workflow data to the database using saveWorkflowProgress
@@ -4118,6 +4109,20 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               toast.error(errorMessage);
               return;
             }
+
+            // Console log to check client ID before saving workflow for new client
+            console.log('🔍 DEBUG: About to save NEW CLIENT workflow - Client ID verification:', {
+              clientUserId: clientUserId,
+              topLevelClientId: workflowDataWithNewAssignment.clientId,
+              clientObjectId: workflowDataWithNewAssignment.client.id,
+              caseClientId: workflowDataWithNewAssignment.case.clientId,
+              assignmentClientId: assignment.clientId,
+              originalClientId: client.id,
+              clientName: client.name,
+              clientEmail: client.email,
+              isNewClient: !client.isExistingClient,
+              accountCreated: !!clientUserId
+            });
 
             const response = await saveWorkflowProgress(workflowDataWithNewAssignment);
             console.log('✅ DEBUG: Workflow with new assignment saved to database:', response);
