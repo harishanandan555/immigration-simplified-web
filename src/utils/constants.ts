@@ -704,7 +704,11 @@ export const ANVIL_END_POINTS = {
     // Get templates by form number
     GET_TEMPLATES_BY_FORM: "/api/v1/anvil/templates/form/:formNumber",
     // Save edited PDF to database
-    SAVE_EDITED_PDF: "/api/v1/anvil/save-edited-pdf"
+    SAVE_EDITED_PDF: "/api/v1/anvil/save-edited-pdf",
+    // Validate PDF data using OpenAI
+    VALIDATE_PDF_DATA: "/api/v1/anvil/validate-pdf-data",
+    // Get PDF preview data
+    PDF_PREVIEW: "/api/v1/anvil/pdf-preview"
 } as const;
 
 

@@ -181,6 +181,51 @@ export interface SaveEditedPdfResponse {
   };
 }
 
+export interface ValidatePdfDataRequest {
+  pdfId?: string;
+  templateId?: string;
+  clientId?: string;
+  formNumber?: string;
+}
+
+export interface ValidatePdfDataResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    pdfId: string;
+    templateId?: string;
+    clientId?: string;
+    formNumber?: string;
+    filledPercentage: number;
+  };
+}
+
+export interface GetPdfPreviewRequest {
+  pdfId?: string;
+  templateId?: string;
+  clientId?: string;
+  formNumber?: string;
+}
+
+export interface GetPdfPreviewResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    pdfId: string;
+    templateId?: string;
+    clientId?: string;
+    formNumber?: string;
+    pdfData: string; // Base64-encoded PDF data
+    metadata: {
+      filename: string;
+      fileSize: number;
+      contentType: string;
+      createdAt: string;
+      updatedAt: string;
+    };
+  };
+}
+
 // Anvil PDF Template Controllers
 
 /**
@@ -447,6 +492,92 @@ export const saveEditedPdf = async (
       statusText: response.statusText
     };
 
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+/**
+ * Validate PDF data using OpenAI analysis
+ */
+export const validatePdfData = async (
+  requestData: ValidatePdfDataRequest
+): Promise<ApiResponse<ValidatePdfDataResponse>> => {
+  try {
+    // Validate that at least one identifier is provided
+    if (!requestData.pdfId && !requestData.templateId && !requestData.clientId && !requestData.formNumber) {
+      throw new Error('At least one identifier is required: pdfId, templateId, clientId, or formNumber');
+    }
+
+    const response = await api.post(
+      ANVIL_END_POINTS.VALIDATE_PDF_DATA,
+      requestData
+    );
+    
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+/**
+ * Get PDF preview data using any combination of identifiers
+ */
+export const getPdfPreview = async (
+  params: GetPdfPreviewRequest
+): Promise<ApiResponse<GetPdfPreviewResponse>> => {
+  try {
+    // Validate that at least one identifier is provided
+    if (!params.pdfId && !params.templateId && !params.clientId && !params.formNumber) {
+      throw new Error('At least one identifier is required: pdfId, templateId, clientId, or formNumber');
+    }
+
+    const response = await api.get(
+      ANVIL_END_POINTS.PDF_PREVIEW,
+      { params }
+    );
+    
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+/**
+ * Get PDF preview as blob for browser display
+ */
+export const getPdfPreviewBlob = async (
+  params: GetPdfPreviewRequest
+): Promise<ApiResponse<{ blob: Blob; metadata: any; pdfId: string }>> => {
+  try {
+    const response = await getPdfPreview(params);
+    
+    if (response.data.success && response.data.data?.pdfData) {
+      // Convert base64 to blob
+      const pdfBlob = new Blob([
+        Uint8Array.from(atob(response.data.data.pdfData), c => c.charCodeAt(0))
+      ], { type: 'application/pdf' });
+      
+      return {
+        data: {
+          blob: pdfBlob,
+          metadata: response.data.data.metadata,
+          pdfId: response.data.data.pdfId
+        },
+        status: response.status,
+        statusText: response.statusText
+      };
+    } else {
+      throw new Error(response.data.message || 'Failed to get PDF preview');
+    }
   } catch (error) {
     return handleApiError(error);
   }
