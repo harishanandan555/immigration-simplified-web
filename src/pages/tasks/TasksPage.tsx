@@ -212,7 +212,7 @@ const TasksPage = () => {
         // Enhance workflow clients with ims_user mapping for clientId
         const enhancedClients = workflowClients.map((client: any) => {
           // Try to find corresponding user in ims_user database by email
-          const imsUser = allUsers.find((user: User) => user.email === client.id);
+          const imsUser = allUsers.find((user: User) => user.email === client.clientId);
           
           
           return {
@@ -694,7 +694,7 @@ const TasksPage = () => {
                         >
                           <option value="">Select a client...</option>
                           {clients.map((client: any) => (
-                            <option key={client.id} value={client.name}>
+                            <option key={client.clientId} value={client.name}>
                               {client.name} ({client.email})
                             </option>
                           ))}

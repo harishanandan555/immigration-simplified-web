@@ -866,7 +866,7 @@ const IndividualImmigrationProcess: React.FC = () => {
       subcategory: selectedSubcategory?.id || 'general',
       visaType: formData.immigrationInfo.visaType,
       assignedForms: selectedForms,
-      clientId: client.id || client._id || generateObjectId()
+      clientId: client.clientId || client._id || generateObjectId()
     };
     setCaseData(newCase);
     return newCase;
