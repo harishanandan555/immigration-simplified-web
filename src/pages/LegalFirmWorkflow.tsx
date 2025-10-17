@@ -144,6 +144,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Client data
   const [client, setClient] = useState<any>({
     id: '',
+    clientId: '', // MongoDB ObjectId reference to DEFAULT_IMS_Client
     name: '',
     firstName: '',
     middleName: '',
@@ -173,7 +174,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // DEBUG: Log client state at render level
   console.log('🔍 DEBUG: Component render - current client state:', {
-    clientId: client?.id,
+    clientId: client?.clientId,
     clientName: client?.name,
     clientEmail: client?.email,
     isExistingClient: client?.isExistingClient,
@@ -361,8 +362,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }
         
         const clientData = {
-          id: workflowData.client._id || workflowData.client.id || '',
-          _id: workflowData.client._id || workflowData.client.id || '',
+          id: workflowData.client._id || workflowData.client.clientId || '',
+          clientId: workflowData.client.clientId || workflowData.client._id || '',
+          _id: workflowData.client._id || workflowData.client.clientId || '',
           name: workflowData.client.name || `${workflowData.client.firstName || ''} ${workflowData.client.lastName || ''}`.trim(),
           firstName: workflowData.client.firstName || '',
           middleName: workflowData.client.middleName || '',
@@ -540,22 +542,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       timestamp: new Date().toISOString(),
       changeSource: 'useEffect monitoring'
     });
-  }, [client.isExistingClient, client.hasUserAccount, client.id, client.email]);
+  }, [client.isExistingClient, client.hasUserAccount, client.clientId, client.email]);
 
   // Emergency safety check to fix undefined flags for existing clients
   useEffect(() => {
     // EMERGENCY SAFETY CHECK: If we have a client ID and it's from selectedExistingClientId, force the flags
     const isDefinitelyExistingClient = (
       selectedExistingClientId && 
-      client.id && 
-      (client.id === selectedExistingClientId || client._id === selectedExistingClientId)
+      client.clientId && 
+      (client.clientId === selectedExistingClientId || client._id === selectedExistingClientId)
     );
     
     if (isDefinitelyExistingClient && (client.isExistingClient !== true || client.hasUserAccount !== true)) {
       console.log('🚨 DEBUG: EMERGENCY SAFETY - Detected existing client with undefined flags, FORCING correction:', {
         selectedExistingClientId,
-        clientId: client.id,
-        clientIdMatch: client.id === selectedExistingClientId,
+        clientId: client.clientId,
+        clientIdMatch: client.clientId === selectedExistingClientId,
         currentFlags: {
           isExistingClient: client.isExistingClient,
           hasUserAccount: client.hasUserAccount
@@ -572,7 +574,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         userType: prev.userType || 'companyClient'
       }));
     }
-  }, [selectedExistingClientId, client.id, client._id, client.isExistingClient, client.hasUserAccount]);
+  }, [selectedExistingClientId, client.clientId, client._id, client.isExistingClient, client.hasUserAccount]);
 
   // Load workflow data when existing client reaches Create Client step (step 1)
   useEffect(() => {
@@ -1018,10 +1020,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           }
 
           // If client has id but not _id, check if id is valid
-          if (client.id && isValidMongoObjectId(client.id)) {
+          if (client.clientId && isValidMongoObjectId(client.clientId)) {
             return {
               ...client,
-              _id: client.id // Set _id to the valid ObjectId
+              _id: client.clientId // Set _id to the valid ObjectId
             };
           }
 
@@ -1144,7 +1146,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     
     if (isExistingClientWithAccount) {
       console.log('✅ DEBUG: Existing client detected in handleClientSubmit - skipping all account creation steps:', {
-        clientId: client.id,
+        clientId: client.clientId,
         clientName: client.name,
         clientEmail: client.email,
         isExistingClient: client.isExistingClient,
@@ -1153,7 +1155,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       
       // For existing clients, just proceed to next step without creating any account
       handleNext();
-      return client.id || client._id; // Return existing client ID
+      return client.clientId || client._id; // Return existing client ID
     }
 
     // Ensure client has first and last name
@@ -1282,6 +1284,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const updatedClient = {
         ...client,
         id: clientId,
+        clientId: clientId, // MongoDB ObjectId reference to DEFAULT_IMS_Client
         _id: clientId, // Add both id and _id for compatibility
         firstName: client.firstName, // Use the actual client fields
         middleName: client.middleName || '',
@@ -1505,7 +1508,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   //     ...caseData,
   //     id: caseId,
   //     _id: caseId, // Add both id and _id for compatibility
-  //     clientId: client.id || client._id, // Use either id or _id
+  //     clientId: client.clientId || client._id, // Use either id or _id
   //     createdAt: new Date().toISOString()
   //   };
   //   setCaseData(updatedCase);
@@ -1653,8 +1656,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             if (clientKey && !clientsMap.has(clientKey)) {
               // Ensure client has proper structure
               const processedClient = {
-                _id: client.id || client._id || generateObjectId(),
-                id: client.id || client._id || generateObjectId(),
+                _id: client.clientId || client._id || generateObjectId(),
+                id: client.clientId || client._id || generateObjectId(),
                 firstName: client.firstName || '',
                 lastName: client.lastName || '',
                 name: client.name || `${client.firstName || ''} ${client.lastName || ''}`.trim(),
@@ -1966,7 +1969,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (Array.isArray(apiWorkflows)) {
         // More flexible client matching
         const clientWorkflows = apiWorkflows.filter((w: any) => {
-          const workflowClientId = w.clientId || w.client?.id || w.client?._id;
+          const workflowClientId = w.clientId || w.client?.clientId || w.client?.id || w.client?._id;
           const workflowClientEmail = w.client?.email;
           const currentClientEmail = client.email;
           
@@ -1976,7 +1979,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           const emailMatch = workflowClientEmail && currentClientEmail && workflowClientEmail.toLowerCase() === currentClientEmail.toLowerCase();
           
           // Also check if the workflow client ID matches the target client's ID from the workflow's client object
-          const workflowInternalClientId = w.client?.id || w.client?._id;
+          const workflowInternalClientId = w.client?.clientId || w.client?.id || w.client?._id;
           const internalIdMatch = workflowInternalClientId && workflowInternalClientId === clientId;
           
           console.log('🔍 DEBUG: Checking workflow for client match:', {
@@ -2090,7 +2093,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           responses: responsesData,
           submittedAt: questionnaireAssignmentData.submitted_at || responsesData.submitted_at || new Date().toISOString(),
           isComplete: questionnaireAssignmentData.is_complete || responsesData.is_complete || false,
-          clientId: client.id,
+          clientId: client.clientId,
           caseId: workflowData.case?.id || 'previous-case',
           // Additional workflow data
           assignmentId: questionnaireAssignmentData.assignment_id,
@@ -2177,7 +2180,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           role: client.role,
           userType: client.userType
         },
-        currentClientId: client.id,
+        currentClientId: client.clientId,
         currentClientEmail: client.email,
         currentClientName: client.name
       });
@@ -2189,7 +2192,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         console.log('� DEBUG: EXISTING CLIENT LOAD - Loading workflow data while preserving client flags:', {
           isExistingClient: client.isExistingClient,
           hasUserAccount: client.hasUserAccount,
-          clientId: client.id,
+          clientId: client.clientId,
           clientEmail: client.email,
           reason: 'Loading complete workflow data for existing client on Create Client step'
         });
@@ -2206,8 +2209,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // ONLY auto-fill client data - absolutely nothing else
       if (workflowData.client) {
         console.log('🔄 DEBUG: Auto-filling client data from workflow:', {
-          currentClientId: client.id,
-          workflowClientId: workflowData.client.id || workflowData.client._id,
+          currentClientId: client.clientId,
+          workflowClientId: workflowData.client.clientId || workflowData.client._id,
           workflowClientName: workflowData.client.name || `${workflowData.client.firstName} ${workflowData.client.lastName}`.trim(),
           workflowClientEmail: workflowData.client.email,
           workflowClientPhone: workflowData.client.phone,
@@ -2220,7 +2223,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           ...client,
           ...workflowData.client,
           // Ensure we don't overwrite with undefined values
-          id: workflowData.client.id || client.id,
+          id: workflowData.client.clientId || client.clientId,
           _id: workflowData.client._id || client._id,
           name: workflowData.client.name || client.name,
           // Explicitly handle separate name fields
@@ -2253,10 +2256,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // CRITICAL: If client.isExistingClient OR client.hasUserAccount is already true, KEEP IT TRUE
           isExistingClient: (client.isExistingClient === true) ? true : 
                           (client.isExistingClient || workflowData.client.isExistingClient || 
-                           (workflowData.client.id || workflowData.client._id ? true : false)),
+                           (workflowData.client.clientId || workflowData.client._id ? true : false)),
           hasUserAccount: (client.hasUserAccount === true) ? true : 
                          (client.hasUserAccount || workflowData.client.hasUserAccount || 
-                          (workflowData.client.id || workflowData.client._id ? true : false)),
+                          (workflowData.client.clientId || workflowData.client._id ? true : false)),
           role: client.role || workflowData.client.role,
           userType: client.userType || workflowData.client.userType
         };
@@ -2272,7 +2275,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           workflowClientFlags: {
             isExistingClient: workflowData.client.isExistingClient,
             hasUserAccount: workflowData.client.hasUserAccount,
-            hasWorkflowId: !!(workflowData.client.id || workflowData.client._id)
+            hasWorkflowId: !!(workflowData.client.clientId || workflowData.client._id)
           },
           resultingFlags: {
             isExistingClient: newClientData.isExistingClient,
@@ -2281,7 +2284,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           flagPreservationReason: {
             existingClientPreserved: client.isExistingClient === true,
             userAccountPreserved: client.hasUserAccount === true,
-            workflowIdDetected: !!(workflowData.client.id || workflowData.client._id)
+            workflowIdDetected: !!(workflowData.client.clientId || workflowData.client._id)
           }
         });
 
@@ -2308,8 +2311,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             hasUserAccount: client.hasUserAccount
           },
           derivedFromWorkflow: {
-            hasWorkflowId: !!(workflowData.client.id || workflowData.client._id),
-            workflowClientId: workflowData.client.id || workflowData.client._id
+            hasWorkflowId: !!(workflowData.client.clientId || workflowData.client._id),
+            workflowClientId: workflowData.client.clientId || workflowData.client._id
           }
         });
 
@@ -2367,7 +2370,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         toast.success(`Client details loaded from workflow: ${newClientData.name}`);
       } else {
         console.log('⚠️ DEBUG: No client data in workflow, keeping existing client data:', {
-          clientId: client.id,
+          clientId: client.clientId,
           clientName: client.name,
           clientEmail: client.email
         });
@@ -2449,7 +2452,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               status: workflow.status,
               workflowType: workflow.workflowType,
               client: {
-                id: workflow.client?.id || workflow.client?._id || workflow.clientId,
+                id: workflow.client?.clientId || workflow.client?.id || workflow.client?._id || workflow.clientId,
                 name: workflow.client?.name || `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.trim(),
                 firstName: workflow.client?.firstName,
                 lastName: workflow.client?.lastName,
@@ -2546,7 +2549,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           id: w.id || w._id,
           workflowId: w.workflowId,
           clientEmail: w.client?.email,
-          clientId: w.clientId || w.client?.id || w.client?._id,
+          clientId: w.clientId || w.client?.clientId || w.client?.id || w.client?._id,
           clientName: w.client?.name || `${w.client?.firstName} ${w.client?.lastName}`.trim(),
           status: w.status
         })) : 'apiWorkflows is not an array'
@@ -2576,7 +2579,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         console.log('🔄 DEBUG: Target client ID:', clientId);
         
         const clientIdMatches = allWorkflows.filter((w: any, index: number) => {
-          const workflowClientId = w.clientId || w.client?.id || w.client?._id;
+          const workflowClientId = w.clientId || w.client?.clientId || w.client?.id || w.client?._id;
           console.log(`� DEBUG: Workflow ${index + 1}: Comparing client IDs:`, { 
             workflowIndex: index,
             workflowId: w.id || w._id,
@@ -2614,7 +2617,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           console.log('✅ DEBUG: Matching workflow details:', {
             workflowId: matchingWorkflow.id || matchingWorkflow._id,
             workflowIdField: matchingWorkflow.workflowId,
-            clientId: matchingWorkflow.clientId || matchingWorkflow.client?.id,
+            clientId: matchingWorkflow.clientId || matchingWorkflow.client?.clientId || matchingWorkflow.client?.id,
             clientName: matchingWorkflow.client?.name || `${matchingWorkflow.client?.firstName} ${matchingWorkflow.client?.lastName}`.trim(),
             clientEmail: matchingWorkflow.client?.email,
             status: matchingWorkflow.status,
@@ -2677,7 +2680,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (!matchingWorkflow) {
         console.log('🔄 DEBUG: Looking for any workflows for this client (any status)');
         const clientWorkflows = allWorkflows.filter((w: any) => {
-          const matchesClient = (clientId && (w.clientId === clientId || w.client?.id === clientId || w.client?._id === clientId)) ||
+          const matchesClient = (clientId && (w.clientId === clientId || w.client?.clientId === clientId || w.client?.id === clientId || w.client?._id === clientId)) ||
                                (clientEmail && w.client?.email?.toLowerCase() === clientEmail.toLowerCase());
           return matchesClient;
         });
@@ -2964,6 +2967,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           middleName: client.middleName || '',
           lastName: client.lastName,
           name: client.name, // Full name
+          // Explicitly include client ID fields
+          clientId: client.clientId || client._id || client.clientId, // MongoDB ObjectId reference
           // Explicitly include immigration-specific identifiers
           alienRegistrationNumber: client.alienRegistrationNumber || '',
           uscisOnlineAccountNumber: client.uscisOnlineAccountNumber || '',
@@ -3037,7 +3042,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           workflowData.questionnaireAssignment = {
             id: `assignment_${Date.now()}`,
             caseId: caseData.id || caseData._id,
-            clientId: client.id || client._id,
+            clientId: client.clientId || client._id,
             questionnaireId: existingResponse.questionnaireId,
             questionnaireName: existingResponse.questionnaireTitle,
             status: 'completed-reused',
@@ -3277,7 +3282,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       console.log('🔄 DEBUG: Processing existing response selection for workflow save:', {
         selectedExistingResponse,
         useExistingResponse,
-        clientId: client.id,
+        clientId: client.clientId,
         clientName: client.name,
         newCaseId: caseData.id || caseData._id,
         selectedForms
@@ -3359,7 +3364,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           questionnaireAssignment: {
             id: `assignment_${Date.now()}`,
             caseId: caseData.id || caseData._id,
-            clientId: client.id || client._id,
+            clientId: client.clientId || client._id,
             questionnaireId: existingResponse.questionnaireId,
             questionnaireName: existingResponse.questionnaireTitle,
             status: 'completed-reused',
@@ -3521,7 +3526,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             const assignment: QuestionnaireAssignment = {
               id: workflowDataWithExistingResponse.questionnaireAssignment.id,
               caseId: caseData.id || caseData._id || '',
-              clientId: client.id || client._id || '',
+              clientId: client.clientId || client._id || '',
               questionnaireId: existingResponse.questionnaireId,
               questionnaireName: existingResponse.questionnaireTitle,
               status: 'completed',
@@ -3676,7 +3681,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       }
     } else {
       console.log('✅ DEBUG: EXISTING client detected - COMPLETELY SKIPPING all account creation validation:', {
-        clientId: client.id,
+        clientId: client.clientId,
         clientName: client.name,
         clientEmail: client.email,
         isExistingClient: client.isExistingClient,
@@ -3730,7 +3735,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }
       } else {
         // For existing clients, use their existing ID and skip all account creation
-        clientUserId = client.id || client._id || client.userId;
+        clientUserId = client.clientId || client._id || client.userId;
         console.log('✅ DEBUG: Using existing client ID for questionnaire assignment - NO ACCOUNT CREATION:', {
           clientUserId,
           clientName: client.name,
@@ -3901,7 +3906,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       // Debug log the validated data before making the API call
       console.log('🔄 DEBUG: Assignment data prepared with client IDs:', {
-        originalClientId: client.id,
+        originalClientId: client.clientId,
         userAccountId: clientUserId,
         finalClientId: clientId,
         clientEmail: assignmentData.clientEmail,
@@ -3948,7 +3953,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         assignment = {
           id: responseId,
           caseId: caseData.id,
-          clientId: clientUserId || client.id, // Use the user account ID for proper linking
+          clientId: clientUserId || client.clientId, // Use the user account ID for proper linking
           questionnaireId: selectedQuestionnaire,
           questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
           status: 'pending',
@@ -4008,6 +4013,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             middleName: client.middleName || '',
             lastName: client.lastName,
             name: client.name,
+            // Include client ID fields
+            clientId: client.clientId || client._id || client.clientId, // MongoDB ObjectId reference
             // Include immigration-specific identifiers
             alienRegistrationNumber: client.alienRegistrationNumber || '',
             uscisOnlineAccountNumber: client.uscisOnlineAccountNumber || '',
@@ -4148,6 +4155,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setCurrentStep(0);
       setClient({
         id: '',
+        clientId: '', // MongoDB ObjectId reference to DEFAULT_IMS_Client
         name: '',
         firstName: '',
         middleName: '',
@@ -4302,6 +4310,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           phone: workflowData.client.phone || client.phone,
           dateOfBirth: workflowData.client.dateOfBirth || client.dateOfBirth,
           nationality: workflowData.client.nationality || client.nationality,
+          // Include client ID fields
+          clientId: workflowData.client.clientId || workflowData.client._id || workflowData.client.clientId || client.clientId,
           address: {
             ...client.address,
             ...workflowData.client.address
@@ -4377,7 +4387,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // Prepare comprehensive form data from all collected information
       const formData = {
         // Required fields for validation
-        clientId: client.id || client._id || '',
+        clientId: client.clientId || client._id || '',
         formNumber: selectedForms && selectedForms.length > 0 ? selectedForms[0] : 'workflow-step',
 
         // Client information
@@ -4581,7 +4591,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const currentCase = caseData;
 
       // Save to backend database
-      const clientId = currentClient?._id || currentClient?.id || '';
+      const clientId = currentClient?._id || currentClient?.clientId || currentClient?.id || '';
       const formNumber = formName; // formName should be the form number
       const templateId = form.templateId;
       
@@ -4775,6 +4785,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                         const workflowWithClient = workflows.find(w => 
                           w.clientId === selectedExistingClientId || 
                           w.client?._id === selectedExistingClientId ||
+                          w.client?.clientId === selectedExistingClientId ||
                           w.client?.id === selectedExistingClientId
                         );
                         
@@ -4809,6 +4820,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     const clientWithDetails = {
                       _id: selectedExistingClientId,
                       id: selectedExistingClientId,
+                      clientId: selectedExistingClientId, // MongoDB ObjectId reference to DEFAULT_IMS_Client
                       name: name,
                       firstName: anyClient.firstName || '',
                       middleName: anyClient.middleName || '',
@@ -4851,7 +4863,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     // IMMEDIATE VERIFICATION: Check client state right after setClient
                     console.log('🔍 DEBUG: IMMEDIATE VERIFICATION after setClient:', {
                       timestamp: new Date().toISOString(),
-                      clientId: clientWithDetails.id,
+                      clientId: clientWithDetails.clientId,
                       isExistingClient: clientWithDetails.isExistingClient,
                       hasUserAccount: clientWithDetails.hasUserAccount,
                       setClientCalled: true,
@@ -4880,7 +4892,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                           role: updatedClient.role,
                           userType: updatedClient.userType
                         },
-                        clientId: updatedClient.id,
+                        clientId: updatedClient.clientId,
                         clientEmail: updatedClient.email
                       });
                       
@@ -5350,7 +5362,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     </div>
                   )}
                   <div>
-                    <span className="font-medium text-green-800">Client ID:</span> {client.id || client._id}
+                    <span className="font-medium text-green-800">Client ID:</span> {client.clientId || client._id}
                   </div>
                   {client.role && (
                     <div>
@@ -5692,7 +5704,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       <details className="text-xs">
                         <summary className="cursor-pointer text-gray-500 hover:text-gray-700">Debug Info</summary>
                         <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                          <div><strong>Client ID:</strong> {client.id || 'None'}</div>
+                          <div><strong>Client ID:</strong> {client.clientId || 'None'}</div>
                           <div><strong>Client Email:</strong> {client.email || 'None'}</div>
                           <div><strong>Is Existing:</strong> {client.isExistingClient ? 'Yes' : 'No'}</div>
                           <div><strong>Has Account:</strong> {client.hasUserAccount ? 'Yes' : 'No'}</div>
@@ -5872,7 +5884,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                               You'll need to assign a new questionnaire from the options above.
                             </p>
                             <p className="text-xs text-yellow-600 mt-1">
-                              Client ID: {client.id} | Email: {client.email}
+                              Client ID: {client.clientId} | Email: {client.email}
                             </p>
                           </div>
                         </div>
@@ -5880,15 +5892,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                           onClick={async () => {
                             console.log('🔄 DEBUG: Manual refresh of questionnaire responses triggered');
                             console.log('🔄 DEBUG: Current client data:', {
-                              clientId: client.id,
+                              clientId: client.clientId,
                               clientEmail: client.email,
                               clientName: client.name,
                               isExistingClient: client.isExistingClient,
                               hasUserAccount: client.hasUserAccount
                             });
                             
-                            if (client.id) {
-                              await fetchExistingQuestionnaireResponses(client.id);
+                            if (client.clientId) {
+                              await fetchExistingQuestionnaireResponses(client.clientId);
                             } else {
                               console.warn('⚠️ DEBUG: No client ID available for refresh');
                               toast.error('No client ID available to fetch responses');
@@ -5957,7 +5969,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 // COMPREHENSIVE DEBUG: Capture complete client state and component context
                 const currentTimestamp = new Date().toISOString();
                 const clientState = {
-                  id: client.id,
+                  id: client.clientId,
                   name: client.name,
                   email: client.email,
                   isExistingClient: client.isExistingClient,
@@ -5971,15 +5983,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 // EMERGENCY SAFETY CHECK: If we have a client ID and it's from selectedExistingClientId, force the flags
                 const isDefinitelyExistingClient = (
                   selectedExistingClientId && 
-                  client.id && 
-                  (client.id === selectedExistingClientId || client._id === selectedExistingClientId)
+                  client.clientId && 
+                  (client.clientId === selectedExistingClientId || client._id === selectedExistingClientId)
                 );
                 
                 if (isDefinitelyExistingClient && (client.isExistingClient !== true || client.hasUserAccount !== true)) {
                   console.log('� DEBUG: EMERGENCY SAFETY - Detected existing client with undefined flags, FORCING correction:', {
                     selectedExistingClientId,
-                    clientId: client.id,
-                    clientIdMatch: client.id === selectedExistingClientId,
+                    clientId: client.clientId,
+                    clientIdMatch: client.clientId === selectedExistingClientId,
                     currentFlags: {
                       isExistingClient: client.isExistingClient,
                       hasUserAccount: client.hasUserAccount

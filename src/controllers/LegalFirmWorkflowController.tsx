@@ -4,6 +4,7 @@ import { LEGAL_WORKFLOW_ENDPOINTS } from '../utils/constants';
 // Types
 export interface Client {
   _id?: string;
+  clientId?: string; // MongoDB ObjectId reference to DEFAULT_IMS_Client
   firstName?: string;
   lastName?: string;
   email?: string;

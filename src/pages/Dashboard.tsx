@@ -188,17 +188,17 @@ const Dashboard = () => {
 
         workflows.forEach((workflow: any) => {
           // Extract client info
-          if (workflow.client && workflow.client.id) {
+          if (workflow.client && workflow.client.clientId) {
             const clientData = {
-              id: workflow.client.id,
-              _id: workflow.client.id,
+              id: workflow.client.clientId,
+              _id: workflow.client.clientId,
               name: workflow.client.name,
               email: workflow.client.email,
               phone: workflow.client.phone,
               imsUserId: workflow.client.imsUserId,
               hasImsUser: !!workflow.client.imsUserId
             };
-            clientsMap.set(workflow.client.id, clientData);
+            clientsMap.set(workflow.client.clientId, clientData);
           }
 
           // Extract case info from workflow
@@ -417,8 +417,8 @@ const Dashboard = () => {
       }
 
       // Match by client ID if available
-      if (workflow.client?.id && caseItem.clientId) {
-        const clientIdMatch = workflow.client.id === caseItem.clientId || workflow.client._id === caseItem.clientId;
+      if (workflow.client?.clientId && caseItem.clientId) {
+        const clientIdMatch = workflow.client.clientId === caseItem.clientId || workflow.client._id === caseItem.clientId;
         if (clientIdMatch) {
           return true;
         }

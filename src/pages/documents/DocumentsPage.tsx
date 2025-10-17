@@ -192,7 +192,7 @@ const DocumentsPage = () => {
           if (workflowClient.email || workflowClient.name || workflowClient.firstName) {
             // Use email as primary identifier since workflow client IDs are often empty
             const clientEmail = workflowClient.email;
-            const clientId = clientEmail || workflowClient.id || workflowClient._id || workflow._id;
+            const clientId = clientEmail || workflowClient.clientId || workflowClient._id || workflow._id;
             const clientName = workflowClient.name || 
                              (workflowClient.firstName && workflowClient.lastName ? 
                               `${workflowClient.firstName} ${workflowClient.lastName}` : 
@@ -662,7 +662,7 @@ const DocumentsPage = () => {
             >
               <option key="all" value="all">All Clients</option>
               {(clients || []).map(client => (
-                <option key={client._id || client.id} value={client._id || client.id}>
+                <option key={client._id || client.clientId} value={client._id || client.clientId}>
                   {client.name}
                 </option>
               ))}
@@ -879,7 +879,7 @@ const DocumentsPage = () => {
                               {loadingWorkflows ? 'Loading clients...' : 'Select a client'}
                             </option>
                             {(clients || []).map(client => (
-                              <option key={client._id || client.id} value={client._id || client.id}>
+                              <option key={client._id || client.clientId} value={client._id || client.clientId}>
                                 {client.name} {client.email ? `(${client.email})` : ''}
                               </option>
                             ))}
