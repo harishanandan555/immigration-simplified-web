@@ -39,7 +39,8 @@ import {
   getAnvilTemplatesList, 
   fillPdfTemplateBlob, 
   getTemplateIdsByFormNumber,
-  saveEditedPdf
+  saveEditedPdf,
+  getPdfPreviewBlob
 } from '../controllers/AnvilControllers';
 import { FormTemplate } from '../controllers/SettingsControllers';
 import { 
@@ -259,6 +260,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [showPreview, setShowPreview] = useState<Record<string, boolean>>({});
   const [showUnfilledFields, setShowUnfilledFields] = useState<Record<string, boolean>>({});
   const [showEditor, setShowEditor] = useState<Record<string, boolean>>({});
+  
+  // State for PDF preview data
+  const [pdfPreviewData, setPdfPreviewData] = useState<Record<string, {
+    blob: Blob;
+    metadata: any;
+    pdfId: string;
+  }>>({});
+  const [loadingPreview, setLoadingPreview] = useState<Record<string, boolean>>({});
 
   // State for complete workflow details from API
   const [completeWorkflowDetails, setCompleteWorkflowDetails] = useState<any>(null);
@@ -4730,11 +4739,122 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   };
 
   // Function to preview a specific form
-  const handlePreviewForm = (formName: string) => {
-    setShowPreview(prev => ({
-      ...prev,
-      [formName]: !prev[formName]
-    }));
+  const handlePreviewForm = async (formName: string) => {
+    const form = generatedForms.find(f => f.formName === formName);
+    if (!form) {
+      toast.error(`Form ${formName} not found`);
+      return;
+    }
+
+    // If preview is already showing, just toggle it off
+    if (showPreview[formName]) {
+      setShowPreview(prev => ({
+        ...prev,
+        [formName]: false
+      }));
+      return;
+    }
+
+    // Always try to show preview - use existing blob first, then try to fetch fresh data
+    if (form.blob) {
+      // Show existing preview immediately
+      setShowPreview(prev => ({
+        ...prev,
+        [formName]: true
+      }));
+      
+      // If we have a pdfId, also try to fetch fresh data in background
+      if (form.pdfId) {
+        try {
+          setLoadingPreview(prev => ({ ...prev, [formName]: true }));
+          
+          const previewResponse = await getPdfPreviewBlob({ pdfId: form.pdfId });
+          
+          if (previewResponse.data.blob) {
+            const { blob, metadata, pdfId } = previewResponse.data;
+            
+            // Update preview data state
+            setPdfPreviewData(prev => ({
+              ...prev,
+              [formName]: {
+                blob,
+                metadata,
+                pdfId
+              }
+            }));
+
+            // Update the form with new preview data
+            const updatedForms = generatedForms.map(f => 
+              f.formName === formName 
+                ? { 
+                    ...f, 
+                    blob,
+                    downloadUrl: URL.createObjectURL(blob)
+                  }
+                : f
+            );
+            setGeneratedForms(updatedForms);
+
+            toast.success('PDF preview refreshed from backend');
+          }
+        } catch (error) {
+          console.error('Error refreshing PDF preview:', error);
+          // Don't show error toast since we're already showing the cached version
+        } finally {
+          setLoadingPreview(prev => ({ ...prev, [formName]: false }));
+        }
+      }
+    } else if (form.pdfId) {
+      // No existing blob, try to fetch from backend
+      try {
+        setLoadingPreview(prev => ({ ...prev, [formName]: true }));
+        
+        const previewResponse = await getPdfPreviewBlob({ pdfId: form.pdfId });
+        
+        if (previewResponse.data.blob) {
+          const { blob, metadata, pdfId } = previewResponse.data;
+          
+          // Update preview data state
+          setPdfPreviewData(prev => ({
+            ...prev,
+            [formName]: {
+              blob,
+              metadata,
+              pdfId
+            }
+          }));
+
+          // Update the form with new preview data
+          const updatedForms = generatedForms.map(f => 
+            f.formName === formName 
+              ? { 
+                  ...f, 
+                  blob,
+                  downloadUrl: URL.createObjectURL(blob)
+                }
+              : f
+          );
+          setGeneratedForms(updatedForms);
+
+          // Show the preview
+          setShowPreview(prev => ({
+            ...prev,
+            [formName]: true
+          }));
+
+          toast.success('PDF preview loaded from backend');
+        } else {
+          throw new Error('Failed to load PDF preview - no blob data received');
+        }
+      } catch (error) {
+        console.error('Error loading PDF preview:', error);
+        toast.error('Failed to load PDF preview');
+      } finally {
+        setLoadingPreview(prev => ({ ...prev, [formName]: false }));
+      }
+    } else {
+      toast.error('No PDF data available for preview');
+    }
   };
 
   // Function to open PDF editor
@@ -4836,6 +4956,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       ...prev,
       [formName]: false
     }));
+    
+    // Clean up blob URL to prevent memory leaks
+    const form = generatedForms.find(f => f.formName === formName);
+    if (form && form.downloadUrl && form.downloadUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(form.downloadUrl);
+    }
   };
 
   // Function to toggle unfilled fields display
@@ -4854,8 +4980,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           revokePdfBlobUrl(form.downloadUrl);
         }
       });
+      
+      // Also clean up preview data blob URLs
+      Object.values(pdfPreviewData).forEach(previewData => {
+        if (previewData.blob) {
+          const url = URL.createObjectURL(previewData.blob);
+          URL.revokeObjectURL(url);
+        }
+      });
     };
-  }, [generatedForms]);
+  }, [generatedForms, pdfPreviewData]);
 
   // Handles steps for new responses
   const renderNewResponseStep = (step: number) => {
@@ -7341,21 +7475,25 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                             <div className="space-y-2">
                               <div className="text-sm text-gray-600">{form.fileName}</div>
                               
-                              {/* Filled Percentage Display */}
-                              {form.filledPercentage !== undefined && (
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-sm text-gray-600">Filled:</span>
-                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                    <div 
-                                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                      style={{ width: `${form.filledPercentage}%` }}
-                                    ></div>
+                              {/* Enhanced Percentage Display */}
+                              <div className="space-y-2">
+                                {/* Original Filled Percentage */}
+                                {form.filledPercentage !== undefined && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-sm text-gray-600">Initial Fill:</span>
+                                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                      <div 
+                                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                        style={{ width: `${form.filledPercentage}%` }}
+                                      ></div>
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-700">
+                                      {Math.round(form.filledPercentage)}%
+                                    </span>
                                   </div>
-                                  <span className="text-sm font-medium text-gray-700">
-                                    {Math.round(form.filledPercentage)}%
-                                  </span>
-                                </div>
-                              )}
+                                )}
+
+                              </div>
 
                               {/* Unfilled Fields Toggle */}
                               {form.unfilledFields && Object.keys(form.unfilledFields).length > 0 && (
@@ -7385,7 +7523,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                 </div>
                               )}
 
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 flex-wrap">
                                 <Button
                                   onClick={() => handleDownloadForm(form.formName)}
                                   size="sm"
@@ -7398,9 +7536,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                   onClick={() => handlePreviewForm(form.formName)}
                                   size="sm"
                                   variant="outline"
+                                  disabled={loadingPreview[form.formName]}
                                 >
-                                  <FileText className="w-4 h-4 mr-1" />
-                                  Preview
+                                  {loadingPreview[form.formName] ? (
+                                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                  ) : (
+                                    <FileText className="w-4 h-4 mr-1" />
+                                  )}
+                                  {loadingPreview[form.formName] ? 'Loading...' : 'Preview'}
                                 </Button>
                                 <Button
                                   onClick={() => handleEditForm(form.formName)}
@@ -7446,11 +7589,45 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                           </Button>
                         </div>
                         <div className="flex-1">
-                          <iframe
-                            src={form.downloadUrl}
-                            className="w-full h-full border-0"
-                            title={`Preview of ${formName}`}
-                          />
+                          {form.blob ? (
+                            <iframe
+                              src={URL.createObjectURL(form.blob)}
+                              className="w-full h-full border-0"
+                              title={`Preview of ${formName}`}
+                              onError={() => {
+                                console.error('PDF preview failed to load');
+                                toast.error('Failed to load PDF preview');
+                              }}
+                            />
+                          ) : loadingPreview[formName] ? (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4" />
+                                <p className="text-gray-600">Loading PDF preview...</p>
+                                <p className="text-sm text-gray-500 mt-2">
+                                  Fetching fresh data from backend
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+                                <p className="text-gray-600">No PDF data available</p>
+                                <p className="text-sm text-gray-500 mt-2">
+                                  Try refreshing the preview or regenerating the form
+                                </p>
+                                <Button
+                                  onClick={() => handlePreviewForm(formName)}
+                                  size="sm"
+                                  className="mt-4"
+                                >
+                                  <FileText className="w-4 h-4 mr-2" />
+                                  Retry Preview
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
