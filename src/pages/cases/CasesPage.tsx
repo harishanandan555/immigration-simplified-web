@@ -281,14 +281,10 @@ const CasesPage: React.FC = () => {
           {loadingWorkflows && (
             <p className="text-sm text-blue-600 mt-1">Loading workflow data...</p>
           )}
-          {workflowCases.length > 0 && !loadingWorkflows && (
-            <p className="text-sm text-green-600 mt-1">
-              ✅ {workflowCases.length} workflow cases loaded
-            </p>
-          )}
+          
         </div>
         <Link
-          to="/cases/new"
+          to="/legal-firm-workflow"
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md transition-colors"
         >
           <PlusCircle size={18} />
@@ -327,15 +323,7 @@ const CasesPage: React.FC = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="w-1/4 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div 
-                    className="flex items-center gap-1 cursor-pointer"
-                    onClick={() => handleSort('title')}
-                  >
-                    <span>Title</span>
-                    <ArrowUpDown size={14} />
-                  </div>
-                </th>
+               
                 <th className="w-1/5 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
@@ -360,7 +348,7 @@ const CasesPage: React.FC = () => {
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('createdAt')}
                   >
-                    <span>Date Created</span>
+                    <span>Due Date</span>
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
@@ -382,49 +370,33 @@ const CasesPage: React.FC = () => {
                           <div className="font-bold truncate">{workflowCase.caseNumber}</div>
                           {workflowCase.formCaseIds && Object.keys(workflowCase.formCaseIds).length > 0 && (
                             <div className="mt-1 space-y-1">
-                              {Object.entries(workflowCase.formCaseIds)
+                              {/* {Object.entries(workflowCase.formCaseIds)
                                 .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
                                 .slice(0, 2) // Limit to first 2 form case IDs to save space
-                                .map(([formName, caseId]) => (
+                                .map(([formName]) => (
                                 <div 
                                   key={formName}
                                   className="text-xs font-mono px-1 py-0.5 rounded bg-green-50 text-green-600 truncate"
-                                  title={`${formName}: ${caseId}`}
+                                  title={`${formName}`}
                                 >
-                                  {formName}: {caseId}
+                                  {formName}
                                 </div>
-                              ))}
-                              {Object.keys(workflowCase.formCaseIds).length > 2 && (
+                              ))} */}
+                              {/* {Object.keys(workflowCase.formCaseIds).length > 2 && (
                                 <div className="text-xs text-gray-500">
                                   +{Object.keys(workflowCase.formCaseIds).length - 2} more
                                 </div>
-                              )}
+                              )} */}
                             </div>
                           )}
-                          <div className="text-xs text-purple-600 mt-1 truncate">
-                            📋 Step {workflowCase.currentStep} • {workflowCase.status}
-                          </div>
+                      
                         </Link>
                       </td>
-                      <td className="px-3 py-3 text-sm text-gray-900">
-                        <Link to={`/cases/${workflowCase._id}`}>
-                          <div className="font-medium truncate" title={workflowCase.title}>{workflowCase.title}</div>
-                          {workflowCase.description && workflowCase.description !== workflowCase.title && (
-                            <div className="text-xs text-gray-500 mt-1 truncate" title={workflowCase.description}>
-                              {workflowCase.description}
-                            </div>
-                          )}
-                          {workflowCase.subcategory && (
-                            <div className="text-xs text-blue-600 mt-1 truncate">
-                              {workflowCase.category} • {workflowCase.subcategory}
-                            </div>
-                          )}
-                        </Link>
-                      </td>
+                    
                       <td className="px-3 py-3 text-sm text-gray-500">
                         <div>
                           <div className="font-medium truncate" title={workflowCase.client.name}>{workflowCase.client.name}</div>
-                          <div className="text-xs text-gray-400 truncate" title={workflowCase.client.email}>{workflowCase.client.email}</div>
+                          {/* <div className="text-xs text-gray-400 truncate" title={workflowCase.client.email}>{workflowCase.client.email}</div>
                           {workflowCase.client.phone && (
                             <div className="text-xs text-gray-400 truncate">{workflowCase.client.phone}</div>
                           )}
@@ -432,7 +404,7 @@ const CasesPage: React.FC = () => {
                             <div className="text-xs text-blue-600 mt-1 truncate">
                               🌍 {workflowCase.client.nationality}
                             </div>
-                          )}
+                          )} */}
                         </div>
                       </td>
                       <td className="px-3 py-3">
@@ -469,23 +441,15 @@ const CasesPage: React.FC = () => {
                             {workflowCase.selectedForms.length > 2 && ` +${workflowCase.selectedForms.length - 2}`}
                           </div>
                         )}
-                        {workflowCase.dueDate && (
-                          <div className="text-xs text-orange-600 mt-1">
-                            Due: {new Date(workflowCase.dueDate).toLocaleDateString()}
-                          </div>
-                        )}
+                      
                       </td>
                       <td className="px-3 py-3 text-sm text-gray-500">
-                        <div>{new Date(workflowCase.createdAt).toLocaleDateString()}</div>
-                        <div className="text-xs text-gray-400 mt-1 truncate">
-                          by {workflowCase.createdBy.firstName} {workflowCase.createdBy.lastName}
-                        </div>
-                        {workflowCase.questionnaireAssignment?.is_complete && (
-                          <div className="text-xs text-green-600 mt-1">
-                            ✅ Complete
+                         {workflowCase.dueDate && (
+                          <div className="text-xs text-orange-600 mt-1">
+                         {new Date(workflowCase.dueDate).toLocaleDateString()}
                           </div>
                         )}
-                      </td>
+                        </td>
                     </tr>
                   );
                 })

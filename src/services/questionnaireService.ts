@@ -582,6 +582,7 @@ class QuestionnaireService {
   /**
    * Import questionnaire from JSON file (original functionality)
    */
+  // @ts-ignore - Method reserved for future use
   private async importFromJSON(file: File): Promise<ImmigrationQuestionnaire> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -628,6 +629,7 @@ class QuestionnaireService {
   /**
    * Import questionnaire from PDF file
    */
+  // @ts-ignore - Method reserved for future use
   private async importFromPDF(file: File): Promise<ImmigrationQuestionnaire> {
     // Note: This is a simplified implementation
     // For production, you might want to use PDF.js or similar library
@@ -638,6 +640,7 @@ class QuestionnaireService {
   /**
    * Import questionnaire from Word document
    */
+  // @ts-ignore - Method reserved for future use
   private async importFromDocument(file: File): Promise<ImmigrationQuestionnaire> {
     // Note: This is a simplified implementation
     // For production, you might want to use mammoth.js or similar library

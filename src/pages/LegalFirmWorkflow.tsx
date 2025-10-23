@@ -34,7 +34,7 @@ import {
 import {
   generateSecurePassword
 } from '../controllers/UserCreationController';
-import { getCompanyClients as fetchClientsFromAPI, getClientById, createCompanyClient, Client as APIClient } from '../controllers/ClientControllers';
+import { getCompanyClients as fetchClientsFromAPI, createCompanyClient, Client as APIClient } from '../controllers/ClientControllers';
 import { 
   getAnvilTemplatesList, 
   fillPdfTemplateBlob, 
@@ -54,6 +54,7 @@ import {
   saveWorkflowProgress,
   fetchWorkflows,
   fetchWorkflowsForClientSearch,
+  getWorkflowsByClient,
   checkEmailExists,
   assignQuestionnaireToFormDetails,
   createQuestionnaireAssignment,
@@ -121,26 +122,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [loading, setLoading] = useState(false);
 
   // IMMEDIATE DEBUG LOGGING FOR URL PARAMETERS
-  React.useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses') === 'true';
-    const workflowId = urlParams.get('workflowId');
-    
-    console.log('🚨 IMMEDIATE URL CHECK ON COMPONENT MOUNT:');
-    console.log('Current URL:', window.location.href);
-    console.log('URL Search Params:', window.location.search);
-    console.log('fromQuestionnaireResponses:', fromQuestionnaireResponses);
-    console.log('workflowId:', workflowId);
-    console.log('Should fetch workflow data:', fromQuestionnaireResponses && workflowId);
-    console.log('================================');
-  }, []);
 
-  console.log('🚀 LegalFirmWorkflow component initialized:', {
-    initialCurrentStep: 0,
-    initialIsExistResponse: false,
-    timestamp: new Date().toISOString(),
-    note: 'Will only load sessionStorage data if coming from QuestionnaireResponses'
-  });
+
 
   // Client data
   const [client, setClient] = useState<any>({
@@ -174,20 +157,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   });
 
   // DEBUG: Log client state at render level
-  console.log('🔍 DEBUG: Component render - current client state:', {
-    clientId: client?.clientId,
-    clientName: client?.name,
-    clientEmail: client?.email,
-    isExistingClient: client?.isExistingClient,
-    hasUserAccount: client?.hasUserAccount,
-    role: client?.role,
-    userType: client?.userType,
-    timestamp: new Date().toISOString()
-  });
+  
 
   // Existing clients (from API)
   const [existingClients, setExistingClients] = useState<Client[]>([]);
-  const [selectedExistingClientId, setSelectedExistingClientId] = useState('');
+  const [selectedExistingClientId, setSelectedExistingClientId] = useState(''); // Note: Now stores client email, not ID
   const [fetchingClients, setFetchingClients] = useState(false);
 
   // Case data
@@ -540,33 +514,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Monitor client state changes for debugging
   useEffect(() => {
-    console.log('🔍 DEBUG: Client state changed - monitoring flags:', {
-      clientId: client?.id,
-      clientName: client?.name,
-      clientEmail: client?.email,
-      isExistingClient: client?.isExistingClient,
-      hasUserAccount: client?.hasUserAccount,
-      role: client?.role,
-      userType: client?.userType,
-      timestamp: new Date().toISOString(),
-      changeSource: 'useEffect monitoring'
-    });
+
   }, [client.isExistingClient, client.hasUserAccount, client.clientId, client.email]);
 
   // Emergency safety check to fix undefined flags for existing clients
   useEffect(() => {
-    // EMERGENCY SAFETY CHECK: If we have a client ID and it's from selectedExistingClientId, force the flags
+    // EMERGENCY SAFETY CHECK: If we have a client email and it's from selectedExistingClientId, force the flags
     const isDefinitelyExistingClient = (
       selectedExistingClientId && 
-      client.clientId && 
-      (client.clientId === selectedExistingClientId || client._id === selectedExistingClientId)
+      client.email && 
+      client.email === selectedExistingClientId
     );
     
     if (isDefinitelyExistingClient && (client.isExistingClient !== true || client.hasUserAccount !== true)) {
       console.log('🚨 DEBUG: EMERGENCY SAFETY - Detected existing client with undefined flags, FORCING correction:', {
         selectedExistingClientId,
-        clientId: client.clientId,
-        clientIdMatch: client.clientId === selectedExistingClientId,
+        clientEmail: client.email,
+        emailMatch: client.email === selectedExistingClientId,
         currentFlags: {
           isExistingClient: client.isExistingClient,
           hasUserAccount: client.hasUserAccount
@@ -583,12 +547,210 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         userType: prev.userType || 'companyClient'
       }));
     }
-  }, [selectedExistingClientId, client.clientId, client._id, client.isExistingClient, client.hasUserAccount]);
+  }, [selectedExistingClientId, client.email, client.isExistingClient, client.hasUserAccount]);
+
+  // Function to fetch client details - clean implementation following controller pattern
+  const fetchClientDetails = async (clientId?: string): Promise<{
+    success: boolean;
+    client?: any;
+    error?: string;
+  }> => {
+    const targetClientId = clientId || selectedExistingClientId;
+    
+    if (!targetClientId) {
+      console.log('🔍 fetchClientDetails: No client ID provided, skipping fetch');
+      return { success: false, error: 'No client ID provided' };
+    }
+
+    console.log('🔄 fetchClientDetails: Starting client details fetch for:', targetClientId);
+    setLoading(true);
+    
+    try {
+      // Step 1: Fetch client details directly from workflow API
+      let fullClient = null;
+      
+      console.log('🔄 fetchClientDetails: Fetching workflows for client:', targetClientId);
+      
+      const workflowResult = await getWorkflowsByClient(targetClientId, {
+        page: 1,
+        limit: 5,
+        includeQuestions: false
+      });
+
+      console.log("WORKFLOW RESULT", workflowResult)
+      
+      // Step 2: Extract client data from workflow API response
+      if (workflowResult.success && workflowResult.data.length > 0) {
+        // Find the most recent workflow with client data
+        const workflowWithClient = workflowResult.data.find(workflow => 
+          workflow.client && (
+            workflow.clientId === targetClientId || 
+            workflow.client?.email === targetClientId
+          )
+        );
+        
+        if (workflowWithClient && workflowWithClient.client) {
+          fullClient = workflowWithClient.client;
+          console.log('✅ fetchClientDetails: Found client in workflow data:', {
+            workflowId: workflowWithClient.workflowId || workflowWithClient._id,
+            clientName: fullClient.name || `${fullClient.firstName} ${fullClient.lastName}`,
+            clientEmail: fullClient.email,
+            clientObjectId: fullClient._id,
+            clientClientId: fullClient.clientId,
+            clientId: fullClient.id
+          });
+        }
+      }
+      
+      if (workflowResult.error) {
+        console.error('❌ fetchClientDetails: API error:', workflowResult.error);
+      }
+      
+      // Step 3: Final fallback - try general workflow search
+      if (!fullClient) {
+        console.log('🔄 fetchClientDetails: Trying fallback workflow search');
+        
+        try {
+          const workflows = await fetchWorkflowsForClientSearch();
+          const workflowWithClient = workflows.find(w => 
+            w.clientId === targetClientId || 
+            w.client?.email === targetClientId
+          );
+          
+          if (workflowWithClient && workflowWithClient.client) {
+            fullClient = workflowWithClient.client;
+            console.log('✅ fetchClientDetails: Found client via fallback method');
+          }
+        } catch (fallbackError) {
+          console.warn('⚠️ fetchClientDetails: Fallback method failed:', fallbackError);
+        }
+      }
+      
+      // Step 4: Process and return result
+      if (!fullClient) {
+        const errorMsg = 'Client not found in any data source';
+        console.error('❌ fetchClientDetails:', errorMsg);
+        toast.error('Unable to retrieve client details. Please try again.');
+        return { success: false, error: errorMsg };
+      }
+      
+      // Step 5: Process client data and update component state
+      const processedClient = processClientData(fullClient, targetClientId);
+      
+      // Update component state
+      setClient(processedClient);
+      setCaseData(prev => ({ ...prev, clientId: targetClientId }));
+      
+      // Fetch additional client data (questionnaire responses) using the actual client ObjectId
+      const clientObjectId = processedClient.clientId || processedClient._id || processedClient.id;
+      if (clientObjectId && clientObjectId !== targetClientId) {
+        console.log('🔄 fetchClientDetails: Using client ObjectId for questionnaire responses:', clientObjectId);
+        await fetchExistingQuestionnaireResponses(clientObjectId);
+      } else {
+        console.log('⚠️ fetchClientDetails: No valid ObjectId found for questionnaire responses, skipping');
+      }
+      
+      const clientName = processedClient.name || 'Client';
+      console.log('✅ fetchClientDetails: Successfully loaded client details');
+      toast.success(`Client ${clientName} details loaded successfully`);
+      
+      return { 
+        success: true, 
+        client: processedClient 
+      };
+      
+    } catch (error: any) {
+      const errorMsg = error.message || 'Failed to fetch client details';
+      console.error('❌ fetchClientDetails: Unexpected error:', {
+        error: errorMsg,
+        stack: error.stack,
+        targetClientId
+      });
+      
+      toast.error('Failed to load client details. Please try again.');
+      
+      return { 
+        success: false, 
+        error: errorMsg 
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to process raw client data into component format
+  const processClientData = (rawClient: any, targetClientId: string) => {
+    // Generate client name from available fields
+    let name = '';
+    if (rawClient.name) {
+      name = rawClient.name;
+    } else if (rawClient.firstName || rawClient.lastName) {
+      name = `${rawClient.firstName || ''} ${rawClient.lastName || ''}`.trim();
+    } else if (rawClient.fullName) {
+      name = rawClient.fullName;
+    } else {
+      name = 'Unnamed Client';
+    }
+    
+    // Extract the actual MongoDB ObjectId from the client data
+    const objectId = rawClient._id || rawClient.clientId || rawClient.id;
+    const isValidObjectId = objectId && /^[0-9a-fA-F]{24}$/.test(objectId);
+    
+    console.log('🔍 processClientData: Client ID extraction:', {
+      rawClientId: rawClient._id,
+      rawClientClientId: rawClient.clientId,
+      rawClientId2: rawClient.id,
+      extractedObjectId: objectId,
+      isValidObjectId,
+      targetClientId,
+      clientEmail: rawClient.email
+    });
+    
+    // Return processed client object
+    return {
+      _id: isValidObjectId ? objectId : targetClientId,
+      id: isValidObjectId ? objectId : targetClientId,
+      clientId: isValidObjectId ? objectId : targetClientId,
+      name: name,
+      firstName: rawClient.firstName || '',
+      middleName: rawClient.middleName || '',
+      lastName: rawClient.lastName || '',
+      email: rawClient.email || targetClientId,
+      phone: rawClient.phone || '',
+      dateOfBirth: rawClient.dateOfBirth || '',
+      nationality: rawClient.nationality || '',
+      alienRegistrationNumber: rawClient.alienRegistrationNumber || '',
+      uscisOnlineAccountNumber: rawClient.uscisOnlineAccountNumber || '',
+      socialSecurityNumber: rawClient.socialSecurityNumber || '',
+      address: {
+        street: rawClient.address?.street || '',
+        aptSuiteFlr: rawClient.address?.aptSuiteFlr || '',
+        aptNumber: rawClient.address?.aptNumber || '',
+        city: rawClient.address?.city || '',
+        state: rawClient.address?.state || rawClient.address?.province || '',
+        province: rawClient.address?.province || rawClient.address?.state || '',
+        zipCode: rawClient.address?.zipCode || rawClient.address?.postalCode || '',
+        postalCode: rawClient.address?.postalCode || rawClient.address?.zipCode || '',
+        country: rawClient.address?.country || ''
+      },
+      isExistingClient: true,
+      hasUserAccount: true,
+      role: rawClient.role || 'client',
+      userType: rawClient.userType || 'companyClient'
+    };
+  };
+
+  // Fetch client details when selectedExistingClientId changes
+  useEffect(() => {
+    if (selectedExistingClientId) {
+      fetchClientDetails();
+    }
+  }, [selectedExistingClientId]);
 
   // Load workflow data when existing client reaches Create Client step (step 1)
   useEffect(() => {
     const loadWorkflowDataForExistingClient = async () => {
-      console.log('🔍 DEBUG: useEffect triggered - checking conditions:', {
+      console.log('🔍 DEBUG: useEffect triggered - checking conditions for workflow loading:', {
         currentStep,
         selectedExistingClientId,
         clientIsExistingClient: client.isExistingClient,
@@ -1733,11 +1895,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       console.log('🔍 DEBUG: Client ID validation:', {
         clientId,
         isValidObjectId,
-        length: clientId.length
+        length: clientId.length,
+        isEmail: clientId.includes('@')
       });
       
       if (!isValidObjectId) {
-        console.warn('⚠️ DEBUG: Client ID does not appear to be a valid MongoDB ObjectId');
+        console.warn('⚠️ DEBUG: Client ID is not a valid MongoDB ObjectId, skipping questionnaire response fetch');
+        if (clientId.includes('@')) {
+          console.warn('⚠️ DEBUG: Client ID appears to be an email address, not an ObjectId');
+        }
+        setExistingQuestionnaireResponses([]);
+        return;
       }
 
       // Import the questionnaire response controllers to use the correct API
@@ -4712,7 +4880,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       if (!form) return;
 
       // Get current client and case information
-      const currentClient = existingClients.find(c => c._id === selectedExistingClientId) || client;
+      const currentClient = existingClients.find(c => c.email === selectedExistingClientId) || client;
       const currentCase = caseData;
 
       // Save to backend database
@@ -4868,12 +5036,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       ...existingClients
                         .filter(c => {
                           const anyClient = c as any;
-                          // Check if client has a valid ID
+                          // Check if client has a valid ID and email
                           const hasValidId = typeof anyClient._id === 'string' && anyClient._id.length === 24;
+                          const hasValidEmail = typeof anyClient.email === 'string' && anyClient.email.includes('@');
                           // Check if client has valid role and userType (allow both companyClient and individual client types)
                           const hasValidType = anyClient.role === 'client' && (anyClient.userType === 'companyClient' || anyClient.userType === 'client' || !anyClient.userType);
                           
-                          return hasValidId && hasValidType;
+                          return hasValidId && hasValidEmail && hasValidType;
                         })
                         .map(c => {
                           const anyClient = c as any;
@@ -4893,7 +5062,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                           const email = anyClient.email || 'No email';
                           
                           return {
-                            value: anyClient._id,
+                            value: anyClient.email,
                             label: `${displayName} (${email})`
                           };
                         })
@@ -4904,170 +5073,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               <Button
                 onClick={async () => {
                   if (!selectedExistingClientId) return;
-                  setLoading(true);
-                  try {
-                    console.log('🔄 Fetching client details from workflow DB for ID:', selectedExistingClientId);
-                    
-                    // First try to get client details from regular client API
-                    let fullClient = null;
-                    try {
-                      fullClient = await getClientById(selectedExistingClientId);
-                      console.log('✅ Retrieved client from client API:', fullClient);
-                    } catch (clientApiError) {
-                      console.warn('⚠️ Failed to get client from client API, trying workflow DB:', clientApiError);
-                    }
-                    
-                    // If client API fails, try to get from workflow DB
-                    if (!fullClient) {
-                      try {
-                        const workflows = await fetchWorkflowsForClientSearch();
-                        const workflowWithClient = workflows.find(w => 
-                          w.clientId === selectedExistingClientId || 
-                          w.client?._id === selectedExistingClientId ||
-                          w.client?.clientId === selectedExistingClientId ||
-                          w.client?.id === selectedExistingClientId
-                        );
-                        
-                        if (workflowWithClient && workflowWithClient.client) {
-                          fullClient = workflowWithClient.client;
-                          console.log('✅ Retrieved client from workflow DB:', fullClient);
-                        }
-                      } catch (workflowError) {
-                        console.error('❌ Failed to get client from workflow DB:', workflowError);
-                      }
-                    }
-                    
-                    if (!fullClient) {
-                      toast.error('Unable to retrieve client details. Please try again.');
-                      return;
-                    }
-                    
-                    const anyClient = fullClient as any;
-                    // Try multiple fields for client name
-                    let name = '';
-                    if (anyClient.name) {
-                      name = anyClient.name;
-                    } else if (anyClient.firstName || anyClient.lastName) {
-                      name = ((anyClient.firstName || '') + ' ' + (anyClient.lastName || '')).trim();
-                    } else if (anyClient.fullName) {
-                      name = anyClient.fullName;
-                    } else {
-                      name = 'Unnamed Client';
-                    }
-                    
-                    // Populate the client form with retrieved details
-                    const clientWithDetails = {
-                      _id: selectedExistingClientId,
-                      id: selectedExistingClientId,
-                      clientId: selectedExistingClientId, // MongoDB ObjectId reference to DEFAULT_IMS_Client
-                      name: name,
-                      firstName: anyClient.firstName || '',
-                      middleName: anyClient.middleName || '',
-                      lastName: anyClient.lastName || '',
-                      email: anyClient.email || '',
-                      phone: anyClient.phone || '',
-                      dateOfBirth: anyClient.dateOfBirth || '',
-                      nationality: anyClient.nationality || '',
-                      // Include immigration-specific identifiers
-                      alienRegistrationNumber: anyClient.alienRegistrationNumber || '',
-                      uscisOnlineAccountNumber: anyClient.uscisOnlineAccountNumber || '',
-                      socialSecurityNumber: anyClient.socialSecurityNumber || '',
-                      address: {
-                        street: anyClient.address?.street || '',
-                        aptSuiteFlr: anyClient.address?.aptSuiteFlr || '',
-                        aptNumber: anyClient.address?.aptNumber || '',
-                        city: anyClient.address?.city || '',
-                        state: anyClient.address?.state || anyClient.address?.province || '',
-                        province: anyClient.address?.province || anyClient.address?.state || '',
-                        zipCode: anyClient.address?.zipCode || anyClient.address?.postalCode || '',
-                        postalCode: anyClient.address?.postalCode || anyClient.address?.zipCode || '',
-                        country: anyClient.address?.country || ''
-                      },
-                      isExistingClient: true,
-                      hasUserAccount: true,
-                      role: anyClient.role || 'client',
-                      userType: anyClient.userType || 'companyClient'
-                    };
-                    
-                    console.log('✅ Setting client with populated details:', clientWithDetails);
-                    console.log('🔍 DEBUG: Client flags before workflow auto-fill:', {
-                      isExistingClient: clientWithDetails.isExistingClient,
-                      hasUserAccount: clientWithDetails.hasUserAccount,
-                      role: clientWithDetails.role,
-                      userType: clientWithDetails.userType
-                    });
-                    
-                    setClient(clientWithDetails);
-                    
-                    // IMMEDIATE VERIFICATION: Check client state right after setClient
-                    console.log('🔍 DEBUG: IMMEDIATE VERIFICATION after setClient:', {
-                      timestamp: new Date().toISOString(),
-                      clientId: clientWithDetails.clientId,
-                      isExistingClient: clientWithDetails.isExistingClient,
-                      hasUserAccount: clientWithDetails.hasUserAccount,
-                      setClientCalled: true,
-                      stateBeingSet: {
-                        isExistingClient: clientWithDetails.isExistingClient,
-                        hasUserAccount: clientWithDetails.hasUserAccount
-                      }
-                    });
-                    
-                    // ADDITIONAL SAFETY: Force update client state with explicit flag preservation
-                    setClient((prevClient: any) => {
-                      const updatedClient = {
-                        ...prevClient,
-                        ...clientWithDetails,
-                        // FORCE these flags to be true for existing clients
-                        isExistingClient: true,
-                        hasUserAccount: true,
-                        role: clientWithDetails.role || 'client',
-                        userType: clientWithDetails.userType || 'companyClient'
-                      };
-                      
-                      console.log('🔍 DEBUG: FORCED CLIENT UPDATE with explicit flags:', {
-                        updatedClientFlags: {
-                          isExistingClient: updatedClient.isExistingClient,
-                          hasUserAccount: updatedClient.hasUserAccount,
-                          role: updatedClient.role,
-                          userType: updatedClient.userType
-                        },
-                        clientId: updatedClient.clientId,
-                        clientEmail: updatedClient.email
-                      });
-                      
-                      return updatedClient;
-                    });
-                    setCaseData(prev => ({ ...prev, clientId: selectedExistingClientId }));
-                    
-                    // Fetch existing questionnaire responses for this client
-                    await fetchExistingQuestionnaireResponses(selectedExistingClientId);
-                    
-                    // Try to find and auto-fill workflow data for this client
-                    console.log('🔄 DEBUG: Attempting to auto-fill workflow data for client:', {
-                      clientId: selectedExistingClientId,
-                      clientEmail: clientWithDetails.email,
-                      clientName: clientWithDetails.name,
-                      flagsSetBeforeAutoFill: {
-                        isExistingClient: clientWithDetails.isExistingClient,
-                        hasUserAccount: clientWithDetails.hasUserAccount
-                      }
-                    });
-                    
-                    // For existing client workflow, always go to step 1 (Create Client) to show client details
-                    // Workflow data will be loaded when user reaches the Create Client step
-                    console.log('✅ DEBUG: Setting current step to 1 (Create Client) - workflow data will load on that step');
+                  
+                  console.log('🔄 Existing client button clicked, fetching client details');
+                  
+                  // Use fetchClientDetails method directly
+                  const result = await fetchClientDetails(selectedExistingClientId);
+                  
+                  if (result.success) {
+                    // After client details are successfully fetched, proceed to Create Client step
                     setCurrentStep(1);
-                    
-                    console.log('✅ DEBUG: Basic client data loaded - workflow data will load on Create Client step');
-                    toast.success(`Client ${name} selected - proceed to Create Client step to load complete data`);
-                    
-                    // Remove this duplicate toast since we have specific ones above
-                    // toast.success(`Client details loaded: ${name}`);
-                  } catch (error) {
-                    console.error('❌ Error fetching client details:', error);
-                    toast.error('Failed to load client details. Please try again.');
-                  } finally {
-                    setLoading(false);
+                    console.log('✅ Client details fetched successfully, proceeding to Create Client step');
+                  } else {
+                    console.error('❌ Failed to fetch client details:', result.error);
+                    // Error handling is already done in fetchClientDetails (toast notification)
                   }
                 }}
                 disabled={!selectedExistingClientId || loading}
@@ -5928,9 +5946,32 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                               label="Select Previous Response to Reuse"
                               value={selectedExistingResponse}
                               onChange={(e) => {
+                                console.log('🔄 DEBUG: Existing response dropdown changed:', {
+                                  selectedValue: e.target.value,
+                                  existingResponsesCount: existingQuestionnaireResponses.length,
+                                  existingResponsesIds: existingQuestionnaireResponses.map(r => ({ id: r.id, _id: r._id }))
+                                });
+                                
                                 setSelectedExistingResponse(e.target.value);
                                 // When existing response is selected, populate the form fields
-                                const response = existingQuestionnaireResponses.find(r => r.id === e.target.value);
+                                const response = existingQuestionnaireResponses.find(r => {
+                                  const match = (r.id === e.target.value) || (r._id === e.target.value);
+                                  console.log('🔍 DEBUG: Checking response match:', {
+                                    responseId: r.id,
+                                    response_Id: r._id,
+                                    selectedValue: e.target.value,
+                                    match
+                                  });
+                                  return match;
+                                });
+                                
+                                console.log("EXISTING RESPONSE", response);
+                                console.log('🔍 DEBUG: Response search result:', {
+                                  found: !!response,
+                                  hasResponses: !!(response && response.responses),
+                                  responseKeys: response?.responses ? Object.keys(response.responses) : []
+                                });
+                                
                                 if (response && response.responses) {
                                   setClientResponses(response.responses);
                                   setIsExistingResponse(true);
@@ -5939,6 +5980,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                     questionnaireTitle: response.questionnaireTitle,
                                     responseCount: Object.keys(response.responses).length
                                   });
+                                } else {
+                                  console.warn('⚠️ DEBUG: No response found or response has no data');
                                 }
                               }}
                               options={[
@@ -5947,8 +5990,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                   const responseCount = Object.keys(response.responses || {}).length;
                                   const submittedDate = new Date(response.submittedAt || response.createdAt).toLocaleDateString();
                                   const isComplete = response.isComplete ? '✅' : '⚠️';
+                                  const valueToUse = response.id || response._id;
+                                  
+                                  console.log('🔍 DEBUG: Creating option for response:', {
+                                    responseId: response.id,
+                                    response_Id: response._id,
+                                    valueToUse,
+                                    title: response.questionnaireTitle
+                                  });
+                                  
                                   return {
-                                    value: response.id || response._id,
+                                    value: valueToUse,
                                     label: `${isComplete} ${response.questionnaireTitle || 'Unknown Questionnaire'} - ${submittedDate} (${responseCount} answers)`
                                   };
                                 })
@@ -6122,15 +6174,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 // EMERGENCY SAFETY CHECK: If we have a client ID and it's from selectedExistingClientId, force the flags
                 const isDefinitelyExistingClient = (
                   selectedExistingClientId && 
-                  client.clientId && 
-                  (client.clientId === selectedExistingClientId || client._id === selectedExistingClientId)
+                  client.email && 
+                  client.email === selectedExistingClientId
                 );
                 
                 if (isDefinitelyExistingClient && (client.isExistingClient !== true || client.hasUserAccount !== true)) {
-                  console.log('� DEBUG: EMERGENCY SAFETY - Detected existing client with undefined flags, FORCING correction:', {
+                  console.log('🚨 DEBUG: EMERGENCY SAFETY - Detected existing client with undefined flags, FORCING correction:', {
                     selectedExistingClientId,
-                    clientId: client.clientId,
-                    clientIdMatch: client.clientId === selectedExistingClientId,
+                    clientEmail: client.email,
+                    emailMatch: client.email === selectedExistingClientId,
                     currentFlags: {
                       isExistingClient: client.isExistingClient,
                       hasUserAccount: client.hasUserAccount
