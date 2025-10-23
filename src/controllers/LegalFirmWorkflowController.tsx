@@ -232,6 +232,230 @@ export const fetchWorkflowsForClientSearch = async (searchQuery?: string): Promi
   }
 };
 
+/**
+ * Get complete workflow details by client email or ID
+ * @param {string} clientIdentifier - Client email or ID
+ * @param {Object} options - Query parameters
+ * @returns {Promise<Object>} Complete workflow data
+ */
+export const getWorkflowsByClient = async (
+  clientIdentifier: string, 
+  options: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    currentStep?: number;
+    includeQuestions?: boolean;
+  } = {}
+): Promise<{
+  success: boolean;
+  count: number;
+  data: any[];
+  error?: string;
+}> => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      currentStep,
+      includeQuestions = false
+    } = options;
+
+    // Build query parameters
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      includeQuestions: includeQuestions.toString()
+    });
+
+    if (status) queryParams.append('status', status);
+    if (currentStep) queryParams.append('currentStep', currentStep.toString());
+
+    console.log('🔄 DEBUG: ========== getWorkflowsByClient STARTED ==========');
+    console.log('🔄 DEBUG: Input Parameters:', {
+      clientIdentifier,
+      options,
+      queryString: queryParams.toString(),
+      fullURL: `/api/v1/workflows/by-client/${encodeURIComponent(clientIdentifier)}?${queryParams}`,
+      timestamp: new Date().toISOString()
+    });
+
+    // Make API call using the by-client endpoint pattern
+    const response = await api.get(
+      `/api/v1/workflows/by-client/${encodeURIComponent(clientIdentifier)}?${queryParams}`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      }
+    );
+
+    console.log('✅ DEBUG: Raw API Response Received:');
+    console.log('================================');
+
+    console.log('Response Data (Full Object):', response.data);
+    console.log('Response Data Keys:', response.data ? Object.keys(response.data) : 'No data');
+    console.log('Response Data Type:', typeof response.data);
+  
+    console.log('================================');
+
+    if (!response.data) {
+      throw new Error('No data received from API');
+    }
+
+    // Handle different response structures
+    const workflowData = response.data.data || response.data.workflows || response.data || [];
+    const count = response.data.count || workflowData.length || 0;
+
+    console.log('🔍 DEBUG: Processed Workflow Data:');
+    console.log('================================');
+    console.log('Workflow Data Type:', typeof workflowData);
+    console.log('Is Workflow Data Array?:', Array.isArray(workflowData));
+    console.log('Workflow Count:', count);
+    console.log('Workflow Data Length:', Array.isArray(workflowData) ? workflowData.length : 'Not an array');
+    console.log('Raw Workflow Data:', workflowData);
+    console.log('================================');
+
+    // Process the complete workflow data
+    if (Array.isArray(workflowData)) {
+      console.log('🔍 DEBUG: Individual Workflow Details:');
+      console.log('================================');
+      
+      workflowData.forEach((workflow, index) => {
+        console.log(`� Workflow ${index + 1} Details:`, {
+          workflowId: workflow.workflowId || workflow.id || workflow._id,
+          status: workflow.status,
+          currentStep: workflow.currentStep,
+          createdAt: workflow.createdAt,
+          updatedAt: workflow.updatedAt,
+          allWorkflowKeys: Object.keys(workflow),
+          hasClient: !!workflow.client,
+          hasCase: !!workflow.case,
+          hasQuestionnaireAssignment: !!workflow.questionnaireAssignment,
+          hasSelectedForms: !!(Array.isArray(workflow.selectedForms) && workflow.selectedForms.length > 0),
+          hasFormCaseIds: !!(workflow.formCaseIds && Object.keys(workflow.formCaseIds).length > 0)
+        });
+
+        if (workflow.client) {
+          console.log(`👤 Client Data for Workflow ${index + 1}:`, {
+            clientId: workflow.client._id || workflow.client.id || workflow.client.clientId,
+            name: workflow.client.name,
+            firstName: workflow.client.firstName,
+            lastName: workflow.client.lastName,
+            email: workflow.client.email,
+            phone: workflow.client.phone,
+            role: workflow.client.role,
+            userType: workflow.client.userType,
+            hasAddress: !!workflow.client.address,
+            allClientKeys: Object.keys(workflow.client)
+          });
+
+          if (workflow.client.address) {
+            console.log(`🏠 Client Address for Workflow ${index + 1}:`, workflow.client.address);
+          }
+        }
+
+        if (workflow.case) {
+          console.log(`📋 Case Data for Workflow ${index + 1}:`, {
+            caseId: workflow.case._id || workflow.case.id,
+            title: workflow.case.title,
+            category: workflow.case.category,
+            subcategory: workflow.case.subcategory,
+            status: workflow.case.status,
+            priority: workflow.case.priority,
+            allCaseKeys: Object.keys(workflow.case)
+          });
+        }
+
+        if (workflow.questionnaireAssignment) {
+          console.log(`📝 Questionnaire Assignment for Workflow ${index + 1}:`, {
+            assignmentId: workflow.questionnaireAssignment.assignment_id || workflow.questionnaireAssignment.id,
+            questionnaireId: workflow.questionnaireAssignment.questionnaire_id,
+            questionnaireTitle: workflow.questionnaireAssignment.questionnaire_title,
+            status: workflow.questionnaireAssignment.status,
+            hasResponses: !!workflow.questionnaireAssignment.responses,
+            responseCount: workflow.questionnaireAssignment.responses ? Object.keys(workflow.questionnaireAssignment.responses).length : 0,
+            submittedAt: workflow.questionnaireAssignment.submitted_at,
+            allAssignmentKeys: Object.keys(workflow.questionnaireAssignment)
+          });
+
+          if (workflow.questionnaireAssignment.responses) {
+            console.log(`💬 Questionnaire Responses for Workflow ${index + 1}:`, {
+              responseKeys: Object.keys(workflow.questionnaireAssignment.responses),
+              sampleResponses: Object.entries(workflow.questionnaireAssignment.responses).slice(0, 5).reduce((obj, [key, value]) => {
+                obj[key] = value;
+                return obj;
+              }, {} as any)
+            });
+          }
+        }
+
+        if (workflow.selectedForms) {
+          console.log(`📄 Selected Forms for Workflow ${index + 1}:`, workflow.selectedForms);
+        }
+
+        if (workflow.formCaseIds) {
+          console.log(`🆔 Form Case IDs for Workflow ${index + 1}:`, workflow.formCaseIds);
+        }
+
+        console.log('--------------------------------');
+      });
+      
+      console.log('================================');
+    } else {
+      console.log('⚠️ DEBUG: Workflow data is not an array:', {
+        actualType: typeof workflowData,
+        actualValue: workflowData
+      });
+    }
+
+    const finalResult = {
+      success: true,
+      count,
+      data: Array.isArray(workflowData) ? workflowData : [],
+      error: undefined
+    };
+
+    console.log('✅ DEBUG: Final Result Being Returned:');
+    console.log('================================');
+    console.log('Success:', finalResult.success);
+    console.log('Count:', finalResult.count);
+    console.log('Data Length:', finalResult.data.length);
+    console.log('Has Error:', !!finalResult.error);
+    console.log('================================');
+    console.log('🔄 DEBUG: ========== getWorkflowsByClient COMPLETED ==========');
+
+    return finalResult;
+
+  } catch (error: any) {
+    console.error('❌ DEBUG: ========== getWorkflowsByClient ERROR ==========');
+    console.error('Error Type:', typeof error);
+    console.error('Error Name:', error.name);
+    console.error('Error Message:', error.message);
+    console.error('Error Stack:', error.stack);
+    console.error('API Response Status:', error.response?.status);
+    console.error('API Response Data:', error.response?.data);
+    console.error('API Response Headers:', error.response?.headers);
+    console.error('Full Error Object:', error);
+    console.error('================================');
+    
+    // Return a structured error response
+    const errorResult = {
+      success: false,
+      count: 0,
+      data: [],
+      error: error.response?.data?.message || error.message || 'Failed to fetch workflows'
+    };
+
+    console.error('❌ DEBUG: Error Result Being Returned:', errorResult);
+    console.error('❌ DEBUG: ========== getWorkflowsByClient ERROR END ==========');
+    
+    return errorResult;
+  }
+};
+
 export const checkEmailExists = async (clientEmail: string): Promise<{
   exists: boolean;
   userId?: string;
@@ -491,6 +715,7 @@ export default {
   saveWorkflowProgress,
   fetchWorkflows,
   fetchWorkflowsForClientSearch,
+  getWorkflowsByClient,
   checkEmailExists,
   registerCompanyClient,
   createFormDetails,

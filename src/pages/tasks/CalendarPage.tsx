@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
   CheckSquare,
   Clock,
   AlertCircle
 } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
-import { format, isSameDay, isWithinInterval, addDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format, isSameDay, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { getTasks } from '../../controllers/TaskControllers';
 import api from '../../utils/api';
 

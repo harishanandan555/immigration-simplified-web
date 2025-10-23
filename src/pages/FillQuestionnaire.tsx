@@ -185,18 +185,16 @@ const FillQuestionnaire: React.FC = () => {
         return;
       }
       
-      // Create enhanced responses with field titles displayed directly
-      const enhancedResponses = {
-       
-        ...responses
-      };
+// Create enhanced responses with field titles displayed directly
+     const enhancedResponses: Record<string, any> = {};
+ 
 
       // Add field titles directly as readable entries
-      assignment.questionnaireId.fields.forEach(field => {
-        if (responses[field.id] !== undefined) {
-          enhancedResponses[`${field.label}`] = responses[field.id];
-        }
-      });
+     assignment.questionnaireId.fields.forEach(field => {
+  if (responses[field.id] !== undefined) {
+    enhancedResponses[field.label] = responses[field.id];
+  }
+});
 
       await questionnaireAssignmentService.submitQuestionnaireResponses(
         assignment._id,

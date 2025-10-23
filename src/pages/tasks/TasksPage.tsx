@@ -47,6 +47,7 @@ const TasksPage = () => {
   const [cases, setCases] = useState<Case[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   
   // New task form state
@@ -184,26 +185,60 @@ const TasksPage = () => {
       
       
       let allUsers: User[] = [];
-      let clientUsers: User[] = [];
       
       try {
-        // Get all users from ims_user database
-        const usersApiResponse = await getUsers();
-        allUsers = usersApiResponse.users || [];
+        // Get all users from the new client users endpoint
+        console.log('🔄 Fetching users from /api/v1/clients/users/all...');
+        const response = await api.get('/api/v1/clients/users/all');
+        allUsers = response.data?.users || response.data || [];
+        setAllUsers(allUsers);
         
-        // Filter users by role to get clients and assignable users
-        clientUsers = allUsers.filter((user: User) => user.role === 'client');
+        console.log('📊 Users fetched from client users API:', {
+          total: allUsers.length,
+          success: response.status === 200,
+          byRole: allUsers.reduce((acc: any, user: User) => {
+            acc[user.role] = (acc[user.role] || 0) + 1;
+            return acc;
+          }, {})
+        });
+        
+        // Filter users by role to get assignable users (attorneys and paralegals)
         const assignableUsers = allUsers.filter((user: User) => 
-          user.role === 'attorney' || user.role === 'paralegal'
+          user.role === 'attorney' || user.role === 'paralegal' || user.role === 'admin' || user.role === 'super_admin'
         );
         
+        console.log('👥 Assignable users found:', {
+          count: assignableUsers.length,
+          users: assignableUsers.map(u => ({ name: `${u.firstName} ${u.lastName}`, role: u.role, email: u.email }))
+        });
         
         setUsers(assignableUsers);
         
       } catch (error) {
-        console.error('❌ Error fetching users from ims_user database:', error);
-        setUsers([]);
-        clientUsers = [];
+        console.error('❌ Error fetching users from /api/v1/clients/users/all:', error);
+        
+        // Fallback to the old method if the new endpoint fails
+        try {
+          console.log('🔄 Fallback: Trying original getUsers method...');
+          const usersApiResponse = await getUsers({ limit: 100 });
+          allUsers = usersApiResponse.users || [];
+          setAllUsers(allUsers);
+          
+          const assignableUsers = allUsers.filter((user: User) => 
+            user.role === 'attorney' || user.role === 'paralegal' || user.role === 'admin' || user.role === 'super_admin'
+          );
+          
+          console.log('👥 Assignable users found (fallback):', {
+            count: assignableUsers.length,
+            users: assignableUsers.map(u => ({ name: `${u.firstName} ${u.lastName}`, role: u.role }))
+          });
+          
+          setUsers(assignableUsers);
+        } catch (fallbackError) {
+          console.error('❌ Fallback method also failed:', fallbackError);
+          setUsers([]);
+          setAllUsers([]);
+        }
       }
       
       // Set workflow clients and cases (primary source for client/case selection)
@@ -353,7 +388,7 @@ const TasksPage = () => {
       };
       
       
-      const createdTask = await createTask(taskData);
+      await createTask(taskData);
       
       // Reset form and close modal
       setNewTask({
@@ -692,7 +727,7 @@ const TasksPage = () => {
                             });
                           }}
                         >
-                          <option value="">Select a client...</option>
+                          <option key="select-client" value="">Select a client...</option>
                           {clients.map((client: any) => (
                             <option key={client.clientId} value={client.name}>
                               {client.name} ({client.email})
@@ -733,7 +768,7 @@ const TasksPage = () => {
                           onChange={(e) => setNewTask({...newTask, caseId: e.target.value})}
                           disabled={!newTask.clientId}
                         >
-                          <option value="">
+                          <option key="select-case" value="">
                             {newTask.clientId ? "Select a case..." : "Please select a client first"}
                           </option>
                           {cases
@@ -790,9 +825,9 @@ const TasksPage = () => {
                             value={newTask.priority}
                             onChange={(e) => setNewTask({...newTask, priority: e.target.value})}
                           >
-                            <option value="High">High</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Low">Low</option>
+                            <option key="high" value="High">High</option>
+                            <option key="medium" value="Medium">Medium</option>
+                            <option key="low" value="Low">Low</option>
                           </select>
                         </div>
                       </div>
@@ -806,16 +841,25 @@ const TasksPage = () => {
                           value={newTask.assignedTo}
                           onChange={(e) => setNewTask({...newTask, assignedTo: e.target.value})}
                         >
-                          <option value="">Select assignee...</option>
+                          <option key="select-assignee" value="">
+                            {users.length > 0 ? "Select assignee..." : "No assignable users found"}
+                          </option>
                           {users.map((user: User) => (
                             <option key={user._id} value={`${user.firstName} ${user.lastName}`}>
                               {user.firstName} {user.lastName} ({user.role})
                             </option>
                           ))}
+                          {users.length === 0 && allUsers.length > 0 && (
+                            <option key="no-assignable" value="" disabled>
+                              No attorneys or paralegals available
+                            </option>
+                          )}
                         </select>
                         <p className="mt-1 text-xs text-gray-400">
                           Available assignees: {users.length} (attorneys & paralegals)
                         </p>
+                        {/* Debug info */}
+                       
                       </div>
                     </div>
                   </div>
