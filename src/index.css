@@ -136,4 +136,37 @@
   .menu-item-inactive {
     @apply text-gray-600 hover:bg-gray-50 hover:text-gray-900;
   }
+  
+  /* Sticky scroll container for better horizontal scrollbar positioning */
+  .sticky-scroll-container {
+    position: relative;
+    max-height: 80vh;
+    overflow-y: auto;
+    overflow-x: auto;
+  }
+  
+  .sticky-scroll-container::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  
+  .sticky-scroll-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  
+  .sticky-scroll-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  
+  .sticky-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  
+  /* Ensure horizontal scrollbar is always visible at the bottom of the viewport */
+  .sticky-scroll-container {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
 }

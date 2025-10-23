@@ -5364,13 +5364,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   label="Immigration Category"
                   value={caseData.category || ''}
                   onChange={e => setCaseData({ ...caseData, category: e.target.value })}
-                  options={[
-                    { value: '', label: 'Select category' },
-                    ...IMMIGRATION_CATEGORIES.map(cat => ({
-                      value: cat.id,
-                      label: cat.name
-                    }))
-                  ]}
+                  options={IMMIGRATION_CATEGORIES.map(cat => ({
+                    value: cat.id,
+                    label: cat.name
+                  }))}
                   required
                 />
                 <Select

@@ -772,9 +772,9 @@ const QuestionnaireResponses: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto sticky-scroll-container">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Client
@@ -784,9 +784,6 @@ const QuestionnaireResponses: React.FC = () => {
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Case
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Assigned By
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -895,27 +892,6 @@ const QuestionnaireResponses: React.FC = () => {
                     ) : (
                       <span className="text-sm text-gray-500 whitespace-nowrap">No case linked</span>
                     )}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center">
-                        <User className="h-3 w-3 text-blue-600" />
-                      </div>
-                      <div className="ml-3">
-                        <div className="text-sm font-medium text-gray-900">
-                          {assignment.attorneyInfo?.firstName && assignment.attorneyInfo?.lastName ?
-                            `${assignment.attorneyInfo.firstName} ${assignment.attorneyInfo.lastName}` :
-                            assignment.assignedBy?.firstName && assignment.assignedBy?.lastName ?
-                              `${assignment.assignedBy.firstName} ${assignment.assignedBy.lastName}` :
-                              'Attorney Not Available'
-                          }
-                        </div>
-                        {/* <div className="text-xs text-gray-400">
-                          Attorney ID: {String(assignment.attorneyInfo?.attorney_id || assignment.assignedBy?._id || 'N/A')}
-                        </div> */}
-                      </div>
-                    </div>
                   </td>
                   
                   <td className="px-6 py-4">

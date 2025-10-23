@@ -5798,62 +5798,61 @@ const SettingsPage = () => {
                           {/* Basic Information */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-sm font-medium text-gray-700">First Name *</label>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
                               <input
                                 type="text"
                                 name="firstName"
                                 value={newUser.firstName}
                                 onChange={handleNewUserChange}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                 required
                               />
                             </div>
 
                             <div>
-                              <label className="block text-sm font-medium text-gray-700">Last Name *</label>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
                               <input
                                 type="text"
                                 name="lastName"
                                 value={newUser.lastName}
                                 onChange={handleNewUserChange}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                 required
                               />
                             </div>
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Middle Name</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label>
                             <input
                               type="text"
                               name="middleName"
                               value={newUser.middleName}
                               onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                             />
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Email *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
                             <input
                               type="email"
                               name="email"
                               value={newUser.email}
                               onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                               required
                             />
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Phone</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
                             <input
                               type="tel"
                               name="phone"
                               value={newUser.phone}
                               onChange={handleNewUserChange}
-                              placeholder="+1-555-123-4567"
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                             />
                           </div>
 
@@ -5875,12 +5874,12 @@ const SettingsPage = () => {
                           )}
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Role *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
                             <select
                               name="role"
                               value={newUser.role}
                               onChange={handleNewUserChange}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                               required
                             >
                               <option value="">Select a role</option>
@@ -5900,25 +5899,24 @@ const SettingsPage = () => {
                             <h4 className="text-md font-medium text-gray-900 mb-3">Address Information</h4>
                             <div className="space-y-4">
                               <div>
-                                <label className="block text-sm font-medium text-gray-700">Street Address</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Street Address</label>
                                 <input
                                   type="text"
                                   name="address.street"
                                   value={newUser.address.street}
                                   onChange={handleNewUserChange}
-                                  placeholder="123 Legal Plaza"
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                 />
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700">Apt/Suite/Floor</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">Apt/Suite/Floor</label>
                                   <select
                                     name="address.aptSuiteFlr"
                                     value={newUser.address.aptSuiteFlr}
                                     onChange={handleNewUserChange}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                   >
                                     <option value="">Select</option>
                                     <option value="Apt">Apt</option>
@@ -5929,65 +5927,61 @@ const SettingsPage = () => {
                                 </div>
 
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700">Number</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">Number</label>
                                   <input
                                     type="text"
                                     name="address.aptNumber"
                                     value={newUser.address.aptNumber}
                                     onChange={handleNewUserChange}
-                                    placeholder="200"
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                   />
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700">City</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
                                   <input
                                     type="text"
                                     name="address.city"
                                     value={newUser.address.city}
                                     onChange={handleNewUserChange}
-                                    placeholder="New York"
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                   />
                                 </div>
 
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700">State</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
                                   <input
                                     type="text"
                                     name="address.state"
                                     value={newUser.address.state}
                                     onChange={handleNewUserChange}
-                                    placeholder="NY"
                                     maxLength={2}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                   />
                                 </div>
 
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700">ZIP Code</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">ZIP Code</label>
                                   <input
                                     type="text"
                                     name="address.zipCode"
                                     value={newUser.address.zipCode}
                                     onChange={handleNewUserChange}
-                                    placeholder="10001"
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                   />
                                 </div>
                               </div>
 
                               <div>
-                                <label className="block text-sm font-medium text-gray-700">Country</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
                                 <input
                                   type="text"
                                   name="address.country"
                                   value={newUser.address.country}
                                   onChange={handleNewUserChange}
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                 />
                               </div>
                             </div>
@@ -5995,14 +5989,13 @@ const SettingsPage = () => {
 
                           {/* Bio Section */}
                           <div>
-                            <label className="block text-sm font-medium text-gray-700">Bio</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
                             <textarea
                               name="bio"
                               value={newUser.bio}
                               onChange={handleNewUserChange}
-                              placeholder="Immigration attorney with 10 years of experience"
                               rows={3}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm resize-none"
                             />
                           </div>
 
@@ -6015,36 +6008,35 @@ const SettingsPage = () => {
                                 <div className="space-y-4">
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Nationality</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
                                       <input
                                         type="text"
                                         name="nationality"
                                         value={newUser.nationality}
                                         onChange={handleNewUserChange}
-                                        placeholder="Mexican"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
                                       <input
                                         type="date"
                                         name="dateOfBirth"
                                         value={newUser.dateOfBirth}
                                         onChange={handleNewUserChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                   </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Gender</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                                       <select
                                         name="gender"
                                         value={newUser.gender}
                                         onChange={handleNewUserChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       >
                                         <option value="">Select Gender</option>
                                         <option value="male">Male</option>
@@ -6054,12 +6046,12 @@ const SettingsPage = () => {
                                       </select>
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Marital Status</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Marital Status</label>
                                       <select
                                         name="maritalStatus"
                                         value={newUser.maritalStatus}
                                         onChange={handleNewUserChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       >
                                         <option value="">Select Status</option>
                                         <option value="single">Single</option>
@@ -6072,12 +6064,12 @@ const SettingsPage = () => {
                                   </div>
 
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700">Immigration Purpose</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Immigration Purpose</label>
                                     <select
                                       name="immigrationPurpose"
                                       value={newUser.immigrationPurpose}
                                       onChange={handleNewUserChange}
-                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                     >
                                       <option value="">Select Purpose</option>
                                       <option value="employment">Employment</option>
@@ -6097,36 +6089,33 @@ const SettingsPage = () => {
                                 <div className="space-y-4">
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">City</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
                                       <input
                                         type="text"
                                         name="placeOfBirth.city"
                                         value={newUser.placeOfBirth.city}
                                         onChange={handleNewUserChange}
-                                        placeholder="Guadalajara"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">State/Province</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">State/Province</label>
                                       <input
                                         type="text"
                                         name="placeOfBirth.state"
                                         value={newUser.placeOfBirth.state}
                                         onChange={handleNewUserChange}
-                                        placeholder="Jalisco"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Country</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
                                       <input
                                         type="text"
                                         name="placeOfBirth.country"
                                         value={newUser.placeOfBirth.country}
                                         onChange={handleNewUserChange}
-                                        placeholder="Mexico"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                   </div>
@@ -6139,50 +6128,46 @@ const SettingsPage = () => {
                                 <div className="space-y-4">
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Passport Number</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Passport Number</label>
                                       <input
                                         type="text"
                                         name="passportNumber"
                                         value={newUser.passportNumber}
                                         onChange={handleNewUserChange}
-                                        placeholder="M87654321"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Alien Registration Number</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Alien Registration Number</label>
                                       <input
                                         type="text"
                                         name="alienRegistrationNumber"
                                         value={newUser.alienRegistrationNumber}
                                         onChange={handleNewUserChange}
-                                        placeholder="A987654321"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                   </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">National ID Number</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">National ID Number</label>
                                       <input
                                         type="text"
                                         name="nationalIdNumber"
                                         value={newUser.nationalIdNumber}
                                         onChange={handleNewUserChange}
-                                        placeholder="0987654321"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">SSN</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">SSN</label>
                                       <input
                                         type="text"
                                         name="ssn"
                                         value={newUser.ssn}
                                         onChange={handleNewUserChange}
-                                        placeholder="987-65-4321"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                   </div>
@@ -6194,14 +6179,13 @@ const SettingsPage = () => {
                                 <h4 className="text-md font-medium text-gray-900 mb-3">Employment Information</h4>
                                 <div className="space-y-4">
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700">Current Employer Name</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Current Employer Name</label>
                                     <input
                                       type="text"
                                       name="employment.currentEmployer.name"
                                       value={newUser.employment.currentEmployer.name}
                                       onChange={handleNewUserChange}
-                                      placeholder="Tech Solutions Inc"
-                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                     />
                                   </div>
 
@@ -6213,8 +6197,7 @@ const SettingsPage = () => {
                                         name="employment.currentEmployer.address.street"
                                         value={newUser.employment.currentEmployer.address.street}
                                         onChange={handleNewUserChange}
-                                        placeholder="555 Tech Drive"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                         <input
@@ -6222,25 +6205,22 @@ const SettingsPage = () => {
                                           name="employment.currentEmployer.address.city"
                                           value={newUser.employment.currentEmployer.address.city}
                                           onChange={handleNewUserChange}
-                                          placeholder="Chicago"
-                                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                          className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                         />
                                         <input
                                           type="text"
                                           name="employment.currentEmployer.address.state"
                                           value={newUser.employment.currentEmployer.address.state}
                                           onChange={handleNewUserChange}
-                                          placeholder="IL"
                                           maxLength={2}
-                                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                          className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                         />
                                         <input
                                           type="text"
                                           name="employment.currentEmployer.address.zipCode"
                                           value={newUser.employment.currentEmployer.address.zipCode}
                                           onChange={handleNewUserChange}
-                                          placeholder="60601"
-                                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                          className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                         />
                                       </div>
                                     </div>
@@ -6248,35 +6228,33 @@ const SettingsPage = () => {
 
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Job Title</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
                                       <input
                                         type="text"
                                         name="employment.jobTitle"
                                         value={newUser.employment.jobTitle}
                                         onChange={handleNewUserChange}
-                                        placeholder="Software Engineer"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                                       <input
                                         type="date"
                                         name="employment.employmentStartDate"
                                         value={newUser.employment.employmentStartDate}
                                         onChange={handleNewUserChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Annual Income</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Annual Income</label>
                                       <input
                                         type="number"
                                         name="employment.annualIncome"
                                         value={newUser.employment.annualIncome}
                                         onChange={handleNewUserChange}
-                                        placeholder="85000"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                   </div>
@@ -6289,12 +6267,12 @@ const SettingsPage = () => {
                                 <div className="space-y-4">
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Highest Level</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Highest Level</label>
                                       <select
                                         name="education.highestLevel"
                                         value={newUser.education.highestLevel}
                                         onChange={handleNewUserChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       >
                                         <option value="">Select Level</option>
                                         <option value="high-school">High School</option>
@@ -6306,48 +6284,46 @@ const SettingsPage = () => {
                                       </select>
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Institution Name</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Institution Name</label>
                                       <input
                                         type="text"
                                         name="education.institutionName"
                                         value={newUser.education.institutionName}
                                         onChange={handleNewUserChange}
-                                        placeholder="University of Illinois"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                   </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                                       <input
                                         type="date"
                                         name="education.datesAttended.startDate"
                                         value={newUser.education.datesAttended.startDate}
                                         onChange={handleNewUserChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">End Date</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
                                       <input
                                         type="date"
                                         name="education.datesAttended.endDate"
                                         value={newUser.education.datesAttended.endDate}
                                         onChange={handleNewUserChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Field of Study</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Field of Study</label>
                                       <input
                                         type="text"
                                         name="education.fieldOfStudy"
                                         value={newUser.education.fieldOfStudy}
                                         onChange={handleNewUserChange}
-                                        placeholder="Computer Science"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                   </div>
@@ -6360,23 +6336,22 @@ const SettingsPage = () => {
                                 <div className="space-y-4">
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Annual Income</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Annual Income</label>
                                       <input
                                         type="number"
                                         name="financialInfo.annualIncome"
                                         value={newUser.financialInfo.annualIncome}
                                         onChange={handleNewUserChange}
-                                        placeholder="85000"
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700">Source of Funds</label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Source of Funds</label>
                                       <select
                                         name="financialInfo.sourceOfFunds"
                                         value={newUser.financialInfo.sourceOfFunds}
                                         onChange={handleNewUserChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                       >
                                         <option value="">Select Source</option>
                                         <option value="employment">Employment</option>
@@ -6388,14 +6363,13 @@ const SettingsPage = () => {
                                     </div>
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700">Bank Account Balance</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Bank Account Balance</label>
                                     <input
                                       type="number"
                                       name="financialInfo.bankAccountBalance"
                                       value={newUser.financialInfo.bankAccountBalance}
                                       onChange={handleNewUserChange}
-                                      placeholder="25000"
-                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                     />
                                   </div>
                                 </div>
@@ -6418,14 +6392,13 @@ const SettingsPage = () => {
                                     </label>
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700">Details</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Details</label>
                                     <textarea
                                       name="criminalHistory.details"
                                       value={newUser.criminalHistory.details}
                                       onChange={handleNewUserChange}
-                                      placeholder="No criminal record"
                                       rows={2}
-                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm resize-none"
                                     />
                                   </div>
                                 </div>
@@ -6448,14 +6421,13 @@ const SettingsPage = () => {
                                     </label>
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700">Details</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Details</label>
                                     <textarea
                                       name="medicalHistory.details"
                                       value={newUser.medicalHistory.details}
                                       onChange={handleNewUserChange}
-                                      placeholder="No significant medical conditions"
                                       rows={2}
-                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                      className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm resize-none"
                                     />
                                   </div>
                                 </div>
@@ -6484,26 +6456,26 @@ const SettingsPage = () => {
                             <h4 className="text-md font-medium text-gray-900 mb-3">Account Security</h4>
                             <div className="space-y-4">
                               <div>
-                                <label className="block text-sm font-medium text-gray-700">Password *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
                                 <input
                                   type="password"
                                   name="password"
                                   value={newUser.password}
                                   onChange={handleNewUserChange}
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                   required
                                   minLength={8}
                                 />
                               </div>
 
                               <div>
-                                <label className="block text-sm font-medium text-gray-700">Confirm Password *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
                                 <input
                                   type="password"
                                   name="confirmPassword"
                                   value={newUser.confirmPassword}
                                   onChange={handleNewUserChange}
-                                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  className="w-full px-4 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 hover:border-gray-300 shadow-sm"
                                   required
                                   minLength={8}
                                 />
