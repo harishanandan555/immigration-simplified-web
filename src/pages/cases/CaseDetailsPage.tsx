@@ -1,60 +1,235 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, FileText, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, CheckSquare, MessageCircle } from 'lucide-react';
+import api from '../../utils/api';
+import { getTasks, Task } from '../../controllers/TaskControllers';
+import { getDocuments, Document } from '../../controllers/DocumentControllers';
+
+// Types for workflow case data
+type WorkflowCase = {
+  _id: string;
+  workflowId: string;
+  caseNumber: string;
+  title: string;
+  description: string;
+  category: string;
+  subcategory: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+  assignedForms: string[];
+  formCaseIds: { [key: string]: string };
+  client: {
+    _id: string;
+    name: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    nationality?: string;
+  };
+  createdBy: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  };
+  currentStep: number;
+  selectedForms: string[];
+  questionnaireAssignment?: {
+    questionnaire_id: string;
+    questionnaire_title: string;
+    response_id?: string;
+    is_complete: boolean;
+    submitted_at?: string;
+    responses?: any;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
 
 // This would normally come from an API
-const mockCaseData = {
-  id: '1',
-  title: 'Johnson v. Smith',
-  caseNumber: 'CV-2023-12345',
-  caseType: 'Civil Litigation',
-  status: 'Active',
-  openDate: '2023-08-15',
-  assignedTo: 'Sarah Reynolds',
-  courtLocation: 'Central District Court',
-  judge: 'Hon. Marcus Williams',
-  description: 'Personal injury case resulting from automobile accident on July 10, 2023. Client seeking compensatory damages for medical expenses and lost wages.',
-  clientId: '1',
-  clientName: 'Robert Johnson',
-  clientEmail: 'robert.johnson@example.com',
-  clientPhone: '(555) 123-4567',
-  nextHearing: '2023-12-10',
-  tasks: [
-    { id: '1', title: 'Prepare discovery documents', dueDate: '2023-09-20', status: 'Completed' },
-    { id: '2', title: 'Deposition of defendant', dueDate: '2023-10-15', status: 'Pending' },
-    { id: '3', title: 'File motion for summary judgment', dueDate: '2023-11-30', status: 'Not Started' }
-  ],
-  documents: [
-    { id: '1', title: 'Complaint', dateAdded: '2023-08-15', category: 'Pleadings' },
-    { id: '2', title: 'Police Report', dateAdded: '2023-08-20', category: 'Evidence' },
-    { id: '3', title: 'Medical Records', dateAdded: '2023-09-05', category: 'Evidence' }
-  ],
-  notes: [
-    { id: '1', content: 'Initial consultation with client. Discussed case details and strategy.', date: '2023-08-15', author: 'Sarah Reynolds' },
-    { id: '2', content: 'Received police report. Notes indicate defendant ran red light.', date: '2023-08-20', author: 'Sarah Reynolds' }
-  ]
-};
 
 const CaseDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
-  const [caseData, setCaseData] = useState<any>(null);
+  const [caseData, setCaseData] = useState<WorkflowCase | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // In a real application, this would be an API call
-    const fetchCaseData = () => {
-      // Simulate API delay
-      setTimeout(() => {
-        setCaseData(mockCaseData);
+    const fetchCaseData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch the specific workflow/case
+        console.log('🔍 Fetching case data for ID:', id);
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          setError('Authentication token not found. Please login.');
+          return;
+        }
+
+        // Get all workflows and find the specific one
+        const workflowResponse = await api.get('/api/v1/workflows', {
+          params: { page: 1, limit: 100 }
+        });
+
+        if (!workflowResponse.data?.success || !workflowResponse.data?.data) {
+          setError('Failed to fetch case data');
+          return;
+        }
+
+        const workflows = workflowResponse.data.data;
+        const workflow = workflows.find((w: any) => w._id === id);
+
+        if (!workflow) {
+          setError('Case not found');
+          return;
+        }
+
+        // Transform workflow to WorkflowCase format
+        const workflowClient = workflow.client || {};
+        const workflowCase = workflow.case || {};
+        
+        const formCaseIds = workflow.formCaseIds || {};
+        const primaryCaseNumber = Object.values(formCaseIds)[0] as string || 
+                                workflowCase.caseNumber || 
+                                `WF-${workflow._id?.slice(-8)}`;
+
+        const transformedCase: WorkflowCase = {
+          _id: workflow._id,
+          workflowId: workflow.workflowId || workflow._id,
+          caseNumber: primaryCaseNumber,
+          title: workflowCase.title || workflowCase.description || 'Immigration Case',
+          description: workflowCase.description || workflowCase.title || 'Immigration workflow case',
+          category: workflowCase.category || 'immigration',
+          subcategory: workflowCase.subcategory || '',
+          status: workflowCase.status || workflow.status || 'in-progress',
+          priority: workflowCase.priority || 'Medium',
+          dueDate: workflowCase.dueDate || '',
+          assignedForms: workflowCase.assignedForms || workflow.selectedForms || [],
+          formCaseIds: formCaseIds,
+          client: {
+            _id: workflowClient.id || workflowClient._id || '',
+            name: workflowClient.name || 
+                  `${workflowClient.firstName || ''} ${workflowClient.lastName || ''}`.trim(),
+            email: workflowClient.email || '',
+            firstName: workflowClient.firstName || '',
+            lastName: workflowClient.lastName || '',
+            phone: workflowClient.phone || '',
+            nationality: workflowClient.nationality || ''
+          },
+          createdBy: workflow.createdBy || {
+            _id: '',
+            firstName: 'Unknown',
+            lastName: 'User',
+            email: '',
+            role: 'attorney'
+          },
+          currentStep: workflow.currentStep || 1,
+          selectedForms: workflow.selectedForms || [],
+          questionnaireAssignment: workflow.questionnaireAssignment,
+          createdAt: workflow.createdAt || new Date().toISOString(),
+          updatedAt: workflow.updatedAt || workflow.createdAt || new Date().toISOString()
+        };
+
+        setCaseData(transformedCase);
+
+        // Fetch related tasks
+        console.log('📋 Fetching tasks for case:', primaryCaseNumber);
+        try {
+          const allTasks = await getTasks();
+          // Filter tasks related to this case
+          const caseTasks = allTasks.filter((task: Task) => {
+            const taskCaseId = (task as any).caseId || task.relatedCaseId;
+            // Check if task is related to this case by case number or workflow ID
+            return taskCaseId === primaryCaseNumber || 
+                   taskCaseId === workflow._id ||
+                   taskCaseId?.includes(primaryCaseNumber) ||
+                   (taskCaseId && Object.values(formCaseIds).some(caseNum => 
+                     taskCaseId.includes(String(caseNum))
+                   ));
+          });
+          
+          console.log('📋 Found tasks for case:', caseTasks.length);
+          setTasks(caseTasks);
+        } catch (taskError) {
+          console.error('❌ Error fetching tasks:', taskError);
+          setTasks([]);
+        }
+
+        // Fetch related documents
+        console.log('📄 Fetching documents for case:', primaryCaseNumber);
+        try {
+          const documentsResponse = await getDocuments();
+          
+          if (documentsResponse.success) {
+            const responseData = documentsResponse.data as any;
+            const allDocuments = responseData.data?.documents || responseData.documents || [];
+            
+            // Filter documents related to this case
+            const caseDocuments = allDocuments.filter((doc: Document) => {
+              return doc.caseNumber === primaryCaseNumber ||
+                     doc.caseNumber === workflow._id ||
+                     (doc.caseNumber && Object.values(formCaseIds).some(caseNum => 
+                       doc.caseNumber?.includes(String(caseNum))
+                     )) ||
+                     doc.clientId === workflowClient.email ||
+                     doc.clientId === workflowClient.id;
+            });
+            
+            console.log('📄 Found documents for case:', caseDocuments.length);
+            setDocuments(caseDocuments);
+          } else {
+            console.warn('⚠️ Documents API returned unsuccessful response');
+            setDocuments([]);
+          }
+        } catch (docError) {
+          console.error('❌ Error fetching documents:', docError);
+          setDocuments([]);
+        }
+
+      } catch (error: any) {
+        console.error('❌ Error fetching case data:', error);
+        setError(error.response?.data?.message || error.message || 'Failed to load case data');
+      } finally {
         setLoading(false);
-      }, 500);
+      }
     };
 
-    fetchCaseData();
+    if (id) {
+      fetchCaseData();
+    }
   }, [id]);
 
   if (loading) {
-    return null;
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <span className="ml-3 text-gray-600">Loading case details...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h1 className="text-xl font-bold text-red-800 mb-2">Error Loading Case</h1>
+          <p className="text-red-600">{error}</p>
+          <Link to="/cases" className="text-red-700 hover:text-red-900 mt-4 inline-block">
+            &larr; Back to Cases
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (!caseData) {
@@ -103,29 +278,56 @@ const CaseDetailsPage = () => {
                 <p className="font-medium">{caseData.caseNumber}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Case Type</p>
-                <p className="font-medium">{caseData.caseType}</p>
+                <p className="text-sm text-gray-500">Category</p>
+                <p className="font-medium capitalize">{caseData.category}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Open Date</p>
-                <p className="font-medium">{caseData.openDate}</p>
+                <p className="text-sm text-gray-500">Subcategory</p>
+                <p className="font-medium capitalize">{caseData.subcategory || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Assigned Attorney</p>
-                <p className="font-medium">{caseData.assignedTo}</p>
+                <p className="text-sm text-gray-500">Priority</p>
+                <p className="font-medium">{caseData.priority}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Court Location</p>
-                <p className="font-medium">{caseData.courtLocation}</p>
+                <p className="text-sm text-gray-500">Created By</p>
+                <p className="font-medium">{caseData.createdBy.firstName} {caseData.createdBy.lastName}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Judge</p>
-                <p className="font-medium">{caseData.judge}</p>
+                <p className="text-sm text-gray-500">Current Step</p>
+                <p className="font-medium">Step {caseData.currentStep}</p>
               </div>
               <div className="col-span-2">
                 <p className="text-sm text-gray-500">Description</p>
                 <p className="font-medium">{caseData.description}</p>
               </div>
+              {caseData.assignedForms && caseData.assignedForms.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-500">Assigned Forms</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {caseData.assignedForms.map((form, index) => (
+                      <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        {form}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {caseData.formCaseIds && Object.keys(caseData.formCaseIds).length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-500">Form Case IDs</p>
+                  <div className="space-y-1 mt-1">
+                    {Object.entries(caseData.formCaseIds)
+                      .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
+                      .map(([formName, caseId]) => (
+                      <div key={formName} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                        <span className="text-sm font-medium">{formName}:</span>
+                        <span className="text-sm text-blue-600 font-mono">{String(caseId)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -139,23 +341,46 @@ const CaseDetailsPage = () => {
             <div>
               <p className="text-sm text-gray-500">Name</p>
               <p className="font-medium">
-                <Link to={`/clients/${caseData.clientId}`} className="text-blue-600 hover:text-blue-800">
-                  {caseData.clientName}
+                <Link to={`/clients/${caseData.client._id}`} className="text-blue-600 hover:text-blue-800">
+                  {caseData.client.name}
                 </Link>
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Email</p>
-              <p className="font-medium">{caseData.clientEmail}</p>
+              <p className="font-medium">{caseData.client.email || 'N/A'}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Phone</p>
-              <p className="font-medium">{caseData.clientPhone}</p>
+              <p className="font-medium">{caseData.client.phone || 'N/A'}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Next Hearing</p>
-              <p className="font-medium">{caseData.nextHearing}</p>
-            </div>
+            {caseData.client.nationality && (
+              <div>
+                <p className="text-sm text-gray-500">Nationality</p>
+                <p className="font-medium">{caseData.client.nationality}</p>
+              </div>
+            )}
+            {caseData.dueDate && (
+              <div>
+                <p className="text-sm text-gray-500">Due Date</p>
+                <p className="font-medium">{new Date(caseData.dueDate).toLocaleDateString()}</p>
+              </div>
+            )}
+            {caseData.questionnaireAssignment && (
+              <div>
+                <p className="text-sm text-gray-500">Questionnaire</p>
+                <p className="font-medium text-sm">
+                  {caseData.questionnaireAssignment.questionnaire_title}
+                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                    caseData.questionnaireAssignment.is_complete 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {caseData.questionnaireAssignment.is_complete ? 'Completed' : 'Pending'}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -172,42 +397,81 @@ const CaseDetailsPage = () => {
           </Link>
         </div>
         <div className="p-4">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Task
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Due Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {caseData.tasks.map((task: any) => (
-                  <tr key={task.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{task.title}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{task.dueDate}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${task.status === 'Completed' ? 'bg-green-100 text-green-800' : 
-                          task.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
-                        {task.status}
-                      </span>
-                    </td>
+          {tasks.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Task
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Due Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Assigned To
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Priority
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {tasks.map((task: Task) => (
+                    <tr key={task._id || task.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{task.title}</div>
+                        {task.description && (
+                          <div className="text-sm text-gray-500 mt-1">{task.description}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {new Date(task.dueDate).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {typeof task.assignedTo === 'object' && task.assignedTo 
+                            ? `${(task.assignedTo as any).firstName || ''} ${(task.assignedTo as any).lastName || ''}`.trim() || 'Unassigned'
+                            : task.assignedTo || 'Unassigned'
+                          }
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          task.priority === 'High' ? 'bg-red-100 text-red-800' :
+                          task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {task.priority}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                          ${task.status === 'Completed' ? 'bg-green-100 text-green-800' : 
+                            task.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                            task.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {task.status || 'Pending'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <CheckSquare className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No tasks found</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                No tasks are currently associated with this case.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -223,71 +487,98 @@ const CaseDetailsPage = () => {
           </Link>
         </div>
         <div className="p-4">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Title
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date Added
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {caseData.documents.map((doc: any) => (
-                  <tr key={doc.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer">
-                        {doc.title}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{doc.dateAdded}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{doc.category}</div>
-                    </td>
+          {documents.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Document Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Size
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Uploaded
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {documents.map((doc: Document) => (
+                    <tr key={doc._id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <FileText className="flex-shrink-0 h-5 w-5 text-gray-400 mr-3" />
+                          <div>
+                            <div className="text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer">
+                              {doc.name}
+                            </div>
+                            {doc.description && (
+                              <div className="text-sm text-gray-500">{doc.description}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">{doc.type}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">{doc.sizeFormatted || 'N/A'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {new Date(doc.uploadedAt || doc.createdAt).toLocaleDateString()}
+                        </div>
+                        {doc.uploadedBy && (
+                          <div className="text-xs text-gray-400">by {doc.uploadedBy}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          doc.status === 'Verified' ? 'bg-green-100 text-green-800' :
+                          doc.status === 'Pending Review' ? 'bg-yellow-100 text-yellow-800' :
+                          doc.status === 'Needs Update' ? 'bg-orange-100 text-orange-800' :
+                          doc.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {doc.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No documents found</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                No documents are currently associated with this case.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Notes section */}
+      {/* Communication section */}
       <div className="mt-6 bg-white rounded-lg shadow">
         <div className="border-b p-4">
-          <h2 className="text-xl font-semibold">Case Notes</h2>
+          <h2 className="text-xl font-semibold">Communications & Notes</h2>
         </div>
         <div className="p-4">
-          <div className="space-y-4">
-            {caseData.notes.map((note: any) => (
-              <div key={note.id} className="border rounded-lg p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <p className="font-medium">{note.author}</p>
-                  <p className="text-sm text-gray-500">{note.date}</p>
-                </div>
-                <p className="text-gray-700">{note.content}</p>
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-6">
-            <h3 className="text-lg font-medium mb-3">Add Note</h3>
-            <textarea
-              className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={3}
-              placeholder="Enter your note here..."
-            ></textarea>
-            <button className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-              Save Note
-            </button>
+          <div className="text-center py-8">
+            <MessageCircle className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No communications yet</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Communication logs will appear here as they are added to the case.
+            </p>
           </div>
         </div>
       </div>

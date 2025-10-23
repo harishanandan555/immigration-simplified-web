@@ -7,7 +7,6 @@ import {
   Trash2,
   MoreVertical,
   FolderPlus,
-  Eye,
   Users,
   CheckCircle,
   XCircle,
@@ -18,7 +17,6 @@ import {
   getDocuments,
   deleteDocument,
   downloadDocument,
-  previewDocument,
   verifyDocument,
   rejectDocument,
   updateDocument
@@ -192,7 +190,7 @@ const DocumentsPage = () => {
           if (workflowClient.email || workflowClient.name || workflowClient.firstName) {
             // Use email as primary identifier since workflow client IDs are often empty
             const clientEmail = workflowClient.email;
-            const clientId = clientEmail || workflowClient.clientId || workflowClient._id || workflow._id;
+            const clientId = clientEmail || workflowClient.id || workflowClient._id || workflow._id;
             const clientName = workflowClient.name || 
                              (workflowClient.firstName && workflowClient.lastName ? 
                               `${workflowClient.firstName} ${workflowClient.lastName}` : 
@@ -305,6 +303,8 @@ const DocumentsPage = () => {
     const fetchDocuments = async () => {
       try {
         const response = await getDocuments();
+
+        console.log('Fetched documents response:', response);
         
         if (response.success) {
           // Handle the actual API response structure
@@ -582,14 +582,7 @@ const DocumentsPage = () => {
     }
   };
 
-  const handlePreview = async (documentId: string) => {
-    try {
-      await previewDocument(documentId);
-    } catch (error) {
-      console.error('Failed to preview document', error);
-      console.error('An error occurred while previewing the document.');
-    }
-  };
+
 
   const handleVerify = async (documentId: string) => {
     try {
@@ -730,7 +723,7 @@ const DocumentsPage = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <Users className="flex-shrink-0 h-4 w-4 text-gray-400 mr-2" />
-                      <div className="text-sm text-gray-900">{getClientNameById(doc.clientId)}</div>
+                      <div className="text-sm text-gray-900">{getClientNameById(doc.clientId)}</div> {/* CLIENT NAME */}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -738,7 +731,7 @@ const DocumentsPage = () => {
                       <FileText className="flex-shrink-0 h-5 w-5 text-gray-400" />
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{doc.name}</div>
-                        <div className="text-sm text-gray-500">{doc.uploadedBy}</div>
+                        {/* <div className="text-sm text-gray-500">{doc.uploadedBy}</div> */}
                       </div>
                     </div>
                   </td>
@@ -768,9 +761,6 @@ const DocumentsPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button onClick={() => handlePreview(doc._id)} className="text-gray-400 hover:text-gray-500">
-                        <Eye size={18} />
-                      </button>
                       <button onClick={() => handleDownload(doc._id, doc.name)} className="text-gray-400 hover:text-gray-500">
                         <Download size={18} />
                       </button>
