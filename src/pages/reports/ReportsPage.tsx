@@ -93,7 +93,7 @@ const ReportsPage = () => {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [totalPages] = useState(1);
   const [itemsPerPage] = useState(10);
 
   // Load reports on component mount
@@ -114,7 +114,6 @@ const ReportsPage = () => {
         limit: itemsPerPage
       });
       setReports(response.data.reports);
-      setTotalPages(response.data.pages);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {
