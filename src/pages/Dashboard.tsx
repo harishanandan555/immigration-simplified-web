@@ -343,6 +343,7 @@ useEffect(() => {
       console.log('✅ Fetched tasks for dashboard:', tasksFromAPI);
       console.log('📊 Task mapping details:', {
         totalTasks: tasksFromAPI.length,
+        allTasksDueDates: tasksFromAPI.map(t => ({ title: t.title, dueDate: t.dueDate })),
         sampleTask: tasksFromAPI[0] ? {
           id: tasksFromAPI[0]._id,
           title: tasksFromAPI[0].title,
@@ -353,6 +354,8 @@ useEffect(() => {
           isOverdue: (tasksFromAPI[0] as any).isOverdue // Type assertion for API property
         } : null
       });
+      console.log('🔍 Current date for comparison:', new Date().toISOString());
+      console.log('🔍 User context:', { isClient, userId: user?.id });
       setTasks(tasksFromAPI);
     } catch (error) {
       console.error('❌ Error fetching tasks:', error);
@@ -551,14 +554,30 @@ useEffect(() => {
     .filter((task: any) => {
       // Validate task structure from API response
       if (!task || typeof task !== 'object' || !task.dueDate) {
+        console.log('❌ Filtering out task - missing structure or dueDate:', task);
         return false;
       }
       
       const dueDate = new Date(task.dueDate);
       const now = new Date();
       
-      // Check if due date is valid and in the future
-      if (isNaN(dueDate.getTime()) || dueDate <= now) {
+      // Check if due date is valid
+      if (isNaN(dueDate.getTime())) {
+        console.log('❌ Filtering out task - invalid dueDate:', task.dueDate, task);
+        return false;
+      }
+      
+      // Include tasks that are due in the future OR overdue by less than 7 days
+      const daysDifference = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const isRecentOrUpcoming = daysDifference >= -7; // Include tasks overdue by up to 7 days
+      
+      if (!isRecentOrUpcoming) {
+        console.log('❌ Filtering out task - too old (more than 7 days overdue):', {
+          dueDate: dueDate.toISOString(),
+          now: now.toISOString(),
+          daysDifference,
+          task: task.title
+        });
         return false;
       }
       
@@ -571,10 +590,23 @@ useEffect(() => {
                                 createdById === user.id ||
                                 task.clientId === user.id;
         if (!isAssignedToUser) {
+          console.log('❌ Filtering out task - not assigned to client:', {
+            taskTitle: task.title,
+            assignedToId,
+            createdById,
+            clientId: task.clientId,
+            userId: user.id
+          });
           return false;
         }
       }
       
+      console.log('✅ Including task in upcoming deadlines:', {
+        title: task.title,
+        dueDate: task.dueDate,
+        daysDifference,
+        isOverdue: daysDifference < 0
+      });
       return true;
     })
     .map((task: any) => {
@@ -647,6 +679,18 @@ useEffect(() => {
   console.log('📊 Dashboard: Upcoming deadlines mapping result:', {
     totalTasksFromAPI: tasks.length,
     filteredUpcomingDeadlines: upcomingDeadlines.length,
+    sampleTasks: tasks.slice(0, 3).map(task => ({
+      id: task._id || task.id,
+      title: task.title,
+      dueDate: task.dueDate,
+      dueDateParsed: task.dueDate ? new Date(task.dueDate).toISOString() : null,
+      isValidDate: task.dueDate ? !isNaN(new Date(task.dueDate).getTime()) : false,
+      isFuture: task.dueDate ? new Date(task.dueDate) > new Date() : false,
+      assignedTo: task.assignedTo,
+      clientId: task.clientId
+    })),
+    userContext: { isClient, userId: user?.id },
+    currentTime: new Date().toISOString(),
     upcomingDeadlinesSample: upcomingDeadlines.slice(0, 2).map(task => ({
       id: task.id,
       title: task.title,
@@ -658,6 +702,11 @@ useEffect(() => {
       isUrgent: task.isUrgent,
       daysLeft: task.daysLeft
     }))
+  });
+
+  console.log('🔍 Using deadlines for display:', {
+    deadlinesCount: upcomingDeadlines.length,
+    realDeadlines: upcomingDeadlines.slice(0, 2)
   });
 
   // Status counts for charts with validation
@@ -1059,7 +1108,6 @@ useEffect(() => {
 
                     const client = clients.find((c: any) => c.id === cleanCaseData.clientId);
                     const matchingWorkflow = getWorkflowCaseNumber(cleanCaseData);
-                    const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
                     
                     return (
                       <tr key={caseId} className="hover:bg-gray-50">
@@ -1152,8 +1200,27 @@ useEffect(() => {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
+                    label={({ name, percent, cx, cy, midAngle, innerRadius, outerRadius }) => {
+                      const RADIAN = Math.PI / 180;
+                      const radius = innerRadius + (outerRadius - innerRadius) * 1.4;
+                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                      
+                      return (
+                        <text 
+                          x={x} 
+                          y={y} 
+                          fill="#2d66c2ff" 
+                          textAnchor={x > cx ? 'start' : 'end'} 
+                          dominantBaseline="central"
+                          fontSize="14"
+                          fontWeight="500"
+                        >
+                          {`${name}: ${(percent * 100).toFixed(0)}%`}
+                        </text>
+                      );
+                    }}
+                    outerRadius={60}
                     fill="#8884d8"
                     dataKey="value"
                   >
@@ -1255,6 +1322,7 @@ useEffect(() => {
                   );
                   
                   const matchingWorkflow = relatedCase ? getWorkflowCaseNumber(relatedCase) : null;
+                  const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
                   
                   // Use the pre-calculated daysLeft from mapping or calculate fresh
                   const daysLeft = task.daysLeft || Math.ceil(
@@ -1328,7 +1396,7 @@ useEffect(() => {
                             
                             {workflowCaseNumbers.length > 0 && (
                               <div className="mt-1 space-y-1">
-                                {workflowCaseNumbers.map((caseNum, index) => {
+                                {workflowCaseNumbers.map((caseNum: any, index: number) => {
                                   // Safety check to ensure we have valid data
                                   if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
                                     return null;
