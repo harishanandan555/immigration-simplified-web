@@ -655,7 +655,7 @@ const DocumentsPage = () => {
             >
               <option key="all" value="all">All Clients</option>
               {(clients || []).map(client => (
-                <option key={client._id || client.clientId} value={client._id || client.clientId}>
+                <option key={client._id} value={client._id}>
                   {client.name}
                 </option>
               ))}
@@ -869,7 +869,7 @@ const DocumentsPage = () => {
                               {loadingWorkflows ? 'Loading clients...' : 'Select a client'}
                             </option>
                             {(clients || []).map(client => (
-                              <option key={client._id || client.clientId} value={client._id || client.clientId}>
+                              <option key={client._id} value={client._id}>
                                 {client.name} {client.email ? `(${client.email})` : ''}
                               </option>
                             ))}
