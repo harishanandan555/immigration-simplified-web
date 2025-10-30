@@ -35,6 +35,7 @@ import {
   generateSecurePassword
 } from '../controllers/UserCreationController';
 import { getCompanyClients as fetchClientsFromAPI, createCompanyClient, Client as APIClient } from '../controllers/ClientControllers';
+import { createEnhancedCase, EnhancedCaseData } from '../controllers/CaseControllers';
 import { 
   getAnvilTemplatesList, 
   fillPdfTemplateBlob, 
@@ -56,7 +57,6 @@ import {
   fetchWorkflowsForClientSearch,
   getWorkflowsByClient,
   checkEmailExists,
-  assignQuestionnaireToFormDetails,
   createQuestionnaireAssignment,
   generateMultipleCaseIds,
   validateFormData,
@@ -172,6 +172,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     description: '',
     category: '',
     subcategory: '',
+    type: 'Family-Based', // Default case type
     status: 'draft',
     priority: 'medium',
     assignedForms: [],
@@ -180,7 +181,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     dueDate: '',
     startDate: '',
     expectedClosureDate: '',
-    assignedAttorney: ''
+    assignedAttorney: '',
+    formCaseIds: {} // Initialize formCaseIds as empty object
   });
 
   // Selected forms and questionnaires
@@ -423,20 +425,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       
       // Populate questionnaire assignment and responses
       if (workflowData?.questionnaireAssignment) {
+        // Create assignment object with data from multiple sources
         const assignment = {
           id: workflowData.questionnaireAssignment.assignment_id || '',
           caseId: workflowData.case?._id || workflowData.case?.id || '',
           clientId: workflowData.client?._id || workflowData.client?.id || '',
           questionnaireId: workflowData.questionnaireAssignment.questionnaire_id || '',
           questionnaireName: workflowData.questionnaireAssignment.questionnaire_title || 'Workflow Questionnaire',
-          status: 'completed' as const,
+          status: (workflowData.clientResponses?.submitted_at || workflowData.questionnaireAssignment.submitted_at) ? 'completed' as const : 'pending' as const,
           assignedAt: new Date().toISOString(),
-          completedAt: workflowData.questionnaireAssignment.submitted_at || undefined,
-          responses: workflowData.questionnaireAssignment.responses || {},
+          completedAt: workflowData.clientResponses?.submitted_at || workflowData.questionnaireAssignment.submitted_at || undefined,
+          responses: workflowData.clientResponses?.responses || workflowData.questionnaireAssignment.responses || {},
           formCaseIds: workflowData.formCaseIds || {},
           selectedForms: workflowData.selectedForms || [],
           formCaseIdGenerated: workflowData.questionnaireAssignment.formCaseIdGenerated || '',
-          notes: workflowData.questionnaireAssignment.notes || ''
+          notes: workflowData.clientResponses?.notes || workflowData.questionnaireAssignment.notes || '',
+          responseId: workflowData.clientResponses?.response_id || undefined
         };
         
         setQuestionnaireAssignment(assignment);
@@ -465,11 +469,72 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         console.log('✅ Questionnaire assignment populated from workflow progress:', assignment);
       }
       
+      // Also check for clientResponses directly in the workflow data
+      if (workflowData?.clientResponses?.responses) {
+        console.log('🔍 Found clientResponses.responses - processing...');
+        
+        // Clean the responses object to ensure it's a plain object without MongoDB metadata
+        const cleanClientResponses: Record<string, any> = {};
+        for (const [key, value] of Object.entries(workflowData.clientResponses.responses)) {
+          // Only include proper response keys, skip MongoDB metadata
+          if (typeof key === 'string' && !key.startsWith('$') && key !== '__v') {
+            cleanClientResponses[key] = value;
+          }
+        }
+        
+        // Merge with existing responses or use as primary source
+        setClientResponses(prev => {
+          const merged = { ...prev, ...cleanClientResponses };
+          console.log('✅ Client responses populated from clientResponses data:', {
+            responseCount: Object.keys(merged).length,
+            responseKeys: Object.keys(merged).slice(0, 10),
+            source: 'clientResponses'
+          });
+          return merged;
+        });
+      }
+      
       // Set workflow mode based on data availability
-      if (workflowData?.questionnaireAssignment?.responses && Object.keys(workflowData.questionnaireAssignment.responses).length > 0) {
+      // Check multiple possible locations for responses
+      const hasResponses = (
+        (workflowData?.questionnaireAssignment?.responses && Object.keys(workflowData.questionnaireAssignment.responses).length > 0) ||
+        (workflowData?.clientResponses?.responses && Object.keys(workflowData.clientResponses.responses).length > 0) ||
+        (workflowData?.clientResponses && workflowData.clientResponses.submitted_at) // Check if response was submitted
+      );
+      
+      console.log('🔍 Checking for existing responses:', {
+        questionnaireAssignmentResponses: workflowData?.questionnaireAssignment?.responses,
+        clientResponsesResponses: workflowData?.clientResponses?.responses,
+        clientResponsesSubmittedAt: workflowData?.clientResponses?.submitted_at,
+        hasResponses,
+        workflowDataKeys: Object.keys(workflowData || {}),
+      });
+      
+      if (hasResponses) {
+        console.log('✅ SETTING EXISTING RESPONSE MODE');
+        console.log('🔧 Before state changes:', { 
+          currentIsExistResponse: isExistResponse, 
+          currentStep: currentStep 
+        });
+        
         setIsExistResponse(true);
         setCurrentStep(0); // Start at Review Responses step for existing data
+        
         console.log('✅ Set to existing response mode - starting at Review Responses step');
+        console.log('📋 Response data found:', {
+          questionnaireResponses: workflowData?.questionnaireAssignment?.responses,
+          clientResponses: workflowData?.clientResponses?.responses,
+          responseCount: Object.keys(workflowData?.clientResponses?.responses || {}).length,
+          submittedAt: workflowData?.clientResponses?.submitted_at
+        });
+        
+        // Force trigger re-render by logging state after update
+        setTimeout(() => {
+          console.log('🔧 After state changes (delayed check):', { 
+            isExistResponse, 
+            currentStep 
+          });
+        }, 100);
       } else {
         console.log('ℹ️ No existing responses found - continuing with current workflow flow');
       }
@@ -488,9 +553,18 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Function to get the appropriate workflow steps based on response type
   const getWorkflowSteps = () => {
+    console.log('🔍 getWorkflowSteps called:', { 
+      isExistResponse, 
+      currentStep,
+      stepsToReturn: isExistResponse ? 'EXIST_WORKFLOW_STEPS' : 'NEW_WORKFLOW_STEPS'
+    });
+    
     if (isExistResponse) {
+      console.log('✅ Returning EXIST_WORKFLOW_STEPS:', EXIST_WORKFLOW_STEPS);
       return EXIST_WORKFLOW_STEPS;
     }
+    
+    console.log('✅ Returning NEW_WORKFLOW_STEPS:', NEW_WORKFLOW_STEPS);
     return NEW_WORKFLOW_STEPS;
   };
 
@@ -500,7 +574,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       await loadQuestionnaires();
     };
     loadQuestionnairesAndCheckPrefilledData();
-  }, []); 
+  }, []);
+
+  // Monitor isExistResponse state changes for debugging
+  useEffect(() => {
+    console.log('🔍 isExistResponse state changed:', { 
+      isExistResponse, 
+      currentStep,
+      timestamp: new Date().toISOString()
+    });
+  }, [isExistResponse, currentStep]);
 
   // Load available workflows for auto-fill on component mount
   useEffect(() => {
@@ -574,7 +657,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       const workflowResult = await getWorkflowsByClient(targetClientId, {
         page: 1,
         limit: 5,
-        includeQuestions: false
+      
       });
 
       console.log("WORKFLOW RESULT", workflowResult)
@@ -3222,7 +3305,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             clientId: client.clientId || client._id,
             questionnaireId: existingResponse.questionnaireId,
             questionnaireName: existingResponse.questionnaireTitle,
-            status: 'completed-reused',
+            status: 'completed',
             assignedAt: new Date().toISOString(),
             completedAt: new Date().toISOString(),
             responses: existingResponse.responses || {},
@@ -3549,7 +3632,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             clientId: client.clientId || client._id,
             questionnaireId: existingResponse.questionnaireId,
             questionnaireName: existingResponse.questionnaireTitle,
-            status: 'completed-reused',
+            status: 'completed',
             assignedAt: new Date().toISOString(),
             completedAt: new Date().toISOString(),
             responses: existingResponse.responses,
@@ -3678,6 +3761,90 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               fullResponse: response
             });
             
+            // ✅ CREATE ENHANCED CASE WITH DEDICATED API ENDPOINT (for existing response path)
+            try {
+              console.log('🔄 Creating enhanced case for existing response workflow...');
+              
+              // Get current user for assignedTo field
+              const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+              const assignedToId = currentUser._id || currentUser.id;
+              
+              // Prepare enhanced case data for existing response path
+              const enhancedCaseData: EnhancedCaseData = {
+                // Required fields
+                type: caseData.category || 'Family-Based',
+                clientId: client.clientId || client._id || '',
+                
+                // Enhanced fields
+                title: caseData.title || `${client.name} - ${caseData.category || 'Immigration'} Case (Existing Response)`,
+                description: caseData.description || `${caseData.category || 'Immigration'} case for ${client.name} using existing questionnaire response`,
+                category: caseData.category || 'family-based',
+                subcategory: caseData.subcategory || 'adjustment-of-status',
+                priority: (caseData.priority?.charAt(0).toUpperCase() + caseData.priority?.slice(1)) as 'Low' | 'Medium' | 'High' | 'Urgent' || 'Medium',
+                dueDate: caseData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
+                assignedTo: assignedToId,
+                
+                // Form management
+                assignedForms: selectedForms || [],
+                formCaseIds: formCaseIds || {},
+                questionnaires: [existingResponse.questionnaireId],
+                
+                // Optional fields
+                status: 'in-progress', // Mark as in-progress since responses already exist
+                startDate: new Date().toISOString(),
+                expectedClosureDate: caseData.expectedClosureDate,
+                notes: `Case created with existing questionnaire response. Original response from: ${existingResponse.questionnaireTitle}. Original case: ${existingResponse.caseId}`
+              };
+
+              const caseResponse = await createEnhancedCase(enhancedCaseData);
+              
+              if (caseResponse && caseResponse.data) {
+                console.log('✅ Enhanced case created for existing response:', {
+                  caseId: caseResponse.data.case?._id || caseResponse.data._id,
+                  success: caseResponse.data.success,
+                  message: caseResponse.data.message
+                });
+                
+                // Update local case data with the newly created case information
+                const createdCase = caseResponse.data.case || caseResponse.data;
+                if (createdCase._id) {
+                  setCaseData(prev => ({
+                    ...prev,
+                    id: createdCase._id,
+                    _id: createdCase._id,
+                    ...createdCase
+                  }));
+                }
+                
+                toast.success(
+                  <div>
+                    <p>✅ Enhanced case created with existing response!</p>
+                    <p className="text-sm mt-1">📋 Case ID: {createdCase._id}</p>
+                    <p className="text-sm">📁 Reused response: {existingResponse.questionnaireTitle}</p>
+                    <p className="text-xs text-green-600">💾 Saved separately in cases collection</p>
+                  </div>,
+                  { duration: 6000 }
+                );
+              }
+              
+            } catch (caseError: any) {
+              console.error('❌ Error creating enhanced case for existing response:', {
+                error: caseError.message,
+                status: caseError.response?.status,
+                data: caseError.response?.data
+              });
+              
+              // Don't fail the entire workflow, just log the case creation error
+              toast.error(
+                <div>
+                  <p>⚠️ Case creation failed but workflow saved</p>
+                  <p className="text-sm mt-1">Existing response workflow is still active</p>
+                  <p className="text-xs text-gray-600">Error: {caseError.message}</p>
+                </div>,
+                { duration: 5000 }
+              );
+            }
+            
             toast.success(
               <div>
                 <p>✅ Previous response selected and saved for client {client.name}</p>
@@ -3747,6 +3914,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               description: '',
               category: '',
               subcategory: '',
+              type: 'Family-Based',
               status: 'draft',
               priority: 'medium',
               assignedForms: [],
@@ -3755,7 +3923,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               dueDate: '',
               startDate: '',
               expectedClosureDate: '',
-              assignedAttorney: ''
+              assignedAttorney: '',
+              formCaseIds: {}
             });
             setSelectedForms([]);
             setFormCaseIds({});
@@ -4304,6 +4473,101 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             const response = await saveWorkflowProgress(workflowDataWithNewAssignment);
             console.log('✅ DEBUG: Workflow with new assignment saved to database:', response);
             
+            // ✅ CREATE ENHANCED CASE WITH DEDICATED API ENDPOINT
+            try {
+              console.log('🔄 Creating enhanced case with POST /api/v1/cases endpoint...');
+              
+              // Get current user for assignedTo field
+              const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+              const assignedToId = currentUser._id || currentUser.id;
+              
+              // Prepare enhanced case data according to API specification
+              const enhancedCaseData: EnhancedCaseData = {
+                // Required fields
+                type: caseData.category || 'Family-Based',
+                clientId: clientUserId || client.id || client._id || '',
+                
+                // Enhanced fields
+                title: caseData.title || `${client.name} - ${caseData.category || 'Immigration'} Case`,
+                description: caseData.description || `${caseData.category || 'Immigration'} case for ${client.name}`,
+                category: caseData.category || 'family-based',
+                subcategory: caseData.subcategory || 'adjustment-of-status',
+                priority: (caseData.priority?.charAt(0).toUpperCase() + caseData.priority?.slice(1)) as 'Low' | 'Medium' | 'High' | 'Urgent' || 'Medium',
+                dueDate: caseData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
+                assignedTo: assignedToId,
+                
+                // Form management
+                assignedForms: selectedForms || [],
+                formCaseIds: formCaseIds || {},
+                questionnaires: [selectedQuestionnaire],
+                
+                // Optional fields
+                status: 'draft',
+                startDate: new Date().toISOString(),
+                expectedClosureDate: caseData.expectedClosureDate,
+                notes: `Case created through workflow automation. Questionnaire: ${assignment.questionnaireName}`
+              };
+
+              console.log('🔄 Enhanced case data prepared:', {
+                type: enhancedCaseData.type,
+                clientId: enhancedCaseData.clientId,
+                title: enhancedCaseData.title,
+                category: enhancedCaseData.category,
+                subcategory: enhancedCaseData.subcategory,
+                assignedFormsCount: enhancedCaseData.assignedForms.length,
+                formCaseIdsCount: Object.keys(enhancedCaseData.formCaseIds).length,
+                hasQuestionnaire: !!enhancedCaseData.questionnaires.length
+              });
+
+              const caseResponse = await createEnhancedCase(enhancedCaseData);
+              
+              if (caseResponse && caseResponse.data) {
+                console.log('✅ Enhanced case created successfully:', {
+                  caseId: caseResponse.data.case?._id || caseResponse.data._id,
+                  success: caseResponse.data.success,
+                  message: caseResponse.data.message
+                });
+                
+                // Update local case data with the newly created case information
+                const createdCase = caseResponse.data.case || caseResponse.data;
+                if (createdCase._id) {
+                  setCaseData(prev => ({
+                    ...prev,
+                    id: createdCase._id,
+                    _id: createdCase._id,
+                    ...createdCase
+                  }));
+                }
+                
+                toast.success(
+                  <div>
+                    <p>✅ Enhanced case created successfully!</p>
+                    <p className="text-sm mt-1">📋 Case ID: {createdCase._id}</p>
+                    <p className="text-sm">📁 Title: {enhancedCaseData.title}</p>
+                    <p className="text-xs text-green-600">💾 Saved with enhanced fields, forms, and questionnaire assignment</p>
+                  </div>,
+                  { duration: 6000 }
+                );
+              }
+              
+            } catch (caseError: any) {
+              console.error('❌ Error creating enhanced case:', {
+                error: caseError.message,
+                status: caseError.response?.status,
+                data: caseError.response?.data
+              });
+              
+              // Don't fail the entire workflow, just log the case creation error
+              toast.error(
+                <div>
+                  <p>⚠️ Case creation failed but workflow saved</p>
+                  <p className="text-sm mt-1">Questionnaire assignment is still active</p>
+                  <p className="text-xs text-gray-600">Error: {caseError.message}</p>
+                </div>,
+                { duration: 5000 }
+              );
+            }
+            
             toast.success(
               <div>
                 <p>✅ New questionnaire assigned and workflow saved for client {client.name}</p>
@@ -4371,6 +4635,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         description: '',
         category: '',
         subcategory: '',
+        type: 'Family-Based',
         status: 'draft',
         priority: 'medium',
         assignedForms: [],
@@ -4379,7 +4644,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         dueDate: '',
         startDate: '',
         expectedClosureDate: '',
-        assignedAttorney: ''
+        assignedAttorney: '',
+        formCaseIds: {}
       });
       setSelectedForms([]);
       setFormCaseIds({});
@@ -7665,9 +7931,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
   const renderStepContent = () => {
+    console.log('🎨 renderStepContent called:', { 
+      isExistResponse, 
+      currentStep,
+      renderingFunction: isExistResponse ? 'renderExistResponseStep' : 'renderNewResponseStep'
+    });
+    
     if (isExistResponse) {
+      console.log('🔄 Rendering existing response step:', currentStep);
       return renderExistResponseStep(currentStep);
     } else {
+      console.log('🔄 Rendering new response step:', currentStep);
       return renderNewResponseStep(currentStep);
     }
   };
