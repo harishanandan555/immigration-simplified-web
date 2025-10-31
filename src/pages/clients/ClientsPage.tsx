@@ -62,7 +62,7 @@ const ClientsPage = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Clients</h1>
         <Link
-          to="/clients/new"
+          to="/legal-firm-workflow"
           className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-md transition-colors"
         >
           <PlusCircle size={18} />
@@ -107,18 +107,18 @@ const ClientsPage = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Nationality
-                </th>
+                </th> */}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div className="flex items-center gap-1 cursor-pointer">
                     <span>Date of Birth</span>
                     <ArrowUpDown size={14} />
                   </div>
-                </th>
+                </th> */}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div className="flex items-center gap-1 cursor-pointer">
                     <span>Created</span>
@@ -144,7 +144,6 @@ const ClientsPage = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{client.name || 'N/A'}</div>
-                          <div className="text-xs text-gray-500">ID: {client._id.slice(-8)}</div>
                         </div>
                       </Link>
                     </td>
@@ -167,9 +166,9 @@ const ClientsPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {client.alienRegistrationNumber || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {client.nationality || 'N/A'}
-                    </td>
+                    </td> */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${client.status === 'Active'
                         ? 'bg-green-100 text-green-800'
@@ -180,11 +179,11 @@ const ClientsPage = () => {
                         {client.status || 'N/A'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {client.dateOfBirth 
                         ? new Date(client.dateOfBirth).toLocaleDateString() 
                         : 'N/A'}
-                    </td>
+                    </td> */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {client.createdAt 
                         ? new Date(client.createdAt).toLocaleDateString() 

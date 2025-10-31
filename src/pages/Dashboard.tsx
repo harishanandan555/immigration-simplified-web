@@ -11,9 +11,8 @@ import {
   ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../controllers/AuthControllers';
-import { getTasks } from '../controllers/TaskControllers';
 import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
-import api from '../utils/api';
+import { fetchWorkflows } from '../controllers/LegalFirmWorkflowController';
 import {
   BarChart,
   Bar,
@@ -27,6 +26,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import {getTasks} from '../controllers/TaskControllers';
 
 const Dashboard = () => {
   const { user, isClient, isAttorney, isSuperAdmin } = useAuth();
@@ -52,6 +52,239 @@ const Dashboard = () => {
     draft: 0
   });
   const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
+
+  // Consolidated workflow data loading
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      // Only load workflow data for attorneys and super admins
+      if (!isAttorney && !isSuperAdmin) {
+        console.log('👤 Dashboard: Skipping workflow data load for client user');
+        setLoadingWorkflowData(false);
+        setLoadingWorkflows(false);
+        return;
+      }
+
+      try {
+        setLoadingWorkflowData(true);
+        setLoadingWorkflows(true);
+
+        console.log('🔄 Dashboard: Starting workflow data fetch...');
+
+        // Fetch all workflows with comprehensive data
+        const workflowData = await fetchWorkflows({
+          limit: 200, // Increased limit for comprehensive data
+          offset: 0
+        });
+
+        console.log("Dashboard: Fetched workflows", workflowData);
+
+        console.log('✅ Dashboard: Fetched workflows:', {
+          count: workflowData.length,
+          hasData: !!workflowData,
+          sampleWorkflow: workflowData[0] ? {
+            id: workflowData[0]._id || workflowData[0].id,
+            hasClient: !!workflowData[0].client,
+            hasCase: !!workflowData[0].case,
+            status: workflowData[0].status
+          } : null
+        });
+
+        // Store workflows for case number matching
+        setAvailableWorkflows(workflowData);
+
+        // Extract clients from workflows
+        const clientsMap = new Map<string, any>();
+        const casesArray: any[] = [];
+
+        workflowData.forEach((workflow: any) => {
+          // Extract client data with enhanced error handling
+          if (workflow.client) {
+            try {
+              const clientEmail = workflow.client.email;
+              const clientName = workflow.client.name || 
+                               `${workflow.client.firstName || ''} ${workflow.client.lastName || ''}`.trim() ||
+                               'Unknown Client';
+
+              if (clientEmail && clientName !== 'Unknown Client') {
+                const clientData = {
+                  id: workflow.client.clientId || workflow.client._id || clientEmail,
+                  _id: workflow.client._id || workflow.client.clientId,
+                  name: clientName,
+                  email: clientEmail,
+                  phone: workflow.client.phone || 'N/A',
+                  status: workflow.client.status || 'Active',
+                  createdAt: workflow.createdAt || workflow.client.createdAt || '',
+                  
+                  // Enhanced client fields from workflow data
+                  alienNumber: workflow.client.alienRegistrationNumber || workflow.client.alienNumber || 'N/A',
+                  socialSecurityNumber: workflow.client.socialSecurityNumber || workflow.client.ssn || 'N/A',
+                  uscisAccountNumber: workflow.client.uscisOnlineAccountNumber || 'N/A',
+                  nationalIdNumber: workflow.client.nationalIdNumber || 'N/A',
+                  passportNumber: workflow.client.passportNumber || 'N/A',
+                  
+                  address: workflow.client.address?.formattedAddress || 
+                           (workflow.client.address ? 
+                             `${workflow.client.address.street || ''} ${workflow.client.address.city || ''} ${workflow.client.address.state || ''}`.trim() : 
+                             'N/A'),
+                  nationality: workflow.client.nationality || 'N/A',
+                  dateOfBirth: workflow.client.dateOfBirth || 'N/A',
+                  placeOfBirth: workflow.client.placeOfBirth ? 
+                    `${workflow.client.placeOfBirth.city || ''}, ${workflow.client.placeOfBirth.country || ''}`.replace(', ', ', ').trim() : 
+                    'N/A',
+                  gender: workflow.client.gender || 'N/A',
+                  maritalStatus: workflow.client.maritalStatus || 'N/A',
+                  
+                  // IMS User data
+                  imsUserId: workflow.client.imsUserId,
+                  hasImsUser: !!workflow.client.imsUserId,
+                  
+                  // Workflow-specific fields
+                  workflowId: workflow._id || workflow.id,
+                  caseType: workflow.case?.category || workflow.case?.subcategory || 'N/A',
+                  formCaseIds: workflow.formCaseIds,
+                  openDate: workflow.case?.openDate || 'N/A',
+                  priorityDate: workflow.case?.priorityDate || 'N/A'
+                };
+
+                // Use email as unique identifier for clients
+                clientsMap.set(clientEmail, clientData);
+              }
+            } catch (clientError) {
+              console.warn('⚠️ Error processing client data:', clientError, workflow.client);
+            }
+          }
+
+          // Extract case data with enhanced error handling
+          if (workflow.case) {
+            try {
+              // Clean form case IDs by filtering out Mongoose metadata
+              const cleanFormCaseIds = workflow.formCaseIds && typeof workflow.formCaseIds === 'object' 
+                ? Object.fromEntries(
+                    Object.entries(workflow.formCaseIds).filter(([key, value]) => 
+                      !key.startsWith('$') && typeof key === 'string' && value && typeof value === 'string'
+                    )
+                  )
+                : {};
+
+              const caseData = {
+                id: workflow.case.id || workflow.case._id,
+                _id: workflow.case.id || workflow.case._id,
+                clientId: workflow.client?.clientId || workflow.client?._id,
+                clientName: workflow.client?.name || 
+                           `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.trim() ||
+                           'Unknown Client',
+                caseNumber: workflow.case.caseNumber || workflow.case.title || 'No Case Number',
+                formNumber: workflow.selectedForms?.[0] || workflow.case.assignedForms?.[0] || 'Unknown',
+                status: workflow.case.status || workflow.status || 'draft',
+                type: formatCaseCategory(workflow.case.category, workflow.case.subcategory),
+                category: workflow.case.category,
+                subcategory: workflow.case.subcategory,
+                visaType: workflow.case.visaType,
+                priority: workflow.case.priority || 'medium',
+                title: workflow.case.title,
+                description: workflow.case.description,
+                createdAt: workflow.case.createdAt || workflow.createdAt,
+                updatedAt: workflow.case.updatedAt || workflow.updatedAt,
+                openDate: workflow.case.openDate,
+                dueDate: workflow.case.dueDate,
+                priorityDate: workflow.case.priorityDate,
+                
+                // Enhanced workflow fields (cleaned)
+                workflowId: workflow._id || workflow.id,
+                workflowStatus: workflow.status,
+                currentStep: workflow.currentStep,
+                selectedForms: workflow.selectedForms,
+                formCaseIds: cleanFormCaseIds, // Use cleaned form case IDs
+                
+                // Additional case metadata
+                assignedForms: workflow.case.assignedForms,
+                questionnaires: workflow.case.questionnaires,
+                
+                // Questionnaire data if available
+                hasQuestionnaireAssignment: !!workflow.questionnaireAssignment,
+                questionnaireStatus: workflow.questionnaireAssignment?.status,
+                questionnaireTitle: workflow.questionnaireAssignment?.questionnaire_title,
+                
+                // Client responses data
+                hasClientResponses: !!workflow.clientResponses,
+                clientResponsesComplete: workflow.clientResponses?.is_complete || false
+              };
+
+              casesArray.push(caseData);
+            } catch (caseError) {
+              console.warn('⚠️ Error processing case data:', caseError, workflow.case);
+            }
+          }
+        });
+
+        // Set extracted data
+        const clientsArray = Array.from(clientsMap.values());
+        setClients(clientsArray);
+        setWorkflowClients(clientsArray); // Use same client data for consistency
+        setCases(casesArray);
+
+        // Calculate workflow stats with correct mapping
+        const stats = {
+          total: workflowData.length,
+          inProgress: workflowData.filter((w: any) => w.status === 'in-progress').length,
+          completed: workflowData.filter((w: any) => w.status === 'completed').length,
+          draft: workflowData.filter((w: any) => w.status === 'draft').length
+        };
+        setWorkflowStats(stats);
+
+        console.log('✅ Dashboard: Processed data successfully:', {
+          totalWorkflows: workflowData.length,
+          clients: clientsArray.length,
+          cases: casesArray.length,
+          workflowStats: stats,
+          sampleWorkflowStatuses: workflowData.slice(0, 5).map((w: any) => w.status),
+          sampleCaseCategories: casesArray.slice(0, 5).map((c: any) => ({ category: c.category, subcategory: c.subcategory, type: c.type }))
+        });
+
+        // Debug: Log sample extracted data
+        if (clientsArray.length > 0) {
+          console.log('📊 Dashboard: Sample client data:', clientsArray[0]);
+        }
+        if (casesArray.length > 0) {
+          console.log('📊 Dashboard: Sample case data:', {
+            ...casesArray[0],
+            cleanFormCaseIds: casesArray[0].formCaseIds,
+            originalWorkflowFormCaseIds: workflowData[0]?.formCaseIds
+          });
+        }
+
+        // Fetch tasks separately with error handling
+        try {
+          const tasksData = await getTasks();
+          setTasks(Array.isArray(tasksData) ? tasksData : []);
+          console.log('✅ Dashboard: Loaded tasks:', tasksData.length);
+        } catch (taskError) {
+          console.error('❌ Error loading tasks:', taskError);
+          setTasks([]);
+        }
+
+      } catch (error) {
+        console.error('❌ Error loading dashboard data:', error);
+        // Set empty arrays on error to prevent undefined issues
+        setClients([]);
+        setWorkflowClients([]);
+        setCases([]);
+        setTasks([]);
+        setAvailableWorkflows([]);
+        setWorkflowStats({
+          total: 0,
+          inProgress: 0,
+          completed: 0,
+          draft: 0
+        });
+      } finally {
+        setLoadingWorkflowData(false);
+        setLoadingWorkflows(false);
+      }
+    };
+
+    loadDashboardData();
+  }, [isAttorney, isSuperAdmin]);
 
   // Load questionnaire assignments for clients
   useEffect(() => {
@@ -103,227 +336,65 @@ const Dashboard = () => {
     }
   }, [isClient]);
 
-  // Load workflows data
-  useEffect(() => {
-    const loadWorkflows = async () => {
-      if (!isAttorney && !isSuperAdmin) return; // Only load for attorneys/admins
-      
-      try {
-        setLoadingWorkflows(true);
-        const workflowData = await fetchWorkflowsFromAPI();
-        
-        // Store workflows for case number matching
-        setAvailableWorkflows(workflowData);
-        
-        // Calculate workflow stats
-        const stats = {
-          total: workflowData.length,
-          inProgress: workflowData.filter((w: any) => w.status === 'in-progress').length,
-          completed: workflowData.filter((w: any) => w.status === 'completed').length,
-          draft: workflowData.filter((w: any) => w.status === 'draft').length
-        };
-        setWorkflowStats(stats);
-        
-      } catch (error) {
-        console.error('Error loading workflows:', error);
-      } finally {
-        setLoadingWorkflows(false);
-      }
-    };
-
-    loadWorkflows();
-  }, [isAttorney, isSuperAdmin]);
-
-  // Load dashboard data from workflow API
-  useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        setLoadingWorkflowData(true);
-        
-        // Fetch clients, cases from workflows API
-        const workflowData = await fetchClientsAndCasesFromAPI();
-        setClients(workflowData.clients);
-        setCases(workflowData.cases);
-        
-        // Fetch unique clients using ClientsPage logic for accurate count
-        const uniqueClients = await fetchWorkflowClientsFromAPI();
-        setWorkflowClients(uniqueClients);
-        
-        // Fetch tasks from tasks API
-        const tasksData = await getTasks();
-        setTasks(tasksData);
-        
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-      } finally {
-        setLoadingWorkflowData(false);
-      }
-    };
-
-    loadDashboardData();
-  }, []);
-
-  // Function to fetch clients and cases from workflows API
-  const fetchClientsAndCasesFromAPI = async (): Promise<{ clients: any[], cases: any[] }> => {
+useEffect(() => {
+  const fetchTasks = async () => {
     try {
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        return { clients: [], cases: [] };
-      }
-
-      const response = await api.get('/api/v1/workflows', {
-        params: {
-          page: 1,
-          limit: 100
-        }
+      const tasksFromAPI = await getTasks();
+      console.log('✅ Fetched tasks for dashboard:', tasksFromAPI);
+      console.log('📊 Task mapping details:', {
+        totalTasks: tasksFromAPI.length,
+        allTasksDueDates: tasksFromAPI.map(t => ({ title: t.title, dueDate: t.dueDate })),
+        sampleTask: tasksFromAPI[0] ? {
+          id: tasksFromAPI[0]._id,
+          title: tasksFromAPI[0].title,
+          dueDate: tasksFromAPI[0].dueDate,
+          relatedCaseId: tasksFromAPI[0].relatedCaseId,
+          assignedTo: tasksFromAPI[0].assignedTo,
+          status: tasksFromAPI[0].status,
+          isOverdue: (tasksFromAPI[0] as any).isOverdue // Type assertion for API property
+        } : null
       });
-
-
-      if (response.data?.success && response.data?.data) {
-        const workflows = response.data.data;
-       
-        const clientsMap = new Map<string, any>();
-        const casesArray: any[] = [];
-
-        workflows.forEach((workflow: any) => {
-          // Extract client info
-          if (workflow.client && workflow.client.clientId) {
-            const clientData = {
-              id: workflow.client.clientId,
-              _id: workflow.client.clientId,
-              name: workflow.client.name,
-              email: workflow.client.email,
-              phone: workflow.client.phone,
-              imsUserId: workflow.client.imsUserId,
-              hasImsUser: !!workflow.client.imsUserId
-            };
-            clientsMap.set(workflow.client.clientId, clientData);
-          }
-
-          // Extract case info from workflow
-          if (workflow.case) {
-            const enhancedCase = {
-              id: workflow.case.id || workflow.case._id,
-              _id: workflow.case.id || workflow.case._id,
-              clientId: workflow.client?.id,
-              clientName: workflow.client?.name,
-              caseNumber: workflow.case.caseNumber || workflow.case.title,
-              formNumber: workflow.case.assignedForms?.[0] || 'Unknown',
-              status: workflow.case.status || 'draft',
-              type: formatCaseCategory(workflow.case.category), // Use category directly from case
-              category: workflow.case.category,
-              subcategory: workflow.case.subcategory,
-              visaType: workflow.case.visaType,
-              priority: workflow.case.priority || 'medium',
-              title: workflow.case.title,
-              description: workflow.case.description,
-              createdAt: workflow.case.createdAt,
-              updatedAt: workflow.case.updatedAt,
-              openDate: workflow.case.openDate,
-              dueDate: workflow.case.dueDate,
-              priorityDate: workflow.case.priorityDate
-            };
-            casesArray.push(enhancedCase);
-          }
-        });
-
-        const clientsArray = Array.from(clientsMap.values());
-        
-        
-        return { clients: clientsArray, cases: casesArray };
-      }
-
-      return { clients: [], cases: [] };
+      console.log('🔍 Current date for comparison:', new Date().toISOString());
+      console.log('🔍 User context:', { isClient, userId: user?.id });
+      setTasks(tasksFromAPI);
     } catch (error) {
-      console.error('Error fetching dashboard data from API:', error);
-      return { clients: [], cases: [] };
+      console.error('❌ Error fetching tasks:', error);
+      setTasks([]);
     }
   };
 
-  // Function to fetch clients from workflows API (using ClientsPage logic)
-  const fetchWorkflowClientsFromAPI = async (): Promise<any[]> => {
-    try {
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        return [];
-      }
-
-      const response = await api.get('/api/v1/workflows', {
-        params: {
-          page: 1,
-          limit: 100
-        }
-      });
+  fetchTasks();
+}, []); // ← Add dependency array (run once on mount)
 
 
-      if (response.data?.success && response.data?.data) {
-        const workflows = response.data.data;
-        
-        // Extract unique clients from workflows (using ClientsPage logic)
-        const clientsMap = new Map<string, any>();
-        
-        workflows.forEach((workflow: any) => {
-          const clientData = workflow.client;
-          const caseData = workflow.case;
-          
-          if (clientData && clientData.name && clientData.email) {
-            const clientId = clientData.email; // Use email as unique identifier
-            
-            if (!clientsMap.has(clientId)) {
-              clientsMap.set(clientId, {
-                _id: workflow._id || workflow.id,
-                id: clientId,
-                name: clientData.name,
-                email: clientData.email,
-                phone: clientData.phone || 'N/A',
-                status: clientData.status || 'Active',
-                createdAt: workflow.createdAt || caseData?.openDate || '',
-                alienNumber: clientData.alienNumber || 'N/A',
-                address: clientData.address?.formattedAddress || 'N/A',
-                nationality: clientData.nationality || 'N/A',
-                dateOfBirth: clientData.dateOfBirth || 'N/A',
-                // Workflow-specific fields
-                workflowId: workflow._id || workflow.id,
-                caseType: caseData?.category || caseData?.subcategory || 'N/A',
-                formCaseIds: workflow.formCaseIds,
-                openDate: caseData?.openDate || 'N/A',
-                priorityDate: caseData?.priorityDate || 'N/A'
-              });
-            }
-          }
-        });
-
-        const uniqueClients = Array.from(clientsMap.values());
-        return uniqueClients;
-      } else {
-        return [];
-      }
-
-    } catch (error: any) {
-      console.error('❌ Error fetching clients from workflows API:', error);
-      return [];
-    }
-  };
-
-  // Helper function to format case category for display
-  const formatCaseCategory = (category: string): string => {
+  // Helper function to format case category for display - Enhanced for API response
+  const formatCaseCategory = (category: string, subcategory?: string): string => {
     if (!category) return 'Other';
+    
+    // Handle specific category-subcategory combinations from API
+    if (category === 'citizenship' && subcategory === 'naturalization') {
+      return 'Naturalization';
+    }
     
     // Map workflow categories to display categories
     switch (category.toLowerCase()) {
       case 'family-based':
+      case 'family':
         return 'Family-Based';
       case 'employment-based':
+      case 'employment':
         return 'Employment-Based';
       case 'humanitarian':
         return 'Humanitarian';
       case 'naturalization':
+      case 'citizenship':
         return 'Naturalization';
       case 'business':
         return 'Business';
+      case 'other':
+        return 'Other';
       default:
+        // Capitalize and format unknown categories
         return category.split('-').map(word => 
           word.charAt(0).toUpperCase() + word.slice(1)
         ).join(' ');
@@ -473,56 +544,176 @@ const Dashboard = () => {
     return caseNumbers;
   };
 
-  // Fetch workflows from API function
-  const fetchWorkflowsFromAPI = async () => {
-    try {
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        return [];
-      }
-
-      const response = await api.get('/api/v1/workflows', {
-        params: {
-          status: 'in-progress',
-          page: 1,
-          limit: 50
-        }
-      });
-
-      if (response.data?.success && response.data?.data) {
-        const workflows = response.data.data;
-        return workflows;
-      } else {
-        return [];
-      }
-
-    } catch (error: any) {
-      console.error('❌ Error fetching workflows from API:', error);
-
-
-      return [];
-    } finally {
-    }
-  };
-
   // Filter cases if user is a client
-  const filteredCases = isClient
-    ? cases.filter((c: any) => c.clientId === user?.id)
+  const filteredCases = isClient && user?.id
+    ? cases.filter((c: any) => c.clientId === user.id)
     : cases;
 
-  // Filter upcoming tasks
+  // Filter upcoming tasks with better validation and mapping from tasksFromAPI
   const upcomingDeadlines = tasks
-    .filter((task: any) =>
-      task.dueDate && new Date(task.dueDate) > new Date() &&
-      (!isClient || task.assignedTo === user?.id)
-    )
-    .sort((a: any, b: any) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+    .filter((task: any) => {
+      // Validate task structure from API response
+      if (!task || typeof task !== 'object' || !task.dueDate) {
+        console.log('❌ Filtering out task - missing structure or dueDate:', task);
+        return false;
+      }
+      
+      const dueDate = new Date(task.dueDate);
+      const now = new Date();
+      
+      // Check if due date is valid
+      if (isNaN(dueDate.getTime())) {
+        console.log('❌ Filtering out task - invalid dueDate:', task.dueDate, task);
+        return false;
+      }
+      
+      // Include tasks that are due in the future OR overdue by less than 7 days
+      const daysDifference = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const isRecentOrUpcoming = daysDifference >= -7; // Include tasks overdue by up to 7 days
+      
+      if (!isRecentOrUpcoming) {
+        console.log('❌ Filtering out task - too old (more than 7 days overdue):', {
+          dueDate: dueDate.toISOString(),
+          now: now.toISOString(),
+          daysDifference,
+          task: task.title
+        });
+        return false;
+      }
+      
+      // Filter by user if client - check assignedTo object and other possible user references
+      if (isClient && user?.id) {
+        const assignedToId = task.assignedTo?._id || task.assignedTo?.id || task.assignedTo;
+        const createdById = task.createdBy?._id || task.createdBy?.id || task.createdBy;
+        
+        const isAssignedToUser = assignedToId === user.id || 
+                                createdById === user.id ||
+                                task.clientId === user.id;
+        if (!isAssignedToUser) {
+          console.log('❌ Filtering out task - not assigned to client:', {
+            taskTitle: task.title,
+            assignedToId,
+            createdById,
+            clientId: task.clientId,
+            userId: user.id
+          });
+          return false;
+        }
+      }
+      
+      console.log('✅ Including task in upcoming deadlines:', {
+        title: task.title,
+        dueDate: task.dueDate,
+        daysDifference,
+        isOverdue: daysDifference < 0
+      });
+      return true;
+    })
+    .map((task: any) => {
+      // Enhanced mapping from tasksFromAPI response structure
+      const assignedTo = task.assignedTo || {};
+      const createdBy = task.createdBy || {};
+      
+      return {
+        id: task._id || task.id,
+        title: task.title || task.name || task.description || 'Untitled Task',
+        description: task.description || task.notes || '',
+        status: task.status || 'Pending',
+        priority: task.priority || 'Medium',
+        dueDate: task.dueDate,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        
+        // Case relationship mapping - using relatedCaseId from API
+        caseId: task.relatedCaseId || task.caseId,
+        caseName: task.caseName || task.relatedCase?.title || task.relatedCase?.name,
+        caseNumber: task.caseNumber || task.relatedCase?.caseNumber || task.relatedCaseId,
+        
+        // Client relationship mapping
+        clientId: task.clientId,
+        clientName: task.clientName || task.client?.name || 
+                   (task.client?.firstName && task.client?.lastName ? 
+                    `${task.client.firstName} ${task.client.lastName}` : ''),
+        
+        // Assignment mapping - handle nested objects from API
+        assignedTo: assignedTo._id || assignedTo.id || assignedTo,
+        assignedToName: assignedTo.firstName && assignedTo.lastName ? 
+                       `${assignedTo.firstName} ${assignedTo.lastName}` : 
+                       assignedTo.name || '',
+        assignedToEmail: assignedTo.email || '',
+        
+        assignedBy: createdBy._id || createdBy.id || createdBy,
+        assignedByName: createdBy.firstName && createdBy.lastName ? 
+                       `${createdBy.firstName} ${createdBy.lastName}` : 
+                       createdBy.name || '',
+        
+        // Additional API fields
+        type: task.type || 'General',
+        category: task.category || 'Task',
+        isUrgent: task.isUrgent || task.priority === 'High' || task.priority === 'Urgent',
+        isOverdue: task.isOverdue || false,
+        daysUntilDue: task.daysUntilDue || 0,
+        reminderSent: task.reminderSent || false,
+        completedAt: task.completedAt,
+        completedBy: task.completedBy,
+        
+        // Additional metadata
+        attachments: task.attachments || [],
+        reminders: task.reminders || [],
+        tags: task.tags || [],
+        history: task.history || [],
+        notes: task.notes || '',
+        
+        // Form and workflow relationships
+        formNumber: task.formNumber || task.form?.number,
+        workflowId: task.workflowId || task.workflow?._id,
+        
+        // Computed fields
+        daysLeft: Math.ceil((new Date(task.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+      };
+    })
+    .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 5);
 
-  // Status counts for charts
+  // Debug upcoming deadlines mapping
+  console.log('📊 Dashboard: Upcoming deadlines mapping result:', {
+    totalTasksFromAPI: tasks.length,
+    filteredUpcomingDeadlines: upcomingDeadlines.length,
+    sampleTasks: tasks.slice(0, 3).map(task => ({
+      id: task._id || task.id,
+      title: task.title,
+      dueDate: task.dueDate,
+      dueDateParsed: task.dueDate ? new Date(task.dueDate).toISOString() : null,
+      isValidDate: task.dueDate ? !isNaN(new Date(task.dueDate).getTime()) : false,
+      isFuture: task.dueDate ? new Date(task.dueDate) > new Date() : false,
+      assignedTo: task.assignedTo,
+      clientId: task.clientId
+    })),
+    userContext: { isClient, userId: user?.id },
+    currentTime: new Date().toISOString(),
+    upcomingDeadlinesSample: upcomingDeadlines.slice(0, 2).map(task => ({
+      id: task.id,
+      title: task.title,
+      dueDate: task.dueDate,
+      caseId: task.caseId,
+      clientName: task.clientName,
+      assignedToName: task.assignedToName,
+      isOverdue: task.isOverdue,
+      isUrgent: task.isUrgent,
+      daysLeft: task.daysLeft
+    }))
+  });
+
+  console.log('🔍 Using deadlines for display:', {
+    deadlinesCount: upcomingDeadlines.length,
+    realDeadlines: upcomingDeadlines.slice(0, 2)
+  });
+
+  // Status counts for charts with validation
   const statusCounts = filteredCases.reduce((acc: any, c: any) => {
-    acc[c.status] = (acc[c.status] || 0) + 1;
+    if (c && c.status && typeof c.status === 'string') {
+      acc[c.status] = (acc[c.status] || 0) + 1;
+    }
     return acc;
   }, {} as Record<string, number>);
 
@@ -531,18 +722,26 @@ const Dashboard = () => {
     value: statusCounts[status]
   }));
 
+  // Type data for charts with proper mapping from API response
   const typeData = [
-    { name: 'Family-Based', cases: filteredCases.filter((c: any) => c.type === 'Family-Based').length },
-    { name: 'Employment-Based', cases: filteredCases.filter((c: any) => c.type === 'Employment-Based').length },
-    { name: 'Humanitarian', cases: filteredCases.filter((c: any) => c.type === 'Humanitarian').length },
-    { name: 'Naturalization', cases: filteredCases.filter((c: any) => c.type === 'Naturalization').length },
-    { name: 'Business', cases: filteredCases.filter((c: any) => c.type === 'Business').length },
+    { name: 'Naturalization', cases: filteredCases.filter((c: any) => c?.type === 'Naturalization').length },
+    { name: 'Family-Based', cases: filteredCases.filter((c: any) => c?.type === 'Family-Based').length },
+    { name: 'Employment-Based', cases: filteredCases.filter((c: any) => c?.type === 'Employment-Based').length },
+    { name: 'Humanitarian', cases: filteredCases.filter((c: any) => c?.type === 'Humanitarian').length },
+    { name: 'Business', cases: filteredCases.filter((c: any) => c?.type === 'Business').length },
     {
       name: 'Other', cases: filteredCases.filter((c: any) =>
-        !['Family-Based', 'Employment-Based', 'Humanitarian', 'Naturalization', 'Business'].includes(c.type)
+        c?.type && !['Naturalization', 'Family-Based', 'Employment-Based', 'Humanitarian', 'Business'].includes(c.type)
       ).length
     }
   ].filter(item => item.cases > 0); // Only show categories with cases
+
+  console.log('📊 Dashboard Chart Data:', {
+    statusData: statusData,
+    typeData: typeData,
+    filteredCasesCount: filteredCases.length,
+    sampleCaseTypes: filteredCases.slice(0, 5).map(c => ({ type: c.type, category: c.category, subcategory: c.subcategory }))
+  });
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -554,9 +753,14 @@ const Dashboard = () => {
       </div>
 
       {/* Loading indicator */}
-      {loadingWorkflowData && (
-        <div className="mb-6 flex justify-center">
+      {(loadingWorkflowData || loadingWorkflows || loadingQuestionnaires) && (
+        <div className="mb-6 flex justify-center items-center space-x-3">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+          <span className="text-sm text-gray-600">
+            {loadingWorkflowData ? 'Loading dashboard data...' : 
+             loadingWorkflows ? 'Loading workflows...' : 
+             'Loading questionnaires...'}
+          </span>
         </div>
       )}
 
@@ -677,20 +881,23 @@ const Dashboard = () => {
           <div className="card">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Active Workflows</p>
+                <p className="text-gray-500 text-sm">Total Workflows</p>
                 <p className="text-2xl font-bold mt-1">
-                  {loadingWorkflows ? '...' : workflowStats.inProgress}
+                  {loadingWorkflows ? '...' : workflowStats.total}
                 </p>
+                {/* <p className="text-xs text-gray-500 mt-1">
+                  {workflowStats.inProgress} in progress, {workflowStats.completed} completed
+                </p> */}
               </div>
               <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
                 <FileText size={20} />
               </div>
             </div>
-            <div className="mt-4">
+            {/* <div className="mt-4">
               <Link to="/workflows" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
                 Manage workflows →
               </Link>
-            </div>
+            </div> */}
           </div>
         )}
 
@@ -791,6 +998,12 @@ const Dashboard = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            
+            {/* Debug info for case type mapping */}
+            <div className="mt-2 text-xs text-gray-500">
+              Total Cases: {filteredCases.length} | 
+              {typeData.map(item => ` ${item.name}: ${item.cases}`).join(' |')}
+            </div>
           </div>
 
           {/* Workflow Status Chart for Attorneys/Admins */}
@@ -818,6 +1031,11 @@ const Dashboard = () => {
                     <Bar dataKey="count" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              
+              {/* Debug info for workflow status mapping */}
+              <div className="mt-2 text-xs text-gray-500">
+                Workflows: {workflowStats.total} | In Progress: {workflowStats.inProgress} | Completed: {workflowStats.completed} | Draft: {workflowStats.draft}
               </div>
             </div>
           )}
@@ -851,54 +1069,61 @@ const Dashboard = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredCases.slice(0, 4).map((caseItem: any, caseIndex: number) => {
-                    // Comprehensive safety check
+                    // Comprehensive safety check and data cleaning
                     if (!caseItem || typeof caseItem !== 'object' || Array.isArray(caseItem)) {
                       console.warn('Invalid case item at index', caseIndex, caseItem);
                       return null;
                     }
 
-                    // Ensure all case properties are strings/primitives
-                    const caseId = String(caseItem.id || caseItem._id || '');
-                    const caseNumber = String(caseItem.caseNumber || 'No Case Number');
-                    const caseType = String(caseItem.type || 'Unknown');
-                    const caseStatus = String(caseItem.status || 'Unknown');
-                    const clientName = String(caseItem.clientName || 'Unknown Client');
+                    // Clean the case data by removing Mongoose metadata
+                    const cleanCaseData = {
+                      id: caseItem.id || caseItem._id,
+                      _id: caseItem._id || caseItem.id,
+                      caseNumber: caseItem.caseNumber || caseItem.title || 'No Case Number',
+                      type: caseItem.type || 'Unknown',
+                      status: caseItem.status || 'Unknown',
+                      clientId: caseItem.clientId,
+                      clientName: caseItem.clientName || 'Unknown Client',
+                      workflowId: caseItem.workflowId,
+                      formCaseIds: caseItem.formCaseIds && typeof caseItem.formCaseIds === 'object' 
+                        ? Object.fromEntries(
+                            Object.entries(caseItem.formCaseIds).filter(([key, value]) => 
+                              !key.startsWith('$') && typeof key === 'string' && value
+                            )
+                          )
+                        : {}
+                    };
+
+                    // Ensure all properties are strings/primitives for display
+                    const caseId = String(cleanCaseData.id || '');
+                    const caseNumber = String(cleanCaseData.caseNumber);
+                    const caseType = String(cleanCaseData.type);
+                    const caseStatus = String(cleanCaseData.status);
+                    const clientName = String(cleanCaseData.clientName);
 
                     if (!caseId) {
-                      console.warn('Skipping case without valid ID', caseItem);
+                      console.warn('Skipping case without valid ID', cleanCaseData);
                       return null;
                     }
 
-                    const client = clients.find((c: any) => c.id === caseItem.clientId);
-                    const matchingWorkflow = getWorkflowCaseNumber(caseItem);
-                    const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
+                    const client = clients.find((c: any) => c.id === cleanCaseData.clientId);
+                    const matchingWorkflow = getWorkflowCaseNumber(cleanCaseData);
                     
                     return (
                       <tr key={caseId} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Link to={`/cases/${caseId}`} className="text-primary-600 hover:text-primary-700 font-medium">
-                            <div>{caseNumber}</div>
-                            {workflowCaseNumbers.length > 0 && (
+                            <div className="font-medium">{caseNumber}</div>
+                            {Object.keys(cleanCaseData.formCaseIds).length > 0 && (
                               <div className="mt-1 space-y-1">
-                                {workflowCaseNumbers.map((caseNum, index) => {
-                                  // Ensure caseNum is an object with required properties
-                                  if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
-                                    return null;
-                                  }
-                                  
-                                  return (
-                                    <div 
-                                      key={index}
-                                      className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
-                                        caseNum.source === 'case' 
-                                          ? 'text-blue-600 bg-blue-50' 
-                                          : 'text-green-600 bg-green-50'
-                                      }`}
-                                    >
-                                      {String(caseNum.type)}: {String(caseNum.number)}
-                                    </div>
-                                  );
-                                })}
+                                {Object.entries(cleanCaseData.formCaseIds).map(([formType, caseNum], index) => (
+                                  <div 
+                                    key={index}
+                                    className="text-xs font-mono px-2 py-1 rounded inline-block mr-1 bg-green-50 text-green-600"
+                                  >
+                                    {String(formType)}: {String(caseNum)}
+                                  </div>
+                                ))}
                               </div>
                             )}
                             {matchingWorkflow && (
@@ -909,7 +1134,7 @@ const Dashboard = () => {
                           </Link>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>{caseType}</div>
+                          <div className="font-medium">{caseType}</div>
                           {matchingWorkflow?.selectedForms && Array.isArray(matchingWorkflow.selectedForms) && matchingWorkflow.selectedForms.length > 0 && (
                             <div className="text-xs text-green-600 mt-1">
                               Forms: {matchingWorkflow.selectedForms.map((form: any) => String(form)).join(', ')}
@@ -931,10 +1156,10 @@ const Dashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            ${caseStatus === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                              caseStatus === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                                caseStatus === 'completed' ? 'bg-green-100 text-green-800' :
-                                  caseStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                            ${caseStatus.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              caseStatus.toLowerCase() === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                                caseStatus.toLowerCase() === 'completed' ? 'bg-green-100 text-green-800' :
+                                  caseStatus.toLowerCase() === 'draft' ? 'bg-gray-100 text-gray-800' :
                                     caseStatus === 'Document Collection' ? 'bg-yellow-100 text-yellow-800' :
                                       caseStatus === 'Waiting on USCIS' ? 'bg-purple-100 text-purple-800' :
                                         caseStatus === 'RFE Received' ? 'bg-orange-100 text-orange-800' :
@@ -975,8 +1200,27 @@ const Dashboard = () => {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
+                    label={({ name, percent, cx, cy, midAngle, innerRadius, outerRadius }) => {
+                      const RADIAN = Math.PI / 180;
+                      const radius = innerRadius + (outerRadius - innerRadius) * 1.4;
+                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                      
+                      return (
+                        <text 
+                          x={x} 
+                          y={y} 
+                          fill="#2d66c2ff" 
+                          textAnchor={x > cx ? 'start' : 'end'} 
+                          dominantBaseline="central"
+                          fontSize="14"
+                          fontWeight="500"
+                        >
+                          {`${name}: ${(percent * 100).toFixed(0)}%`}
+                        </text>
+                      );
+                    }}
+                    outerRadius={60}
                     fill="#8884d8"
                     dataKey="value"
                   >
@@ -1025,14 +1269,17 @@ const Dashboard = () => {
                       <span className="text-lg font-bold text-gray-600">{workflowStats.draft}</span>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    {/* <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="text-xs text-gray-500 mb-2">
+                        Total: {workflowStats.total} workflows from {availableWorkflows.length} records
+                      </div>
                       <Link 
                         to="/workflows" 
                         className="block w-full text-center py-2 px-4 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 font-medium"
                       >
                         Manage All Workflows
                       </Link>
-                    </div>
+                    </div> */}
                   </>
                 )}
               </div>
@@ -1057,60 +1304,99 @@ const Dashboard = () => {
                     return null;
                   }
                   
-                  // Ensure all task properties are strings/primitives
+                  // Use the mapped task properties from tasksFromAPI
                   const taskId = String(task.id);
-                  const taskTitle = String(task.title || 'Untitled Task');
-                  const taskStatus = String(task.status || 'Pending');
+                  const taskTitle = String(task.title);
+                  const taskStatus = String(task.status);
                   const taskDueDate = task.dueDate;
+                  const taskDescription = String(task.description || '');
+                  const taskPriority = String(task.priority);
                   
-                  // Handle both old format (caseId) and new format (relatedCaseId) - from TasksPage logic
-                  const caseIdentifier = task.caseId || task.relatedCaseId;
+                  // Use the mapped case identifier from API (relatedCaseId)
+                  const caseIdentifier = task.caseId; // This is now correctly mapped from relatedCaseId
                   const relatedCase = cases.find((c: any) => 
                     c.id === caseIdentifier || 
                     c.caseNumber === caseIdentifier?.split(' ')[0] ||
-                    c._id === caseIdentifier
+                    c._id === caseIdentifier ||
+                    c.caseNumber === caseIdentifier
                   );
                   
                   const matchingWorkflow = relatedCase ? getWorkflowCaseNumber(relatedCase) : null;
                   const workflowCaseNumbers = matchingWorkflow ? getWorkflowCaseNumbers(matchingWorkflow) : [];
                   
-                  const daysLeft = taskDueDate ? Math.ceil(
+                  // Use the pre-calculated daysLeft from mapping or calculate fresh
+                  const daysLeft = task.daysLeft || Math.ceil(
                     (new Date(taskDueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-                  ) : 0;
-                  const isUrgent = daysLeft <= 3 && daysLeft > 0;
+                  );
+                  
+                  // Enhanced urgency detection using API data
+                  const isUrgent = task.isUrgent || task.isOverdue || 
+                                  taskPriority === 'High' || taskPriority === 'Urgent' ||
+                                  daysLeft <= 3;
 
                   return (
                     <div
                       key={taskId}
-                      className={`p-3 rounded-lg border ${isUrgent
+                      className={`p-3 rounded-lg border ${isUrgent || task.isOverdue
                         ? 'border-error-200 bg-error-50'
                         : 'border-gray-200 bg-white'
                         }`}
                     >
                       <div className="flex items-start">
-                        <div className={`flex-shrink-0 ${isUrgent ? 'text-error-500' : 'text-gray-400'}`}>
-                          {isUrgent ? <AlertCircle size={18} /> : <CalendarDays size={18} />}
+                        <div className={`flex-shrink-0 ${isUrgent || task.isOverdue ? 'text-error-500' : 'text-gray-400'}`}>
+                          {isUrgent || task.isOverdue ? <AlertCircle size={18} /> : <CalendarDays size={18} />}
                         </div>
                         <div className="ml-3 flex-1">
                           <div className="flex items-center justify-between">
-                            <p className={`text-sm font-medium ${isUrgent ? 'text-error-600' : 'text-gray-900'}`}>
-                              {taskTitle}
-                            </p>
-                            <p className={`text-xs font-medium ${isUrgent ? 'text-error-600' : 'text-gray-500'
-                              }`}>
-                              {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
-                            </p>
+                            <div className="flex-1">
+                              <p className={`text-sm font-medium ${isUrgent || task.isOverdue ? 'text-error-600' : 'text-gray-900'}`}>
+                                {taskTitle}
+                              </p>
+                              {taskDescription && (
+                                <p className="text-xs text-gray-500 mt-1">{taskDescription}</p>
+                              )}
+                            </div>
+                            <div className="text-right ml-2">
+                              <p className={`text-xs font-medium ${isUrgent || task.isOverdue ? 'text-error-600' : 'text-gray-500'}`}>
+                                {task.isOverdue ? 'Overdue' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`}
+                              </p>
+                              {taskPriority && taskPriority !== 'Medium' && (
+                                <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${
+                                  taskPriority === 'High' || taskPriority === 'Urgent' 
+                                    ? 'bg-red-100 text-red-800' 
+                                    : taskPriority === 'Low' 
+                                      ? 'bg-gray-100 text-gray-800'
+                                      : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {taskPriority}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
                             <div className="flex items-center justify-between">
                               <div>
-                                <span>Client: {getClientNameForCase(caseIdentifier)}</span>
-                                <span className="ml-2">Case: {relatedCase?.caseNumber || caseIdentifier}</span>
+                                {/* Use mapped task data for client and case information */}
+                                <span>Client: {task.clientName || getClientNameForCase(caseIdentifier) || 'Unknown Client'}</span>
+                                <span className="ml-2">Case: {task.caseNumber || relatedCase?.caseNumber || caseIdentifier || 'No Case'}</span>
                               </div>
                             </div>
+                            
+                            {/* Show assigned to information from API */}
+                            {task.assignedToName && (
+                              <div className="mt-1">
+                                <span className="text-blue-600">
+                                  Assigned to: {task.assignedToName}
+                                </span>
+                                {task.assignedToEmail && (
+                                  <span className="ml-1 text-gray-400">({task.assignedToEmail})</span>
+                                )}
+                              </div>
+                            )}
+                            
                             {workflowCaseNumbers.length > 0 && (
                               <div className="mt-1 space-y-1">
-                                {workflowCaseNumbers.map((caseNum, index) => {
+                                {workflowCaseNumbers.map((caseNum: any, index: number) => {
                                   // Safety check to ensure we have valid data
                                   if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
                                     return null;
@@ -1140,7 +1426,18 @@ const Dashboard = () => {
                             <p className="text-xs text-gray-500">
                               Due: {taskDueDate ? new Date(taskDueDate).toLocaleDateString() : 'No due date'}
                             </p>
-                            <div>
+                            <div className="flex gap-2">
+                              {/* Show task tags if available from API */}
+                              {task.tags && task.tags.length > 0 && (
+                                <div className="flex gap-1">
+                                  {task.tags.slice(0, 2).map((tag: string, tagIndex: number) => (
+                                    <span key={tagIndex} className="text-xs px-1 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                                 ${taskStatus === 'Completed' ? 'bg-green-100 text-green-800' :
                                   taskStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' :

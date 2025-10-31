@@ -65,6 +65,119 @@ export const createCase = async (caseData: Omit<Case, 'id'>): Promise<ApiRespons
   }
 }
 
+// Enhanced case creation interface for workflow integration
+export interface EnhancedCaseData {
+  // Required fields
+  type: string;
+  clientId: string;
+  
+  // Enhanced fields
+  title: string;
+  description: string;
+  category: string;
+  subcategory: string;
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+  dueDate?: string;
+  assignedTo?: string;
+  
+  // Form management
+  assignedForms: string[];
+  formCaseIds: Record<string, string>;
+  questionnaires: string[];
+  
+  // Optional fields
+  status?: string;
+  startDate?: string;
+  expectedClosureDate?: string;
+  courtLocation?: string;
+  judge?: string;
+  notes?: string;
+}
+
+// Enhanced case creation function with all required fields
+export const createEnhancedCase = async (caseData: EnhancedCaseData): Promise<ApiResponse<any>> => {
+  try {
+    console.log('🔄 Creating enhanced case with data:', {
+      type: caseData.type,
+      clientId: caseData.clientId,
+      title: caseData.title,
+      category: caseData.category,
+      subcategory: caseData.subcategory,
+      assignedFormsCount: caseData.assignedForms?.length || 0,
+      formCaseIdsCount: Object.keys(caseData.formCaseIds || {}).length,
+      questionnairesCount: caseData.questionnaires?.length || 0
+    });
+
+    // Prepare the request payload matching the API specification
+    const requestPayload = {
+      // Required fields
+      type: caseData.type,
+      clientId: caseData.clientId,
+      
+      // Enhanced fields
+      title: caseData.title,
+      description: caseData.description,
+      category: caseData.category,
+      subcategory: caseData.subcategory,
+      priority: caseData.priority,
+      dueDate: caseData.dueDate,
+      assignedTo: caseData.assignedTo,
+      
+      // Form management
+      assignedForms: caseData.assignedForms,
+      formCaseIds: caseData.formCaseIds,
+      questionnaires: caseData.questionnaires,
+      
+      // Optional fields with defaults
+      status: caseData.status || 'draft',
+      startDate: caseData.startDate || new Date().toISOString(),
+      expectedClosureDate: caseData.expectedClosureDate,
+      courtLocation: caseData.courtLocation,
+      judge: caseData.judge,
+      notes: caseData.notes,
+      createdAt: new Date().toISOString()
+    };
+
+    console.log('🔄 Sending case creation request to API:', {
+      endpoint: CASE_END_POINTS.CREATECASE,
+      payloadSize: JSON.stringify(requestPayload).length,
+      hasFormCaseIds: !!requestPayload.formCaseIds && Object.keys(requestPayload.formCaseIds).length > 0
+    });
+
+    const response = await api.post(
+      CASE_END_POINTS.CREATECASE,
+      requestPayload
+    );
+
+    console.log('✅ Enhanced case created successfully:', {
+      caseId: response.data.case?._id || response.data._id,
+      status: response.status,
+      hasData: !!response.data
+    });
+
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+
+  } catch (error: any) {
+    console.error('❌ Error creating enhanced case:', {
+      error: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      clientId: caseData.clientId,
+      caseTitle: caseData.title
+    });
+
+    // Handle different error types
+    if (error instanceof Error) {
+      throw new Error(`Failed to create enhanced case: ${error.message}`);
+    }
+    throw new Error('Failed to create enhanced case due to an unknown error');
+  }
+}
+
 export const getCaseByNumber = async (caseNumber: string): Promise<ApiResponse<Case>> => {
   try {
     const response = await api.get<Case>(
