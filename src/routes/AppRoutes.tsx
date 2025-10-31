@@ -216,9 +216,13 @@ const AppRoutes = () => {
             </Suspense>
           } />
           <Route path="/calendar" element={
-            <Suspense fallback={null}>
-              <CalendarPage />
-            </Suspense>
+            !(user?.role === 'client' && user?.userType === 'individualUser') ? (
+              <Suspense fallback={null}>
+                <CalendarPage />
+              </Suspense>
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
           } />
 
           {/* Settings route */}

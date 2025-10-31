@@ -15,6 +15,7 @@ import {
 import { 
   Document, 
   getDocuments,
+  getDocumentsByClient,
   deleteDocument,
   downloadDocument,
   verifyDocument,
@@ -22,6 +23,7 @@ import {
   updateDocument
 } from '../../controllers/DocumentControllers';
 import { getCompanyClients, Client as BaseClient } from '../../controllers/ClientControllers';
+import { useAuth } from '../../controllers/AuthControllers';
 import api from '../../utils/api';
 
 // Extend Client type to allow _id for MongoDB compatibility
@@ -127,7 +129,9 @@ const mockDocuments = [
 ];
 
 const DocumentsPage = () => {
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const { user, isClient } = useAuth();
+  // Extend Document locally with an optional userType so UI code can safely access doc.userType
+  const [documents, setDocuments] = useState<(Document & { userType?: string })[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
@@ -148,12 +152,12 @@ const DocumentsPage = () => {
   const [uploadDocType, setUploadDocType] = useState('Identity Document');
   const [uploadCaseNumber, setUploadCaseNumber] = useState('');
   const [uploadDescription, setUploadDescription] = useState('');
-
   // Edit state
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingDocument, setEditingDocument] = useState<Document | null>(null);
-  const [updateName, setUpdateName] = useState('');
-  const [updateDescription, setUpdateDescription] = useState('');
+    const [showEditModal, setShowEditModal] = useState(false);
+    // Keep editingDocument in sync with the local extended Document shape
+    const [editingDocument, setEditingDocument] = useState<(Document & { userType?: string }) | null>(null);
+    const [updateName, setUpdateName] = useState('');
+    const [updateDescription, setUpdateDescription] = useState('');
 
   // Enhanced function to fetch workflows and extract client names and case IDs
   const fetchWorkflowsFromAPI = async () => {
@@ -170,7 +174,7 @@ const DocumentsPage = () => {
       const response = await api.get('/api/v1/workflows', {
         params: {
           page: 1,
-          limit: 100 // Get more workflows to find more clients and cases
+          limit: 500 // Get more workflows to find more clients and cases
         }
       });
 
@@ -302,7 +306,16 @@ const DocumentsPage = () => {
   useEffect(() => {
     const fetchDocuments = async () => {
       try {
-        const response = await getDocuments();
+        let response;
+        
+        // For individual users, fetch only their documents
+        if (isClient && user?.userType === 'individualUser' && user.id) {
+          console.log('Fetching documents for individual user:', user.id);
+          response = await getDocumentsByClient(user.id);
+        } else {
+          // For attorneys, admins, and company clients - fetch all documents
+          response = await getDocuments();
+        }
 
         console.log('Fetched documents response:', response);
         
@@ -315,11 +328,21 @@ const DocumentsPage = () => {
           setDocuments(processedDocuments);
         } else {
           console.error("Failed to fetch documents", response.message);
-          setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
+          // For individual users, show empty array instead of mock data
+          if (isClient && user?.userType === 'individualUser') {
+            setDocuments([]);
+          } else {
+            setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
+          }
         }
       } catch (error) {
         console.error("Failed to fetch documents", error);
-        setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
+        // For individual users, show empty array instead of mock data
+        if (isClient && user?.userType === 'individualUser') {
+          setDocuments([]);
+        } else {
+          setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
+        }
       }
     };
     const fetchClients = async () => {
@@ -387,7 +410,7 @@ const DocumentsPage = () => {
     fetchDocuments();
     fetchClients();
     fetchWorkflowData();
-  }, []);
+  }, [isClient, user?.userType, user?.id]); // Add dependencies for user context
 
   // Debug effect to monitor documents state
   useEffect(() => {
@@ -398,11 +421,7 @@ const DocumentsPage = () => {
   const documentTypes = ['all', ...new Set((documents || []).map(doc => doc.type))];
   const statusTypes = ['all', 'Verified', 'Pending Review', 'Needs Update', 'Rejected', 'Archived'];
 
-  // Temporarily disable filtering for debugging
-  const filteredDocuments = documents; // Show all documents without filtering
-  
-  // Original filtering logic (commented out for debugging)
-  /*
+  // Enable filtering with user-specific logic
   const filteredDocuments = documents.filter(doc => {
     const docName = doc.name || '';
     const caseNum = doc.caseNumber || '';
@@ -410,16 +429,51 @@ const DocumentsPage = () => {
                          caseNum.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = selectedType === 'all' || doc.type === selectedType;
     const matchesStatus = selectedStatus === 'all' || doc.status === selectedStatus;
-    const matchesClient = selectedClient === 'all' || doc.clientId === selectedClient;
+    
+    // For individual users, skip client filtering (they only see their own documents)
+    // For others, apply client filtering
+    const matchesClient = (isClient && user?.userType === 'individualUser') 
+      ? true 
+      : (selectedClient === 'all' || doc.clientId === selectedClient);
+      
     return matchesSearch && matchesType && matchesStatus && matchesClient;
   });
-  */
 
   
   // Helper function to get client name by ID
-  const getClientNameById = (clientId: string): string => {
-    const client = (clients || []).find(c => (c._id || c.id) === clientId);
-    return client?.name || 'Unknown Client';
+  const getClientNameById = (clientId: string, doc?: any): string => {
+    // First try to find client by ID
+    let client = (clients || []).find(c => (c._id || c.id) === clientId);
+    
+    // If not found by ID, try to find by email if document has clientEmail
+    if (!client && doc?.clientEmail) {
+      client = (clients || []).find(c => c.email?.toLowerCase() === doc.clientEmail?.toLowerCase());
+    }
+    
+    // If still not found, try workflow clients by email
+    if (!client && doc?.clientEmail) {
+      const workflowClient = workflowClients.find(wc => wc.email?.toLowerCase() === doc.clientEmail?.toLowerCase());
+      if (workflowClient) {
+        return workflowClient.name || workflowClient.email || 'Unknown Client';
+      }
+    }
+    
+    // If we have a client, return their name
+    if (client) {
+      return client.name || `${client.firstName || ''} ${client.lastName || ''}`.trim() || client.email || 'Unknown Client';
+    }
+    
+    // Fallback: if document has clientName, use that
+    if (doc?.clientName) {
+      return doc.clientName;
+    }
+    
+    // Fallback: if document has clientEmail, use that
+    if (doc?.clientEmail) {
+      return doc.clientEmail;
+    }
+    
+    return 'Unknown Client';
   };
 
   // Helper function to get cases for the selected client
@@ -446,26 +500,58 @@ const DocumentsPage = () => {
   };
 
   const handleUpload = async () => {
-    if (!fileToUpload || !uploadClientId) {
-      console.error('Please select a file and a client.');
+    // Auto-set client ID for individual users - try multiple possible ID fields
+    const effectiveClientId = (isClient && user?.userType === 'individualUser') 
+      ? (user.id || user._id || user.email)
+      : uploadClientId;
+      
+    console.log('User object for individual user:', user);
+    console.log('Effective Client ID for upload:', effectiveClientId);
+    
+    // For individual users, only check if file is selected
+    // For other users, check both file and client selection
+    if (!fileToUpload) {
+      console.error('Please select a file.');
+      return;
+    }
+    
+    if (!(isClient && user?.userType === 'individualUser') && !uploadClientId) {
+      console.error('Please select a client.');
+      return;
+    }
+    
+    if (!effectiveClientId) {
+      console.error('Unable to determine client information. User ID, _ID, or email not available.');
       return;
     }
 
     try {
       // Find the selected client to get their name and email
-      const selectedClient = (clients || []).find(c => (c._id || c.id) === uploadClientId);
+      const selectedClient = (isClient && user?.userType === 'individualUser')
+        ? { 
+            _id: effectiveClientId, 
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown Client', 
+            email: user.email 
+          }
+        : (clients || []).find(c => (c._id || c.id) === effectiveClientId);
+      
       const clientName = selectedClient?.name || 'Unknown Client';
       const clientEmail = selectedClient?.email || '';
 
       // Use the direct API endpoint for document upload
       const formData = new FormData();
       formData.append('file', fileToUpload);
-      formData.append('clientId', uploadClientId);
+      formData.append('clientId', effectiveClientId);
       formData.append('clientName', clientName);
       if (clientEmail) {
         formData.append('clientEmail', clientEmail);
       }
       formData.append('type', uploadDocType);
+      
+      // Add user type information
+      if (user?.userType) {
+        formData.append('userType', user.userType);
+      }
       
       // Add optional fields if they exist
       if (uploadCaseNumber) {
@@ -648,18 +734,21 @@ const DocumentsPage = () => {
             <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
           </div>
           <div className="flex gap-2 flex-wrap">
-            <select
-              className="border border-gray-300 rounded-md pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-700 bg-white"
-              value={selectedClient}
-              onChange={(e) => setSelectedClient(e.target.value)}
-            >
-              <option key="all" value="all">All Clients</option>
-              {(clients || []).map(client => (
-                <option key={client._id} value={client._id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
+            {/* Hide client filter for individual users */}
+            {!(isClient && user?.userType === 'individualUser') && (
+              <select
+                className="border border-gray-300 rounded-md pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-700 bg-white"
+                value={selectedClient}
+                onChange={(e) => setSelectedClient(e.target.value)}
+              >
+                <option key="all" value="all">All Clients</option>
+                {(clients || []).map(client => (
+                  <option key={client._id} value={client._id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               className="border border-gray-300 rounded-md pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-700 bg-white"
               value={selectedType}
@@ -690,9 +779,12 @@ const DocumentsPage = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
+                {/* Hide client column for individual users */}
+                {!(isClient && user?.userType === 'individualUser') && (
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Client
+                  </th>
+                )}
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Document
                 </th>
@@ -700,6 +792,12 @@ const DocumentsPage = () => {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Type
                 </th>
+                {/* Show User Type column for attorneys/paralegals */}
+                {!(isClient && user?.userType === 'individualUser') && (
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    User Type
+                  </th>
+                )}
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Case Number
                 </th>
@@ -720,12 +818,17 @@ const DocumentsPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredDocuments.map((doc) => (
                 <tr key={doc._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <Users className="flex-shrink-0 h-4 w-4 text-gray-400 mr-2" />
-                      <div className="text-sm text-gray-900">{getClientNameById(doc.clientId)}</div> {/* CLIENT NAME */}
-                    </div>
-                  </td>
+                  {/* Hide client cell for individual users */}
+                  {!(isClient && user?.userType === 'individualUser') && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <Users className="flex-shrink-0 h-4 w-4 text-gray-400 mr-2" />
+                        <div className="text-sm text-gray-900">
+                          {getClientNameById(doc.clientId, doc)}
+                        </div> {/* CLIENT NAME */}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <FileText className="flex-shrink-0 h-5 w-5 text-gray-400" />
@@ -739,6 +842,22 @@ const DocumentsPage = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{doc.type}</div>
                   </td>
+                  {/* Show User Type cell for attorneys/paralegals */}
+                  {!(isClient && user?.userType === 'individualUser') && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        doc.userType === 'individualUser' 
+                          ? 'bg-blue-100 text-blue-800'
+                          : doc.userType === 'companyClient'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {doc.userType === 'individualUser' ? 'Individual' : 
+                         doc.userType === 'companyClient' ? 'Company' : 
+                         doc.userType || 'Unknown'}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-primary-600">{doc.caseNumber}</div>
                   </td>
@@ -764,29 +883,34 @@ const DocumentsPage = () => {
                       <button onClick={() => handleDownload(doc._id, doc.name)} className="text-gray-400 hover:text-gray-500">
                         <Download size={18} />
                       </button>
-                      <button onClick={() => handleDelete(doc._id)} className="text-gray-400 hover:text-gray-500">
-                        <Trash2 size={18} />
-                      </button>
-                      <div className="relative inline-block text-left">
-                        <button onClick={() => setOpenMenuId(openMenuId === doc._id ? null : doc._id)} className="text-gray-400 hover:text-gray-500">
-                          <MoreVertical size={18} />
-                        </button>
-                        {openMenuId === doc._id && (
-                          <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
-                            <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-                              <button onClick={() => { handleVerify(doc._id); setOpenMenuId(null); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                <CheckCircle size={16} /> Verify
-                              </button>
-                              <button onClick={() => { handleReject(doc._id); setOpenMenuId(null); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                <XCircle size={16} /> Reject
-                              </button>
-                              <button onClick={() => handleOpenEditModal(doc)} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                <Pencil size={16} /> Edit
-                              </button>
-                            </div>
+                      {/* Hide delete and admin actions for individual users */}
+                      {!(isClient && user?.userType === 'individualUser') && (
+                        <>
+                          <button onClick={() => handleDelete(doc._id)} className="text-gray-400 hover:text-gray-500">
+                            <Trash2 size={18} />
+                          </button>
+                          <div className="relative inline-block text-left">
+                            <button onClick={() => setOpenMenuId(openMenuId === doc._id ? null : doc._id)} className="text-gray-400 hover:text-gray-500">
+                              <MoreVertical size={18} />
+                            </button>
+                            {openMenuId === doc._id && (
+                              <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                                <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                                  <button onClick={() => { handleVerify(doc._id); setOpenMenuId(null); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <CheckCircle size={16} /> Verify
+                                  </button>
+                                  <button onClick={() => { handleReject(doc._id); setOpenMenuId(null); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <XCircle size={16} /> Reject
+                                  </button>
+                                  <button onClick={() => handleOpenEditModal(doc)} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <Pencil size={16} /> Edit
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -852,40 +976,43 @@ const DocumentsPage = () => {
                     </h3>
                     <div className="mt-4">
                       <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">
-                            Client
-                          </label>
-                          <select 
-                            value={uploadClientId} 
-                            onChange={(e) => {
-                              setUploadClientId(e.target.value);
-                              setUploadCaseNumber(''); // Clear case selection when client changes
-                            }} 
-                            className="mt-1 form-select"
-                            disabled={loadingWorkflows}
-                          >
-                            <option value="" disabled>
-                              {loadingWorkflows ? 'Loading clients...' : 'Select a client'}
-                            </option>
-                            {(clients || []).map(client => (
-                              <option key={client._id} value={client._id}>
-                                {client.name} {client.email ? `(${client.email})` : ''}
+                        {/* Hide client selection for individual users */}
+                        {!(isClient && user?.userType === 'individualUser') && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">
+                              Client
+                            </label>
+                            <select 
+                              value={uploadClientId} 
+                              onChange={(e) => {
+                                setUploadClientId(e.target.value);
+                                setUploadCaseNumber(''); // Clear case selection when client changes
+                              }} 
+                              className="mt-1 form-select"
+                              disabled={loadingWorkflows}
+                            >
+                              <option value="" disabled>
+                                {loadingWorkflows ? 'Loading clients...' : 'Select a client'}
                               </option>
-                            ))}
-                            {/* Temporary: Show workflow clients directly if regular clients are empty */}
-                            {(clients || []).length === 0 && workflowClients.length > 0 && workflowClients.map(wc => (
-                              <option key={wc.email || wc.id} value={wc.email || wc.id}>
-                                [WF] {wc.name} {wc.email ? `(${wc.email})` : ''}
-                              </option>
-                            ))}
-                          </select>
-                          {loadingWorkflows && (
-                            <p className="mt-1 text-xs text-gray-500">
-                              Loading clients and cases from workflows...
-                            </p>
-                          )}
-                        </div>
+                              {(clients || []).map(client => (
+                                <option key={client._id} value={client._id}>
+                                  {client.name} {client.email ? `(${client.email})` : ''}
+                                </option>
+                              ))}
+                              {/* Temporary: Show workflow clients directly if regular clients are empty */}
+                              {(clients || []).length === 0 && workflowClients.length > 0 && workflowClients.map(wc => (
+                                <option key={wc.email || wc.id} value={wc.email || wc.id}>
+                                  [WF] {wc.name} {wc.email ? `(${wc.email})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            {loadingWorkflows && (
+                              <p className="mt-1 text-xs text-gray-500">
+                                Loading clients and cases from workflows...
+                              </p>
+                            )}
+                          </div>
+                        )}
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700">
@@ -901,33 +1028,39 @@ const DocumentsPage = () => {
                         
                         <div>
                           <label className="block text-sm font-medium text-gray-700">
-                            Related Case
+                            Related Case {!(isClient && user?.userType === 'individualUser') && <span className="text-red-500">*</span>}
+                            {(isClient && user?.userType === 'individualUser') && <span className="text-gray-400 text-xs ml-1">(Optional)</span>}
                           </label>
                           <select 
                             value={uploadCaseNumber} 
                             onChange={(e) => setUploadCaseNumber(e.target.value)} 
                             className="mt-1 form-select"
-                            disabled={loadingWorkflows || !uploadClientId}
+                            disabled={loadingWorkflows || (!uploadClientId && !(isClient && user?.userType === 'individualUser'))}
                           >
-                            <option value="" disabled>
+                            <option value="">
                               {loadingWorkflows ? 'Loading cases...' : 
+                               (isClient && user?.userType === 'individualUser') ? 'Select a case (optional)' :
                                !uploadClientId ? 'Select a client first' : 'Select a case'}
                             </option>
-                            {getAvailableCasesForClient().map((caseOption) => (
-                              <option key={caseOption.id} value={caseOption.caseNumber}>
-                                {caseOption.caseNumber} - {caseOption.clientName}
-                                {caseOption.formName ? ` (${caseOption.formName})` : ''}
-                              </option>
-                            ))}
-                            {/* Temporary: Show all cases if filtered list is empty */}
-                            {uploadClientId && getAvailableCasesForClient().length === 0 && availableCases.slice(0, 5).map((caseOption) => (
-                              <option key={`all_${caseOption.id}`} value={caseOption.caseNumber}>
-                                [ALL] {caseOption.caseNumber} - {caseOption.clientName}
-                                {caseOption.formName ? ` (${caseOption.formName})` : ''}
-                              </option>
-                            ))}
-                            {/* Show all cases if no client selected */}
-                            {!uploadClientId && availableCases.map((caseOption) => (
+                            {(isClient && user?.userType === 'individualUser') ? (
+                              // For individual users, show all available cases
+                              availableCases.map((caseOption) => (
+                                <option key={caseOption.id} value={caseOption.caseNumber}>
+                                  {caseOption.caseNumber} - {caseOption.clientName}
+                                  {caseOption.formName ? ` (${caseOption.formName})` : ''}
+                                </option>
+                              ))
+                            ) : (
+                              // For other users, show filtered cases by client
+                              getAvailableCasesForClient().map((caseOption) => (
+                                <option key={caseOption.id} value={caseOption.caseNumber}>
+                                  {caseOption.caseNumber} - {caseOption.clientName}
+                                  {caseOption.formName ? ` (${caseOption.formName})` : ''}
+                                </option>
+                              ))
+                            )}
+                            {/* Show all cases if no client selected (non-individual users) */}
+                            {!uploadClientId && !(isClient && user?.userType === 'individualUser') && availableCases.map((caseOption) => (
                               <option key={caseOption.id} value={caseOption.caseNumber}>
                                 {caseOption.caseNumber} - {caseOption.clientName}
                                 {caseOption.formName ? ` (${caseOption.formName})` : ''}
@@ -941,9 +1074,14 @@ const DocumentsPage = () => {
                               </>
                             )}
                           </select>
-                          {uploadClientId && getAvailableCasesForClient().length === 0 && !loadingWorkflows && (
+                          {uploadClientId && getAvailableCasesForClient().length === 0 && !loadingWorkflows && !(isClient && user?.userType === 'individualUser') && (
                             <p className="mt-1 text-xs text-orange-600">
                               No cases found for this client. You can still enter a case number manually.
+                            </p>
+                          )}
+                          {(isClient && user?.userType === 'individualUser') && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              You can optionally link this document to one of your cases.
                             </p>
                           )}
                           {/* Debug info */}

@@ -13,8 +13,10 @@ import {
 import api from '../../utils/api';
 import { getUsers, User } from '../../controllers/ClientControllers';
 import { getTasks, createTask, Task } from '../../controllers/TaskControllers';
+import { useAuth } from '../../controllers/AuthControllers';
 
 const TasksPage = () => {
+  const { user, isClient } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedPriority, setSelectedPriority] = useState('all');
@@ -467,13 +469,15 @@ const TasksPage = () => {
           <p className="text-gray-500 mt-1">Manage and track case-related tasks</p>
         </div>
         <div className="flex gap-3">
-          <Link
-            to="/calendar"
-            className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-md transition-colors"
-          >
-            <Calendar size={18} />
-            <span>Calendar View</span>
-          </Link>
+          {!(isClient && user?.userType === 'individualUser') && (
+            <Link
+              to="/calendar"
+              className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-md transition-colors"
+            >
+              <Calendar size={18} />
+              <span>Calendar View</span>
+            </Link>
+          )}
           <button
             onClick={() => setShowNewTaskModal(true)}
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-md transition-colors"

@@ -167,23 +167,23 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     try {
       setLoading(true);
       setError(null);
-      
+
       // Load from API
       const response = await questionnaireService.getQuestionnaires();
-      
+
       // Convert API format to local format and filter for active questionnaires
       const convertedQuestionnaires = response.questionnaires
         .filter(q => q.is_active)
         .map(convertAPIToLocal);
       setQuestionnaires(convertedQuestionnaires);
-      
+
       // Export function to make questionnaires available globally
       (window as any).getImmigrationQuestionnaires = () => convertedQuestionnaires;
-      (window as any).getQuestionnaireByCategory = (category: string) => 
+      (window as any).getQuestionnaireByCategory = (category: string) =>
         convertedQuestionnaires.filter((q: ImmigrationQuestionnaire) => q.category === category);
-      
+
       return convertedQuestionnaires;
-        
+
     } catch (error: any) {
       setError('Failed to load questionnaires: ' + error.message);
       toast.error('Failed to load questionnaires');
@@ -217,7 +217,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     if (!localQuestionnaire) {
       return {};
     }
-    
+
     // Ensure fields have all required properties
     const formattedFields = localQuestionnaire.fields?.map((field, index) => ({
       id: field.id || `field_${Date.now()}_${index}`,
@@ -227,8 +227,8 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       required: typeof field.required === 'boolean' ? field.required : false,
       help_text: field.help_text || '',
       eligibility_impact: field.eligibility_impact || 'medium',
-      options: ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type) ? 
-        (field.options?.length ? field.options : ['Option 1', 'Option 2']) : 
+      options: ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type) ?
+        (field.options?.length ? field.options : ['Option 1', 'Option 2']) :
         [],
       validation: field.validation || {},
       conditional_logic: field.conditional_logic || {},
@@ -238,7 +238,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       subcategory: field.subcategory || '',
       weight: field.weight || 1
     })) || [];
-    
+
     // Format the settings object properly
     const formattedSettings = {
       show_progress_bar: localQuestionnaire.settings?.show_progress_bar !== false,
@@ -248,7 +248,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       show_results: localQuestionnaire.settings?.show_results !== false,
       theme: localQuestionnaire.settings?.theme || 'default'
     };
-    
+
     // Return formatted data for API
     return {
       title: localQuestionnaire.title || 'Unnamed Questionnaire',
@@ -259,7 +259,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
       fields: formattedFields,
       is_active: localQuestionnaire.is_active !== false,
       // Include metadata if updating an existing questionnaire
-      ...(localQuestionnaire.id && localQuestionnaire.id !== 'new' ? { 
+      ...(localQuestionnaire.id && localQuestionnaire.id !== 'new' ? {
         id: localQuestionnaire.id,
         version: localQuestionnaire.version
       } : {})
@@ -348,16 +348,16 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
   // Function to check if user is logged in before saving
   const checkLoginBeforeSave = async () => {
     // Check if there's a token
-    const token = localStorage.getItem('auth_token') || 
-                 sessionStorage.getItem('auth_token') || 
-                 localStorage.getItem('access_token') || 
-                 localStorage.getItem('token');
-    
+    const token = localStorage.getItem('auth_token') ||
+      sessionStorage.getItem('auth_token') ||
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('token');
+
     if (!token) {
       setError('Authentication error: No login token found. Please log in.');
       return false;
     }
-    
+
     return true;
   };
 
@@ -373,46 +373,52 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     try {
       setLoading(true);
       setError(null);
-      
+
       // Get and validate auth token
-      const authToken = localStorage.getItem('auth_token') || 
-                         sessionStorage.getItem('auth_token') || 
-                         localStorage.getItem('access_token') || 
-                         localStorage.getItem('token');
-      
+      const authToken = localStorage.getItem('auth_token') ||
+        sessionStorage.getItem('auth_token') ||
+        localStorage.getItem('access_token') ||
+        localStorage.getItem('token');
+
       if (!authToken) {
         setError('No authentication token found. Please log in again.');
         setLoading(false);
         return;
       }
-      
+
       // Test authentication
       const authStatus = await questionnaireService.testAuthentication();
-      
+
       if (!authStatus.isAuthenticated) {
         setError(`Authentication error: ${authStatus.message}`);
         setLoading(false);
         return;
       }
-      
+
       // Format and validate questionnaire data
       const apiData: any = convertLocalToAPI(selectedQuestionnaire);
-      
+
       if (!apiData || Object.keys(apiData).length === 0 || !apiData.title || apiData.title.trim() === '') {
         setError('Questionnaire title is required');
         setLoading(false);
         return;
       }
-      
+
+      // Check if questionnaire has at least one field when saving/creating
+      if (!apiData.fields || apiData.fields.length === 0) {
+        setLoading(false);
+        return;
+      }
+
       if (selectedQuestionnaire.id === 'new') {
         // Create new questionnaire
         try {
           const response = await questionnaireService.createQuestionnaire(apiData as any);
-          
+
           // Verify the questionnaire was created and fetch it
           try {
             const createdQuestionnaire = await questionnaireService.getQuestionnaireById(response.id);
-            
+
             // Update UI with created questionnaire but keep the questionnaire selected
             const updatedQuestionnaires = await loadQuestionnaires();
             if (updatedQuestionnaires) {
@@ -422,7 +428,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                 setSelectedQuestionnaire(newlyCreated);
                 // Show the guide banner
                 setShowAddQuestionsGuide(true);
-                
+
                 // Auto-hide the guide after 15 seconds
                 setTimeout(() => {
                   setShowAddQuestionsGuide(false);
@@ -439,7 +445,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
               }
             }
             setShowQuestionnaireSettings(false);
-            
+
           } catch (verifyError) {
             // Questionnaire may not have been saved correctly
           }
@@ -450,10 +456,10 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
         // Update existing questionnaire
         try {
           await questionnaireService.updateQuestionnaire(selectedQuestionnaire.id, apiData as any);
-          
+
           // Reload questionnaires but keep the questionnaire selected
           const updatedQuestionnaires = await loadQuestionnaires();
-          
+
           // Find the updated questionnaire and keep it selected
           if (updatedQuestionnaires) {
             const updatedQuestionnaire = updatedQuestionnaires.find((q: ImmigrationQuestionnaire) => q.id === selectedQuestionnaire.id);
@@ -462,7 +468,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
             }
           }
           setShowQuestionnaireSettings(false);
-          
+
         } catch (updateError: any) {
           setError(`Failed to update questionnaire: ${updateError.message}`);
         }
@@ -482,57 +488,57 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     try {
       setLoading(true);
       setError(null);
-      
+
       // Get and validate auth token first
-      const authToken = localStorage.getItem('auth_token') || 
-                       sessionStorage.getItem('auth_token') || 
-                       localStorage.getItem('access_token') || 
-                       localStorage.getItem('token');
-      
+      const authToken = localStorage.getItem('auth_token') ||
+        sessionStorage.getItem('auth_token') ||
+        localStorage.getItem('access_token') ||
+        localStorage.getItem('token');
+
       if (!authToken) {
         toast.error('Authentication token not found. Please log in again.');
         setError('No authentication token found. Please log in again.');
         setLoading(false);
         return;
       }
-      
+
       try {
         // Direct fetch approach for better error visibility
-        const baseURL = import.meta.env.VITE_API_BASE_URL || 
-                       (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-                         ? "http://localhost:5005/api/v1"
-                         : "https://immigration-simplified-api.onrender.com/api/v1");
-        
+        const baseURL = import.meta.env.VITE_API_BASE_URL ||
+          (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+            ? "http://localhost:5005/api/v1"
+            : "https://immigration-simplified-api.onrender.com/api/v1");
+
         const response = await fetch(`${baseURL}/questionnaires/${questionnaireId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
         });
-        
+
         if (!response.ok) {
           await response.text();
-          
+
           // Handle specific error codes
           if (response.status === 401) {
             toast.error('Authentication failed. Please log in again.');
           } else if (response.status === 404) {
             toast.error('Questionnaire not found. It may have been already deleted.');
           } else if (response.status === 403) {
-              toast.error('You do not have permission to delete this questionnaire.');
-            } else {
-              toast.error(`Failed to delete: ${response.statusText}`);
-            }
-            
-            throw new Error(`Delete failed: ${response.statusText}`);
+            toast.error('You do not have permission to delete this questionnaire.');
+          } else {
+            toast.error(`Failed to delete: ${response.statusText}`);
           }
-          
+
+          throw new Error(`Delete failed: ${response.statusText}`);
+        }
+
         // Successfully deleted
         toast.success('Questionnaire deleted successfully');
-        
+
         // Remove from local state
         setQuestionnaires(prev => prev.filter((q: ImmigrationQuestionnaire) => q.id !== questionnaireId));
-        
+
         // Clear selection if the deleted questionnaire was selected
         if (selectedQuestionnaire?.id === questionnaireId) {
           setSelectedQuestionnaire(null);
@@ -552,7 +558,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
   const duplicateQuestionnaire = async (questionnaire: ImmigrationQuestionnaire) => {
     try {
       setLoading(true);
-      
+
       // Duplicate via API
       await questionnaireService.duplicateQuestionnaire(questionnaire.id, {
         title: `${questionnaire.title} (Copy)`,
@@ -579,38 +585,38 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
 
   const importQuestionnaire = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-   
+
     if (!file) {
       return;
     }
 
     try {
       setLoading(true);
-      
+
       // Add a timeout to detect if the service call hangs
       const importPromise = questionnaireService.importQuestionnaire(file);
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Import timeout after 30 seconds')), 30000);
       });
-      
+
       const importedQuestionnaire = await Promise.race([importPromise, timeoutPromise]) as ImmigrationQuestionnaire;
-      
+
       toast.success(`Questionnaire imported successfully from ${file.name}`);
-      
+
       await loadQuestionnaires(); // Reload to show imported questionnaire
-      
+
       // Optionally select the imported questionnaire
       if (importedQuestionnaire && (importedQuestionnaire as any).id) {
         // Find and select the imported questionnaire
         const updatedQuestionnaires = await loadQuestionnaires();
-        
+
         const imported = updatedQuestionnaires?.find((q: ImmigrationQuestionnaire) => q.id === (importedQuestionnaire as any).id);
-        
+
         if (imported) {
           setSelectedQuestionnaire(imported);
         }
       }
-      
+
     } catch (error: any) {
       // More specific error messages
       if (error.message.includes('timeout')) {
@@ -635,13 +641,13 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     if (!questionnaire || typeof questionnaire !== 'object') {
       return false;
     }
-    
+
     const title = questionnaire.title || '';
     const description = questionnaire.description || '';
     const category = questionnaire.category || '';
-    
+
     const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        description.toLowerCase().includes(searchQuery.toLowerCase());
+      description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -675,8 +681,8 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                 onChange={(e) => setEditingField({
                   ...editingField,
                   type: e.target.value as any,
-                  options: ['select', 'multiselect', 'radio', 'checkbox'].includes(e.target.value) 
-                    ? (editingField.options || ['Option 1', 'Option 2']) 
+                  options: ['select', 'multiselect', 'radio', 'checkbox'].includes(e.target.value)
+                    ? (editingField.options || ['Option 1', 'Option 2'])
                     : undefined
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -745,8 +751,8 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                 </label>
                 <select
                   value={editingField.eligibility_impact || 'medium'}
-                  onChange={(e) => setEditingField({ 
-                    ...editingField, 
+                  onChange={(e) => setEditingField({
+                    ...editingField,
                     eligibility_impact: e.target.value as 'high' | 'medium' | 'low'
                   })}
                   className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1042,15 +1048,15 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
             } as React.ChangeEvent<HTMLInputElement>;
             importQuestionnaire(reactEvent);
           }
-          
+
           // Remove the event listener after use
           fileInput.removeEventListener('change', handleDirectChange);
         };
-        
+
         fileInput.addEventListener('change', handleDirectChange);
-        
+
         fileInput.click();
-        
+
         // Add a polling mechanism to check if file is selected
         const checkForFile = () => {
           if (fileInputRef.current?.files && fileInputRef.current.files.length > 0) {
@@ -1068,11 +1074,11 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
             }
           }
         };
-        
+
         let checkCount = 0;
         setTimeout(checkForFile, 500); // Start checking after 500ms
       }
-      
+
       // Close modal after a short delay to allow file dialog to open
       setTimeout(() => {
         setShowImportNotice(false);
@@ -1282,9 +1288,8 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
             {filteredQuestionnaires.map(questionnaire => (
               <div
                 key={questionnaire.id}
-                className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
-                  selectedQuestionnaire?.id === questionnaire.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                }`}
+                className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${selectedQuestionnaire?.id === questionnaire.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                  }`}
                 onClick={() => setSelectedQuestionnaire(questionnaire)}
               >
                 <div className="flex justify-between items-start">
@@ -1364,7 +1369,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Guide banner that shows after creating a new questionnaire */}
                 {showAddQuestionsGuide && (
                   <div className="mt-4 mb-6 p-4 bg-green-50 border border-green-200 rounded-md flex items-start">
@@ -1381,7 +1386,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                         <li>Configure your question details in the popup form</li>
                         <li>Click "Save Field" to add it to your questionnaire</li>
                       </ol>
-                      <button 
+                      <button
                         onClick={() => setShowAddQuestionsGuide(false)}
                         className="text-sm text-green-700 hover:text-green-900 mt-2 underline"
                       >
@@ -1498,7 +1503,7 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
           )}
         </div>
       </div>
-      
+
       {/* Modals */}
       {showFieldEditor && renderFieldEditor()}
       {showQuestionnaireSettings && renderQuestionnaireSettings()}
