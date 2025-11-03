@@ -8,7 +8,10 @@ import {
   Users,
   FileCheck,
   CalendarDays,
-  ClipboardList
+  ClipboardList,
+  Folder,
+  ArrowRight,
+  FileSearch
 } from 'lucide-react';
 import { useAuth } from '../controllers/AuthControllers';
 import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
@@ -735,6 +738,243 @@ useEffect(() => {
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
+  // Company Client Layout - Simplified and focused
+  const renderCompanyClientDashboard = () => {
+    return (
+      <div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {user?.firstName}</h1>
+          <p className="text-gray-500">Track your immigration progress and manage your documents</p>
+        </div>
+
+        {/* Loading indicator */}
+        {loadingQuestionnaires && (
+          <div className="mb-6 flex justify-center items-center space-x-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+            <span className="text-sm text-gray-600">Loading your information...</span>
+          </div>
+        )}
+
+        {/* Notification for new questionnaires */}
+        {showNotification && (
+          <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <FileText className="h-5 w-5 text-blue-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-blue-700">
+                  You have {pendingCount} {pendingCount === 1 ? 'questionnaire' : 'questionnaires'} pending completion.
+                </p>
+                <div className="mt-2">
+                  <Link 
+                    to="/my-questionnaires"
+                    className="text-sm font-medium text-blue-700 hover:text-blue-600"
+                  >
+                    Complete questionnaires <span aria-hidden="true">&rarr;</span>
+                  </Link>
+                </div>
+              </div>
+              <div className="ml-auto pl-3">
+                <div className="-mx-1.5 -my-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowNotification(false)}
+                    className="inline-flex rounded-md p-1.5 text-blue-500 hover:bg-blue-100 focus:outline-none"
+                  >
+                    <span className="sr-only">Dismiss</span>
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Stats for Company Clients */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+          <div className="card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">Pending Questionnaires</p>
+                <p className="text-2xl font-bold mt-1">
+                  {loadingQuestionnaires 
+                    ? '...' 
+                    : assignments.filter(a => a.status !== 'completed').length}
+                </p>
+              </div>
+              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                <ClipboardList size={20} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to="/my-questionnaires" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                Complete questionnaires →
+              </Link>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">Documents</p>
+                <p className="text-2xl font-bold mt-1">{
+                  filteredCases.reduce((sum: number, c: any) => sum + (c.documents?.length || 0), 0)
+                }</p>
+              </div>
+              <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                <FileCheck size={20} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to="/documents" className="text-sm text-purple-600 hover:text-purple-700 font-medium">
+                Manage documents →
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Company Client Layout - Single Column */}
+        <div className="space-y-8">
+          {/* Questionnaires Section */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">My Questionnaires</h2>
+                <p className="text-sm text-gray-500 mt-1">Complete your assigned questionnaires to move your case forward</p>
+              </div>
+              <Link to="/my-questionnaires" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                View all →
+              </Link>
+            </div>
+
+            <div className="space-y-4">
+              {loadingQuestionnaires ? (
+                <div className="py-8 text-center text-gray-500">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                  <p className="text-sm">Loading your questionnaires...</p>
+                </div>
+              ) : assignments.length > 0 ? (
+                assignments.slice(0, 3).map((assignment) => {
+                  if (!assignment || typeof assignment !== 'object') {
+                    return null;
+                  }
+                  
+                  const assignmentId = assignment.assignment_id || assignment._id || assignment.id;
+                  const title = String(assignment.questionnaire_title || assignment.formNumber || 'Questionnaire');
+                  const status = String(assignment.status || 'pending');
+                  const dueDate = assignment.dueDate;
+                  
+                  if (!assignmentId) {
+                    return null;
+                  }
+                  
+                  return (
+                    <div
+                      key={assignmentId}
+                      className="p-4 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-base font-medium text-gray-900">{title}</h3>
+                          <div className="flex items-center mt-2 space-x-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              status === 'completed' ? 'bg-green-100 text-green-800' :
+                              status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {status === 'completed' ? 'Completed' : 
+                               status === 'in-progress' ? 'In Progress' : 'Pending'}
+                            </span>
+                            {dueDate && (
+                              <span className="text-sm text-gray-500">
+                                Due: {new Date(dueDate).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <Link
+                            to={`/questionnaires/fill/${assignmentId}`}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                          >
+                            {status === 'completed' ? 'View' : 'Continue'}
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-8 text-center text-gray-500">
+                  <ClipboardList className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No questionnaires assigned</h3>
+                  <p className="text-sm">Your attorney will assign questionnaires when ready.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Actions Section */}
+          <div className="card">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h2>
+            <div className="space-y-4">
+              <Link
+                to="/documents"
+                className="flex items-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <div className="p-3 bg-blue-100 rounded-lg text-blue-600 mr-4">
+                  <Folder size={24} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-medium text-gray-900">Manage Documents</p>
+                  <p className="text-sm text-gray-500">Upload and view your documents</p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-400" />
+              </Link>
+
+              <Link
+                to="/foia-tracker"
+                className="flex items-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <div className="p-3 bg-green-100 rounded-lg text-green-600 mr-4">
+                  <FileSearch size={24} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-medium text-gray-900">Case Status Tracker</p>
+                  <p className="text-sm text-gray-500">Track your case progress</p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-400" />
+              </Link>
+
+              <Link
+                to="/my-questionnaires"
+                className="flex items-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <div className="p-3 bg-purple-100 rounded-lg text-purple-600 mr-4">
+                  <ClipboardList size={24} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-medium text-gray-900">My Questionnaires</p>
+                  <p className="text-sm text-gray-500">Complete assigned forms</p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-400" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Return appropriate layout based on user type
+  if (isClient && user?.userType === 'companyClient') {
+    return renderCompanyClientDashboard();
+  }
+
+  // Original dashboard layout for attorneys, admins, and individual users
   return (
     <div>
       <div className="mb-6">
@@ -941,11 +1181,12 @@ useEffect(() => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left column - Case charts */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Case Type Chart */}
-          <div className="card">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium">Cases by Type</h2>
-              <div className="flex space-x-2">
+          {/* Case Type Chart - Hide for company clients */}
+          {!(isClient && user?.userType === 'companyClient') && (
+            <div className="card">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-medium">Cases by Type</h2>
+                <div className="flex space-x-2">
                 <button
                   onClick={() => setTimeframe('week')}
                   className={`px-3 py-1 text-xs rounded-md ${timeframe === 'week'
@@ -995,6 +1236,7 @@ useEffect(() => {
               {typeData.map(item => ` ${item.name}: ${item.cases}`).join(' |')}
             </div>
           </div>
+          )}
 
           {/* Workflow Status Chart for Attorneys/Admins */}
           {(isAttorney || isSuperAdmin) && (
