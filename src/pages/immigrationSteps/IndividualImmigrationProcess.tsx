@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../controllers/AuthControllers';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -37,9 +38,9 @@ import {
 } from 'lucide-react';
 import questionnaireService from '../../services/questionnaireService';
 import { getFormTemplates, FormTemplate } from '../../controllers/SettingsControllers';
-import { 
-  renderFormWithData, 
-  prepareFormData, 
+import {
+  renderFormWithData,
+  prepareFormData,
   validateFormData,
   downloadPdfFile,
   createPdfBlobUrl,
@@ -48,6 +49,7 @@ import {
 import api from '../../utils/api';
 import { generateObjectId } from '../../utils/idValidation';
 import { toast } from 'react-hot-toast';
+import { getClientById, updateClient } from '../../controllers/ClientControllers';
 
 // Immigration Process Categories
 interface ImmigrationCategory {
@@ -480,14 +482,17 @@ interface ImmigrationStep {
 
 interface FormData {
   personalInfo: {
+    // Basic Information
     firstName: string;
     lastName: string;
-    dateOfBirth: string;
-    placeOfBirth: string;
-    nationality: string;
-    passportNumber: string;
     email: string;
+    password: string;
+    confirmPassword: string;
     phone: string;
+    nationality: string;
+    dateOfBirth: string;
+
+    // Address Information
     address: {
       street: string;
       city: string;
@@ -495,6 +500,99 @@ interface FormData {
       zipCode: string;
       country: string;
     };
+
+    // Place of Birth
+    placeOfBirth: {
+      city: string;
+      state: string;
+      country: string;
+    };
+
+    // Personal Information
+    gender: string;
+    maritalStatus: string;
+    immigrationPurpose: string;
+
+    // Identification
+    passportNumber: string;
+    alienRegistrationNumber: string;
+    nationalIdNumber: string;
+
+    // Spouse Information
+    spouse: {
+      firstName: string;
+      lastName: string;
+      dateOfBirth: string;
+      nationality: string;
+      alienRegistrationNumber: string;
+    };
+
+    // Children Information
+    children: Array<{
+      firstName: string;
+      lastName: string;
+      dateOfBirth: string;
+      nationality: string;
+      alienRegistrationNumber: string;
+    }>;
+
+    // Employment Information
+    employment: {
+      currentEmployer: {
+        name: string;
+        address: {
+          street: string;
+          city: string;
+          state: string;
+          zipCode: string;
+          country: string;
+        };
+      };
+      jobTitle: string;
+      employmentStartDate: string;
+      annualIncome: number;
+    };
+
+    // Education Information
+    education: {
+      highestLevel: string;
+      institutionName: string;
+      datesAttended: {
+        startDate: string;
+        endDate: string;
+      };
+      fieldOfStudy: string;
+    };
+
+    // Travel History
+    travelHistory: Array<{
+      country: string;
+      visitDate: string;
+      purpose: string;
+      duration: number;
+    }>;
+
+    // Financial Information
+    financialInfo: {
+      annualIncome: number;
+      sourceOfFunds: string;
+      bankAccountBalance: number;
+    };
+
+    // Criminal History
+    criminalHistory: {
+      hasCriminalRecord: boolean;
+      details: string;
+    };
+
+    // Medical History
+    medicalHistory: {
+      hasMedicalConditions: boolean;
+      details: string;
+    };
+
+    // Additional Information
+    bio: string;
   };
   immigrationInfo: {
     currentStatus: string;
@@ -527,6 +625,7 @@ interface FormData {
 
 const IndividualImmigrationProcess: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ImmigrationCategory | null>(null);
@@ -534,28 +633,113 @@ const IndividualImmigrationProcess: React.FC = () => {
   const [questionnaireStep, setQuestionnaireStep] = useState<'category' | 'subcategory' | 'confirmation'>('category');
   const [formData, setFormData] = useState<FormData>({
     personalInfo: {
+      // Basic Information
       firstName: '',
       lastName: '',
-      dateOfBirth: '',
-      placeOfBirth: '',
-      nationality: '',
-      passportNumber: '',
       email: '',
+      password: '',
+      confirmPassword: '',
       phone: '',
+      nationality: '',
+      dateOfBirth: '',
+
+      // Address Information
       address: {
         street: '',
         city: '',
         state: '',
         zipCode: '',
-        country: ''
-      }
+        country: 'United States',
+      },
+
+      // Place of Birth
+      placeOfBirth: {
+        city: '',
+        state: '',
+        country: '',
+      },
+
+      // Personal Information
+      gender: '',
+      maritalStatus: '',
+      immigrationPurpose: '',
+
+      // Identification
+      passportNumber: '',
+      alienRegistrationNumber: '',
+      nationalIdNumber: '',
+
+      // Spouse Information
+      spouse: {
+        firstName: '',
+        lastName: '',
+        dateOfBirth: '',
+        nationality: '',
+        alienRegistrationNumber: '',
+      },
+
+      // Children Information
+      children: [],
+
+      // Employment Information
+      employment: {
+        currentEmployer: {
+          name: '',
+          address: {
+            street: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            country: '',
+          },
+        },
+        jobTitle: '',
+        employmentStartDate: '',
+        annualIncome: 0,
+      },
+
+      // Education Information
+      education: {
+        highestLevel: '',
+        institutionName: '',
+        datesAttended: {
+          startDate: '',
+          endDate: '',
+        },
+        fieldOfStudy: '',
+      },
+
+      // Travel History
+      travelHistory: [],
+
+      // Financial Information
+      financialInfo: {
+        annualIncome: 0,
+        sourceOfFunds: '',
+        bankAccountBalance: 0,
+      },
+
+      // Criminal History
+      criminalHistory: {
+        hasCriminalRecord: false,
+        details: '',
+      },
+
+      // Medical History
+      medicalHistory: {
+        hasMedicalConditions: false,
+        details: '',
+      },
+
+      // Additional Information
+      bio: '',
     },
     immigrationInfo: {
       currentStatus: '',
       entryDate: '',
       visaType: '',
       intendedCategory: '',
-      familyMembers: []
+      familyMembers: [],
     },
     documents: [
       { id: '1', name: 'Passport', type: 'identity', isRequired: true, isUploaded: false },
@@ -563,7 +747,7 @@ const IndividualImmigrationProcess: React.FC = () => {
       { id: '3', name: 'Marriage Certificate', type: 'family', isRequired: false, isUploaded: false },
       { id: '4', name: 'Employment Records', type: 'employment', isRequired: false, isUploaded: false },
       { id: '5', name: 'Financial Documents', type: 'financial', isRequired: true, isUploaded: false },
-      { id: '6', name: 'Medical Records', type: 'medical', isRequired: true, isUploaded: false }
+      { id: '6', name: 'Medical Records', type: 'medical', isRequired: true, isUploaded: false },
     ],
     forms: [
       { id: '1', name: 'I-130', description: 'Petition for Alien Relative', isCompleted: false, isRequired: true },
@@ -571,8 +755,8 @@ const IndividualImmigrationProcess: React.FC = () => {
       { id: '3', name: 'I-864', description: 'Affidavit of Support', isCompleted: false, isRequired: true },
       { id: '4', name: 'I-693', description: 'Report of Medical Examination', isCompleted: false, isRequired: true },
       { id: '5', name: 'I-765', description: 'Application for Employment Authorization', isCompleted: false, isRequired: false },
-      { id: '6', name: 'I-131', description: 'Application for Travel Document', isCompleted: false, isRequired: false }
-    ]
+      { id: '6', name: 'I-131', description: 'Application for Travel Document', isCompleted: false, isRequired: false },
+    ],
   });
 
   // State for custom questionnaires
@@ -585,6 +769,9 @@ const IndividualImmigrationProcess: React.FC = () => {
   // State for form templates from API
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   const [loadingFormTemplates, setLoadingFormTemplates] = useState(false);
+
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Add state variables for case management (same as LegalFirmWorkflow)
   const [client, setClient] = useState<Client>({
@@ -646,6 +833,270 @@ const IndividualImmigrationProcess: React.FC = () => {
   const [generatingForms, setGeneratingForms] = useState(false);
   const [showPreview, setShowPreview] = useState<Record<string, boolean>>({});
 
+  // Client loading/sync state
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [loadingClient, setLoadingClient] = useState<boolean>(false);
+  const suppressNextAutoSaveRef = React.useRef<boolean>(false);
+  const autoSaveTimerRef = React.useRef<number | null>(null);
+
+  // Helper: map API client payload to local personalInfo structure
+  const mapClientToPersonalInfo = (apiClient: any): FormData['personalInfo'] => {
+    const c = apiClient || {};
+    return {
+      // Basic Information
+      firstName: c.firstName || '',
+      lastName: c.lastName || '',
+      email: c.email || '',
+      password: '',
+      confirmPassword: '',
+      phone: c.phone || '',
+      nationality: c.nationality || '',
+      dateOfBirth: c.dateOfBirth ? String(c.dateOfBirth).substring(0, 10) : '',
+
+      // Address Information
+      address: {
+        street: c.address?.street || '',
+        city: c.address?.city || '',
+        state: c.address?.state || '',
+        zipCode: c.address?.zipCode || '',
+        country: c.address?.country || 'United States',
+      },
+
+      // Place of Birth
+      placeOfBirth: {
+        city: c.placeOfBirth?.city || '',
+        state: c.placeOfBirth?.state || '',
+        country: c.placeOfBirth?.country || '',
+      },
+
+      // Personal Information
+      gender: c.gender || '',
+      maritalStatus: c.maritalStatus || '',
+      immigrationPurpose: c.immigrationPurpose || '',
+
+      // Identification
+      passportNumber: c.passportNumber || '',
+      alienRegistrationNumber: c.alienRegistrationNumber || '',
+      nationalIdNumber: c.nationalIdNumber || '',
+
+      // Spouse Information
+      spouse: {
+        firstName: c.spouse?.firstName || '',
+        lastName: c.spouse?.lastName || '',
+        dateOfBirth: c.spouse?.dateOfBirth ? String(c.spouse.dateOfBirth).substring(0, 10) : '',
+        nationality: c.spouse?.nationality || '',
+        alienRegistrationNumber: c.spouse?.alienRegistrationNumber || '',
+      },
+
+      // Children Information
+      children: Array.isArray(c.children) ? c.children.map((ch: any) => ({
+        firstName: ch.firstName || '',
+        lastName: ch.lastName || '',
+        dateOfBirth: ch.dateOfBirth ? String(ch.dateOfBirth).substring(0, 10) : '',
+        nationality: ch.nationality || '',
+        alienRegistrationNumber: ch.alienRegistrationNumber || '',
+      })) : [],
+
+      // Employment Information
+      employment: {
+        currentEmployer: {
+          name: c.employment?.currentEmployer?.name || '',
+          address: {
+            street: c.employment?.currentEmployer?.address?.street || '',
+            city: c.employment?.currentEmployer?.address?.city || '',
+            state: c.employment?.currentEmployer?.address?.state || '',
+            zipCode: c.employment?.currentEmployer?.address?.zipCode || '',
+            country: c.employment?.currentEmployer?.address?.country || '',
+          },
+        },
+        jobTitle: c.employment?.jobTitle || '',
+        employmentStartDate: c.employment?.employmentStartDate ? String(c.employment.employmentStartDate).substring(0, 10) : '',
+        annualIncome: c.employment?.annualIncome ?? 0,
+      },
+
+      // Education Information
+      education: {
+        highestLevel: c.education?.highestLevel || '',
+        institutionName: c.education?.institutionName || '',
+        datesAttended: {
+          startDate: c.education?.datesAttended?.startDate ? String(c.education.datesAttended.startDate).substring(0, 10) : '',
+          endDate: c.education?.datesAttended?.endDate ? String(c.education.datesAttended.endDate).substring(0, 10) : '',
+        },
+        fieldOfStudy: c.education?.fieldOfStudy || '',
+      },
+
+      // Travel History
+      travelHistory: Array.isArray(c.travelHistory) ? c.travelHistory.map((tr: any) => ({
+        country: tr.country || '',
+        visitDate: tr.visitDate ? String(tr.visitDate).substring(0, 10) : '',
+        purpose: tr.purpose || '',
+        duration: typeof tr.duration === 'number' ? tr.duration : 0,
+      })) : [],
+
+      // Financial Information
+      financialInfo: {
+        annualIncome: c.financialInfo?.annualIncome ?? 0,
+        sourceOfFunds: c.financialInfo?.sourceOfFunds || '',
+        bankAccountBalance: c.financialInfo?.bankAccountBalance ?? 0,
+      },
+
+      // Criminal History
+      criminalHistory: {
+        hasCriminalRecord: !!c.criminalHistory?.hasCriminalRecord,
+        details: c.criminalHistory?.details || '',
+      },
+
+      // Medical History
+      medicalHistory: {
+        hasMedicalConditions: !!c.medicalHistory?.hasMedicalConditions,
+        details: c.medicalHistory?.details || '',
+      },
+
+      // Additional Information
+      bio: c.bio || '',
+    };
+  };
+
+  // Helper: build update payload expected by API from personalInfo
+  const buildUpdatePayload = (pi: FormData['personalInfo']) => {
+    return {
+      // send top-level basic fields for compatibility
+      firstName: pi.firstName,
+      lastName: pi.lastName,
+      email: pi.email,
+      phone: pi.phone,
+      name: `${pi.firstName} ${pi.lastName}`.trim(),
+      nationality: pi.nationality,
+      dateOfBirth: pi.dateOfBirth || undefined,
+      address: pi.address,
+      placeOfBirth: pi.placeOfBirth,
+      gender: pi.gender,
+      maritalStatus: pi.maritalStatus,
+      immigrationPurpose: pi.immigrationPurpose,
+      passportNumber: pi.passportNumber,
+      alienRegistrationNumber: pi.alienRegistrationNumber,
+      nationalIdNumber: pi.nationalIdNumber,
+      spouse: pi.spouse,
+      children: pi.children,
+      employment: {
+        currentEmployer: pi.employment.currentEmployer,
+        jobTitle: pi.employment.jobTitle,
+        employmentStartDate: pi.employment.employmentStartDate,
+        annualIncome: pi.employment.annualIncome,
+      },
+      education: pi.education,
+      travelHistory: pi.travelHistory,
+      financialInfo: pi.financialInfo,
+      criminalHistory: pi.criminalHistory,
+      medicalHistory: pi.medicalHistory,
+      bio: pi.bio,
+      // also nest under personalInfo
+      personalInfo: { ...pi },
+    };
+  };
+
+  // Determine clientId and load client on mount/user change
+  useEffect(() => {
+    const determineClientId = () => {
+      const fromStorage = localStorage.getItem('currentClientId');
+      if (fromStorage) return fromStorage;
+      // Prefer explicit client id on user if available, else fallback to user _id for client roles
+      // @ts-ignore optional shape
+      if ((user as any)?._id) return (user as any)._id as string;
+      if (user?.role === 'client' && user?._id) return user._id;
+      return null;
+    };
+
+    const id = determineClientId();
+    if (!id) return;
+    setClientId(id);
+
+    const load = async () => {
+      try {
+        setLoadingClient(true);
+        const apiClient = await getClientById(id);
+        const pi = mapClientToPersonalInfo(apiClient);
+        suppressNextAutoSaveRef.current = true; // avoid autosave immediately after loading
+        setFormData(prev => ({ ...prev, personalInfo: pi }));
+        // also seed local client state used elsewhere
+        setClient(prev => ({
+          ...prev,
+          name: `${pi.firstName} ${pi.lastName}`.trim(),
+          firstName: pi.firstName,
+          lastName: pi.lastName,
+          email: pi.email,
+          phone: pi.phone,
+          dateOfBirth: pi.dateOfBirth,
+          nationality: pi.nationality,
+          address: {
+            street: pi.address.street,
+            aptSuiteFlr: '',
+            aptNumber: '',
+            city: pi.address.city,
+            state: pi.address.state,
+            zipCode: pi.address.zipCode,
+            province: '',
+            postalCode: '',
+            country: pi.address.country,
+          },
+        }));
+      } catch (e: any) {
+        console.error('Failed to load client', e);
+        toast.error('Failed to load client details');
+      } finally {
+        setLoadingClient(false);
+      }
+    };
+
+    load();
+  }, [user]);
+
+  // Debounced auto-save when personal info changes
+  // useEffect(() => {
+  //   if (!clientId) return;
+  //   if (suppressNextAutoSaveRef.current) {
+  //     suppressNextAutoSaveRef.current = false;
+  //     return;
+  //   }
+
+  //   if (autoSaveTimerRef.current) {
+  //     window.clearTimeout(autoSaveTimerRef.current);
+  //   }
+
+  //   autoSaveTimerRef.current = window.setTimeout(async () => {
+  //     try {
+  //       const payload = buildUpdatePayload(formData.personalInfo);
+  //       await updateClient(clientId, payload as any);
+  //       toast.success('Saved');
+  //     } catch (e: any) {
+  //       console.error('Auto-save failed', e);
+  //       toast.error('Failed to save changes');
+  //     }
+  //   }, 800);
+
+  //   return () => {
+  //     if (autoSaveTimerRef.current) {
+  //       window.clearTimeout(autoSaveTimerRef.current);
+  //     }
+  //   };
+  // }, [formData.personalInfo, clientId]);
+
+  // This effect now *only* marks the form as dirty on change.
+  useEffect(() => {
+    if (!clientId) return;
+
+    // If we are just loading data, don't mark as dirty
+    if (suppressNextAutoSaveRef.current) {
+      suppressNextAutoSaveRef.current = false;
+      setIsDirty(false); // Ensure it's not dirty on load
+      return;
+    }
+
+    // Any other change marks it as dirty
+    setIsDirty(true);
+
+  }, [formData.personalInfo, clientId]);
+
   // Load custom questionnaires from API
   useEffect(() => {
     const loadCustomQuestionnaires = async () => {
@@ -659,20 +1110,20 @@ const IndividualImmigrationProcess: React.FC = () => {
         const convertedQuestionnaires: LoadedQuestionnaire[] = response.questionnaires
           .filter(q => q.is_active)
           .map(q => ({
-          id: q.id,
-          title: q.title,
-          description: q.description,
-          category: q.category,
-          fields: q.fields.map(field => ({
-            id: field.id,
-            type: field.type,
-            label: field.label,
-            required: field.required,
-            options: field.options,
-            help_text: field.help_text,
-            eligibility_impact: field.eligibility_impact
-          }))
-        }));
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            category: q.category,
+            fields: q.fields.map(field => ({
+              id: field.id,
+              type: field.type,
+              label: field.label,
+              required: field.required,
+              options: field.options,
+              help_text: field.help_text,
+              eligibility_impact: field.eligibility_impact
+            }))
+          }));
 
         setCustomQuestionnaires(convertedQuestionnaires);
 
@@ -866,16 +1317,15 @@ const IndividualImmigrationProcess: React.FC = () => {
       subcategory: selectedSubcategory?.id || 'general',
       visaType: formData.immigrationInfo.visaType,
       assignedForms: selectedForms,
-      clientId: client.clientId || client._id || generateObjectId()
+      clientId: client.id || client._id || generateObjectId()
     };
     setCaseData(newCase);
     return newCase;
   };
 
   const steps: ImmigrationStep[] = [
-    { id: 'select-form', title: 'Select the Form', description: 'Choose the immigration form to complete', isCompleted: false, isActive: true },
-    { id: 'personal-details', title: 'Personal Details', description: 'Basic personal information', isCompleted: false, isActive: false },
-    { id: 'case-details', title: 'Case Details', description: 'Immigration case information', isCompleted: false, isActive: false },
+    { id: 'personal-details', title: 'Personal Details', description: 'Basic personal information', isCompleted: false, isActive: true },
+    { id: 'select-form', title: 'Select the Form', description: 'Choose the immigration form to complete', isCompleted: false, isActive: false },
     { id: 'form-details', title: 'Form Details', description: 'Complete form information', isCompleted: false, isActive: false },
     { id: 'auto-fill', title: 'Auto-fill Forms', description: 'Generate completed forms', isCompleted: false, isActive: false }
   ];
@@ -903,6 +1353,35 @@ const IndividualImmigrationProcess: React.FC = () => {
         [field]: value
       }
     }));
+  };
+
+  const handleSaveAndNext = async () => {
+    // If not dirty, just go next
+    if (!isDirty) {
+      handleNext(); // Assumes handleNext() exists in this scope
+      return;
+    }
+
+    // If it is dirty, save first
+    setIsSaving(true);
+
+    try {
+      const payload = buildUpdatePayload(formData.personalInfo);
+      if (clientId) {
+        await updateClient(clientId, payload as any);
+      }
+      toast.success('Saved');
+      setIsDirty(false); // Saved, no longer dirty
+      setIsSaving(false); // No longer saving
+      
+      // Go to next step AFTER successful save
+      handleNext(); 
+    } catch (e: any) {
+      console.error('Save failed', e);
+      toast.error('Failed to save changes');
+      setIsSaving(false); // No longer saving, but still dirty
+      // Do NOT go to next step on failure
+    }
   };
 
   const handleAddressChange = (field: string, value: string) => {
@@ -975,12 +1454,12 @@ const IndividualImmigrationProcess: React.FC = () => {
       // Save workflow progress to backend
       try {
         await saveWorkflowProgress();
-        
+
         toast.success('Immigration case created successfully!');
-        
+
         // Navigate to case details or dashboard
         navigate('/cases');
-        
+
       } catch (error) {
         console.error('Error saving to backend:', error);
         // Fallback to local storage if API fails
@@ -993,7 +1472,7 @@ const IndividualImmigrationProcess: React.FC = () => {
           createdAt: new Date().toISOString(),
           status: 'draft'
         };
-        
+
         localStorage.setItem(`immigration-case-${caseData.id}`, JSON.stringify(caseData));
         toast.success('Case saved locally. Please check your internet connection and try again later.');
       }
@@ -1113,7 +1592,7 @@ const IndividualImmigrationProcess: React.FC = () => {
 
       // Custom validation - only require essential fields
       const missingFields = [];
-      
+
       if (!autoFillData.clientFirstName) missingFields.push('First Name');
       if (!autoFillData.clientLastName) missingFields.push('Last Name');
       if (!autoFillData.clientEmail) missingFields.push('Email');
@@ -1122,7 +1601,7 @@ const IndividualImmigrationProcess: React.FC = () => {
       if (!autoFillData.clientCity) missingFields.push('City');
       if (!autoFillData.clientState) missingFields.push('State');
       if (!autoFillData.clientZipCode) missingFields.push('ZIP Code');
-      
+
       if (missingFields.length > 0) {
         toast.error(`Please complete the following required fields: ${missingFields.join(', ')}`);
         return;
@@ -1240,6 +1719,93 @@ const IndividualImmigrationProcess: React.FC = () => {
     };
   }, [generatedForms]);
 
+  // Add a general deep update handler for nested fields in personalInfo
+  const handlePersonalInfoNestedChange = (path: string[], value: any) => {
+    setFormData(prev => {
+      let obj = { ...prev.personalInfo };
+      let current: any = obj;
+      for (let i = 0; i < path.length - 1; i++) {
+        current[path[i]] = { ...current[path[i]] };
+        current = current[path[i]];
+      }
+      current[path[path.length - 1]] = value;
+      return {
+        ...prev,
+        personalInfo: obj
+      };
+    });
+  };
+
+  const handleAddChild = () => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        children: [
+          ...prev.personalInfo.children,
+          { firstName: '', lastName: '', dateOfBirth: '', nationality: '', alienRegistrationNumber: '' }
+        ]
+      }
+    }));
+  };
+
+  const handleRemoveChild = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        children: prev.personalInfo.children.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const handleUpdateChild = (index: number, field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        children: prev.personalInfo.children.map((child, i) =>
+          i === index ? { ...child, [field]: value } : child
+        )
+      }
+    }));
+  };
+
+  const handleAddTravelHistory = () => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        travelHistory: [
+          ...prev.personalInfo.travelHistory,
+          { country: '', visitDate: '', purpose: '', duration: 0 }
+        ]
+      }
+    }));
+  };
+
+  const handleRemoveTravelHistory = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        travelHistory: prev.personalInfo.travelHistory.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const handleUpdateTravelHistory = (index: number, field: string, value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        travelHistory: prev.personalInfo.travelHistory.map((travel, i) =>
+          i === index ? { ...travel, [field]: value } : travel
+        )
+      }
+    }));
+  };
+  
   // Add the missing renderCustomQuestionnaire function
   const renderCustomQuestionnaire = () => {
     if (!selectedCustomQuestionnaire) return null;
@@ -1330,8 +1896,8 @@ const IndividualImmigrationProcess: React.FC = () => {
 
                   {field.eligibility_impact && (
                     <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${field.eligibility_impact === 'high' ? 'bg-red-100 text-red-800' :
-                        field.eligibility_impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
+                      field.eligibility_impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-green-100 text-green-800'
                       }`}>
                       {field.eligibility_impact} impact
                     </div>
@@ -1464,8 +2030,8 @@ const IndividualImmigrationProcess: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${category.difficulty === 'Easy' ? 'bg-green-100 text-green-800' :
-                          category.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
+                        category.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
                         }`}>
                         {category.difficulty}
                       </span>
@@ -1670,24 +2236,50 @@ const IndividualImmigrationProcess: React.FC = () => {
         <p className="text-gray-600 mt-2">Choose the immigration form you need to complete:</p>
       </div>
 
+      <div className="flex items-center gap-4">
+        <label className="text-sm font-medium text-gray-700">Filter by category</label>
+        <select
+          value={selectedCategory?.id || ''}
+          onChange={(e) => {
+            const categoryId = e.target.value;
+            if (!categoryId) {
+              setSelectedCategory(null);
+              setSelectedSubcategory(null);
+              return;
+            }
+            const category = immigrationCategories.find((c) => c.id === categoryId) || null;
+            setSelectedCategory(category);
+            setSelectedSubcategory(null);
+          }}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">All categories</option>
+          {immigrationCategories.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.title}</option>
+          ))}
+        </select>
+      </div>
+
       {loadingFormTemplates ? (
         <div className="text-center py-8">
           <div className="text-gray-500">Loading form templates...</div>
         </div>
       ) : formTemplates.length === 0 ? (
         <div className="text-center py-8">
-          <div className="text-gray-400 mb-4">No form templates available from API.</div>
-          <div className="text-sm text-gray-500 mb-6">Showing default immigration forms instead.</div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {formData.forms.map((form) => (
+            {(
+              selectedCategory
+                ? formData.forms.filter((f) => selectedCategory.forms.includes(f.name))
+                : formData.forms
+            ).map((form) => (
               <motion.div
                 key={form.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
                 className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedForms.includes(form.name)
-                    ? 'border-blue-500 bg-blue-50 shadow-lg'
-                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  ? 'border-blue-500 bg-blue-50 shadow-lg'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 onClick={() => handleFormSelection(form.name)}
               >
@@ -1713,60 +2305,72 @@ const IndividualImmigrationProcess: React.FC = () => {
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {formTemplates.map((template) => (
-            <motion.div
-              key={template._id || template.formNumber}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedForms.includes(template.formNumber)
+          {formTemplates
+            .filter((template) => {
+              if (!selectedCategory) return true;
+              return template.category === selectedCategory.id || template.category === selectedCategory.title;
+            })
+            .map((template) => (
+              <motion.div
+                key={template._id || template.formNumber}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedForms.includes(template.formNumber)
                   ? 'border-blue-500 bg-blue-50 shadow-lg'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                }`}
-              onClick={() => handleFormSelection(template.formNumber)}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <FileText className="h-6 w-6 text-blue-600" />
+                  }`}
+                onClick={() => handleFormSelection(template.formNumber)}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <FileText className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="text-right">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                      {template.category}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-                    {template.category}
-                  </span>
-                </div>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{template.formNumber}</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">{template.description}</p>
-              
-              {template.metadata?.uscisFormNumber && (
-                <div className="text-xs text-gray-500 mb-2">
-                  USCIS Form: {template.metadata.uscisFormNumber}
-                </div>
-              )}
-              
-              {template.metadata?.estimatedProcessingTime && (
-                <div className="text-xs text-gray-500 mb-2">
-                  Processing Time: {template.metadata.estimatedProcessingTime}
-                </div>
-              )}
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{template.formNumber}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{template.description}</p>
 
-              {selectedForms.includes(template.formNumber) && (
-                <div className="absolute top-4 right-4">
-                  <CheckCircle className="h-6 w-6 text-blue-500" />
-                </div>
-              )}
-            </motion.div>
-          ))}
+                {template.metadata?.uscisFormNumber && (
+                  <div className="text-xs text-gray-500 mb-2">
+                    USCIS Form: {template.metadata.uscisFormNumber}
+                  </div>
+                )}
+
+                {template.metadata?.estimatedProcessingTime && (
+                  <div className="text-xs text-gray-500 mb-2">
+                    Processing Time: {template.metadata.estimatedProcessingTime}
+                  </div>
+                )}
+
+                {selectedForms.includes(template.formNumber) && (
+                  <div className="absolute top-4 right-4">
+                    <CheckCircle className="h-6 w-6 text-blue-500" />
+                  </div>
+                )}
+              </motion.div>
+            ))}
         </div>
       )}
 
-      <div className="flex justify-end pt-6 border-t border-gray-200">
+      <div className="flex justify-between pt-6 border-t border-gray-200">
+        <button
+          onClick={handlePrevious}
+          className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2 hover:shadow-md"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          <span>Previous</span>
+        </button>
         <button
           onClick={handleNext}
-                          disabled={selectedForms.length === 0}
-                className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 ${selectedForms.length > 0
-              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          disabled={selectedForms.length === 0}
+          className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 ${selectedForms.length > 0
+            ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
         >
           <span>Next Step</span>
@@ -1774,261 +2378,848 @@ const IndividualImmigrationProcess: React.FC = () => {
         </button>
       </div>
     </div>
-  );
+  );  
 
-  const renderPersonalDetailsStep = () => (
+  // const renderPersonalDetailsStepExpanded = () => (
+  //   <div className="space-y-8">
+  //     <div className="border-b border-gray-200 pb-4">
+  //       <h2 className="text-2xl font-bold text-gray-900">Personal Details</h2>
+  //       <p className="text-gray-600 mt-2">All details required for your immigration process</p>
+  //     </div>
+
+  //     {/* Basic Information */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+  //       <div className="grid md:grid-cols-2 gap-6">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+  //           <input type="text" value={formData.personalInfo.firstName} onChange={e => handlePersonalInfoChange('firstName', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
+  //           <input type="text" value={formData.personalInfo.lastName} onChange={e => handlePersonalInfoChange('lastName', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
+  //         </div>
+  //       </div>
+  //       <div className="grid md:grid-cols-2 gap-6">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+  //           <input type="email" value={formData.personalInfo.email} onChange={e => handlePersonalInfoChange('email', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
+  //           <input type="password" value={formData.personalInfo.password} onChange={e => handlePersonalInfoChange('password', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
+  //           <input type="password" value={formData.personalInfo.confirmPassword} onChange={e => handlePersonalInfoChange('confirmPassword', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+  //           <input type="tel" value={formData.personalInfo.phone} onChange={e => handlePersonalInfoChange('phone', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
+  //           <input type="text" value={formData.personalInfo.nationality} onChange={e => handlePersonalInfoChange('nationality', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+  //           <input type="date" value={formData.personalInfo.dateOfBirth} onChange={e => handlePersonalInfoChange('dateOfBirth', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //       </div>
+  //     </section>
+
+  //     {/* Address & Place of Birth */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Address Information</h3>
+  //       <div className="grid md:grid-cols-2 gap-6">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Street Address</label>
+  //           <input type="text" value={formData.personalInfo.address.street} onChange={e => handlePersonalInfoNestedChange(['address', 'street'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+  //           <input type="text" value={formData.personalInfo.address.city} onChange={e => handlePersonalInfoNestedChange(['address', 'city'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+  //           <input type="text" value={formData.personalInfo.address.state} onChange={e => handlePersonalInfoNestedChange(['address', 'state'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">ZIP/Postal Code</label>
+  //           <input type="text" value={formData.personalInfo.address.zipCode} onChange={e => handlePersonalInfoNestedChange(['address', 'zipCode'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
+  //           <input type="text" value={formData.personalInfo.address.country} onChange={e => handlePersonalInfoNestedChange(['address', 'country'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //       </div>
+  //       <h4 className="mt-6 font-medium text-gray-900 mb-2">Place of Birth</h4>
+  //       <div className="grid md:grid-cols-3 gap-6">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+  //           <input type="text" value={formData.personalInfo.placeOfBirth.city} onChange={e => handlePersonalInfoNestedChange(['placeOfBirth', 'city'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+  //           <input type="text" value={formData.personalInfo.placeOfBirth.state} onChange={e => handlePersonalInfoNestedChange(['placeOfBirth', 'state'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
+  //           <input type="text" value={formData.personalInfo.placeOfBirth.country} onChange={e => handlePersonalInfoNestedChange(['placeOfBirth', 'country'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //       </div>
+  //     </section>
+
+  //     {/* Personal Details */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Details</h3>
+  //       <div className="grid md:grid-cols-2 gap-6">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+  //           <select value={formData.personalInfo.gender} onChange={e => handlePersonalInfoChange('gender', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg">
+  //             <option value="">Select Gender</option>
+  //             <option value="male">Male</option>
+  //             <option value="female">Female</option>
+  //             <option value="other">Other</option>
+  //             <option value="prefer_not_to_say">Prefer not to say</option>
+  //           </select>
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Marital Status</label>
+  //           <select value={formData.personalInfo.maritalStatus} onChange={e => handlePersonalInfoChange('maritalStatus', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg">
+  //             <option value="">Select Marital Status</option>
+  //             <option value="single">Single</option>
+  //             <option value="married">Married</option>
+  //             <option value="divorced">Divorced</option>
+  //             <option value="widowed">Widowed</option>
+  //             <option value="separated">Separated</option>
+  //             <option value="civil_union">Civil Union</option>
+  //           </select>
+  //         </div>
+  //       </div>
+  //       <div>
+  //         <label className="block text-sm font-medium text-gray-700 mb-2">Immigration Purpose</label>
+  //         <select value={formData.personalInfo.immigrationPurpose} onChange={e => handlePersonalInfoChange('immigrationPurpose', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg">
+  //           <option value="">Select Immigration Purpose</option>
+  //           <option value="family_reunification">Family Reunification</option>
+  //           <option value="employment">Employment</option>
+  //           <option value="education">Education</option>
+  //           <option value="asylum">Asylum</option>
+  //           <option value="investment">Investment</option>
+  //           <option value="diversity_lottery">Diversity Lottery</option>
+  //           <option value="other">Other</option>
+  //         </select>
+  //       </div>
+  //       <div>
+  //         <label className="block text-sm font-medium text-gray-700 mb-2">Bio/Additional Information</label>
+  //         <textarea rows={4} value={formData.personalInfo.bio} onChange={e => handlePersonalInfoChange('bio', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" placeholder="Tell us about yourself, your background, or any additional information..." />
+  //       </div>
+  //     </section>
+
+  //     {/* Identification */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Identification</h3>
+  //       <div className="grid md:grid-cols-2 gap-6">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Passport Number</label>
+  //           <input type="text" value={formData.personalInfo.passportNumber} onChange={e => handlePersonalInfoChange('passportNumber', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">A-Number (Alien Registration)</label>
+  //           <input type="text" value={formData.personalInfo.alienRegistrationNumber} onChange={e => handlePersonalInfoChange('alienRegistrationNumber', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div className="md:col-span-2">
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">National ID Number</label>
+  //           <input type="text" value={formData.personalInfo.nationalIdNumber} onChange={e => handlePersonalInfoChange('nationalIdNumber', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //       </div>
+  //     </section>
+
+  //     {/* Spouse */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Spouse Information</h3>
+  //       <div className="grid md:grid-cols-2 gap-6">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Spouse First Name</label>
+  //           <input type="text" value={formData.personalInfo.spouse.firstName} onChange={e => handlePersonalInfoNestedChange(['spouse', 'firstName'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Spouse Last Name</label>
+  //           <input type="text" value={formData.personalInfo.spouse.lastName} onChange={e => handlePersonalInfoNestedChange(['spouse', 'lastName'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Spouse Date of Birth</label>
+  //           <input type="date" value={formData.personalInfo.spouse.dateOfBirth} onChange={e => handlePersonalInfoNestedChange(['spouse', 'dateOfBirth'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Spouse Nationality</label>
+  //           <input type="text" value={formData.personalInfo.spouse.nationality} onChange={e => handlePersonalInfoNestedChange(['spouse', 'nationality'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700 mb-2">Spouse A-Number</label>
+  //           <input type="text" value={formData.personalInfo.spouse.alienRegistrationNumber} onChange={e => handlePersonalInfoNestedChange(['spouse', 'alienRegistrationNumber'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+  //         </div>
+  //       </div>
+  //     </section>
+
+  //     {/* Children */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">Children Information
+  //         <button type="button" onClick={handleAddChild} className="px-3 py-1 text-sm text-primary-600 hover:text-primary-700 flex items-center ml-4">Add Child</button>
+  //       </h3>
+  //       {formData.personalInfo.children.length === 0 && <div className="text-gray-500">No children added.</div>}
+  //       {formData.personalInfo.children.map((child, index) => (
+  //         <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+  //           <div className="flex items-center justify-between mb-4">
+  //             <h4 className="text-md font-medium text-gray-800">Child {index + 1}</h4>
+  //             <button type="button" className="text-red-600 hover:text-red-700" onClick={() => handleRemoveChild(index)}>Remove</button>
+  //           </div>
+  //           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">First Name</label>
+  //               <input type="text" value={child.firstName} onChange={e => handleUpdateChild(index, 'firstName', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //             </div>
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">Last Name</label>
+  //               <input type="text" value={child.lastName} onChange={e => handleUpdateChild(index, 'lastName', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //             </div>
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+  //               <input type="date" value={child.dateOfBirth} onChange={e => handleUpdateChild(index, 'dateOfBirth', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //             </div>
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">Nationality</label>
+  //               <input type="text" value={child.nationality} onChange={e => handleUpdateChild(index, 'nationality', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //             </div>
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">A-Number</label>
+  //               <input type="text" value={child.alienRegistrationNumber} onChange={e => handleUpdateChild(index, 'alienRegistrationNumber', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //             </div>
+  //           </div>
+  //         </div>
+  //       ))}
+  //     </section>
+
+  //     {/* Employment */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Employment Information</h3>
+  //       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //         <div className="md:col-span-2">
+  //           <label className="block text-sm font-medium text-gray-700">Current Employer Name</label>
+  //           <input type="text" value={formData.personalInfo.employment.currentEmployer.name} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'name'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Job Title</label>
+  //           <input type="text" value={formData.personalInfo.employment.jobTitle} onChange={e => handlePersonalInfoNestedChange(['employment', 'jobTitle'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Employment Start Date</label>
+  //           <input type="date" value={formData.personalInfo.employment.employmentStartDate} onChange={e => handlePersonalInfoNestedChange(['employment', 'employmentStartDate'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Annual Income ($)</label>
+  //           <input type="number" value={formData.personalInfo.employment.annualIncome || ''} onChange={e => handlePersonalInfoNestedChange(['employment', 'annualIncome'], Number(e.target.value))} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //       </div>
+
+  //       <div className="mt-4">
+  //         <h4 className="font-medium text-gray-900 mb-2">Employer Address</h4>
+  //         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  //           <div className="md:col-span-2">
+  //             <label className="block text-sm font-medium text-gray-700">Street Address</label>
+  //             <input type="text" value={formData.personalInfo.employment.currentEmployer.address.street} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'street'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //           </div>
+  //           <div>
+  //             <label className="block text-sm font-medium text-gray-700">City</label>
+  //             <input type="text" value={formData.personalInfo.employment.currentEmployer.address.city} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'city'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //           </div>
+  //           <div>
+  //             <label className="block text-sm font-medium text-gray-700">State</label>
+  //             <input type="text" value={formData.personalInfo.employment.currentEmployer.address.state} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'state'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //           </div>
+  //           <div>
+  //             <label className="block text-sm font-medium text-gray-700">ZIP Code</label>
+  //             <input type="text" value={formData.personalInfo.employment.currentEmployer.address.zipCode} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'zipCode'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //           </div>
+  //           <div>
+  //             <label className="block text-sm font-medium text-gray-700">Country</label>
+  //             <input type="text" value={formData.personalInfo.employment.currentEmployer.address.country} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'country'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //           </div>
+  //         </div>
+  //       </div>
+  //     </section>
+
+  //     {/* Education */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Education Information</h3>
+  //       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Highest Education Level</label>
+  //           <select value={formData.personalInfo.education.highestLevel} onChange={e => handlePersonalInfoNestedChange(['education', 'highestLevel'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg">
+  //             <option value="">Select Education Level</option>
+  //             <option value="high_school">High School</option>
+  //             <option value="associate">Associate Degree</option>
+  //             <option value="bachelor">Bachelor's Degree</option>
+  //             <option value="master">Master's Degree</option>
+  //             <option value="doctorate">Doctorate</option>
+  //             <option value="other">Other</option>
+  //           </select>
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Institution Name</label>
+  //           <input type="text" value={formData.personalInfo.education.institutionName} onChange={e => handlePersonalInfoNestedChange(['education', 'institutionName'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Start Date</label>
+  //           <input type="date" value={formData.personalInfo.education.datesAttended.startDate} onChange={e => handlePersonalInfoNestedChange(['education', 'datesAttended', 'startDate'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">End Date</label>
+  //           <input type="date" value={formData.personalInfo.education.datesAttended.endDate} onChange={e => handlePersonalInfoNestedChange(['education', 'datesAttended', 'endDate'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Field of Study</label>
+  //           <input type="text" value={formData.personalInfo.education.fieldOfStudy} onChange={e => handlePersonalInfoNestedChange(['education', 'fieldOfStudy'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //       </div>
+  //     </section>
+
+  //     {/* Travel History */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">Travel History
+  //         <button type="button" onClick={handleAddTravelHistory} className="px-3 py-1 text-sm text-primary-600 hover:text-primary-700 flex items-center ml-4">Add Travel</button>
+  //       </h3>
+  //       {formData.personalInfo.travelHistory.length === 0 && <div className="text-gray-500">No travel records added.</div>}
+  //       {formData.personalInfo.travelHistory.map((travel, index) => (
+  //         <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+  //           <div className="flex items-center justify-between mb-4">
+  //             <h4 className="text-md font-medium text-gray-800">Travel Record {index + 1}</h4>
+  //             <button type="button" className="text-red-600 hover:text-red-700" onClick={() => handleRemoveTravelHistory(index)}>Remove</button>
+  //           </div>
+  //           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">Country</label>
+  //               <input type="text" value={travel.country} onChange={e => handleUpdateTravelHistory(index, 'country', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //             </div>
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">Visit Date</label>
+  //               <input type="date" value={travel.visitDate} onChange={e => handleUpdateTravelHistory(index, 'visitDate', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //             </div>
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">Purpose</label>
+  //               <select value={travel.purpose} onChange={e => handleUpdateTravelHistory(index, 'purpose', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg">
+  //                 <option value="">Select Purpose</option>
+  //                 <option value="tourism">Tourism</option>
+  //                 <option value="business">Business</option>
+  //                 <option value="education">Education</option>
+  //                 <option value="family">Family</option>
+  //                 <option value="other">Other</option>
+  //               </select>
+  //             </div>
+  //             <div>
+  //               <label className="block text-sm font-medium text-gray-700">Duration (days)</label>
+  //               <input type="number" value={travel.duration} onChange={e => handleUpdateTravelHistory(index, 'duration', Number(e.target.value))} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //             </div>
+  //           </div>
+  //         </div>
+  //       ))}
+  //     </section>
+
+  //     {/* Financial Information */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Information</h3>
+  //       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Annual Income ($)</label>
+  //           <input type="number" value={formData.personalInfo.financialInfo.annualIncome || ''} onChange={e => handlePersonalInfoNestedChange(['financialInfo', 'annualIncome'], Number(e.target.value))} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Source of Funds</label>
+  //           <select value={formData.personalInfo.financialInfo.sourceOfFunds} onChange={e => handlePersonalInfoNestedChange(['financialInfo', 'sourceOfFunds'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg">
+  //             <option value="">Select Source</option>
+  //             <option value="employment">Employment</option>
+  //             <option value="investment">Investment</option>
+  //             <option value="family">Family</option>
+  //             <option value="savings">Savings</option>
+  //             <option value="other">Other</option>
+  //           </select>
+  //         </div>
+  //         <div>
+  //           <label className="block text-sm font-medium text-gray-700">Bank Account Balance ($)</label>
+  //           <input type="number" value={formData.personalInfo.financialInfo.bankAccountBalance || ''} onChange={e => handlePersonalInfoNestedChange(['financialInfo', 'bankAccountBalance'], Number(e.target.value))} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+  //         </div>
+  //       </div>
+  //     </section>
+
+  //     {/* Criminal History */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Criminal History</h3>
+  //       <div className="space-y-4">
+  //         <div className="flex items-center">
+  //           <input type="checkbox" id="criminalHistory.hasCriminalRecord" checked={formData.personalInfo.criminalHistory.hasCriminalRecord} onChange={e => handlePersonalInfoNestedChange(['criminalHistory', 'hasCriminalRecord'], e.target.checked)} className="h-4 w-4 text-primary-600 border-gray-300 rounded" />
+  //           <label htmlFor="criminalHistory.hasCriminalRecord" className="ml-2 block text-sm text-gray-900">I have a criminal record</label>
+  //         </div>
+  //         {formData.personalInfo.criminalHistory.hasCriminalRecord && (
+  //           <div>
+  //             <label className="block text-sm font-medium text-gray-700">Details</label>
+  //             <textarea value={formData.personalInfo.criminalHistory.details} onChange={e => handlePersonalInfoNestedChange(['criminalHistory', 'details'], e.target.value)} rows={4} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Please provide details about your criminal history..." />
+  //           </div>
+  //         )}
+  //       </div>
+  //     </section>
+
+  //     {/* Medical History */}
+  //     <section className="bg-gray-50 rounded-xl p-6 mb-6">
+  //       <h3 className="text-lg font-semibold text-gray-900 mb-4">Medical History</h3>
+  //       <div className="space-y-4">
+  //         <div className="flex items-center">
+  //           <input type="checkbox" id="medicalHistory.hasMedicalConditions" checked={formData.personalInfo.medicalHistory.hasMedicalConditions} onChange={e => handlePersonalInfoNestedChange(['medicalHistory', 'hasMedicalConditions'], e.target.checked)} className="h-4 w-4 text-primary-600 border-gray-300 rounded" />
+  //           <label htmlFor="medicalHistory.hasMedicalConditions" className="ml-2 block text-sm text-gray-900">I have medical conditions</label>
+  //         </div>
+  //         {formData.personalInfo.medicalHistory.hasMedicalConditions && (
+  //           <div>
+  //             <label className="block text-sm font-medium text-gray-700">Details</label>
+  //             <textarea value={formData.personalInfo.medicalHistory.details} onChange={e => handlePersonalInfoNestedChange(['medicalHistory', 'details'], e.target.value)} rows={4} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Please provide details about your medical conditions..." />
+  //           </div>
+  //         )}
+  //       </div>
+  //     </section>
+  //   </div>
+  // );
+
+  const renderPersonalDetailsStepExpanded = () => (
     <div className="space-y-8">
       <div className="border-b border-gray-200 pb-4">
         <h2 className="text-2xl font-bold text-gray-900">Personal Details</h2>
-        <p className="text-gray-600 mt-2">Please provide your basic personal information</p>
+        <p className="text-gray-600 mt-2">All details required for your immigration process</p>
       </div>
 
-      <div className="bg-gray-50 rounded-xl p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <User className="h-5 w-5 text-blue-600 mr-2" />
-          Personal Information
-        </h3>
+      {/* Basic Information */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
         <div className="grid md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.firstName}
-              onChange={(e) => handlePersonalInfoChange('firstName', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+            <input type="text" value={formData.personalInfo.firstName} onChange={e => handlePersonalInfoChange('firstName', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.lastName}
-              onChange={(e) => handlePersonalInfoChange('lastName', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+            <input type="text" value={formData.personalInfo.lastName} onChange={e => handlePersonalInfoChange('lastName', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+            <input type="email" value={formData.personalInfo.email} onChange={e => handlePersonalInfoChange('email', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
+          </div>
+          {/* <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
+            <input type="password" value={formData.personalInfo.password} onChange={e => handlePersonalInfoChange('password', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth *</label>
-            <input
-              type="date"
-              value={formData.personalInfo.dateOfBirth}
-              onChange={(e) => handlePersonalInfoChange('dateOfBirth', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
+            <input type="password" value={formData.personalInfo.confirmPassword} onChange={e => handlePersonalInfoChange('confirmPassword', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" required />
+          </div> */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+            <input type="tel" value={formData.personalInfo.phone} onChange={e => handlePersonalInfoChange('phone', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Place of Birth *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.placeOfBirth}
-              onChange={(e) => handlePersonalInfoChange('placeOfBirth', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              placeholder="City, Country"
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
+            <input type="text" value={formData.personalInfo.nationality} onChange={e => handlePersonalInfoChange('nationality', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nationality *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.nationality}
-              onChange={(e) => handlePersonalInfoChange('nationality', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+            <input type="date" value={formData.personalInfo.dateOfBirth} onChange={e => handlePersonalInfoChange('dateOfBirth', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
+        </div>
+      </section>
+
+      {/* Address & Place of Birth */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Address Information</h3>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Street Address</label>
+            <input type="text" value={formData.personalInfo.address.street} onChange={e => handlePersonalInfoNestedChange(['address', 'street'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+            <input type="text" value={formData.personalInfo.address.city} onChange={e => handlePersonalInfoNestedChange(['address', 'city'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+            <input type="text" value={formData.personalInfo.address.state} onChange={e => handlePersonalInfoNestedChange(['address', 'state'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">ZIP/Postal Code</label>
+            <input type="text" value={formData.personalInfo.address.zipCode} onChange={e => handlePersonalInfoNestedChange(['address', 'zipCode'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
+            <input type="text" value={formData.personalInfo.address.country} onChange={e => handlePersonalInfoNestedChange(['address', 'country'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+        </div>
+        <h4 className="mt-6 font-medium text-gray-900 mb-2">Place of Birth</h4>
+        <div className="grid md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+            <input type="text" value={formData.personalInfo.placeOfBirth.city} onChange={e => handlePersonalInfoNestedChange(['placeOfBirth', 'city'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+            <input type="text" value={formData.personalInfo.placeOfBirth.state} onChange={e => handlePersonalInfoNestedChange(['placeOfBirth', 'state'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
+            <input type="text" value={formData.personalInfo.placeOfBirth.country} onChange={e => handlePersonalInfoNestedChange(['placeOfBirth', 'country'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+        </div>
+      </section>
+
+      {/* Personal Details */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Details</h3>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+            <select value={formData.personalInfo.gender} onChange={e => handlePersonalInfoChange('gender', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg">
+              <option value="">Select Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+              <option value="prefer_not_to_say">Prefer not to say</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Marital Status</label>
+            <select value={formData.personalInfo.maritalStatus} onChange={e => handlePersonalInfoChange('maritalStatus', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg">
+              <option value="">Select Marital Status</option>
+              <option value="single">Single</option>
+              <option value="married">Married</option>
+              <option value="divorced">Divorced</option>
+              <option value="widowed">Widowed</option>
+              <option value="separated">Separated</option>
+              <option value="civil_union">Civil Union</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Immigration Purpose</label>
+          <select value={formData.personalInfo.immigrationPurpose} onChange={e => handlePersonalInfoChange('immigrationPurpose', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg">
+            <option value="">Select Immigration Purpose</option>
+            <option value="family_reunification">Family Reunification</option>
+            <option value="employment">Employment</option>
+            <option value="education">Education</option>
+            <option value="asylum">Asylum</option>
+            <option value="investment">Investment</option>
+            <option value="diversity_lottery">Diversity Lottery</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Bio/Additional Information</label>
+          <textarea rows={4} value={formData.personalInfo.bio} onChange={e => handlePersonalInfoChange('bio', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" placeholder="Tell us about yourself, your background, or any additional information..." />
+        </div>
+      </section>
+
+      {/* Identification */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Identification</h3>
+        <div className="grid md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Passport Number</label>
-            <input
-              type="text"
-              value={formData.personalInfo.passportNumber}
-              onChange={(e) => handlePersonalInfoChange('passportNumber', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            />
+            <input type="text" value={formData.personalInfo.passportNumber} onChange={e => handlePersonalInfoChange('passportNumber', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-            <input
-              type="email"
-              value={formData.personalInfo.email}
-              onChange={(e) => handlePersonalInfoChange('email', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">A-Number (Alien Registration)</label>
+            <input type="text" value={formData.personalInfo.alienRegistrationNumber} onChange={e => handlePersonalInfoChange('alienRegistrationNumber', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
-            <input
-              type="tel"
-              value={formData.personalInfo.phone}
-              onChange={(e) => handlePersonalInfoChange('phone', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gray-50 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-          Address Information
-        </h3>
-        <div className="grid md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Street Address *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.address.street}
-              onChange={(e) => handleAddressChange('street', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">City *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.address.city}
-              onChange={(e) => handleAddressChange('city', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">State *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.address.state}
-              onChange={(e) => handleAddressChange('state', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">ZIP Code *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.address.zipCode}
-              onChange={(e) => handleAddressChange('zipCode', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Country *</label>
-            <input
-              type="text"
-              value={formData.personalInfo.address.country}
-              onChange={(e) => handleAddressChange('country', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">National ID Number</label>
+            <input type="text" value={formData.personalInfo.nationalIdNumber} onChange={e => handlePersonalInfoChange('nationalIdNumber', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="flex justify-between pt-6 border-t border-gray-200">
-        <button
-          onClick={handlePrevious}
-          className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2 hover:shadow-md"
-        >
-          <ArrowLeft className="h-5 w-5" />
-          <span>Previous</span>
-        </button>
-        <button
-          onClick={handleNext}
-          className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-        >
-          <span>Next Step</span>
-          <ChevronRight className="h-5 w-5" />
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderCaseDetailsStep = () => (
-    <div className="space-y-8">
-      <div className="border-b border-gray-200 pb-4">
-        <h2 className="text-2xl font-bold text-gray-900">Case Details</h2>
-        <p className="text-gray-600 mt-2">Provide information about your immigration case</p>
-      </div>
-
-      <div className="bg-gray-50 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <Briefcase className="h-5 w-5 text-blue-600 mr-2" />
-          Immigration Information
-        </h3>
+      {/* Spouse */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Spouse Information</h3>
         <div className="grid md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Current Immigration Status</label>
-            <select
-              value={formData.immigrationInfo.currentStatus}
-              onChange={(e) => handleImmigrationInfoChange('currentStatus', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            >
-              <option value="">Select Status</option>
-              <option value="F-1">F-1 Student</option>
-              <option value="H-1B">H-1B Worker</option>
-              <option value="L-1">L-1 Intracompany Transfer</option>
-              <option value="B-1/B-2">B-1/B-2 Visitor</option>
-              <option value="Other">Other</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Spouse First Name</label>
+            <input type="text" value={formData.personalInfo.spouse.firstName} onChange={e => handlePersonalInfoNestedChange(['spouse', 'firstName'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date of Entry</label>
-            <input
-              type="date"
-              value={formData.immigrationInfo.entryDate}
-              onChange={(e) => handleImmigrationInfoChange('entryDate', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Spouse Last Name</label>
+            <input type="text" value={formData.personalInfo.spouse.lastName} onChange={e => handlePersonalInfoNestedChange(['spouse', 'lastName'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Current Visa Type</label>
-            <input
-              type="text"
-              value={formData.immigrationInfo.visaType}
-              onChange={(e) => handleImmigrationInfoChange('visaType', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Spouse Date of Birth</label>
+            <input type="date" value={formData.personalInfo.spouse.dateOfBirth} onChange={e => handlePersonalInfoNestedChange(['spouse', 'dateOfBirth'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Intended Immigration Category</label>
-            <select
-              value={formData.immigrationInfo.intendedCategory}
-              onChange={(e) => handleImmigrationInfoChange('intendedCategory', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            >
-              <option value="">Select Category</option>
-              <option value="family-based">Family-Based</option>
-              <option value="employment-based">Employment-Based</option>
-              <option value="humanitarian">Humanitarian</option>
-              <option value="naturalization">Naturalization</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Spouse Nationality</label>
+            <input type="text" value={formData.personalInfo.spouse.nationality} onChange={e => handlePersonalInfoNestedChange(['spouse', 'nationality'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Spouse A-Number</label>
+            <input type="text" value={formData.personalInfo.spouse.alienRegistrationNumber} onChange={e => handlePersonalInfoNestedChange(['spouse', 'alienRegistrationNumber'], e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
           </div>
         </div>
-      </div>
+      </section>
 
+      {/* Children */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">Children Information
+          <button type="button" onClick={handleAddChild} className="px-3 py-1 text-sm text-primary-600 hover:text-primary-700 flex items-center ml-4">Add Child</button>
+        </h3>
+        {formData.personalInfo.children.length === 0 && <div className="text-gray-500">No children added.</div>}
+        {formData.personalInfo.children.map((child, index) => (
+          <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-md font-medium text-gray-800">Child {index + 1}</h4>
+              <button type="button" className="text-red-600 hover:text-red-700" onClick={() => handleRemoveChild(index)}>Remove</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">First Name</label>
+                <input type="text" value={child.firstName} onChange={e => handleUpdateChild(index, 'firstName', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                <input type="text" value={child.lastName} onChange={e => handleUpdateChild(index, 'lastName', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                <input type="date" value={child.dateOfBirth} onChange={e => handleUpdateChild(index, 'dateOfBirth', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Nationality</label>
+                <input type="text" value={child.nationality} onChange={e => handleUpdateChild(index, 'nationality', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">A-Number</label>
+                <input type="text" value={child.alienRegistrationNumber} onChange={e => handleUpdateChild(index, 'alienRegistrationNumber', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Employment */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Employment Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700">Current Employer Name</label>
+            <input type="text" value={formData.personalInfo.employment.currentEmployer.name} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'name'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Job Title</label>
+            <input type="text" value={formData.personalInfo.employment.jobTitle} onChange={e => handlePersonalInfoNestedChange(['employment', 'jobTitle'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Employment Start Date</label>
+            <input type="date" value={formData.personalInfo.employment.employmentStartDate} onChange={e => handlePersonalInfoNestedChange(['employment', 'employmentStartDate'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Annual Income ($)</label>
+            <input type="number" value={formData.personalInfo.employment.annualIncome || ''} onChange={e => handlePersonalInfoNestedChange(['employment', 'annualIncome'], Number(e.target.value))} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <h4 className="font-medium text-gray-900 mb-2">Employer Address</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700">Street Address</label>
+              <input type="text" value={formData.personalInfo.employment.currentEmployer.address.street} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'street'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">City</label>
+              <input type="text" value={formData.personalInfo.employment.currentEmployer.address.city} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'city'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">State</label>
+              <input type="text" value={formData.personalInfo.employment.currentEmployer.address.state} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'state'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">ZIP Code</label>
+              <input type="text" value={formData.personalInfo.employment.currentEmployer.address.zipCode} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'zipCode'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Country</label>
+              <input type="text" value={formData.personalInfo.employment.currentEmployer.address.country} onChange={e => handlePersonalInfoNestedChange(['employment', 'currentEmployer', 'address', 'country'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Education */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Education Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Highest Education Level</label>
+            <select value={formData.personalInfo.education.highestLevel} onChange={e => handlePersonalInfoNestedChange(['education', 'highestLevel'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg">
+              <option value="">Select Education Level</option>
+              <option value="high_school">High School</option>
+              <option value="associate">Associate Degree</option>
+              <option value="bachelor">Bachelor's Degree</option>
+              <option value="master">Master's Degree</option>
+              <option value="doctorate">Doctorate</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Institution Name</label>
+            <input type="text" value={formData.personalInfo.education.institutionName} onChange={e => handlePersonalInfoNestedChange(['education', 'institutionName'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Start Date</label>
+            <input type="date" value={formData.personalInfo.education.datesAttended.startDate} onChange={e => handlePersonalInfoNestedChange(['education', 'datesAttended', 'startDate'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">End Date</label>
+            <input type="date" value={formData.personalInfo.education.datesAttended.endDate} onChange={e => handlePersonalInfoNestedChange(['education', 'datesAttended', 'endDate'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Field of Study</label>
+            <input type="text" value={formData.personalInfo.education.fieldOfStudy} onChange={e => handlePersonalInfoNestedChange(['education', 'fieldOfStudy'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+        </div>
+      </section>
+
+      {/* Travel History */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">Travel History
+          <button type="button" onClick={handleAddTravelHistory} className="px-3 py-1 text-sm text-primary-600 hover:text-primary-700 flex items-center ml-4">Add Travel</button>
+        </h3>
+        {formData.personalInfo.travelHistory.length === 0 && <div className="text-gray-500">No travel records added.</div>}
+        {formData.personalInfo.travelHistory.map((travel, index) => (
+          <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-md font-medium text-gray-800">Travel Record {index + 1}</h4>
+              <button type="button" className="text-red-600 hover:text-red-700" onClick={() => handleRemoveTravelHistory(index)}>Remove</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Country</label>
+                <input type="text" value={travel.country} onChange={e => handleUpdateTravelHistory(index, 'country', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Visit Date</label>
+                <input type="date" value={travel.visitDate} onChange={e => handleUpdateTravelHistory(index, 'visitDate', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Purpose</label>
+                <select value={travel.purpose} onChange={e => handleUpdateTravelHistory(index, 'purpose', e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <option value="">Select Purpose</option>
+                  <option value="tourism">Tourism</option>
+                  <option value="business">Business</option>
+                  <option value="education">Education</option>
+                  <option value="family">Family</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Duration (days)</label>
+                <input type="number" value={travel.duration} onChange={e => handleUpdateTravelHistory(index, 'duration', Number(e.target.value))} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Financial Information */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Annual Income ($)</label>
+            <input type="number" value={formData.personalInfo.financialInfo.annualIncome || ''} onChange={e => handlePersonalInfoNestedChange(['financialInfo', 'annualIncome'], Number(e.target.value))} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Source of Funds</label>
+            <select value={formData.personalInfo.financialInfo.sourceOfFunds} onChange={e => handlePersonalInfoNestedChange(['financialInfo', 'sourceOfFunds'], e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg">
+              <option value="">Select Source</option>
+              <option value="employment">Employment</option>
+              <option value="investment">Investment</option>
+              <option value="family">Family</option>
+              <option value="savings">Savings</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Bank Account Balance ($)</label>
+            <input type="number" value={formData.personalInfo.financialInfo.bankAccountBalance || ''} onChange={e => handlePersonalInfoNestedChange(['financialInfo', 'bankAccountBalance'], Number(e.target.value))} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          </div>
+        </div>
+      </section>
+
+      {/* Criminal History */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Criminal History</h3>
+        <div className="space-y-4">
+          <div className="flex items-center">
+            <input type="checkbox" id="criminalHistory.hasCriminalRecord" checked={formData.personalInfo.criminalHistory.hasCriminalRecord} onChange={e => handlePersonalInfoNestedChange(['criminalHistory', 'hasCriminalRecord'], e.target.checked)} className="h-4 w-4 text-primary-600 border-gray-300 rounded" />
+            <label htmlFor="criminalHistory.hasCriminalRecord" className="ml-2 block text-sm text-gray-900">I have a criminal record</label>
+          </div>
+          {formData.personalInfo.criminalHistory.hasCriminalRecord && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Details</label>
+              <textarea value={formData.personalInfo.criminalHistory.details} onChange={e => handlePersonalInfoNestedChange(['criminalHistory', 'details'], e.target.value)} rows={4} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Please provide details about your criminal history..." />
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Medical History */}
+      <section className="bg-gray-50 rounded-xl p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Medical History</h3>
+        <div className="space-y-4">
+          <div className="flex items-center">
+            <input type="checkbox" id="medicalHistory.hasMedicalConditions" checked={formData.personalInfo.medicalHistory.hasMedicalConditions} onChange={e => handlePersonalInfoNestedChange(['medicalHistory', 'hasMedicalConditions'], e.target.checked)} className="h-4 w-4 text-primary-600 border-gray-300 rounded" />
+            <label htmlFor="medicalHistory.hasMedicalConditions" className="ml-2 block text-sm text-gray-900">I have medical conditions</label>
+          </div>
+          {formData.personalInfo.medicalHistory.hasMedicalConditions && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Details</label>
+              <textarea value={formData.personalInfo.medicalHistory.details} onChange={e => handlePersonalInfoNestedChange(['medicalHistory', 'details'], e.target.value)} rows={4} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Please provide details about your medical conditions..." />
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* --- NAVIGATION BUTTONS --- */}
       <div className="flex justify-between pt-6 border-t border-gray-200">
         <button
-          onClick={handlePrevious}
+          onClick={handlePrevious} // Assumes handlePrevious() exists
           className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2 hover:shadow-md"
+          disabled={isSaving} // Disable if saving
         >
-          <ArrowLeft className="h-5 w-5" />
+          {/* <ArrowLeft className="h-5 w-5" /> You may need to import this icon */}
           <span>Previous</span>
         </button>
+        
         <button
-          onClick={handleNext}
-          className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+          onClick={handleSaveAndNext} // Use our new handler
+          disabled={isSaving} // Disable button while saving
+          className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span>Next Step</span>
-          <ChevronRight className="h-5 w-5" />
+          {isSaving ? (
+            <span>Saving...</span>
+          ) : isDirty ? (
+            <span>Update and Next</span>
+          ) : (
+            <span>Next Step</span>
+          )}
+          {/* <ChevronRight className="h-5 w-5" /> You may need to import this icon */}
         </button>
       </div>
+      {/* --- END NAVIGATION BUTTONS --- */}
+
     </div>
   );
 
@@ -2127,7 +3318,13 @@ const IndividualImmigrationProcess: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Place of Birth:</span>
-                <span className="font-medium text-gray-900">{formData.personalInfo.placeOfBirth || 'Not provided'}</span>
+                <span className="font-medium text-gray-900">
+                  {(() => {
+                    const pob = formData.personalInfo.placeOfBirth;
+                    const parts = [pob.city, pob.state, pob.country].filter(Boolean);
+                    return parts.length ? parts.join(', ') : 'Not provided';
+                  })()}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Nationality:</span>
@@ -2173,7 +3370,7 @@ const IndividualImmigrationProcess: React.FC = () => {
         </div>
 
         {/* Immigration Information Preview */}
-        <div className="mt-6 pt-6 border-t border-blue-200">
+        {/* <div className="mt-6 pt-6 border-t border-blue-200">
           <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide mb-3">Immigration Information</h4>
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2 text-sm">
@@ -2197,7 +3394,7 @@ const IndividualImmigrationProcess: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* JSON Data Preview for Auto-fill */}
         <div className="mt-6 pt-6 border-t border-blue-200">
@@ -2324,7 +3521,7 @@ const IndividualImmigrationProcess: React.FC = () => {
             <p className="text-gray-600">Click the button below to auto-fill your {selectedForms[0]} form with all the information you've provided.</p>
           </div>
         </div>
-        
+
         {/* Data Summary */}
         <div className="bg-white rounded-lg p-4 mb-4 border border-blue-200">
           <h4 className="font-medium text-gray-900 mb-2">Data Summary</h4>
@@ -2353,16 +3550,15 @@ const IndividualImmigrationProcess: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="flex justify-center">
           <button
             onClick={handleAutoFillWithFormData}
             disabled={generatingForms}
-            className={`px-8 py-4 rounded-lg font-medium transition-all duration-200 flex items-center space-x-3 ${
-              generatingForms
+            className={`px-8 py-4 rounded-lg font-medium transition-all duration-200 flex items-center space-x-3 ${generatingForms
                 ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                 : 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
-            }`}
+              }`}
           >
             {generatingForms ? (
               <>
@@ -2526,14 +3722,12 @@ const IndividualImmigrationProcess: React.FC = () => {
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
-        return renderFormSelectionStep();
+        return renderPersonalDetailsStepExpanded();
       case 1:
-        return renderPersonalDetailsStep();
+        return renderFormSelectionStep();
       case 2:
-        return renderCaseDetailsStep();
-      case 3:
         return renderFormDetailsStep();
-      case 4:
+      case 3:
         return renderAutoFillStep();
       default:
         return null;
@@ -2572,8 +3766,8 @@ const IndividualImmigrationProcess: React.FC = () => {
             {steps.map((step, index) => (
               <div key={step.id} className="flex items-center">
                 <div className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-medium transition-all duration-300 ${index <= currentStep
-                    ? 'bg-blue-500 text-white shadow-lg'
-                    : 'bg-gray-200 text-gray-500'
+                  ? 'bg-blue-500 text-white shadow-lg'
+                  : 'bg-gray-200 text-gray-500'
                   }`}>
                   {index < currentStep ? <CheckCircle className="h-5 w-5" /> : index + 1}
                 </div>
@@ -2602,4 +3796,5 @@ const IndividualImmigrationProcess: React.FC = () => {
 };
 
 export default IndividualImmigrationProcess;
+
 
