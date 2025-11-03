@@ -11,7 +11,8 @@ import {
   X,
   BarChart,
   FileSearch,
-  UserCheck
+  UserCheck,
+  ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../../controllers/AuthControllers';
 import Logo from './Logo';
