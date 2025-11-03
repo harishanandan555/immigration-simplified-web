@@ -308,12 +308,20 @@ const DocumentsPage = () => {
       try {
         let response;
         
-        // For individual users, fetch only their documents
-        if (isClient && user?.userType === 'individualUser' && user.id) {
-          console.log('Fetching documents for individual user:', user.id);
-          response = await getDocumentsByClient(user.id);
+        // For individual users and company clients, fetch only their documents
+        if (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient') && user.id) {
+          console.log(`Fetching documents for ${user.userType}:`, user.id);
+          console.log('User email:', user.email);
+          console.log('User _id:', user._id);
+          
+          // For company clients, we need to ensure we're using the correct identifier
+          // Try multiple possible user identifiers to ensure we get the right documents
+          const clientIdentifier = user.id || user._id || user.email;
+          console.log('Using client identifier:', clientIdentifier);
+          
+          response = await getDocumentsByClient(clientIdentifier);
         } else {
-          // For attorneys, admins, and company clients - fetch all documents
+          // For attorneys, admins, and paralegals - fetch all documents
           response = await getDocuments();
         }
 
@@ -324,12 +332,34 @@ const DocumentsPage = () => {
           // The API seems to return response.data.data.documents instead of response.data.documents
           const responseData = response.data as any;
           const rawDocuments = responseData.data?.documents || responseData.documents || [];
-          const processedDocuments = processDocuments(rawDocuments);
+          
+          // Additional client-side filtering for company clients to ensure they only see their own documents
+          let filteredDocuments = rawDocuments;
+          if (isClient && user?.userType === 'companyClient') {
+            console.log('Applying additional filtering for company client');
+            filteredDocuments = rawDocuments.filter((doc: any) => {
+              // Check if document belongs to this company client
+              const docClientId = doc.clientId || doc.uploadedBy;
+              const userIdentifiers = [user.id, user._id, user.email].filter(Boolean);
+              
+              const isOwner = userIdentifiers.some(identifier => 
+                docClientId === identifier || 
+                doc.clientEmail === user.email ||
+                doc.uploadedBy === user.email
+              );
+              
+              console.log(`Document ${doc.name}: clientId=${docClientId}, userEmail=${user.email}, isOwner=${isOwner}`);
+              return isOwner;
+            });
+            console.log(`Filtered ${rawDocuments.length} documents down to ${filteredDocuments.length} for company client`);
+          }
+          
+          const processedDocuments = processDocuments(filteredDocuments);
           setDocuments(processedDocuments);
         } else {
           console.error("Failed to fetch documents", response.message);
-          // For individual users, show empty array instead of mock data
-          if (isClient && user?.userType === 'individualUser') {
+          // For individual users and company clients, show empty array instead of mock data
+          if (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) {
             setDocuments([]);
           } else {
             setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
@@ -337,8 +367,8 @@ const DocumentsPage = () => {
         }
       } catch (error) {
         console.error("Failed to fetch documents", error);
-        // For individual users, show empty array instead of mock data
-        if (isClient && user?.userType === 'individualUser') {
+        // For individual users and company clients, show empty array instead of mock data
+        if (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) {
           setDocuments([]);
         } else {
           setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
@@ -421,6 +451,38 @@ const DocumentsPage = () => {
   const documentTypes = ['all', ...new Set((documents || []).map(doc => doc.type))];
   const statusTypes = ['all', 'Verified', 'Pending Review', 'Needs Update', 'Rejected', 'Archived'];
 
+  // Helper function to check if current user can perform actions on a document
+  const canUserAccessDocument = (document: Document & { userType?: string }): boolean => {
+    // For company clients, they can only access documents they uploaded or that belong to them
+    if (isClient && user?.userType === 'companyClient') {
+      const userIdentifiers = [user.id, user._id, user.email].filter(Boolean);
+      const canAccess = userIdentifiers.some(identifier => 
+        document.clientId === identifier || 
+        document.uploadedBy === identifier ||
+        document.uploadedBy === user.email ||
+        (document as any).clientEmail === user.email || // Check clientEmail field
+        (document as any).clientEmail === identifier
+      );
+      console.log(`canUserAccessDocument for ${document.name}: clientId=${document.clientId}, uploadedBy=${document.uploadedBy}, clientEmail=${(document as any).clientEmail}, userEmail=${user.email}, canAccess=${canAccess}`);
+      return canAccess;
+    }
+    
+    // For individual users, they can only access their own documents
+    if (isClient && user?.userType === 'individualUser') {
+      const userIdentifiers = [user.id, user._id, user.email].filter(Boolean);
+      return userIdentifiers.some(identifier => 
+        document.clientId === identifier || 
+        document.uploadedBy === identifier ||
+        document.uploadedBy === user.email ||
+        (document as any).clientEmail === user.email || // Check clientEmail field
+        (document as any).clientEmail === identifier
+      );
+    }
+    
+    // For attorneys, paralegals, and admins - they can access all documents
+    return true;
+  };
+
   // Enable filtering with user-specific logic
   const filteredDocuments = documents.filter(doc => {
     const docName = doc.name || '';
@@ -430,16 +492,26 @@ const DocumentsPage = () => {
     const matchesType = selectedType === 'all' || doc.type === selectedType;
     const matchesStatus = selectedStatus === 'all' || doc.status === selectedStatus;
     
-    // For individual users, skip client filtering (they only see their own documents)
+    // For individual users and company clients, skip client filtering (they only see their own documents)
     // For others, apply client filtering
-    const matchesClient = (isClient && user?.userType === 'individualUser') 
+    const matchesClient = (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) 
       ? true 
       : (selectedClient === 'all' || doc.clientId === selectedClient);
+    
+    // Additional security check: ensure users can only access documents they're authorized to see
+    const canAccess = canUserAccessDocument(doc);
+    
+    const finalResult = matchesSearch && matchesType && matchesStatus && matchesClient && canAccess;
+    
+    // Debug logging for company clients
+    if (isClient && user?.userType === 'companyClient') {
+      console.log(`Final filter for ${doc.name}: search=${matchesSearch}, type=${matchesType}, status=${matchesStatus}, client=${matchesClient}, canAccess=${canAccess}, final=${finalResult}`);
+      console.log(`Selected filters: type=${selectedType}, status=${selectedStatus}, search="${searchTerm}"`);
+    }
       
-    return matchesSearch && matchesType && matchesStatus && matchesClient;
+    return finalResult;
   });
 
-  
   // Helper function to get client name by ID
   const getClientNameById = (clientId: string, doc?: any): string => {
     // First try to find client by ID
@@ -500,22 +572,22 @@ const DocumentsPage = () => {
   };
 
   const handleUpload = async () => {
-    // Auto-set client ID for individual users - try multiple possible ID fields
-    const effectiveClientId = (isClient && user?.userType === 'individualUser') 
+    // Auto-set client ID for individual users and company clients - try multiple possible ID fields
+    const effectiveClientId = (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) 
       ? (user.id || user._id || user.email)
       : uploadClientId;
       
-    console.log('User object for individual user:', user);
+    console.log(`User object for ${user?.userType}:`, user);
     console.log('Effective Client ID for upload:', effectiveClientId);
     
-    // For individual users, only check if file is selected
+    // For individual users and company clients, only check if file is selected
     // For other users, check both file and client selection
     if (!fileToUpload) {
       console.error('Please select a file.');
       return;
     }
     
-    if (!(isClient && user?.userType === 'individualUser') && !uploadClientId) {
+    if (!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && !uploadClientId) {
       console.error('Please select a client.');
       return;
     }
@@ -527,7 +599,7 @@ const DocumentsPage = () => {
 
     try {
       // Find the selected client to get their name and email
-      const selectedClient = (isClient && user?.userType === 'individualUser')
+      const selectedClient = (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient'))
         ? { 
             _id: effectiveClientId, 
             name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown Client', 
@@ -551,6 +623,14 @@ const DocumentsPage = () => {
       // Add user type information
       if (user?.userType) {
         formData.append('userType', user.userType);
+      }
+      
+      // For company clients, add additional identification to ensure document ownership
+      if (isClient && user?.userType === 'companyClient') {
+        formData.append('uploadedBy', user.email || user.id || user._id || '');
+        if (user.companyId) {
+          formData.append('companyId', user.companyId);
+        }
       }
       
       // Add optional fields if they exist
@@ -704,7 +784,19 @@ const DocumentsPage = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Documents</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Documents</h1>
+          {isClient && user?.userType === 'companyClient' && (
+            <p className="text-sm text-gray-600 mt-1">
+              Viewing your documents only. You can upload and manage your own documents here.
+            </p>
+          )}
+          {isClient && user?.userType === 'individualUser' && (
+            <p className="text-sm text-gray-600 mt-1">
+              Viewing your personal documents only.
+            </p>
+          )}
+        </div>
         <div className="flex gap-3">
           <button
             onClick={() => setShowUploadModal(true)}
@@ -713,10 +805,12 @@ const DocumentsPage = () => {
             <Upload size={18} />
             <span>Upload Document</span>
           </button>
-          <button className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-md transition-colors">
-            <FolderPlus size={18} />
-            <span>New Folder</span>
-          </button>
+          {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
+            <button className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-md transition-colors">
+              <FolderPlus size={18} />
+              <span>New Folder</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -734,8 +828,8 @@ const DocumentsPage = () => {
             <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
           </div>
           <div className="flex gap-2 flex-wrap">
-            {/* Hide client filter for individual users */}
-            {!(isClient && user?.userType === 'individualUser') && (
+            {/* Hide client filter for individual users and company clients */}
+            {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
               <select
                 className="border border-gray-300 rounded-md pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-700 bg-white"
                 value={selectedClient}
@@ -779,8 +873,8 @@ const DocumentsPage = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {/* Hide client column for individual users */}
-                {!(isClient && user?.userType === 'individualUser') && (
+                {/* Hide client column for individual users and company clients */}
+                {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Client
                   </th>
@@ -793,7 +887,7 @@ const DocumentsPage = () => {
                   Type
                 </th>
                 {/* Show User Type column for attorneys/paralegals */}
-                {!(isClient && user?.userType === 'individualUser') && (
+                {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     User Type
                   </th>
@@ -818,8 +912,8 @@ const DocumentsPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredDocuments.map((doc) => (
                 <tr key={doc._id} className="hover:bg-gray-50">
-                  {/* Hide client cell for individual users */}
-                  {!(isClient && user?.userType === 'individualUser') && (
+                  {/* Hide client cell for individual users and company clients */}
+                  {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <Users className="flex-shrink-0 h-4 w-4 text-gray-400 mr-2" />
@@ -843,7 +937,7 @@ const DocumentsPage = () => {
                     <div className="text-sm text-gray-900">{doc.type}</div>
                   </td>
                   {/* Show User Type cell for attorneys/paralegals */}
-                  {!(isClient && user?.userType === 'individualUser') && (
+                  {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         doc.userType === 'individualUser' 
@@ -883,8 +977,8 @@ const DocumentsPage = () => {
                       <button onClick={() => handleDownload(doc._id, doc.name)} className="text-gray-400 hover:text-gray-500">
                         <Download size={18} />
                       </button>
-                      {/* Hide delete and admin actions for individual users */}
-                      {!(isClient && user?.userType === 'individualUser') && (
+                      {/* Hide delete and admin actions for individual users and company clients */}
+                      {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                         <>
                           <button onClick={() => handleDelete(doc._id)} className="text-gray-400 hover:text-gray-500">
                             <Trash2 size={18} />
@@ -923,7 +1017,12 @@ const DocumentsPage = () => {
               <FileText className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No documents found</h3>
               <p className="mt-1 text-sm text-gray-500">
-                Get started by uploading a new document.
+                {isClient && user?.userType === 'companyClient' 
+                  ? 'You haven\'t uploaded any documents yet. Upload your first document to get started.'
+                  : isClient && user?.userType === 'individualUser'
+                  ? 'You haven\'t uploaded any documents yet. Upload your first document to get started.'
+                  : 'Get started by uploading a new document.'
+                }
               </p>
               <div className="mt-6">
                 <button
@@ -976,8 +1075,8 @@ const DocumentsPage = () => {
                     </h3>
                     <div className="mt-4">
                       <div className="space-y-4">
-                        {/* Hide client selection for individual users */}
-                        {!(isClient && user?.userType === 'individualUser') && (
+                        {/* Hide client selection for individual users and company clients */}
+                        {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700">
                               Client
@@ -1028,22 +1127,22 @@ const DocumentsPage = () => {
                         
                         <div>
                           <label className="block text-sm font-medium text-gray-700">
-                            Related Case {!(isClient && user?.userType === 'individualUser') && <span className="text-red-500">*</span>}
-                            {(isClient && user?.userType === 'individualUser') && <span className="text-gray-400 text-xs ml-1">(Optional)</span>}
+                            Related Case {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && <span className="text-red-500">*</span>}
+                            {(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && <span className="text-gray-400 text-xs ml-1">(Optional)</span>}
                           </label>
                           <select 
                             value={uploadCaseNumber} 
                             onChange={(e) => setUploadCaseNumber(e.target.value)} 
                             className="mt-1 form-select"
-                            disabled={loadingWorkflows || (!uploadClientId && !(isClient && user?.userType === 'individualUser'))}
+                            disabled={loadingWorkflows || (!uploadClientId && !(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')))}
                           >
                             <option value="">
                               {loadingWorkflows ? 'Loading cases...' : 
-                               (isClient && user?.userType === 'individualUser') ? 'Select a case (optional)' :
+                               (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) ? 'Select a case (optional)' :
                                !uploadClientId ? 'Select a client first' : 'Select a case'}
                             </option>
-                            {(isClient && user?.userType === 'individualUser') ? (
-                              // For individual users, show all available cases
+                            {(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) ? (
+                              // For individual users and company clients, show all available cases
                               availableCases.map((caseOption) => (
                                 <option key={caseOption.id} value={caseOption.caseNumber}>
                                   {caseOption.caseNumber} - {caseOption.clientName}
@@ -1060,7 +1159,7 @@ const DocumentsPage = () => {
                               ))
                             )}
                             {/* Show all cases if no client selected (non-individual users) */}
-                            {!uploadClientId && !(isClient && user?.userType === 'individualUser') && availableCases.map((caseOption) => (
+                            {!uploadClientId && !(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && availableCases.map((caseOption) => (
                               <option key={caseOption.id} value={caseOption.caseNumber}>
                                 {caseOption.caseNumber} - {caseOption.clientName}
                                 {caseOption.formName ? ` (${caseOption.formName})` : ''}
@@ -1074,12 +1173,12 @@ const DocumentsPage = () => {
                               </>
                             )}
                           </select>
-                          {uploadClientId && getAvailableCasesForClient().length === 0 && !loadingWorkflows && !(isClient && user?.userType === 'individualUser') && (
+                          {uploadClientId && getAvailableCasesForClient().length === 0 && !loadingWorkflows && !(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                             <p className="mt-1 text-xs text-orange-600">
                               No cases found for this client. You can still enter a case number manually.
                             </p>
                           )}
-                          {(isClient && user?.userType === 'individualUser') && (
+                          {(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                             <p className="mt-1 text-xs text-gray-500">
                               You can optionally link this document to one of your cases.
                             </p>
