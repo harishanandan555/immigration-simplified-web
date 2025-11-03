@@ -601,12 +601,7 @@ useEffect(() => {
         }
       }
       
-      console.log('✅ Including task in upcoming deadlines:', {
-        title: task.title,
-        dueDate: task.dueDate,
-        daysDifference,
-        isOverdue: daysDifference < 0
-      });
+      
       return true;
     })
     .map((task: any) => {
@@ -676,38 +671,38 @@ useEffect(() => {
     .slice(0, 5);
 
   // Debug upcoming deadlines mapping
-  console.log('📊 Dashboard: Upcoming deadlines mapping result:', {
-    totalTasksFromAPI: tasks.length,
-    filteredUpcomingDeadlines: upcomingDeadlines.length,
-    sampleTasks: tasks.slice(0, 3).map(task => ({
-      id: task._id || task.id,
-      title: task.title,
-      dueDate: task.dueDate,
-      dueDateParsed: task.dueDate ? new Date(task.dueDate).toISOString() : null,
-      isValidDate: task.dueDate ? !isNaN(new Date(task.dueDate).getTime()) : false,
-      isFuture: task.dueDate ? new Date(task.dueDate) > new Date() : false,
-      assignedTo: task.assignedTo,
-      clientId: task.clientId
-    })),
-    userContext: { isClient, userId: user?.id },
-    currentTime: new Date().toISOString(),
-    upcomingDeadlinesSample: upcomingDeadlines.slice(0, 2).map(task => ({
-      id: task.id,
-      title: task.title,
-      dueDate: task.dueDate,
-      caseId: task.caseId,
-      clientName: task.clientName,
-      assignedToName: task.assignedToName,
-      isOverdue: task.isOverdue,
-      isUrgent: task.isUrgent,
-      daysLeft: task.daysLeft
-    }))
-  });
+  // console.log('📊 Dashboard: Upcoming deadlines mapping result:', {
+  //   totalTasksFromAPI: tasks.length,
+  //   filteredUpcomingDeadlines: upcomingDeadlines.length,
+  //   sampleTasks: tasks.slice(0, 3).map(task => ({
+  //     id: task._id || task.id,
+  //     title: task.title,
+  //     dueDate: task.dueDate,
+  //     dueDateParsed: task.dueDate ? new Date(task.dueDate).toISOString() : null,
+  //     isValidDate: task.dueDate ? !isNaN(new Date(task.dueDate).getTime()) : false,
+  //     isFuture: task.dueDate ? new Date(task.dueDate) > new Date() : false,
+  //     assignedTo: task.assignedTo,
+  //     clientId: task.clientId
+  //   })),
+  //   userContext: { isClient, userId: user?.id },
+  //   currentTime: new Date().toISOString(),
+  //   upcomingDeadlinesSample: upcomingDeadlines.slice(0, 2).map(task => ({
+  //     id: task.id,
+  //     title: task.title,
+  //     dueDate: task.dueDate,
+  //     caseId: task.caseId,
+  //     clientName: task.clientName,
+  //     assignedToName: task.assignedToName,
+  //     isOverdue: task.isOverdue,
+  //     isUrgent: task.isUrgent,
+  //     daysLeft: task.daysLeft
+  //   }))
+  // });
 
-  console.log('🔍 Using deadlines for display:', {
-    deadlinesCount: upcomingDeadlines.length,
-    realDeadlines: upcomingDeadlines.slice(0, 2)
-  });
+  // console.log('🔍 Using deadlines for display:', {
+  //   deadlinesCount: upcomingDeadlines.length,
+  //   realDeadlines: upcomingDeadlines.slice(0, 2)
+  // });
 
   // Status counts for charts with validation
   const statusCounts = filteredCases.reduce((acc: any, c: any) => {
@@ -736,12 +731,7 @@ useEffect(() => {
     }
   ].filter(item => item.cases > 0); // Only show categories with cases
 
-  console.log('📊 Dashboard Chart Data:', {
-    statusData: statusData,
-    typeData: typeData,
-    filteredCasesCount: filteredCases.length,
-    sampleCaseTypes: filteredCases.slice(0, 5).map(c => ({ type: c.type, category: c.category, subcategory: c.subcategory }))
-  });
+  
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
