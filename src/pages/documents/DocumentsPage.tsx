@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { 
-  Search, 
+import {
+  Search,
   Upload,
   FileText,
   Download,
@@ -12,8 +12,8 @@ import {
   XCircle,
   Pencil
 } from 'lucide-react';
-import { 
-  Document, 
+import {
+  Document,
   getDocuments,
   getDocumentsByClient,
   deleteDocument,
@@ -25,6 +25,7 @@ import {
 import { getCompanyClients, Client as BaseClient } from '../../controllers/ClientControllers';
 import { useAuth } from '../../controllers/AuthControllers';
 import api from '../../utils/api';
+import { set } from 'date-fns';
 
 // Extend Client type to allow _id for MongoDB compatibility
 type Client = BaseClient & { _id?: string };
@@ -145,6 +146,7 @@ const DocumentsPage = () => {
   const [workflowClients, setWorkflowClients] = useState<WorkflowClient[]>([]);
   const [availableCases, setAvailableCases] = useState<CaseOption[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
 
   // Upload state
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
@@ -153,11 +155,11 @@ const DocumentsPage = () => {
   const [uploadCaseNumber, setUploadCaseNumber] = useState('');
   const [uploadDescription, setUploadDescription] = useState('');
   // Edit state
-    const [showEditModal, setShowEditModal] = useState(false);
-    // Keep editingDocument in sync with the local extended Document shape
-    const [editingDocument, setEditingDocument] = useState<(Document & { userType?: string }) | null>(null);
-    const [updateName, setUpdateName] = useState('');
-    const [updateDescription, setUpdateDescription] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  // Keep editingDocument in sync with the local extended Document shape
+  const [editingDocument, setEditingDocument] = useState<(Document & { userType?: string }) | null>(null);
+  const [updateName, setUpdateName] = useState('');
+  const [updateDescription, setUpdateDescription] = useState('');
 
   // Enhanced function to fetch workflows and extract client names and case IDs
   const fetchWorkflowsFromAPI = async () => {
@@ -180,7 +182,7 @@ const DocumentsPage = () => {
 
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        
+
         // Extract unique clients from workflows
         const clientsMap = new Map<string, WorkflowClient>();
         const casesArray: CaseOption[] = [];
@@ -188,18 +190,18 @@ const DocumentsPage = () => {
         workflows.forEach((workflow: Workflow) => {
           const workflowClient = workflow.client || {};
           const workflowCase = workflow.case || {};
-          
-          
+
+
           // Extract client information
           if (workflowClient.email || workflowClient.name || workflowClient.firstName) {
             // Use email as primary identifier since workflow client IDs are often empty
             const clientEmail = workflowClient.email;
             const clientId = clientEmail || workflowClient.id || workflowClient._id || workflow._id;
-            const clientName = workflowClient.name || 
-                             (workflowClient.firstName && workflowClient.lastName ? 
-                              `${workflowClient.firstName} ${workflowClient.lastName}` : 
-                              workflowClient.firstName || workflowClient.lastName || 
-                              workflowClient.email || 'Unknown Client');
+            const clientName = workflowClient.name ||
+              (workflowClient.firstName && workflowClient.lastName ?
+                `${workflowClient.firstName} ${workflowClient.lastName}` :
+                workflowClient.firstName || workflowClient.lastName ||
+                workflowClient.email || 'Unknown Client');
 
             if (!clientsMap.has(clientId)) {
               clientsMap.set(clientId, {
@@ -250,8 +252,8 @@ const DocumentsPage = () => {
         });
 
         const uniqueClients = Array.from(clientsMap.values());
-        
-        
+
+
         return {
           workflows: workflows,
           clients: uniqueClients,
@@ -290,7 +292,7 @@ const DocumentsPage = () => {
 
   // Helper function to process documents and add missing fields
   const processDocuments = (documents: any[]): Document[] => {
-    
+
     const processed = documents.map(doc => {
       return {
         ...doc,
@@ -299,26 +301,27 @@ const DocumentsPage = () => {
         uploadedBy: doc.uploadedBy || 'Unknown User'
       };
     });
-    
+
     return processed;
   };
 
   useEffect(() => {
     const fetchDocuments = async () => {
       try {
+        setLoadingDocuments(true);
         let response;
-        
+
         // For individual users and company clients, fetch only their documents
         if (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient') && user.id) {
           console.log(`Fetching documents for ${user.userType}:`, user.id);
           console.log('User email:', user.email);
           console.log('User _id:', user._id);
-          
+          setLoadingDocuments(true);
           // For company clients, we need to ensure we're using the correct identifier
           // Try multiple possible user identifiers to ensure we get the right documents
           const clientIdentifier = user.id || user._id || user.email;
           console.log('Using client identifier:', clientIdentifier);
-          
+
           response = await getDocumentsByClient(clientIdentifier);
         } else {
           // For attorneys, admins, and paralegals - fetch all documents
@@ -326,13 +329,13 @@ const DocumentsPage = () => {
         }
 
         console.log('Fetched documents response:', response);
-        
+
         if (response.success) {
           // Handle the actual API response structure
           // The API seems to return response.data.data.documents instead of response.data.documents
           const responseData = response.data as any;
           const rawDocuments = responseData.data?.documents || responseData.documents || [];
-          
+
           // Additional client-side filtering for company clients to ensure they only see their own documents
           let filteredDocuments = rawDocuments;
           if (isClient && user?.userType === 'companyClient') {
@@ -341,37 +344,39 @@ const DocumentsPage = () => {
               // Check if document belongs to this company client
               const docClientId = doc.clientId || doc.uploadedBy;
               const userIdentifiers = [user.id, user._id, user.email].filter(Boolean);
-              
-              const isOwner = userIdentifiers.some(identifier => 
-                docClientId === identifier || 
+
+              const isOwner = userIdentifiers.some(identifier =>
+                docClientId === identifier ||
                 doc.clientEmail === user.email ||
                 doc.uploadedBy === user.email
               );
-              
+
               console.log(`Document ${doc.name}: clientId=${docClientId}, userEmail=${user.email}, isOwner=${isOwner}`);
               return isOwner;
             });
             console.log(`Filtered ${rawDocuments.length} documents down to ${filteredDocuments.length} for company client`);
           }
-          
+
           const processedDocuments = processDocuments(filteredDocuments);
           setDocuments(processedDocuments);
         } else {
+          setLoadingDocuments(false);
           console.error("Failed to fetch documents", response.message);
           // For individual users and company clients, show empty array instead of mock data
           if (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) {
             setDocuments([]);
           } else {
-            setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
+            setDocuments(mockDocuments.map(d => ({ ...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
           }
         }
       } catch (error) {
+        setLoadingDocuments(false);
         console.error("Failed to fetch documents", error);
         // For individual users and company clients, show empty array instead of mock data
         if (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) {
           setDocuments([]);
         } else {
-          setDocuments(mockDocuments.map(d => ({...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
+          setDocuments(mockDocuments.map(d => ({ ...d, _id: d.id, size: parseInt(d.size), mimeType: 'application/pdf', uploadedAt: new Date(d.uploadedAt).toISOString(), version: 1, isPublic: false, createdAt: new Date(d.uploadedAt).toISOString(), updatedAt: new Date(d.uploadedAt).toISOString(), status: d.status as any, sizeFormatted: d.size })));
         }
       }
     };
@@ -386,22 +391,22 @@ const DocumentsPage = () => {
         setClients([]);
       }
     };
-    
+
     const fetchWorkflowData = async () => {
       try {
         const workflowData = await fetchWorkflowsFromAPI();
         setWorkflows(workflowData.workflows);
         setWorkflowClients(workflowData.clients);
         setAvailableCases(workflowData.cases);
-        
+
         // Merge workflow clients with existing clients (avoid duplicates by email)
         if (workflowData.clients.length > 0) {
           setClients(prev => {
             const existingClientEmails = new Set(prev.map(c => c.email?.toLowerCase()));
-            const newClients = workflowData.clients.filter(wc => 
+            const newClients = workflowData.clients.filter(wc =>
               wc.email && !existingClientEmails.has(wc.email.toLowerCase())
             );
-            
+
             const convertedClients = newClients.map(wc => ({
               _id: wc.email || wc._id || wc.id || '',
               firstName: wc.firstName || wc.name?.split(' ')[0] || '',
@@ -436,7 +441,7 @@ const DocumentsPage = () => {
         console.error('Failed to fetch workflow data', error);
       }
     };
-    
+
     fetchDocuments();
     fetchClients();
     fetchWorkflowData();
@@ -456,8 +461,8 @@ const DocumentsPage = () => {
     // For company clients, they can only access documents they uploaded or that belong to them
     if (isClient && user?.userType === 'companyClient') {
       const userIdentifiers = [user.id, user._id, user.email].filter(Boolean);
-      const canAccess = userIdentifiers.some(identifier => 
-        document.clientId === identifier || 
+      const canAccess = userIdentifiers.some(identifier =>
+        document.clientId === identifier ||
         document.uploadedBy === identifier ||
         document.uploadedBy === user.email ||
         (document as any).clientEmail === user.email || // Check clientEmail field
@@ -466,19 +471,19 @@ const DocumentsPage = () => {
       console.log(`canUserAccessDocument for ${document.name}: clientId=${document.clientId}, uploadedBy=${document.uploadedBy}, clientEmail=${(document as any).clientEmail}, userEmail=${user.email}, canAccess=${canAccess}`);
       return canAccess;
     }
-    
+
     // For individual users, they can only access their own documents
     if (isClient && user?.userType === 'individualUser') {
       const userIdentifiers = [user.id, user._id, user.email].filter(Boolean);
-      return userIdentifiers.some(identifier => 
-        document.clientId === identifier || 
+      return userIdentifiers.some(identifier =>
+        document.clientId === identifier ||
         document.uploadedBy === identifier ||
         document.uploadedBy === user.email ||
         (document as any).clientEmail === user.email || // Check clientEmail field
         (document as any).clientEmail === identifier
       );
     }
-    
+
     // For attorneys, paralegals, and admins - they can access all documents
     return true;
   };
@@ -488,27 +493,27 @@ const DocumentsPage = () => {
     const docName = doc.name || '';
     const caseNum = doc.caseNumber || '';
     const matchesSearch = docName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         caseNum.toLowerCase().includes(searchTerm.toLowerCase());
+      caseNum.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = selectedType === 'all' || doc.type === selectedType;
     const matchesStatus = selectedStatus === 'all' || doc.status === selectedStatus;
-    
+
     // For individual users and company clients, skip client filtering (they only see their own documents)
     // For others, apply client filtering
-    const matchesClient = (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) 
-      ? true 
+    const matchesClient = (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient'))
+      ? true
       : (selectedClient === 'all' || doc.clientId === selectedClient);
-    
+
     // Additional security check: ensure users can only access documents they're authorized to see
     const canAccess = canUserAccessDocument(doc);
-    
+
     const finalResult = matchesSearch && matchesType && matchesStatus && matchesClient && canAccess;
-    
+
     // Debug logging for company clients
     if (isClient && user?.userType === 'companyClient') {
       console.log(`Final filter for ${doc.name}: search=${matchesSearch}, type=${matchesType}, status=${matchesStatus}, client=${matchesClient}, canAccess=${canAccess}, final=${finalResult}`);
       console.log(`Selected filters: type=${selectedType}, status=${selectedStatus}, search="${searchTerm}"`);
     }
-      
+
     return finalResult;
   });
 
@@ -516,12 +521,12 @@ const DocumentsPage = () => {
   const getClientNameById = (clientId: string, doc?: any): string => {
     // First try to find client by ID
     let client = (clients || []).find(c => (c._id || c.id) === clientId);
-    
+
     // If not found by ID, try to find by email if document has clientEmail
     if (!client && doc?.clientEmail) {
       client = (clients || []).find(c => c.email?.toLowerCase() === doc.clientEmail?.toLowerCase());
     }
-    
+
     // If still not found, try workflow clients by email
     if (!client && doc?.clientEmail) {
       const workflowClient = workflowClients.find(wc => wc.email?.toLowerCase() === doc.clientEmail?.toLowerCase());
@@ -529,22 +534,22 @@ const DocumentsPage = () => {
         return workflowClient.name || workflowClient.email || 'Unknown Client';
       }
     }
-    
+
     // If we have a client, return their name
     if (client) {
       return client.name || `${client.firstName || ''} ${client.lastName || ''}`.trim() || client.email || 'Unknown Client';
     }
-    
+
     // Fallback: if document has clientName, use that
     if (doc?.clientName) {
       return doc.clientName;
     }
-    
+
     // Fallback: if document has clientEmail, use that
     if (doc?.clientEmail) {
       return doc.clientEmail;
     }
-    
+
     return 'Unknown Client';
   };
 
@@ -553,15 +558,15 @@ const DocumentsPage = () => {
     if (!uploadClientId) {
       return availableCases;
     }
-    
+
     // Find the selected client to get their email for matching
     const selectedClient = (clients || []).find(c => (c._id || c.id) === uploadClientId);
     const selectedClientEmail = selectedClient?.email;
-    
+
     // Filter cases by both client ID and email (since workflow clients use email as ID)
     return availableCases.filter(caseOption => {
-      return caseOption.clientId === uploadClientId || 
-             (selectedClientEmail && caseOption.clientId === selectedClientEmail);
+      return caseOption.clientId === uploadClientId ||
+        (selectedClientEmail && caseOption.clientId === selectedClientEmail);
     });
   };
 
@@ -573,25 +578,25 @@ const DocumentsPage = () => {
 
   const handleUpload = async () => {
     // Auto-set client ID for individual users and company clients - try multiple possible ID fields
-    const effectiveClientId = (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) 
+    const effectiveClientId = (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient'))
       ? (user.id || user._id || user.email)
       : uploadClientId;
-      
+
     console.log(`User object for ${user?.userType}:`, user);
     console.log('Effective Client ID for upload:', effectiveClientId);
-    
+
     // For individual users and company clients, only check if file is selected
     // For other users, check both file and client selection
     if (!fileToUpload) {
       console.error('Please select a file.');
       return;
     }
-    
+
     if (!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && !uploadClientId) {
       console.error('Please select a client.');
       return;
     }
-    
+
     if (!effectiveClientId) {
       console.error('Unable to determine client information. User ID, _ID, or email not available.');
       return;
@@ -600,13 +605,13 @@ const DocumentsPage = () => {
     try {
       // Find the selected client to get their name and email
       const selectedClient = (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient'))
-        ? { 
-            _id: effectiveClientId, 
-            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown Client', 
-            email: user.email 
-          }
+        ? {
+          _id: effectiveClientId,
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown Client',
+          email: user.email
+        }
         : (clients || []).find(c => (c._id || c.id) === effectiveClientId);
-      
+
       const clientName = selectedClient?.name || 'Unknown Client';
       const clientEmail = selectedClient?.email || '';
 
@@ -619,12 +624,12 @@ const DocumentsPage = () => {
         formData.append('clientEmail', clientEmail);
       }
       formData.append('type', uploadDocType);
-      
+
       // Add user type information
       if (user?.userType) {
         formData.append('userType', user.userType);
       }
-      
+
       // For company clients, add additional identification to ensure document ownership
       if (isClient && user?.userType === 'companyClient') {
         formData.append('uploadedBy', user.email || user.id || user._id || '');
@@ -632,7 +637,7 @@ const DocumentsPage = () => {
           formData.append('companyId', user.companyId);
         }
       }
-      
+
       // Add optional fields if they exist
       if (uploadCaseNumber) {
         formData.append('caseNumber', uploadCaseNumber);
@@ -669,16 +674,16 @@ const DocumentsPage = () => {
       }
     } catch (error: any) {
       console.error('❌ Failed to upload document:', error);
-      
+
       let errorMessage = 'An error occurred during upload';
-      
+
       if (error.response) {
         // Server responded with error status
         console.error('Server error response:', error.response);
-        errorMessage = error.response.data?.message || 
-                      error.response.data?.error?.message ||
-                      error.response.data?.error ||
-                      `Server error: ${error.response.status} ${error.response.statusText}`;
+        errorMessage = error.response.data?.message ||
+          error.response.data?.error?.message ||
+          error.response.data?.error ||
+          `Server error: ${error.response.status} ${error.response.statusText}`;
       } else if (error.request) {
         // Request was made but no response received
         console.error('No response received:', error.request);
@@ -688,7 +693,7 @@ const DocumentsPage = () => {
         console.error('Request setup error:', error.message);
         errorMessage = error.message;
       }
-      
+
       console.error(`Upload error: ${errorMessage}`);
     }
   };
@@ -754,7 +759,7 @@ const DocumentsPage = () => {
     try {
       const response = await verifyDocument(documentId);
       if (response.success) {
-        setDocuments(documents.map(d => d._id === documentId ? {...d, status: 'Verified'} : d));
+        setDocuments(documents.map(d => d._id === documentId ? { ...d, status: 'Verified' } : d));
       } else {
         console.error(`Failed to verify document: ${response.message}`);
       }
@@ -770,7 +775,7 @@ const DocumentsPage = () => {
       try {
         const response = await rejectDocument(documentId, reason);
         if (response.success) {
-          setDocuments(documents.map(d => d._id === documentId ? {...d, status: 'Rejected'} : d));
+          setDocuments(documents.map(d => d._id === documentId ? { ...d, status: 'Rejected' } : d));
         } else {
           console.error(`Failed to reject document: ${response.message}`);
         }
@@ -882,7 +887,7 @@ const DocumentsPage = () => {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Document
                 </th>
- 
+
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Type
                 </th>
@@ -910,7 +915,16 @@ const DocumentsPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredDocuments.map((doc) => (
+              {loadingDocuments ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-16">
+                    <div className="flex flex-col justify-center items-center space-y-3">
+                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-b-transparent border-primary-600"></div>
+                      <span className="text-sm text-gray-600">Loading Documents...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (filteredDocuments.map((doc) => (
                 <tr key={doc._id} className="hover:bg-gray-50">
                   {/* Hide client cell for individual users and company clients */}
                   {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
@@ -932,23 +946,22 @@ const DocumentsPage = () => {
                       </div>
                     </div>
                   </td>
-                  
+
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{doc.type}</div>
                   </td>
                   {/* Show User Type cell for attorneys/paralegals */}
                   {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && (
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        doc.userType === 'individualUser' 
-                          ? 'bg-blue-100 text-blue-800'
-                          : doc.userType === 'companyClient'
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${doc.userType === 'individualUser'
+                        ? 'bg-blue-100 text-blue-800'
+                        : doc.userType === 'companyClient'
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {doc.userType === 'individualUser' ? 'Individual' : 
-                         doc.userType === 'companyClient' ? 'Company' : 
-                         doc.userType || 'Unknown'}
+                        }`}>
+                        {doc.userType === 'individualUser' ? 'Individual' :
+                          doc.userType === 'companyClient' ? 'Company' :
+                            doc.userType || 'Unknown'}
                       </span>
                     </td>
                   )}
@@ -956,13 +969,12 @@ const DocumentsPage = () => {
                     <div className="text-sm text-primary-600">{doc.caseNumber}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      doc.status === 'Verified' 
-                        ? 'bg-green-100 text-green-800'
-                        : doc.status === 'Pending Review'
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${doc.status === 'Verified'
+                      ? 'bg-green-100 text-green-800'
+                      : doc.status === 'Pending Review'
                         ? 'bg-yellow-100 text-yellow-800'
                         : 'bg-red-100 text-red-800'
-                    }`}>
+                      }`}>
                       {doc.status}
                     </span>
                   </td>
@@ -1008,7 +1020,8 @@ const DocumentsPage = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
+
             </tbody>
           </table>
 
@@ -1017,11 +1030,11 @@ const DocumentsPage = () => {
               <FileText className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No documents found</h3>
               <p className="mt-1 text-sm text-gray-500">
-                {isClient && user?.userType === 'companyClient' 
+                {isClient && user?.userType === 'companyClient'
                   ? 'You haven\'t uploaded any documents yet. Upload your first document to get started.'
                   : isClient && user?.userType === 'individualUser'
-                  ? 'You haven\'t uploaded any documents yet. Upload your first document to get started.'
-                  : 'Get started by uploading a new document.'
+                    ? 'You haven\'t uploaded any documents yet. Upload your first document to get started.'
+                    : 'Get started by uploading a new document.'
                 }
               </p>
               <div className="mt-6">
@@ -1081,12 +1094,12 @@ const DocumentsPage = () => {
                             <label className="block text-sm font-medium text-gray-700">
                               Client
                             </label>
-                            <select 
-                              value={uploadClientId} 
+                            <select
+                              value={uploadClientId}
                               onChange={(e) => {
                                 setUploadClientId(e.target.value);
                                 setUploadCaseNumber(''); // Clear case selection when client changes
-                              }} 
+                              }}
                               className="mt-1 form-select"
                               disabled={loadingWorkflows}
                             >
@@ -1124,22 +1137,22 @@ const DocumentsPage = () => {
                             <option key="legal">Legal Document</option>
                           </select>
                         </div>
-                        
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700">
                             Related Case {!(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && <span className="text-red-500">*</span>}
                             {(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) && <span className="text-gray-400 text-xs ml-1">(Optional)</span>}
                           </label>
-                          <select 
-                            value={uploadCaseNumber} 
-                            onChange={(e) => setUploadCaseNumber(e.target.value)} 
+                          <select
+                            value={uploadCaseNumber}
+                            onChange={(e) => setUploadCaseNumber(e.target.value)}
                             className="mt-1 form-select"
                             disabled={loadingWorkflows || (!uploadClientId && !(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')))}
                           >
                             <option value="">
-                              {loadingWorkflows ? 'Loading cases...' : 
-                               (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) ? 'Select a case (optional)' :
-                               !uploadClientId ? 'Select a client first' : 'Select a case'}
+                              {loadingWorkflows ? 'Loading cases...' :
+                                (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) ? 'Select a case (optional)' :
+                                  !uploadClientId ? 'Select a client first' : 'Select a case'}
                             </option>
                             {(isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) ? (
                               // For individual users and company clients, show all available cases
@@ -1211,7 +1224,7 @@ const DocumentsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">
                             Description
                           </label>
-                          <textarea 
+                          <textarea
                             value={uploadDescription}
                             onChange={(e) => setUploadDescription(e.target.value)}
                             className="mt-1 form-input"
@@ -1287,7 +1300,7 @@ const DocumentsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">
                             Document Name
                           </label>
-                          <input 
+                          <input
                             type="text"
                             value={updateName}
                             onChange={(e) => setUpdateName(e.target.value)}
@@ -1299,7 +1312,7 @@ const DocumentsPage = () => {
                           <label className="block text-sm font-medium text-gray-700">
                             Description
                           </label>
-                          <textarea 
+                          <textarea
                             value={updateDescription}
                             onChange={(e) => setUpdateDescription(e.target.value)}
                             className="mt-1 form-input"
