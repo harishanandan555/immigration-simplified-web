@@ -61,7 +61,7 @@ const Dashboard = () => {
     const loadDashboardData = async () => {
       // Only load workflow data for attorneys and super admins
       if (!isAttorney && !isSuperAdmin) {
-        console.log('👤 Dashboard: Skipping workflow data load for client user');
+        
         setLoadingWorkflowData(false);
         setLoadingWorkflows(false);
         return;
@@ -71,26 +71,15 @@ const Dashboard = () => {
         setLoadingWorkflowData(true);
         setLoadingWorkflows(true);
 
-        console.log('🔄 Dashboard: Starting workflow data fetch...');
 
         // Fetch all workflows with comprehensive data
         const workflowData = await fetchWorkflows({
-          limit: 200, // Increased limit for comprehensive data
+          limit: 500, // Increased limit for comprehensive data
           offset: 0
         });
 
-        console.log("Dashboard: Fetched workflows", workflowData);
 
-        console.log('✅ Dashboard: Fetched workflows:', {
-          count: workflowData.length,
-          hasData: !!workflowData,
-          sampleWorkflow: workflowData[0] ? {
-            id: workflowData[0]._id || workflowData[0].id,
-            hasClient: !!workflowData[0].client,
-            hasCase: !!workflowData[0].case,
-            status: workflowData[0].status
-          } : null
-        });
+   
 
         // Store workflows for case number matching
         setAvailableWorkflows(workflowData);
@@ -224,7 +213,7 @@ const Dashboard = () => {
         const clientsArray = Array.from(clientsMap.values());
         setClients(clientsArray);
         setWorkflowClients(clientsArray); // Use same client data for consistency
-        setCases(casesArray);
+        setCases(casesArray); //
 
         // Calculate workflow stats with correct mapping
         const stats = {
@@ -260,7 +249,6 @@ const Dashboard = () => {
         try {
           const tasksData = await getTasks();
           setTasks(Array.isArray(tasksData) ? tasksData : []);
-          console.log('✅ Dashboard: Loaded tasks:', tasksData.length);
         } catch (taskError) {
           console.error('❌ Error loading tasks:', taskError);
           setTasks([]);
@@ -344,21 +332,8 @@ useEffect(() => {
     try {
       const tasksFromAPI = await getTasks();
       console.log('✅ Fetched tasks for dashboard:', tasksFromAPI);
-      console.log('📊 Task mapping details:', {
-        totalTasks: tasksFromAPI.length,
-        allTasksDueDates: tasksFromAPI.map(t => ({ title: t.title, dueDate: t.dueDate })),
-        sampleTask: tasksFromAPI[0] ? {
-          id: tasksFromAPI[0]._id,
-          title: tasksFromAPI[0].title,
-          dueDate: tasksFromAPI[0].dueDate,
-          relatedCaseId: tasksFromAPI[0].relatedCaseId,
-          assignedTo: tasksFromAPI[0].assignedTo,
-          status: tasksFromAPI[0].status,
-          isOverdue: (tasksFromAPI[0] as any).isOverdue // Type assertion for API property
-        } : null
-      });
-      console.log('🔍 Current date for comparison:', new Date().toISOString());
-      console.log('🔍 User context:', { isClient, userId: user?.id });
+      
+      
       setTasks(tasksFromAPI);
     } catch (error) {
       console.error('❌ Error fetching tasks:', error);
@@ -744,7 +719,7 @@ useEffect(() => {
       <div>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Welcome, {user?.firstName}</h1>
-          <p className="text-gray-500">Track your immigration progress and manage your documents</p>
+          <p className="text-gray-500">Track your immigration progress and manage your documents.</p>
         </div>
 
         {/* Loading indicator */}
@@ -974,7 +949,7 @@ useEffect(() => {
     return renderCompanyClientDashboard();
   }
 
-  // Original dashboard layout for attorneys, admins, and individual users
+  // Original dashboard layout for attorneys, paralegals, admins, and individual users
   return (
     <div>
       <div className="mb-6">
