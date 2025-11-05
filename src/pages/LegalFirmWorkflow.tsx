@@ -3534,8 +3534,28 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
   };
 
-  const handleQuestionnaireAssignment = async () => {
-    if (!selectedQuestionnaire) return;
+  const handleQuestionnaireAssignment = async (questionnaireIdOverride?: string) => {
+    // Use override when provided (avoids waiting on React state updates)
+    const effectiveQuestionnaire = questionnaireIdOverride ?? selectedQuestionnaire;
+
+    console.log('🔍 DEBUG: handleQuestionnaireAssignment called with state/args:', {
+      selectedQuestionnaire,
+      questionnaireIdOverride,
+      effectiveQuestionnaire,
+      useExistingResponse,
+      selectedExistingResponse,
+      hasSelectedQuestionnaire: !!effectiveQuestionnaire,
+      hasUseExistingResponse: useExistingResponse,
+      hasSelectedExistingResponse: !!selectedExistingResponse,
+      existingResponsesLength: existingQuestionnaireResponses.length,
+      clientId: client.clientId,
+      clientName: client.name
+    });
+
+    if (!effectiveQuestionnaire) {
+      console.log('🚫 DEBUG: No selected/effective questionnaire - returning early');
+      return;
+    }
 
     // Check if using existing response
     if (useExistingResponse && selectedExistingResponse) {
@@ -3550,6 +3570,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
       try {
         setLoading(true);
+
+        // Generate a consistent case ID that will be used across all collections
+        const consistentCaseId = caseData.id || caseData._id || generateObjectId();
+        
+        // Ensure the caseData has the consistent ID
+        setCaseData(prev => ({
+          ...prev,
+          caseId: consistentCaseId,
+          id: consistentCaseId,
+          _id: consistentCaseId
+        }));
 
         // Find the selected existing response
         const existingResponse = existingQuestionnaireResponses.find(r => r.id === selectedExistingResponse);
@@ -3612,9 +3643,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Case details (NEW CASE)
           case: {
             ...caseData,
-            id: caseData.id || generateObjectId(),
-            _id: caseData._id || caseData.id || generateObjectId(),
-            clientId: client.clientId || client._id // Link case to client
+            caseId: consistentCaseId,
+            id: consistentCaseId,
+            _id: consistentCaseId,
+            clientId: client.clientId || client._id || client.email // Link case to client with proper client ID
           },
 
           // Selected forms and case IDs (NEW FORMS)
@@ -3623,12 +3655,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           formTemplates: formTemplates.filter(template => selectedForms.includes(template.formNumber)),
 
           // Questionnaire information
-          selectedQuestionnaire,
+          // Use the effectiveQuestionnaire (may be provided by override) to avoid race with React state
+          selectedQuestionnaire: effectiveQuestionnaire,
           
           // EXISTING RESPONSE DATA - This is the key addition
           questionnaireAssignment: {
             id: `assignment_${Date.now()}`,
-            caseId: caseData.id || caseData._id,
+            caseId: consistentCaseId,
             clientId: client.clientId || client._id,
             questionnaireId: existingResponse.questionnaireId,
             questionnaireName: existingResponse.questionnaireTitle,
@@ -3642,7 +3675,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               originalCaseId: existingResponse.caseId,
               originalSubmittedAt: existingResponse.submittedAt,
               reusedAt: new Date().toISOString(),
-              newCaseId: caseData.id || caseData._id,
+              newCaseId: consistentCaseId,
               newFormSelection: selectedForms
             },
             // Include new case and form information
@@ -3696,15 +3729,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           try {
             console.log('🔄 DEBUG: Calling saveWorkflowProgress with token present');
             
-            // Validate required fields before saving
+            // Validate required fields before saving - less strict for existing responses
             const missingFields = [];
             if (!client.firstName?.trim()) missingFields.push('First Name');
             if (!client.lastName?.trim()) missingFields.push('Last Name');
             if (!client.email?.trim()) missingFields.push('Email');
-            if (!client.address?.street?.trim()) missingFields.push('Street Address');
+            
+            // For existing responses, only require basic address info, not all fields
             if (!client.address?.city?.trim()) missingFields.push('City');
-            if (!client.address?.state?.trim()) missingFields.push('State/Province');
-            if (!client.address?.zipCode?.trim()) missingFields.push('ZIP/Postal Code');
             if (!client.address?.country?.trim()) missingFields.push('Country');
 
             if (missingFields.length > 0) {
@@ -3714,6 +3746,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               setLoading(false);
               return;
             }
+            
+            console.log('✅ DEBUG: Validation passed for existing response workflow - proceeding to save...');
             
             // Test API connectivity before the actual call
             console.log('🔄 DEBUG: Testing API connectivity...');
@@ -3762,15 +3796,25 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             });
             
             // ✅ CREATE ENHANCED CASE WITH DEDICATED API ENDPOINT (for existing response path)
+            let enhancedCaseData: EnhancedCaseData | undefined;
             try {
               console.log('🔄 Creating enhanced case for existing response workflow...');
+              console.log('🔍 DEBUG: Client data for enhanced case:', {
+                clientId: client.clientId,
+                clientInternalId: client._id,
+                clientEmail: client.email,
+                clientName: client.name,
+                finalClientId: client.clientId || client._id || '',
+                hasClientId: !!(client.clientId),
+                hasInternalId: !!(client._id)
+              });
               
               // Get current user for assignedTo field
               const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
               const assignedToId = currentUser._id || currentUser.id;
               
               // Prepare enhanced case data for existing response path
-              const enhancedCaseData: EnhancedCaseData = {
+              enhancedCaseData = {
                 // Required fields
                 type: caseData.category || 'Family-Based',
                 clientId: client.clientId || client._id || '',
@@ -3796,13 +3840,28 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 notes: `Case created with existing questionnaire response. Original response from: ${existingResponse.questionnaireTitle}. Original case: ${existingResponse.caseId}`
               };
 
+              console.log('🔍 DEBUG: Sending enhanced case data to API:', {
+                enhancedCaseData,
+                apiEndpoint: '/api/v1/cases',
+                hasClientId: !!enhancedCaseData.clientId,
+                hasTitle: !!enhancedCaseData.title,
+                hasAssignedForms: enhancedCaseData.assignedForms?.length > 0
+              });
+
+              console.log('🚨 DEBUG: ABOUT TO CALL createEnhancedCase - THIS IS CRITICAL FOR ims_cases CREATION');
               const caseResponse = await createEnhancedCase(enhancedCaseData);
+              console.log('🚨 DEBUG: createEnhancedCase CALL COMPLETED');
+              
+             
               
               if (caseResponse && caseResponse.data) {
                 console.log('✅ Enhanced case created for existing response:', {
                   caseId: caseResponse.data.case?._id || caseResponse.data._id,
                   success: caseResponse.data.success,
-                  message: caseResponse.data.message
+                  message: caseResponse.data.message,
+                  caseObjectExists: !!(caseResponse.data.case),
+                  directIdExists: !!(caseResponse.data._id),
+                  fullCaseData: caseResponse.data.case || caseResponse.data
                 });
                 
                 // Update local case data with the newly created case information
@@ -3810,6 +3869,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 if (createdCase._id) {
                   setCaseData(prev => ({
                     ...prev,
+                    caseId: createdCase._id,
                     id: createdCase._id,
                     _id: createdCase._id,
                     ...createdCase
@@ -3825,14 +3885,43 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   </div>,
                   { duration: 6000 }
                 );
+              } else {
+                console.error('❌ Enhanced case creation returned no valid data:', {
+                  hasResponse: !!caseResponse,
+                  hasData: !!(caseResponse && caseResponse.data),
+                  response: caseResponse
+                });
+                
+                toast.error(
+                  <div>
+                    <p>⚠️ Case creation returned invalid response</p>
+                    <p className="text-sm mt-1">Check server logs for details</p>
+                  </div>,
+                  { duration: 5000 }
+                );
               }
               
             } catch (caseError: any) {
               console.error('❌ Error creating enhanced case for existing response:', {
                 error: caseError.message,
                 status: caseError.response?.status,
-                data: caseError.response?.data
+                data: caseError.response?.data,
+                stack: caseError.stack,
+                clientId: client.clientId || client._id,
+                hasClientId: !!(client.clientId || client._id),
+                enhancedCaseDataSnapshot: {
+                  clientId: enhancedCaseData?.clientId || workflowDataWithExistingResponse?.clientId || client.clientId || client.id || client._id,
+                  type: enhancedCaseData?.type,
+                  title: enhancedCaseData?.title
+                }
               });
+              
+              // Check if it's a network or server error
+              if (caseError.response?.status >= 500) {
+                console.error('🚨 SERVER ERROR: Backend may not be saving to ims_cases collection');
+              } else if (caseError.response?.status >= 400) {
+                console.error('🚨 CLIENT ERROR: Request data may be invalid');
+              }
               
               // Don't fail the entire workflow, just log the case creation error
               toast.error(
@@ -3840,8 +3929,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   <p>⚠️ Case creation failed but workflow saved</p>
                   <p className="text-sm mt-1">Existing response workflow is still active</p>
                   <p className="text-xs text-gray-600">Error: {caseError.message}</p>
+                  <p className="text-xs text-red-600">Status: {caseError.response?.status || 'Network Error'}</p>
                 </div>,
-                { duration: 5000 }
+                { duration: 8000 }
               );
             }
             
@@ -3858,7 +3948,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             // Set the questionnaire assignment for the UI
             const assignment: QuestionnaireAssignment = {
               id: workflowDataWithExistingResponse.questionnaireAssignment.id,
-              caseId: caseData.id || caseData._id || '',
+              caseId: consistentCaseId,
               clientId: client.clientId || client._id || '',
               questionnaireId: existingResponse.questionnaireId,
               questionnaireName: existingResponse.questionnaireTitle,
@@ -4079,7 +4169,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           skipAccountCreation: true
         });
       }
-      const selectedQ = availableQuestionnaires.find(q => {
+  const selectedQ = availableQuestionnaires.find(q => {
         // Check all possible ID fields
         const possibleIds = [
           q._id,          // MongoDB ObjectId
@@ -4089,13 +4179,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         ].filter(Boolean); // Remove undefined/null values
 
         // For API questionnaires, prioritize matching the q_ prefixed ID
-        if (q.apiQuestionnaire && q.id === selectedQuestionnaire) {
+  if (q.apiQuestionnaire && q.id === effectiveQuestionnaire) {
 
           return true;
         }
 
         // Check if any of the possible IDs match
-        const matches = possibleIds.includes(selectedQuestionnaire);
+  const matches = possibleIds.includes(effectiveQuestionnaire);
         if (matches) {
 
         }
@@ -4281,7 +4371,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           id: responseId,
           caseId: caseData.id,
           clientId: clientUserId || client.clientId, // Use the user account ID for proper linking
-          questionnaireId: selectedQuestionnaire,
+    questionnaireId: effectiveQuestionnaire,
           questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
           status: 'pending',
           assignedAt: new Date().toISOString(),
@@ -4499,7 +4589,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 // Form management
                 assignedForms: selectedForms || [],
                 formCaseIds: formCaseIds || {},
-                questionnaires: [selectedQuestionnaire],
+                // Ensure we use the effectiveQuestionnaire (override/state) when creating the case
+                questionnaires: [effectiveQuestionnaire],
                 
                 // Optional fields
                 status: 'draft',
@@ -4533,6 +4624,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 if (createdCase._id) {
                   setCaseData(prev => ({
                     ...prev,
+                    caseId: createdCase._id,
                     id: createdCase._id,
                     _id: createdCase._id,
                     ...createdCase
@@ -6632,8 +6724,20 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                         console.log('🔄 DEBUG: Response Selected - saving workflow progress and calling handleQuestionnaireAssignment:', {
                           selectedExistingResponse,
                           clientName: client.name,
-                          newCaseId: caseData.id || caseData._id
+                          newCaseId: caseData.id || caseData._id,
+                          useExistingResponse,
+                          currentStates: {
+                            useExistingResponse,
+                            selectedExistingResponse,
+                            selectedQuestionnaire
+                          }
                         });
+                        
+                        // ENSURE STATE IS SET CORRECTLY BEFORE CALLING handleQuestionnaireAssignment
+                        if (!useExistingResponse) {
+                          console.log('⚠️ DEBUG: useExistingResponse was false, setting to true');
+                          setUseExistingResponse(true);
+                        }
                         
                         try {
                           // First save the workflow progress to backend
@@ -6641,7 +6745,60 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                           const workflowData = await saveWorkflowProgressLocal();
                           console.log('✅ DEBUG: Workflow progress saved successfully:', workflowData?.workflowId);
                           
+                          // CRITICAL FIX: Ensure selectedQuestionnaire is set BEFORE calling handleQuestionnaireAssignment
+                          let finalSelectedQuestionnaire = selectedQuestionnaire;
+                          
+                          if (!finalSelectedQuestionnaire) {
+                            console.log('⚠️ DEBUG: selectedQuestionnaire was empty, extracting from existing response');
+                            const existingResponse = existingQuestionnaireResponses.find(r => r.id === selectedExistingResponse);
+                            console.log('🔍 DEBUG: Found existing response for questionnaire ID extraction:', {
+                              existingResponse,
+                              questionnaireId: existingResponse?.questionnaireId,
+                              questionnaire_id: existingResponse?.questionnaire_id,
+                              questionnaire: existingResponse?.questionnaire,
+                              questionnaireIdType: typeof existingResponse?.questionnaireId
+                            });
+                            
+                            if (existingResponse?.questionnaireId) {
+                              // Extract the actual ID string from questionnaireId (might be object or string)
+                              let questionnaireIdToSet = existingResponse.questionnaireId;
+                              if (typeof questionnaireIdToSet === 'object' && questionnaireIdToSet._id) {
+                                questionnaireIdToSet = questionnaireIdToSet._id;
+                              } else if (typeof questionnaireIdToSet === 'object' && questionnaireIdToSet.id) {
+                                questionnaireIdToSet = questionnaireIdToSet.id;
+                              }
+                              
+                              console.log('🔍 DEBUG: Extracted questionnaire ID to set:', {
+                                original: existingResponse.questionnaireId,
+                                extracted: questionnaireIdToSet,
+                                isString: typeof questionnaireIdToSet === 'string'
+                              });
+                              
+                              // Set both the state AND the local variable
+                              finalSelectedQuestionnaire = questionnaireIdToSet;
+                              setSelectedQuestionnaire(questionnaireIdToSet);
+                              console.log('✅ DEBUG: Set selectedQuestionnaire to:', questionnaireIdToSet);
+                            }
+                          }
+                          
+                          // Verify we have the required values before proceeding
+                          if (!finalSelectedQuestionnaire) {
+                            console.error('❌ DEBUG: Still no selectedQuestionnaire after extraction attempts');
+                            toast.error('Could not determine questionnaire for existing response');
+                            return;
+                          }
+                          
+                          // Add a longer delay to ensure state updates are processed
+                          await new Promise(resolve => setTimeout(resolve, 200));
+                          
                           // Then call the main questionnaire assignment handler which handles existing responses
+                          console.log('🔄 DEBUG: About to call handleQuestionnaireAssignment with current state:', {
+                            useExistingResponse,
+                            selectedExistingResponse,
+                            selectedQuestionnaire: finalSelectedQuestionnaire,
+                            selectedQuestionnaireType: typeof finalSelectedQuestionnaire,
+                            selectedQuestionnaireLength: finalSelectedQuestionnaire?.length || 0
+                          });
                           await handleQuestionnaireAssignment();
                           
                           console.log('✅ DEBUG: Response Selected process completed successfully');
