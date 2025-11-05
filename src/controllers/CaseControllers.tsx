@@ -97,17 +97,6 @@ export interface EnhancedCaseData {
 // Enhanced case creation function with all required fields
 export const createEnhancedCase = async (caseData: EnhancedCaseData): Promise<ApiResponse<any>> => {
   try {
-    console.log('🔄 Creating enhanced case with data:', {
-      type: caseData.type,
-      clientId: caseData.clientId,
-      title: caseData.title,
-      category: caseData.category,
-      subcategory: caseData.subcategory,
-      assignedFormsCount: caseData.assignedForms?.length || 0,
-      formCaseIdsCount: Object.keys(caseData.formCaseIds || {}).length,
-      questionnairesCount: caseData.questionnaires?.length || 0
-    });
-
     // Prepare the request payload matching the API specification
     const requestPayload = {
       // Required fields
@@ -138,22 +127,10 @@ export const createEnhancedCase = async (caseData: EnhancedCaseData): Promise<Ap
       createdAt: new Date().toISOString()
     };
 
-    console.log('🔄 Sending case creation request to API:', {
-      endpoint: CASE_END_POINTS.CREATECASE,
-      payloadSize: JSON.stringify(requestPayload).length,
-      hasFormCaseIds: !!requestPayload.formCaseIds && Object.keys(requestPayload.formCaseIds).length > 0
-    });
-
     const response = await api.post(
       CASE_END_POINTS.CREATECASE,
       requestPayload
     );
-
-    console.log('✅ Enhanced case created successfully:', {
-      caseId: response.data.case?._id || response.data._id,
-      status: response.status,
-      hasData: !!response.data
-    });
 
     return {
       data: response.data,
@@ -162,13 +139,6 @@ export const createEnhancedCase = async (caseData: EnhancedCaseData): Promise<Ap
     };
 
   } catch (error: any) {
-    console.error('❌ Error creating enhanced case:', {
-      error: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-      clientId: caseData.clientId,
-      caseTitle: caseData.title
-    });
 
     // Handle different error types
     if (error instanceof Error) {
