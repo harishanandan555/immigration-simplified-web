@@ -217,6 +217,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [useExistingResponse, setUseExistingResponse] = useState(false);
   const [, setIsExistingResponse] = useState(false);
   const [, setLoadingExistingResponses] = useState(false);
+  
+  // State for tracking submission completion
+  const [isSubmissionComplete, setIsSubmissionComplete] = useState(false);
 
   // State for form details ID (backend integration)
   // const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
@@ -3538,20 +3541,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     // Use override when provided (avoids waiting on React state updates)
     const effectiveQuestionnaire = questionnaireIdOverride ?? selectedQuestionnaire;
 
-    console.log('🔍 DEBUG: handleQuestionnaireAssignment called with state/args:', {
-      selectedQuestionnaire,
-      questionnaireIdOverride,
-      effectiveQuestionnaire,
-      useExistingResponse,
-      selectedExistingResponse,
-      hasSelectedQuestionnaire: !!effectiveQuestionnaire,
-      hasUseExistingResponse: useExistingResponse,
-      hasSelectedExistingResponse: !!selectedExistingResponse,
-      existingResponsesLength: existingQuestionnaireResponses.length,
-      clientId: client.clientId,
-      clientName: client.name
-    });
-
+  
     if (!effectiveQuestionnaire) {
       console.log('🚫 DEBUG: No selected/effective questionnaire - returning early');
       return;
@@ -6759,6 +6749,34 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                           await handleQuestionnaireAssignment();
                           
                           console.log('✅ DEBUG: Response Selected process completed successfully');
+                          
+                          // Mark submission as complete
+                          setIsSubmissionComplete(true);
+                          
+                          // Navigate back to legal firm workflow screen after successful submission
+                          setTimeout(() => {
+                            // Option 1: Reset to start of workflow
+                            setCurrentStep(0);
+                            
+                            // Option 2: Or redirect to workflow list/dashboard
+                            // window.location.href = '/legal-firm-workflow';
+                            
+                            // Reset states for new workflow
+                            setIsSubmissionComplete(false);
+                            setUseExistingResponse(false);
+                            setSelectedExistingResponse('');
+                            setSelectedQuestionnaire('');
+                            
+                            // Show notification about returning to workflow start
+                            toast.success('Returning to workflow start for new case creation', {
+                              duration: 3000,
+                              style: {
+                                background: '#3B82F6',
+                                color: 'white',
+                              }
+                            });
+                          }, 3000); // Wait 3 seconds to show success message
+                          
                         } catch (error) {
                           console.error('❌ ERROR: Failed during Response Selected process:', error);
                           toast.error('Failed to save workflow progress: ' + (error as Error).message);
@@ -6773,12 +6791,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       });
 
                       if (questionnaire) {
-                        console.log('🔄 DEBUG: New questionnaire selected - saving workflow progress...');
+                        console.log('🔄 DEBUG: New questionnaire selected - saving workflow progress and creating case...');
                         try {
-                          // Save workflow progress for new questionnaire selection as well
+                          // Save workflow progress for new questionnaire selection
                           const workflowData = await saveWorkflowProgressLocal();
                           console.log('✅ DEBUG: Workflow progress saved for new questionnaire:', workflowData?.workflowId);
-                          toast.success('Questionnaire details are complete and saved!');
+                          
+                          // IMPORTANT: Also call handleQuestionnaireAssignment to create the case
+                          await handleQuestionnaireAssignment();
+                          
+                          console.log('✅ DEBUG: Questionnaire assigned and case created successfully');
                         } catch (error) {
                           console.error('❌ ERROR: Failed to save workflow progress for new questionnaire:', error);
                           toast.error('Failed to save workflow progress: ' + (error as Error).message);
@@ -6790,13 +6812,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       toast.error('Please select a questionnaire or previous response first.');
                     }
                   }}
-                  disabled={!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse)}
-                  className={`${(!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse)) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                  disabled={!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse) || isSubmissionComplete}
+                  className={`${
+                    (!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse)) || isSubmissionComplete
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
                 >
-                  {(selectedQuestionnaire || (useExistingResponse && selectedExistingResponse)) ? (
+                  {isSubmissionComplete ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                      <span className="text-green-500">✅ Submitted Successfully</span>
+                    </>
+                  ) : (selectedQuestionnaire || (useExistingResponse && selectedExistingResponse)) ? (
                     <>
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      {useExistingResponse ? 'Response Selected' : 'Details Complete'}
+                      {useExistingResponse ? 'Submit' : 'Details Complete'}
                     </>
                   ) : (
                     <>
