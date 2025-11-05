@@ -11,7 +11,8 @@ import {
   ClipboardList,
   Folder,
   ArrowRight,
-  FileSearch
+  FileSearch,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '../controllers/AuthControllers';
 import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
@@ -713,6 +714,373 @@ useEffect(() => {
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
+  // Individual User Dashboard Layout - No questionnaires, focused on immigration process
+  const renderIndividualUserDashboard = () => {
+    return (
+      <div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {user?.firstName}</h1>
+          <p className="text-gray-500">Track your personal immigration journey and manage your case.</p>
+        </div>
+
+        {/* Quick Stats for Individual Users */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">My Cases</p>
+                <p className="text-2xl font-bold mt-1">{filteredCases.length}</p>
+              </div>
+              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                <FileText size={20} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to="/cases" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                View my cases →
+              </Link>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">Upcoming Deadlines</p>
+                <p className="text-2xl font-bold mt-1">{upcomingDeadlines.length}</p>
+              </div>
+              <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
+                <Clock size={20} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to="/tasks" className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+                View deadlines →
+              </Link>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">Documents</p>
+                <p className="text-2xl font-bold mt-1">{
+                  filteredCases.reduce((sum: number, c: any) => sum + (c.documents?.length || 0), 0)
+                }</p>
+              </div>
+              <div className="p-2 bg-green-100 rounded-lg text-green-600">
+                <FileCheck size={20} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to="/documents" className="text-sm text-green-600 hover:text-green-700 font-medium">
+                Manage documents →
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Individual User Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left column - Primary actions and case overview */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Start New Immigration Process */}
+            <div className="card">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Immigration Process</h2>
+                  <p className="text-sm text-gray-500 mt-1">Start your immigration application journey</p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+                <div className="flex items-start">
+                  <div className="p-3 bg-blue-100 rounded-lg text-blue-600 mr-4">
+                    <FileText size={32} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Start Your Immigration Case</h3>
+                    <p className="text-gray-600 mb-4">
+                      Begin your immigration application with our step-by-step process. We'll guide you through 
+                      personal details, case setup, form selection, and auto-fill capabilities.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Link
+                        to="/immigration-process/individual"
+                        className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                      >
+                        <FileText className="w-5 h-5 mr-2" />
+                        Start New Application
+                      </Link>
+                      <Link
+                        to="/cases"
+                        className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                      >
+                        <Folder className="w-5 h-5 mr-2" />
+                        View Existing Cases
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Cases */}
+            {filteredCases.length > 0 && (
+              <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-medium">My Immigration Cases</h2>
+                  <Link to="/cases" className="text-sm text-primary-600 hover:text-primary-700">
+                    View all
+                  </Link>
+                </div>
+
+                <div className="space-y-4">
+                  {filteredCases.slice(0, 3).map((caseItem: any, caseIndex: number) => {
+                    if (!caseItem || typeof caseItem !== 'object') {
+                      return null;
+                    }
+
+                    const caseId = String(caseItem.id || caseItem._id || '');
+                    const caseNumber = String(caseItem.caseNumber || caseItem.title || 'No Case Number');
+                    const caseType = String(caseItem.type || 'Immigration Case');
+                    const caseStatus = String(caseItem.status || 'Unknown');
+
+                    if (!caseId) return null;
+
+                    return (
+                      <Link
+                        key={caseId}
+                        to={`/cases/${caseId}`}
+                        className="block p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="text-base font-medium text-gray-900">{caseNumber}</h3>
+                            <p className="text-sm text-gray-600 mt-1">{caseType}</p>
+                            {caseItem.description && (
+                              <p className="text-xs text-gray-500 mt-1">{caseItem.description}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              caseStatus.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              caseStatus.toLowerCase() === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                              caseStatus.toLowerCase() === 'completed' ? 'bg-green-100 text-green-800' :
+                              caseStatus.toLowerCase() === 'draft' ? 'bg-gray-100 text-gray-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {caseStatus}
+                            </span>
+                            {caseItem.dueDate && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Due: {new Date(caseItem.dueDate).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Quick Actions for Individual Users */}
+            <div className="card">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Link
+                  to="/documents"
+                  className="flex items-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="p-3 bg-blue-100 rounded-lg text-blue-600 mr-4">
+                    <Folder size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-base font-medium text-gray-900">Manage Documents</p>
+                    <p className="text-sm text-gray-500">Upload and organize your documents</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
+                </Link>
+
+                <Link
+                  to="/foia-tracker"
+                  className="flex items-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="p-3 bg-green-100 rounded-lg text-green-600 mr-4">
+                    <FileSearch size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-base font-medium text-gray-900">Case Status Tracker</p>
+                    <p className="text-sm text-gray-500">Track your case progress with USCIS</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
+                </Link>
+
+                <Link
+                  to="/forms"
+                  className="flex items-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="p-3 bg-purple-100 rounded-lg text-purple-600 mr-4">
+                    <FileCheck size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-base font-medium text-gray-900">My Forms</p>
+                    <p className="text-sm text-gray-500">View and download completed forms</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
+                </Link>
+
+                <Link
+                  to="/immigration-process/individual"
+                  className="flex items-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="p-3 bg-orange-100 rounded-lg text-orange-600 mr-4">
+                    <Plus size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-base font-medium text-gray-900">New Application</p>
+                    <p className="text-sm text-gray-500">Start a new immigration case</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Right column - Status and deadlines */}
+          <div className="space-y-8">
+            {/* Case Status Chart */}
+            {filteredCases.length > 0 && (
+              <div className="card">
+                <h2 className="text-lg font-medium mb-4">My Case Status</h2>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={60}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {statusData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming Deadlines */}
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium">Upcoming Deadlines</h2>
+                <Link to="/tasks" className="text-sm text-primary-600 hover:text-primary-700">
+                  View all
+                </Link>
+              </div>
+
+              <div className="space-y-4">
+                {upcomingDeadlines.length > 0 ? (
+                  upcomingDeadlines.map((task: any, taskIndex: number) => {
+                    if (!task || typeof task !== 'object' || !task.id) {
+                      return null;
+                    }
+                    
+                    const taskId = String(task.id);
+                    const taskTitle = String(task.title);
+                    const taskDueDate = task.dueDate;
+                    const daysLeft = task.daysLeft || 0;
+                    const isUrgent = task.isUrgent || task.isOverdue || daysLeft <= 3;
+
+                    return (
+                      <div
+                        key={taskId}
+                        className={`p-3 rounded-lg border ${isUrgent 
+                          ? 'border-error-200 bg-error-50' 
+                          : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start">
+                          <div className={`flex-shrink-0 ${isUrgent ? 'text-error-500' : 'text-gray-400'}`}>
+                            {isUrgent ? <AlertCircle size={18} /> : <CalendarDays size={18} />}
+                          </div>
+                          <div className="ml-3 flex-1">
+                            <p className={`text-sm font-medium ${isUrgent ? 'text-error-600' : 'text-gray-900'}`}>
+                              {taskTitle}
+                            </p>
+                            <div className="flex items-center justify-between mt-1">
+                              <p className="text-xs text-gray-500">
+                                Due: {taskDueDate ? new Date(taskDueDate).toLocaleDateString() : 'No due date'}
+                              </p>
+                              <p className={`text-xs font-medium ${isUrgent ? 'text-error-600' : 'text-gray-500'}`}>
+                                {task.isOverdue ? 'Overdue' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-4 text-center text-gray-500">
+                    <CheckCircle className="mx-auto h-8 w-8 text-gray-400" />
+                    <p className="mt-2 text-sm">No upcoming deadlines</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Immigration Resources */}
+            <div className="card">
+              <h2 className="text-lg font-medium mb-4">Resources</h2>
+              <div className="space-y-3">
+                <a
+                  href="https://www.uscis.gov"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="p-2 bg-blue-100 rounded-lg text-blue-600 mr-3">
+                    <FileText size={16} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">USCIS Official Website</p>
+                    <p className="text-xs text-gray-500">Forms, guides, and updates</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-gray-400" />
+                </a>
+
+                <a
+                  href="https://egov.uscis.gov/casestatus/landing.do"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="p-2 bg-green-100 rounded-lg text-green-600 mr-3">
+                    <FileSearch size={16} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">Check Case Status</p>
+                    <p className="text-xs text-gray-500">Track your USCIS case</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-gray-400" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Company Client Layout - Simplified and focused
   const renderCompanyClientDashboard = () => {
     return (
@@ -949,7 +1317,12 @@ useEffect(() => {
     return renderCompanyClientDashboard();
   }
 
-  // Original dashboard layout for attorneys, paralegals, admins, and individual users
+  // Individual users get their own simplified dashboard
+  if (isClient && user?.userType === 'individualUser') {
+    return renderIndividualUserDashboard();
+  }
+
+  // Original dashboard layout for attorneys, paralegals, admins
   return (
     <div>
       <div className="mb-6">

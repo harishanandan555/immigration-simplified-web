@@ -4,6 +4,7 @@ import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import api from '../../utils/api';
+import { useAuth } from '../../controllers/AuthControllers';
 
 type Client = {
   _id: string;
@@ -54,6 +55,7 @@ type SortField = 'caseNumber' | 'title' | 'clientName' | 'createdAt' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 const CasesPage: React.FC = () => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [workflowCases, setWorkflowCases] = useState<WorkflowCase[]>([]);
   const [sortField, setSortField] = useState<SortField>('createdAt');
@@ -63,6 +65,16 @@ const CasesPage: React.FC = () => {
 
   // Workflow-related state
   const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+
+  // Determine the correct "New Case" link based on user type
+  const getNewCaseLink = () => {
+    // For individual users, use the individual immigration process
+    if (user?.userType === 'individualUser') {
+      return '/immigration-process/individual';
+    }
+    // For attorneys and other legal professionals, use the legal firm workflow
+    return '/legal-firm-workflow';
+  };
 
   // Function to fetch workflows from API
   const fetchWorkflowsFromAPI = async () => {
@@ -284,7 +296,7 @@ const CasesPage: React.FC = () => {
           
         </div>
         <Link
-          to="/legal-firm-workflow"
+          to={getNewCaseLink()}
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md transition-colors"
         >
           <PlusCircle size={18} />
@@ -314,7 +326,7 @@ const CasesPage: React.FC = () => {
           <table className="w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/7 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('caseNumber')}
@@ -323,8 +335,8 @@ const CasesPage: React.FC = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-               
-                <th className="w-1/5 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/4 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('clientName')}
@@ -333,7 +345,7 @@ const CasesPage: React.FC = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/7 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('status')}
@@ -342,8 +354,8 @@ const CasesPage: React.FC = () => {
                     <ArrowUpDown size={14} />
                   </div>
                 </th>
-                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="w-1/7 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                <th className="w-1/7 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div 
                     className="flex items-center gap-1 cursor-pointer"
                     onClick={() => handleSort('createdAt')}
@@ -392,7 +404,11 @@ const CasesPage: React.FC = () => {
                       
                         </Link>
                       </td>
-                    
+                      <td className="px-3 py-3 text-sm text-gray-500">
+                        <div className="truncate" title={workflowCase.description}>
+                          {workflowCase.description || 'No description provided'}
+                        </div>
+                      </td>
                       <td className="px-3 py-3 text-sm text-gray-500">
                         <div>
                           <div className="font-medium truncate" title={workflowCase.client.name}>{workflowCase.client.name}</div>

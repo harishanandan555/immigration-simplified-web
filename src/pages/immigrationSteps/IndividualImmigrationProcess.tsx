@@ -485,6 +485,303 @@ const immigrationCategories: ImmigrationCategory[] = [
         processingTime: '3-6 months'
       }
     ]
+  },
+  {
+    id: 'nonimmigrant-work',
+    title: 'Non-immigrant Work Visas',
+    description: 'Temporary work visas for foreign nationals',
+    icon: <Briefcase className="h-8 w-8" />,
+    estimatedTime: '2-6 months',
+    difficulty: 'Medium',
+    forms: ['I-129', 'DS-160'],
+    documents: ['Passport', 'Job Offer', 'Educational Credentials'],
+    subcategories: [
+      {
+        id: 'h1b-specialty',
+        title: 'H-1B Specialty Occupation',
+        description: 'Temporary visa for workers in specialty occupations',
+        forms: ['I-129', 'DS-160', 'LCA'],
+        documents: [
+          'Bachelor\'s Degree or Higher',
+          'Job Offer Letter',
+          'Labor Condition Application (LCA)',
+          'Company Support Letter',
+          'Passport & I-94',
+          'Resume/CV',
+          'Previous H-1B Approvals (if applicable)'
+        ],
+        eligibilityRequirements: [
+          'Bachelor\'s degree or equivalent',
+          'Job offer in specialty occupation',
+          'Employer files LCA with DOL',
+          'Prevailing wage requirements met'
+        ],
+        processingTime: '3-6 months'
+      },
+      {
+        id: 'l1-intracompany',
+        title: 'L-1 Intracompany Transfer',
+        description: 'Transfer from foreign office to US office of same company',
+        forms: ['I-129', 'DS-160'],
+        documents: [
+          'Employment History',
+          'Company Organizational Chart',
+          'Business Registration Documents',
+          'Job Description',
+          'Passport',
+          'Financial Statements'
+        ],
+        eligibilityRequirements: [
+          '1+ years employment with foreign company',
+          'Managerial/executive role or specialized knowledge',
+          'Qualifying relationship between companies',
+          'Coming to work for related US entity'
+        ],
+        processingTime: '2-4 months'
+      },
+      {
+        id: 'o1-extraordinary',
+        title: 'O-1 Extraordinary Ability',
+        description: 'For individuals with extraordinary ability in sciences, arts, education, business, or athletics',
+        forms: ['I-129', 'DS-160'],
+        documents: [
+          'Evidence of Extraordinary Ability',
+          'Awards and Recognition',
+          'Publications/Media Coverage',
+          'Letters from Experts',
+          'Contracts/Agreements',
+          'Passport'
+        ],
+        eligibilityRequirements: [
+          'Extraordinary ability in field',
+          'National or international recognition',
+          'Coming to continue work in area of expertise',
+          'Consultation from appropriate peer group'
+        ],
+        processingTime: '2-4 months'
+      },
+      {
+        id: 'tn-nafta',
+        title: 'TN NAFTA Professional',
+        description: 'Temporary visa for Canadian and Mexican professionals',
+        forms: ['DS-160 (Mexican)', 'I-94 (Canadian)'],
+        documents: [
+          'Job Offer Letter',
+          'Educational Credentials',
+          'Professional License (if required)',
+          'Passport',
+          'Evidence of Profession'
+        ],
+        eligibilityRequirements: [
+          'Canadian or Mexican citizenship',
+          'Job offer in NAFTA profession',
+          'Proper educational credentials',
+          'Temporary stay intent'
+        ],
+        processingTime: '1-2 months'
+      }
+    ]
+  },
+  {
+    id: 'student-exchange',
+    title: 'Student & Exchange Visas',
+    description: 'Educational and cultural exchange programs',
+    icon: <FileText className="h-8 w-8" />,
+    estimatedTime: '2-4 months',
+    difficulty: 'Easy',
+    forms: ['DS-160', 'I-20', 'DS-2019'],
+    documents: ['Passport', 'School Acceptance', 'Financial Support'],
+    subcategories: [
+      {
+        id: 'f1-student',
+        title: 'F-1 Student Visa',
+        description: 'Academic studies in the United States',
+        forms: ['DS-160', 'I-20', 'SEVIS'],
+        documents: [
+          'I-20 Form from School',
+          'Passport',
+          'Financial Support Documents',
+          'Academic Transcripts',
+          'English Proficiency Test',
+          'SEVIS Fee Receipt'
+        ],
+        eligibilityRequirements: [
+          'Accepted by SEVP-approved school',
+          'Full-time enrollment',
+          'Sufficient financial resources',
+          'Intent to return home after studies'
+        ],
+        processingTime: '2-4 months'
+      },
+      {
+        id: 'j1-exchange',
+        title: 'J-1 Exchange Visitor',
+        description: 'Cultural and educational exchange programs',
+        forms: ['DS-160', 'DS-2019'],
+        documents: [
+          'DS-2019 Form',
+          'Passport',
+          'Program Documentation',
+          'Financial Support Evidence',
+          'SEVIS Fee Receipt'
+        ],
+        eligibilityRequirements: [
+          'Approved exchange program',
+          'Sponsor organization designation',
+          'Sufficient English proficiency',
+          'Financial support arrangements'
+        ],
+        processingTime: '2-3 months'
+      },
+      {
+        id: 'm1-vocational',
+        title: 'M-1 Vocational Student',
+        description: 'Vocational or technical studies',
+        forms: ['DS-160', 'I-20'],
+        documents: [
+          'I-20 Form from School',
+          'Passport',
+          'Financial Documents',
+          'Academic Records',
+          'SEVIS Fee Receipt'
+        ],
+        eligibilityRequirements: [
+          'Accepted by approved vocational school',
+          'Full-time enrollment',
+          'Sufficient financial resources',
+          'Intent to return home'
+        ],
+        processingTime: '2-4 months'
+      }
+    ]
+  },
+  {
+    id: 'business-tourism',
+    title: 'Business & Tourism Visas',
+    description: 'Temporary visits for business or tourism',
+    icon: <Plane className="h-8 w-8" />,
+    estimatedTime: '2-8 weeks',
+    difficulty: 'Easy',
+    forms: ['DS-160'],
+    documents: ['Passport', 'Travel Itinerary', 'Financial Support'],
+    subcategories: [
+      {
+        id: 'b1-business',
+        title: 'B-1 Business Visitor',
+        description: 'Temporary business visits',
+        forms: ['DS-160'],
+        documents: [
+          'Passport',
+          'Business Invitation Letter',
+          'Company Registration',
+          'Financial Documents',
+          'Travel Itinerary',
+          'Return Ticket'
+        ],
+        eligibilityRequirements: [
+          'Legitimate business purpose',
+          'Temporary stay intent',
+          'Sufficient funds for trip',
+          'Strong ties to home country'
+        ],
+        processingTime: '2-8 weeks'
+      },
+      {
+        id: 'b2-tourism',
+        title: 'B-2 Tourist Visitor',
+        description: 'Tourism and leisure visits',
+        forms: ['DS-160'],
+        documents: [
+          'Passport',
+          'Travel Itinerary',
+          'Hotel Reservations',
+          'Financial Support Evidence',
+          'Return Ticket',
+          'Employment Letter'
+        ],
+        eligibilityRequirements: [
+          'Tourism or leisure purpose',
+          'Temporary stay intent',
+          'Sufficient funds for trip',
+          'Strong ties to home country'
+        ],
+        processingTime: '2-8 weeks'
+      }
+    ]
+  }
+];
+
+// Simplified immigration categories for case setup
+const IMMIGRATION_CATEGORIES = [
+  {
+    id: 'family-based',
+    name: 'Family-Based Immigration',
+    subcategories: [
+      { id: 'spouse-citizen', name: 'Spouse of U.S. Citizen', forms: ['I-130', 'I-485', 'I-864'] },
+      { id: 'parent-citizen', name: 'Parent of U.S. Citizen (21+)', forms: ['I-130', 'I-485', 'I-864'] },
+      { id: 'child-citizen', name: 'Child of U.S. Citizen (Under 21)', forms: ['I-130', 'I-485', 'I-864'] },
+      { id: 'sibling-citizen', name: 'Brother/Sister of U.S. Citizen', forms: ['I-130'] }
+    ]
+  },
+  {
+    id: 'employment-based',
+    name: 'Employment-Based Immigration',
+    subcategories: [
+      { id: 'eb1-extraordinary', name: 'EB-1A Extraordinary Ability', forms: ['I-140', 'I-485'] },
+      { id: 'eb2-advanced', name: 'EB-2 Advanced Degree', forms: ['I-140', 'I-485', 'ETA-9089'] },
+      { id: 'eb3-skilled', name: 'EB-3 Skilled Workers', forms: ['I-140', 'I-485', 'ETA-9089'] }
+    ]
+  },
+  {
+    id: 'humanitarian',
+    name: 'Humanitarian Relief',
+    subcategories: [
+      { id: 'asylum', name: 'Asylum Application', forms: ['I-589', 'I-765'] },
+      { id: 'u-visa', name: 'U Visa (Crime Victims)', forms: ['I-918', 'I-765'] }
+    ]
+  },
+  {
+    id: 'citizenship',
+    name: 'Citizenship & Naturalization',
+    subcategories: [
+      { id: 'naturalization-5year', name: '5-Year Naturalization Rule', forms: ['N-400'] },
+      { id: 'naturalization-3year', name: '3-Year Rule (Spouse of Citizen)', forms: ['N-400'] }
+    ]
+  },
+  {
+    id: 'temporary-visas',
+    name: 'Temporary Visas & Status',
+    subcategories: [
+      { id: 'work-authorization', name: 'Work Authorization (EAD)', forms: ['I-765'] },
+      { id: 'advance-parole', name: 'Advance Parole (Travel Document)', forms: ['I-131'] }
+    ]
+  },
+  {
+    id: 'nonimmigrant-work',
+    name: 'Non-immigrant Work Visas',
+    subcategories: [
+      { id: 'h1b-specialty', name: 'H-1B Specialty Occupation', forms: ['I-129', 'DS-160'] },
+      { id: 'l1-intracompany', name: 'L-1 Intracompany Transfer', forms: ['I-129', 'DS-160'] },
+      { id: 'o1-extraordinary', name: 'O-1 Extraordinary Ability', forms: ['I-129', 'DS-160'] },
+      { id: 'tn-nafta', name: 'TN NAFTA Professional', forms: ['DS-160'] }
+    ]
+  },
+  {
+    id: 'student-exchange',
+    name: 'Student & Exchange Visas',
+    subcategories: [
+      { id: 'f1-student', name: 'F-1 Student Visa', forms: ['DS-160', 'I-20'] },
+      { id: 'j1-exchange', name: 'J-1 Exchange Visitor', forms: ['DS-160', 'DS-2019'] },
+      { id: 'm1-vocational', name: 'M-1 Vocational Student', forms: ['DS-160', 'I-20'] }
+    ]
+  },
+  {
+    id: 'business-tourism',
+    name: 'Business & Tourism Visas',
+    subcategories: [
+      { id: 'b1-business', name: 'B-1 Business Visitor', forms: ['DS-160'] },
+      { id: 'b2-tourism', name: 'B-2 Tourist Visitor', forms: ['DS-160'] }
+    ]
   }
 ];
 
@@ -609,6 +906,9 @@ interface FormData {
 
     // Additional Information
     bio: string;
+    
+    // Case Description
+    caseDescription: string;
   };
   immigrationInfo: {
     currentStatus: string;
@@ -749,6 +1049,9 @@ const IndividualImmigrationProcess: React.FC = () => {
 
       // Additional Information
       bio: '',
+      
+      // Case Description
+      caseDescription: '',
     },
     immigrationInfo: {
       currentStatus: '',
@@ -997,6 +1300,9 @@ const IndividualImmigrationProcess: React.FC = () => {
 
       // Additional Information
       bio: c.bio || '',
+      
+      // Case Description
+      caseDescription: c.caseDescription || '',
     };
   };
 
@@ -1033,6 +1339,7 @@ const IndividualImmigrationProcess: React.FC = () => {
       criminalHistory: pi.criminalHistory,
       medicalHistory: pi.medicalHistory,
       bio: pi.bio,
+      caseDescription: pi.caseDescription,
       // also nest under personalInfo
       personalInfo: { ...pi },
     };
@@ -1383,7 +1690,7 @@ const IndividualImmigrationProcess: React.FC = () => {
     const newCase: Case = {
       ...caseData,
       title: `${selectedCategory?.title || 'Immigration'} Case - ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`,
-      description: `Immigration case for ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`,
+      description: formData.personalInfo.caseDescription || `Immigration case for ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`,
       category: selectedCategory?.id || 'immigration',
       subcategory: selectedSubcategory?.id || 'general',
       visaType: formData.immigrationInfo.visaType,
@@ -1396,6 +1703,7 @@ const IndividualImmigrationProcess: React.FC = () => {
 
   const steps: ImmigrationStep[] = [
     { id: 'personal-details', title: 'Personal Details', description: 'Basic personal information', isCompleted: false, isActive: true },
+    { id: 'case-setup', title: 'Case Setup', description: 'Set up case details and category', isCompleted: false, isActive: false },
     { id: 'select-form', title: 'Select Forms', description: 'Choose required forms for filing', isCompleted: false, isActive: false },
     { id: 'form-details', title: 'All Details Summary', description: 'Complete workflow details overview', isCompleted: false, isActive: false },
     { id: 'auto-fill', title: 'Auto-fill Forms', description: 'Generate completed forms', isCompleted: false, isActive: false }
@@ -3224,6 +3532,10 @@ const IndividualImmigrationProcess: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 mb-2">Bio/Additional Information</label>
           <textarea rows={4} value={formData.personalInfo.bio} onChange={e => handlePersonalInfoChange('bio', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" placeholder="Tell us about yourself, your background, or any additional information..." />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Case Description</label>
+          <textarea rows={3} value={formData.personalInfo.caseDescription} onChange={e => handlePersonalInfoChange('caseDescription', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" placeholder="Describe your immigration case, goals, and any specific details about your situation..." />
+        </div>
       </section>
 
       {/* Identification */}
@@ -4001,15 +4313,209 @@ const IndividualImmigrationProcess: React.FC = () => {
     </div>
   );
 
+  const renderCaseSetupStep = () => (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 className="text-lg font-semibold text-blue-900 mb-2">Case Setup</h3>
+        <p className="text-blue-700">
+          Create a new immigration case for: <strong>{formData.personalInfo.firstName} {formData.personalInfo.lastName || 'Your Application'}</strong>
+        </p>
+      </div>
+
+      {/* Case Setup Form */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Case Title */}
+          <div className="md:col-span-2">
+            <label htmlFor="caseTitle" className="block text-sm font-medium text-gray-700 mb-2">
+              Case Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="caseTitle"
+              placeholder="Enter case title (e.g., Green Card Application - Marriage Based)"
+              value={caseData.title || ''}
+              onChange={e => setCaseData({ ...caseData, title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          {/* Immigration Category */}
+          <div>
+            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
+              Immigration Category <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="category"
+              value={caseData.category || ''}
+              onChange={e => {
+                setCaseData({ 
+                  ...caseData, 
+                  category: e.target.value, 
+                  subcategory: '' // Reset subcategory when category changes
+                });
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            >
+              <option value="">Select an option</option>
+              <option value="" disabled className="text-gray-400">Select category</option>
+              {IMMIGRATION_CATEGORIES.map(cat => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Subcategory */}
+          <div>
+            <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 mb-2">
+              Subcategory <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="subcategory"
+              value={caseData.subcategory || ''}
+              onChange={e => setCaseData({ ...caseData, subcategory: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              disabled={!caseData.category}
+            >
+              <option value="">Select an option</option>
+              {caseData.category ? (
+                IMMIGRATION_CATEGORIES
+                  .find(cat => cat.id === caseData.category)
+                  ?.subcategories.map(sub => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </option>
+                  ))
+              ) : (
+                <option value="" disabled>Select category first</option>
+              )}
+            </select>
+          </div>
+
+          {/* Priority Level */}
+          <div>
+            <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-2">
+              Priority Level <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="priority"
+              value={caseData.priority || 'medium'}
+              onChange={e => setCaseData({ ...caseData, priority: e.target.value as Case['priority'] })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            >
+              <option value="">Select an option</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          {/* Start Date */}
+          <div>
+            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
+              Start Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              id="startDate"
+              value={caseData.createdAt ? new Date(caseData.createdAt).toISOString().split('T')[0] : ''}
+              onChange={e => setCaseData({ ...caseData, createdAt: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-2">
+              Expected Completion Date
+            </label>
+            <input
+              type="date"
+              id="dueDate"
+              value={caseData.dueDate ? new Date(caseData.dueDate).toISOString().split('T')[0] : ''}
+              onChange={e => setCaseData({ ...caseData, dueDate: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Case Description */}
+          <div className="md:col-span-2">
+            <label htmlFor="caseDescription" className="block text-sm font-medium text-gray-700 mb-2">
+              Case Description
+            </label>
+            <textarea
+              id="caseDescription"
+              rows={4}
+              placeholder="Provide a brief description of the immigration case..."
+              value={caseData.description || ''}
+              onChange={e => setCaseData({ ...caseData, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        {/* Form Preview - Show expected forms based on selection */}
+        {caseData.category && caseData.subcategory && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Expected Forms for This Case:</h4>
+            <div className="flex flex-wrap gap-2">
+              {IMMIGRATION_CATEGORIES
+                .find(cat => cat.id === caseData.category)
+                ?.subcategories
+                .find(sub => sub.id === caseData.subcategory)
+                ?.forms.map(form => (
+                  <span 
+                    key={form}
+                    className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                  >
+                    {form}
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="flex justify-between mt-8">
+          <button
+            type="button"
+            onClick={() => navigate('/cases')}
+            className="px-6 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!caseData.title || !caseData.category || !caseData.subcategory}
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          >
+            Continue to Personal Details
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
         return renderPersonalDetailsStepExpanded();
       case 1:
-        return renderFormSelectionStep();
+        return renderCaseSetupStep();
       case 2:
-        return renderFormDetailsStep();
+        return renderFormSelectionStep();
       case 3:
+        return renderFormDetailsStep();
+      case 4:
         return renderAutoFillStep();
       default:
         return null;
