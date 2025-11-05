@@ -6859,7 +6859,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
                     return (
                       <Button
-                        onClick={handleQuestionnaireAssignment}
+                        onClick={() => handleQuestionnaireAssignment()}
                         disabled={!selectedQuestionnaire}
                       >
                         {loading ? (
