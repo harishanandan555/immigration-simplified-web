@@ -3814,92 +3814,62 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               const assignedToId = currentUser._id || currentUser.id;
               
               // Prepare enhanced case data for existing response path
-              enhancedCaseData = {
-                // Required fields
-                type: caseData.category || 'Family-Based',
-                clientId: client.clientId || client._id || '',
+              // const enhancedCaseData: EnhancedCaseData = {
+              //   // Required fields
+              //   type: caseData.category || 'Family-Based',
+              //   clientId: client.clientId || client._id || '',
                 
-                // Enhanced fields
-                title: caseData.title || `${client.name} - ${caseData.category || 'Immigration'} Case (Existing Response)`,
-                description: caseData.description || `${caseData.category || 'Immigration'} case for ${client.name} using existing questionnaire response`,
-                category: caseData.category || 'family-based',
-                subcategory: caseData.subcategory || 'adjustment-of-status',
-                priority: (caseData.priority?.charAt(0).toUpperCase() + caseData.priority?.slice(1)) as 'Low' | 'Medium' | 'High' | 'Urgent' || 'Medium',
-                dueDate: caseData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
-                assignedTo: assignedToId,
+              //   // Enhanced fields
+              //   title: caseData.title || `${client.name} - ${caseData.category || 'Immigration'} Case (Existing Response)`,
+              //   description: caseData.description || `${caseData.category || 'Immigration'} case for ${client.name} using existing questionnaire response`,
+              //   category: caseData.category || 'family-based',
+              //   subcategory: caseData.subcategory || 'adjustment-of-status',
+              //   priority: (caseData.priority?.charAt(0).toUpperCase() + caseData.priority?.slice(1)) as 'Low' | 'Medium' | 'High' | 'Urgent' || 'Medium',
+              //   dueDate: caseData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
+              //   assignedTo: assignedToId,
                 
-                // Form management
-                assignedForms: selectedForms || [],
-                formCaseIds: formCaseIds || {},
-                questionnaires: [existingResponse.questionnaireId],
+              //   // Form management
+              //   assignedForms: selectedForms || [],
+              //   formCaseIds: formCaseIds || {},
+              //   questionnaires: [existingResponse.questionnaireId],
                 
-                // Optional fields
-                status: 'in-progress', // Mark as in-progress since responses already exist
-                startDate: new Date().toISOString(),
-                expectedClosureDate: caseData.expectedClosureDate,
-                notes: `Case created with existing questionnaire response. Original response from: ${existingResponse.questionnaireTitle}. Original case: ${existingResponse.caseId}`
-              };
+              //   // Optional fields
+              //   status: 'in-progress', // Mark as in-progress since responses already exist
+              //   startDate: new Date().toISOString(),
+              //   expectedClosureDate: caseData.expectedClosureDate,
+              //   notes: `Case created with existing questionnaire response. Original response from: ${existingResponse.questionnaireTitle}. Original case: ${existingResponse.caseId}`
+              // };
 
-              console.log('🔍 DEBUG: Sending enhanced case data to API:', {
-                enhancedCaseData,
-                apiEndpoint: '/api/v1/cases',
-                hasClientId: !!enhancedCaseData.clientId,
-                hasTitle: !!enhancedCaseData.title,
-                hasAssignedForms: enhancedCaseData.assignedForms?.length > 0
-              });
-
-              console.log('🚨 DEBUG: ABOUT TO CALL createEnhancedCase - THIS IS CRITICAL FOR ims_cases CREATION');
-              const caseResponse = await createEnhancedCase(enhancedCaseData);
-              console.log('🚨 DEBUG: createEnhancedCase CALL COMPLETED');
+              // const caseResponse = await createEnhancedCase(enhancedCaseData);
               
-             
-              
-              if (caseResponse && caseResponse.data) {
-                console.log('✅ Enhanced case created for existing response:', {
-                  caseId: caseResponse.data.case?._id || caseResponse.data._id,
-                  success: caseResponse.data.success,
-                  message: caseResponse.data.message,
-                  caseObjectExists: !!(caseResponse.data.case),
-                  directIdExists: !!(caseResponse.data._id),
-                  fullCaseData: caseResponse.data.case || caseResponse.data
-                });
+              // if (caseResponse && caseResponse.data) {
+              //   console.log('✅ Enhanced case created for existing response:', {
+              //     caseId: caseResponse.data.case?._id || caseResponse.data._id,
+              //     success: caseResponse.data.success,
+              //     message: caseResponse.data.message
+              //   });
                 
-                // Update local case data with the newly created case information
-                const createdCase = caseResponse.data.case || caseResponse.data;
-                if (createdCase._id) {
-                  setCaseData(prev => ({
-                    ...prev,
-                    caseId: createdCase._id,
-                    id: createdCase._id,
-                    _id: createdCase._id,
-                    ...createdCase
-                  }));
-                }
+              //   // Update local case data with the newly created case information
+              //   const createdCase = caseResponse.data.case || caseResponse.data;
+              //   if (createdCase._id) {
+              //     setCaseData(prev => ({
+              //       ...prev,
+              //       id: createdCase._id,
+              //       _id: createdCase._id,
+              //       ...createdCase
+              //     }));
+              //   }
                 
-                toast.success(
-                  <div>
-                    <p>✅ Enhanced case created with existing response!</p>
-                    <p className="text-sm mt-1">📋 Case ID: {createdCase._id}</p>
-                    <p className="text-sm">📁 Reused response: {existingResponse.questionnaireTitle}</p>
-                    <p className="text-xs text-green-600">💾 Saved separately in cases collection</p>
-                  </div>,
-                  { duration: 6000 }
-                );
-              } else {
-                console.error('❌ Enhanced case creation returned no valid data:', {
-                  hasResponse: !!caseResponse,
-                  hasData: !!(caseResponse && caseResponse.data),
-                  response: caseResponse
-                });
-                
-                toast.error(
-                  <div>
-                    <p>⚠️ Case creation returned invalid response</p>
-                    <p className="text-sm mt-1">Check server logs for details</p>
-                  </div>,
-                  { duration: 5000 }
-                );
-              }
+              //   toast.success(
+              //     <div>
+              //       <p>✅ Enhanced case created with existing response!</p>
+              //       <p className="text-sm mt-1">📋 Case ID: {createdCase._id}</p>
+              //       <p className="text-sm">📁 Reused response: {existingResponse.questionnaireTitle}</p>
+              //       <p className="text-xs text-green-600">💾 Saved separately in cases collection</p>
+              //     </div>,
+              //     { duration: 6000 }
+              //   );
+              // }
               
             } catch (caseError: any) {
               console.error('❌ Error creating enhanced case for existing response:', {
@@ -4572,75 +4542,62 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               const assignedToId = currentUser._id || currentUser.id;
               
               // Prepare enhanced case data according to API specification
-              const enhancedCaseData: EnhancedCaseData = {
-                // Required fields
-                type: caseData.category || 'Family-Based',
-                clientId: clientUserId || client.id || client._id || '',
+              // const enhancedCaseData: EnhancedCaseData = {
+              //   // Required fields
+              //   type: caseData.category || 'Family-Based',
+              //   clientId: clientUserId || client.id || client._id || '',
                 
-                // Enhanced fields
-                title: caseData.title || `${client.name} - ${caseData.category || 'Immigration'} Case`,
-                description: caseData.description || `${caseData.category || 'Immigration'} case for ${client.name}`,
-                category: caseData.category || 'family-based',
-                subcategory: caseData.subcategory || 'adjustment-of-status',
-                priority: (caseData.priority?.charAt(0).toUpperCase() + caseData.priority?.slice(1)) as 'Low' | 'Medium' | 'High' | 'Urgent' || 'Medium',
-                dueDate: caseData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
-                assignedTo: assignedToId,
+              //   // Enhanced fields
+              //   title: caseData.title || `${client.name} - ${caseData.category || 'Immigration'} Case`,
+              //   description: caseData.description || `${caseData.category || 'Immigration'} case for ${client.name}`,
+              //   category: caseData.category || 'family-based',
+              //   subcategory: caseData.subcategory || 'adjustment-of-status',
+              //   priority: (caseData.priority?.charAt(0).toUpperCase() + caseData.priority?.slice(1)) as 'Low' | 'Medium' | 'High' | 'Urgent' || 'Medium',
+              //   dueDate: caseData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
+              //   assignedTo: assignedToId,
                 
-                // Form management
-                assignedForms: selectedForms || [],
-                formCaseIds: formCaseIds || {},
-                // Ensure we use the effectiveQuestionnaire (override/state) when creating the case
-                questionnaires: [effectiveQuestionnaire],
+              //   // Form management
+              //   assignedForms: selectedForms || [],
+              //   formCaseIds: formCaseIds || {},
+              //   questionnaires: [selectedQuestionnaire],
                 
-                // Optional fields
-                status: 'draft',
-                startDate: new Date().toISOString(),
-                expectedClosureDate: caseData.expectedClosureDate,
-                notes: `Case created through workflow automation. Questionnaire: ${assignment.questionnaireName}`
-              };
+              //   // Optional fields
+              //   status: 'draft',
+              //   startDate: new Date().toISOString(),
+              //   expectedClosureDate: caseData.expectedClosureDate,
+              //   notes: `Case created through workflow automation. Questionnaire: ${assignment.questionnaireName}`
+              // };
 
-              console.log('🔄 Enhanced case data prepared:', {
-                type: enhancedCaseData.type,
-                clientId: enhancedCaseData.clientId,
-                title: enhancedCaseData.title,
-                category: enhancedCaseData.category,
-                subcategory: enhancedCaseData.subcategory,
-                assignedFormsCount: enhancedCaseData.assignedForms.length,
-                formCaseIdsCount: Object.keys(enhancedCaseData.formCaseIds).length,
-                hasQuestionnaire: !!enhancedCaseData.questionnaires.length
-              });
-
-              const caseResponse = await createEnhancedCase(enhancedCaseData);
+              // const caseResponse = await createEnhancedCase(enhancedCaseData);
               
-              if (caseResponse && caseResponse.data) {
-                console.log('✅ Enhanced case created successfully:', {
-                  caseId: caseResponse.data.case?._id || caseResponse.data._id,
-                  success: caseResponse.data.success,
-                  message: caseResponse.data.message
-                });
+              // if (caseResponse && caseResponse.data) {
+              //   console.log('✅ Enhanced case created successfully:', {
+              //     caseId: caseResponse.data.case?._id || caseResponse.data._id,
+              //     success: caseResponse.data.success,
+              //     message: caseResponse.data.message
+              //   });
                 
-                // Update local case data with the newly created case information
-                const createdCase = caseResponse.data.case || caseResponse.data;
-                if (createdCase._id) {
-                  setCaseData(prev => ({
-                    ...prev,
-                    caseId: createdCase._id,
-                    id: createdCase._id,
-                    _id: createdCase._id,
-                    ...createdCase
-                  }));
-                }
+              //   // Update local case data with the newly created case information
+              //   const createdCase = caseResponse.data.case || caseResponse.data;
+              //   if (createdCase._id) {
+              //     setCaseData(prev => ({
+              //       ...prev,
+              //       id: createdCase._id,
+              //       _id: createdCase._id,
+              //       ...createdCase
+              //     }));
+              //   }
                 
-                toast.success(
-                  <div>
-                    <p>✅ Enhanced case created successfully!</p>
-                    <p className="text-sm mt-1">📋 Case ID: {createdCase._id}</p>
-                    <p className="text-sm">📁 Title: {enhancedCaseData.title}</p>
-                    <p className="text-xs text-green-600">💾 Saved with enhanced fields, forms, and questionnaire assignment</p>
-                  </div>,
-                  { duration: 6000 }
-                );
-              }
+              //   toast.success(
+              //     <div>
+              //       <p>✅ Enhanced case created successfully!</p>
+              //       <p className="text-sm mt-1">📋 Case ID: {createdCase._id}</p>
+              //       <p className="text-sm">📁 Title: {enhancedCaseData.title}</p>
+              //       <p className="text-xs text-green-600">💾 Saved with enhanced fields, forms, and questionnaire assignment</p>
+              //     </div>,
+              //     { duration: 6000 }
+              //   );
+              // }
               
             } catch (caseError: any) {
               console.error('❌ Error creating enhanced case:', {

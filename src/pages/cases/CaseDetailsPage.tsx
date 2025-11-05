@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, FileText, CheckSquare, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, CheckSquare, MessageCircle, Download, Edit3, Loader2, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { getTasks, Task } from '../../controllers/TaskControllers';
 import { getDocuments, Document } from '../../controllers/DocumentControllers';
+import Button from '../../components/common/Button';
+import PdfEditor from '../../components/pdf/PdfEditor';
+import { getPdfPreviewBlob, saveEditedPdf } from '../../controllers/AnvilControllers';
+import { downloadPdfFile } from '../../controllers/FormAutoFillControllers';
 
 // Types for workflow case data
 type WorkflowCase = {
@@ -51,6 +56,31 @@ type WorkflowCase = {
 
 // This would normally come from an API
 
+type GeneratedForm = {
+  formName: string;
+  templateId: string;
+  blob: Blob;
+  downloadUrl: string;
+  fileName: string;
+  pdfId?: string;
+  status: 'generating' | 'success' | 'error';
+  error?: string;
+  filledPercentage?: number;
+  unfilledFields?: Record<string, any>;
+  metadata?: {
+    filename: string;
+    fileSize: number;
+    contentType: string;
+    createdAt: string;
+    validationDetails: {
+      totalFields: number;
+      filledFields: number;
+      unfilledFieldsCount: number;
+      openaiValidationUsed: boolean;
+    };
+  };
+};
+
 const CaseDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const [caseData, setCaseData] = useState<WorkflowCase | null>(null);
@@ -58,6 +88,18 @@ const CaseDetailsPage = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // State for generated forms
+  const [generatedForms, setGeneratedForms] = useState<GeneratedForm[]>([]);
+  const [loadingForms, setLoadingForms] = useState<boolean>(false);
+  const [showPreview, setShowPreview] = useState<Record<string, boolean>>({});
+  const [showEditor, setShowEditor] = useState<Record<string, boolean>>({});
+  const [loadingPreview, setLoadingPreview] = useState<Record<string, boolean>>({});
+  const [pdfPreviewData, setPdfPreviewData] = useState<Record<string, {
+    blob: Blob;
+    metadata: any;
+    pdfId: string;
+  }>>({});
 
   useEffect(() => {
     const fetchCaseData = async () => {
@@ -194,6 +236,9 @@ const CaseDetailsPage = () => {
           setDocuments([]);
         }
 
+        // Fetch generated forms for this case
+        await fetchGeneratedForms(workflow, transformedCase);
+
       } catch (error: any) {
         console.error('❌ Error fetching case data:', error);
         setError(error.response?.data?.message || error.message || 'Failed to load case data');
@@ -206,6 +251,233 @@ const CaseDetailsPage = () => {
       fetchCaseData();
     }
   }, [id]);
+
+  // Function to fetch generated forms for the case
+  const fetchGeneratedForms = async (workflow: any, caseData: WorkflowCase) => {
+    try {
+      setLoadingForms(true);
+      console.log('📄 Fetching generated forms for case:', caseData.caseNumber);
+
+      const forms: GeneratedForm[] = [];
+      const clientId = caseData.client._id;
+      const workflowId = caseData._id;
+
+      // Fetch forms for each assigned form
+      if (caseData.assignedForms && caseData.assignedForms.length > 0) {
+        for (const formNumber of caseData.assignedForms) {
+          try {
+            // Try to get PDF preview by form number and client ID
+            const previewResponse = await getPdfPreviewBlob({
+              formNumber: formNumber,
+              clientId: clientId,
+              workflowId: workflowId
+            });
+
+            if (previewResponse.data && previewResponse.data.blob) {
+              const { blob, metadata, pdfId } = previewResponse.data;
+              
+              forms.push({
+                formName: formNumber,
+                templateId: metadata?.templateId || '',
+                blob: blob,
+                downloadUrl: URL.createObjectURL(blob),
+                fileName: metadata?.filename || `${formNumber}_${Date.now()}.pdf`,
+                pdfId: pdfId,
+                status: 'success',
+                filledPercentage: metadata?.validationDetails?.filledFields 
+                  ? (metadata.validationDetails.filledFields / metadata.validationDetails.totalFields) * 100 
+                  : undefined,
+                metadata: metadata
+              });
+            }
+          } catch (formError: any) {
+            console.error(`❌ Error fetching form ${formNumber}:`, formError);
+            // Still add the form with error status
+            forms.push({
+              formName: formNumber,
+              templateId: '',
+              blob: new Blob(),
+              downloadUrl: '',
+              fileName: `${formNumber}.pdf`,
+              status: 'error',
+              error: formError.message || 'Failed to fetch form'
+            });
+          }
+        }
+      }
+
+      setGeneratedForms(forms);
+      console.log('📄 Found generated forms:', forms.length);
+    } catch (error: any) {
+      console.error('❌ Error fetching generated forms:', error);
+      toast.error('Failed to fetch generated forms');
+    } finally {
+      setLoadingForms(false);
+    }
+  };
+
+  // Function to handle form download
+  const handleDownloadForm = (formName: string) => {
+    const form = generatedForms.find(f => f.formName === formName);
+    if (form && form.blob) {
+      downloadPdfFile(form.blob, form.fileName);
+    }
+  };
+
+  // Function to preview a specific form
+  const handlePreviewForm = async (formName: string) => {
+    const form = generatedForms.find(f => f.formName === formName);
+    if (!form) {
+      toast.error(`Form ${formName} not found`);
+      return;
+    }
+
+    // If preview is already showing, just toggle it off
+    if (showPreview[formName]) {
+      setShowPreview(prev => ({
+        ...prev,
+        [formName]: false
+      }));
+      return;
+    }
+
+    // Always try to show preview - use existing blob first, then try to fetch fresh data
+    if (form.blob) {
+      // Show existing preview immediately
+      setShowPreview(prev => ({
+        ...prev,
+        [formName]: true
+      }));
+      
+      // If we have a pdfId, also try to fetch fresh data in background
+      if (form.pdfId) {
+        try {
+          setLoadingPreview(prev => ({ ...prev, [formName]: true }));
+          
+          const previewResponse = await getPdfPreviewBlob({ pdfId: form.pdfId });
+          
+          if (previewResponse.data.blob) {
+            const { blob, metadata, pdfId } = previewResponse.data;
+            
+            // Update preview data state
+            setPdfPreviewData(prev => ({
+              ...prev,
+              [formName]: {
+                blob,
+                metadata,
+                pdfId
+              }
+            }));
+
+            // Update the form with new preview data
+            const updatedForms = generatedForms.map(f => 
+              f.formName === formName 
+                ? { 
+                    ...f, 
+                    blob,
+                    downloadUrl: URL.createObjectURL(blob)
+                  }
+                : f
+            );
+            setGeneratedForms(updatedForms);
+
+            toast.success('PDF preview refreshed from backend');
+          }
+        } catch (error) {
+          console.error('Error refreshing PDF preview:', error);
+          // Don't show error toast since we're already showing the cached version
+        } finally {
+          setLoadingPreview(prev => ({ ...prev, [formName]: false }));
+        }
+      }
+    } else {
+      toast.error('No PDF data available for preview');
+    }
+  };
+
+  // Function to close preview
+  const handleClosePreview = (formName: string) => {
+    setShowPreview(prev => ({
+      ...prev,
+      [formName]: false
+    }));
+  };
+
+  // Function to handle opening PDF editor
+  const handleEditForm = (formName: string) => {
+    setShowEditor(prev => ({
+      ...prev,
+      [formName]: !prev[formName]
+    }));
+  };
+
+  // Function to close PDF editor
+  const handleCloseEditor = (formName: string) => {
+    setShowEditor(prev => ({
+      ...prev,
+      [formName]: false
+    }));
+  };
+
+  // Function to handle saving edited PDF
+  const handleSaveEditedPdf = async (formName: string, editedPdfBlob: Blob) => {
+    try {
+      const form = generatedForms.find(f => f.formName === formName);
+      if (!form) return;
+
+      if (!caseData) {
+        toast.error('Case data not available');
+        return;
+      }
+
+      // Save to backend database
+      const clientId = caseData.client._id;
+      const formNumber = formName;
+      const templateId = form.templateId;
+      
+      // Ensure we have a valid pdfId
+      if (!form.pdfId) {
+        toast.error(`Cannot save edited PDF: Missing pdfId for form ${formName}`);
+        return;
+      }
+
+      const saveResponse = await saveEditedPdf(
+        editedPdfBlob,
+        formNumber,
+        clientId,
+        templateId,
+        form.pdfId,
+        {
+          caseId: caseData._id,
+          workflowId: caseData._id,
+          filename: form.fileName
+        }
+      );
+
+      if (saveResponse.data.success) {
+        // Update the form with the edited PDF and new backend data
+        const updatedForms = generatedForms.map(f => 
+          f.formName === formName 
+            ? { 
+                ...f, 
+                blob: editedPdfBlob, 
+                downloadUrl: saveResponse.data.data?.downloadUrl || URL.createObjectURL(editedPdfBlob),
+                pdfId: saveResponse.data.data?.pdfId || f.pdfId,
+              }
+            : f
+        );
+        setGeneratedForms(updatedForms);
+
+        toast.success('PDF saved successfully to database');
+        handleCloseEditor(formName);
+      } else {
+        throw new Error(saveResponse.data.message || 'Failed to save PDF to database');
+      }
+    } catch (error: any) {
+      console.error('Error saving edited PDF:', error);
+      toast.error(error.message || 'Failed to save PDF to database');
+    }
+  };
 
   if (loading) {
     return (
@@ -566,6 +838,167 @@ const CaseDetailsPage = () => {
           )}
         </div>
       </div>
+
+      {/* Generated Forms section */}
+      <div className="mt-6 bg-white rounded-lg shadow">
+        <div className="border-b p-4">
+          <h2 className="text-xl font-semibold">Generated Forms</h2>
+        </div>
+        <div className="p-4">
+          {loadingForms ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-blue-600 animate-spin mr-2" />
+              <span className="text-gray-600">Loading forms...</span>
+            </div>
+          ) : generatedForms.length > 0 ? (
+            <div className="space-y-4">
+              {generatedForms.map((form) => (
+                <div key={form.formName} className="border border-gray-200 rounded-lg p-4">
+                  {form.status === 'success' ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <FileText className="w-5 h-5 text-blue-600 mr-2" />
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">{form.formName}</h3>
+                            {form.metadata && (
+                              <p className="text-sm text-gray-500">
+                                {form.metadata.filename} • {form.metadata.fileSize ? `${(form.metadata.fileSize / 1024).toFixed(2)} KB` : 'N/A'}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {form.filledPercentage !== undefined && (
+                          <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                            form.filledPercentage >= 90 ? 'bg-green-100 text-green-800' :
+                            form.filledPercentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {form.filledPercentage.toFixed(0)}% Filled
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          onClick={() => handleDownloadForm(form.formName)}
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </Button>
+                        <Button
+                          onClick={() => handlePreviewForm(form.formName)}
+                          size="sm"
+                          variant="outline"
+                          disabled={loadingPreview[form.formName]}
+                        >
+                          {loadingPreview[form.formName] ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <FileText className="w-4 h-4 mr-1" />
+                          )}
+                          {loadingPreview[form.formName] ? 'Loading...' : 'Preview'}
+                        </Button>
+                        <Button
+                          onClick={() => handleEditForm(form.formName)}
+                          size="sm"
+                          variant="outline"
+                          className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                        >
+                          <Edit3 className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-red-600">
+                      Error: {form.error || 'Unknown error'}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No forms found</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                No generated forms are currently associated with this case.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* PDF Preview Modal */}
+      {Object.entries(showPreview).map(([formName, isVisible]) => {
+        if (!isVisible) return null;
+        const form = generatedForms.find(f => f.formName === formName);
+        if (!form || form.status !== 'success') return null;
+
+        return (
+          <div key={formName} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-4 max-w-4xl w-full h-5/6 flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Preview: {formName}</h3>
+                <Button
+                  onClick={() => handleClosePreview(formName)}
+                  variant="outline"
+                  size="sm"
+                >
+                  ×
+                </Button>
+              </div>
+              <div className="flex-1">
+                {form.blob ? (
+                  <iframe
+                    src={URL.createObjectURL(form.blob)}
+                    className="w-full h-full border-0"
+                    title={`Preview of ${formName}`}
+                    onError={() => {
+                      console.error('PDF preview failed to load');
+                      toast.error('Failed to load PDF preview');
+                    }}
+                  />
+                ) : loadingPreview[formName] ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4" />
+                      <p className="text-gray-600">Loading PDF preview...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+                      <p className="text-gray-600">No PDF data available</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* PDF Editor Modal */}
+      {Object.entries(showEditor).map(([formName, isVisible]) => {
+        if (!isVisible) return null;
+        const form = generatedForms.find(f => f.formName === formName);
+        if (!form || form.status !== 'success') return null;
+
+        return (
+          <PdfEditor
+            key={formName}
+            pdfUrl={form.downloadUrl}
+            filename={form.fileName}
+            onClose={() => handleCloseEditor(formName)}
+            onSave={(editedPdfBlob) => handleSaveEditedPdf(formName, editedPdfBlob)}
+          />
+        );
+      })}
 
       {/* Communication section */}
       <div className="mt-6 bg-white rounded-lg shadow">
