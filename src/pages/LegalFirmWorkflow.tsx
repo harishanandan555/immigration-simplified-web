@@ -4881,6 +4881,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setGeneratingForms(true);
       setGeneratedForms([]);
 
+      console.log(completeWorkflowDetails);
+
       // Prepare comprehensive form data from all collected information
       const formData = {
         // Required fields for validation
@@ -4907,6 +4909,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         caseSubcategory: caseData.subcategory || '',
         visaType: caseData.visaType || '',
         priorityDate: caseData.priorityDate || '',
+        caseId: completeWorkflowDetails.case.caseId || '',
 
         // Client responses from questionnaire
         ...clientResponses,
@@ -4975,10 +4978,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             newGeneratedForms[formIndex].templateId = templateId;
           }
 
+          // Ensure caseId is included in the prepared data
+          const preparedDataWithCaseId = {
+            ...preparedData,
+            caseId: completeWorkflowDetails.case.caseId || ''
+          };
+
           // Use Anvil API to fill the PDF template
           const anvilResponse = await fillPdfTemplateBlob(
             templateId,
-            preparedData,
+            preparedDataWithCaseId,
             {
               title: `${formName} - ${client.firstName} ${client.lastName}`,
               fontFamily: 'Arial',

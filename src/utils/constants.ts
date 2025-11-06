@@ -708,7 +708,9 @@ export const ANVIL_END_POINTS = {
     // Validate PDF data using OpenAI
     VALIDATE_PDF_DATA: "/api/v1/anvil/validate-pdf-data",
     // Get PDF preview data
-    PDF_PREVIEW: "/api/v1/anvil/pdf-preview"
+    PDF_PREVIEW: "/api/v1/anvil/pdf-preview",
+    // Get filled PDFs by client ID and case ID
+    GET_FILLED_PDFS_BY_CLIENT_AND_CASE: "/api/v1/anvil/filled-pdfs/client/:clientId/case/:caseId"
 } as const;
 
 
