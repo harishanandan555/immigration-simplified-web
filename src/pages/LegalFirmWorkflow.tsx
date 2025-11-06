@@ -1587,73 +1587,18 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setClient(updatedClient);
 
       try {
-        // Get current attorney information from API instead of localStorage
-        const getCurrentAttorneyInfo = async () => {
-          try {
-            // Try to get current user profile from API first
-            const token = localStorage.getItem('token');
-            if (!token) {
-              throw new Error('No authentication token found');
-            }
+        // Get companyId and attorneyId from localStorage
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const companyId = localStorage.getItem('companyId');
+        const attorneyId: string | undefined = currentUser._id || currentUser.id;
 
-            // Make direct API call to get current user profile using proper endpoint
-            const response = await api.get(AUTH_END_POINTS.PROFILE_GET, {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
+        if (!companyId) {
+          throw new Error('Company ID is required. Please ensure you are logged in.');
+        }
 
-            const currentUser = response.data?.data || response.data;
-            console.log('🔍 DEBUG: Current user from API:', currentUser);
-
-            return {
-              attorneyId: currentUser._id || currentUser.id,
-              companyId: currentUser.companyId,
-              user: currentUser
-            };
-          } catch (apiError: any) {
-            console.warn('⚠️ Failed to get attorney info from API, falling back to localStorage:', apiError.message);
-            
-            // Fallback to localStorage if API fails
-            const storedUser = localStorage.getItem('user');
-            const storedCompanyId = localStorage.getItem('companyId');
-            
-            if (!storedUser) {
-              throw new Error('No user information found in localStorage either');
-            }
-
-            const currentUser = JSON.parse(storedUser);
-            return {
-              attorneyId: currentUser._id || currentUser.id,
-              companyId: storedCompanyId || currentUser.companyId,
-              user: currentUser
-            };
-          }
-        };
-
-        // Get attorney information
-        const attorneyInfo = await getCurrentAttorneyInfo();
-        const { attorneyId, companyId: attorneyCompanyId, user: currentUser } = attorneyInfo;
-
-        console.log('🔍 DEBUG: Attorney information for client creation:', {
-          currentUser,
-          attorneyId,
-          attorneyCompanyId,
-          hasAttorneyId: !!attorneyId,
-          hasCompanyId: !!attorneyCompanyId,
-          source: 'API with localStorage fallback'
-        });
-
-        // Validate that we have attorney information
         if (!attorneyId) {
-          throw new Error('Attorney ID not found. Please ensure you are logged in as an attorney.');
+          throw new Error('Attorney ID is required. Please ensure you are logged in.');
         }
-
-        if (!attorneyCompanyId) {
-          throw new Error('Attorney company ID not found. Please ensure you are logged in as an attorney.');
-        }
-
-        const attorneyIds = [attorneyId];
 
         // ✅ Use the new company client creation with all fields
         const response = await createCompanyClient({
@@ -1672,8 +1617,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           },
           role: 'client',
           userType: 'companyClient',
-          companyId: attorneyCompanyId, // Attorney's company from session
-          attorneyIds: attorneyIds, // Current attorney's ID
+          companyId: companyId, // Attorney's company from session
+          attorneyIds: attorneyId as any, // Current attorney's ID (single string, not array)
           dateOfBirth: client.dateOfBirth || '',
           placeOfBirth: client.placeOfBirth ? {
             city: client.placeOfBirth.city || '',
