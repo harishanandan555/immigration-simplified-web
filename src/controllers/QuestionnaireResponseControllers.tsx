@@ -341,8 +341,19 @@ export const getClientResponses = async (filters: Record<string, any> = {}) => {
                 },
                 // Add workflow case information
                 workflowCase: matchingWorkflow.case,
-                // Add form case IDs from workflow
-                workflowFormCaseIds: matchingWorkflow.formCaseIds,
+                // Add form case IDs from workflow (cleaned of MongoDB metadata)
+                workflowFormCaseIds: matchingWorkflow.formCaseIds ? (() => {
+                  const cleanFormCaseIds: Record<string, string> = {};
+                  if (typeof matchingWorkflow.formCaseIds === 'object') {
+                    for (const [key, value] of Object.entries(matchingWorkflow.formCaseIds)) {
+                      // Skip MongoDB metadata keys and only include string values
+                      if (!key.startsWith('$') && !key.startsWith('_') && typeof value === 'string') {
+                        cleanFormCaseIds[key] = value;
+                      }
+                    }
+                  }
+                  return cleanFormCaseIds;
+                })() : {},
                 // Add questionnaire assignment details from workflow
                 workflowQuestionnaireAssignment: matchingWorkflow.questionnaireAssignment,
                 // Add selected forms from workflow

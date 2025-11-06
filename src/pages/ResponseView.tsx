@@ -298,6 +298,41 @@ const ResponseView: React.FC = () => {
 
   // Function to normalize assignment data from different sources
   const normalizeAssignmentData = (assignmentData: any, responseData?: any) => {
+    console.log('🔍 DEBUG: normalizeAssignmentData input:', {
+      assignmentData,
+      hasWorkflowFormCaseIds: !!assignmentData.workflowFormCaseIds,
+      workflowFormCaseIds: assignmentData.workflowFormCaseIds,
+      formCaseIdGenerated: assignmentData.formCaseIdGenerated,
+      enhancedWithWorkflow: assignmentData.enhancedWithWorkflow,
+      existingFormNumber: assignmentData.formNumber
+    });
+    
+    // Extract form number from workflowFormCaseIds using formCaseIdGenerated
+    // ALWAYS prioritize workflow data over existing formNumber when enhanced with workflow
+    let formNumber = null;
+    
+    if (assignmentData.workflowFormCaseIds && assignmentData.formCaseIdGenerated && assignmentData.enhancedWithWorkflow) {
+      // Find the form number that maps to the current formCaseIdGenerated
+      formNumber = Object.keys(assignmentData.workflowFormCaseIds).find(key => 
+        assignmentData.workflowFormCaseIds[key] === assignmentData.formCaseIdGenerated
+      );
+      console.log('🔍 DEBUG: Extracted form number from workflowFormCaseIds:', {
+        formCaseIdGenerated: assignmentData.formCaseIdGenerated,
+        workflowFormCaseIds: assignmentData.workflowFormCaseIds,
+        extractedFormNumber: formNumber,
+        source: 'workflow'
+      });
+    }
+    
+    // Only fallback to existing formNumber if no workflow form number was found
+    if (!formNumber) {
+      formNumber = assignmentData.formNumber;
+      console.log('🔍 DEBUG: Using fallback form number:', {
+        formNumber,
+        source: 'existing'
+      });
+    }
+    
     // Create a normalized assignment object that maps all possible data sources
     const normalizedAssignment: QuestionnaireAssignment = {
       _id: assignmentData._id,
@@ -324,7 +359,7 @@ const ResponseView: React.FC = () => {
       attorneyInfo: assignmentData.attorneyInfo,
       caseId: assignmentData.caseId,
       formCaseIdGenerated: assignmentData.formCaseIdGenerated,
-      formNumber: assignmentData.formNumber,
+      formNumber: formNumber, // Use the extracted form number
       
       // Map status and dates with proper validation
       status: (assignmentData.status && typeof assignmentData.status === 'string' && assignmentData.status.trim() !== '') 
@@ -335,6 +370,12 @@ const ResponseView: React.FC = () => {
       dueDate: assignmentData.dueDate,
       notes: assignmentData.notes
     };
+
+    console.log('🔍 DEBUG: normalizeAssignmentData output:', {
+      formNumber: normalizedAssignment.formNumber,
+      formCaseIdGenerated: normalizedAssignment.formCaseIdGenerated,
+      source: assignmentData.enhancedWithWorkflow && assignmentData.workflowFormCaseIds ? 'workflow' : 'fallback'
+    });
 
     return normalizedAssignment;
   };
