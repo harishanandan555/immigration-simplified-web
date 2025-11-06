@@ -1,5 +1,6 @@
 import api from '../utils/api';
 import { FOIA_CASE_END_POINTS } from '../utils/constants';
+import { AxiosError } from 'axios';
 
 export interface FoiaCase {
   _id: string;
@@ -169,9 +170,54 @@ export const createFoiaCase = async (data: { userId: string; formData: FoiaCaseF
       data
     );
 
+    // Check if response indicates USCIS system error even with 200 status
+    if (response.data && !response.data.success) {
+      const responseData = response.data as any;
+      if (responseData.message && (
+        responseData.message.includes('USCIS system is currently unavailable') ||
+        responseData.message.includes('could not be processed') ||
+        responseData.message.includes('system may be down for maintenance')
+      )) {
+        const uscisError = new Error('USCIS_SYSTEM_UNAVAILABLE');
+        (uscisError as any).isUscisError = true;
+        throw uscisError;
+      }
+    }
+
     return response.data;
 
   } catch (error) {
+    // Check for 503 status or USCIS system errors
+    if (error instanceof AxiosError) {
+      const status = error.response?.status;
+      const responseData = error.response?.data as any;
+      
+      // Check for 503 status
+      if (status === 503) {
+        const uscisError = new Error('USCIS_SYSTEM_UNAVAILABLE');
+        (uscisError as any).isUscisError = true;
+        throw uscisError;
+      }
+      
+      // Check if response data indicates USCIS system error
+      if (responseData && (
+        responseData.message?.includes('USCIS system is currently unavailable') ||
+        responseData.message?.includes('could not be processed') ||
+        responseData.message?.includes('system may be down for maintenance') ||
+        responseData.error?.includes('could not be processed') ||
+        responseData.error?.includes('system may be down for maintenance')
+      )) {
+        const uscisError = new Error('USCIS_SYSTEM_UNAVAILABLE');
+        (uscisError as any).isUscisError = true;
+        throw uscisError;
+      }
+    }
+    
+    // Check if it's already a USCIS error
+    if ((error as any)?.isUscisError) {
+      throw error;
+    }
+    
     if (error instanceof Error) {
       console.error('Error creating FOIA case:', error.message);
       throw new Error(`Failed to create FOIA case: ${error.message}`);

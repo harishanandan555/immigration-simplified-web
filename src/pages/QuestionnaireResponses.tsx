@@ -648,8 +648,9 @@ const QuestionnaireResponses: React.FC = () => {
 
           // Case data from workflow - sanitized
           workflowCase: sanitizeObject({
-            id: matchingWorkflow.case?.id || matchingWorkflow.case?._id,
-            _id: matchingWorkflow.case?._id || matchingWorkflow.case?.id,
+            id: matchingWorkflow.case?.caseId || matchingWorkflow.case?._id || matchingWorkflow.case?.id,
+            caseId: matchingWorkflow.case?.caseId || matchingWorkflow.case?._id || matchingWorkflow.case?.id,
+            _id: matchingWorkflow.case?._id || matchingWorkflow.case?.caseId || matchingWorkflow.case?.id,
             title: matchingWorkflow.case?.title || 'Case',
             caseNumber: matchingWorkflow.case?.caseNumber || '',
             category: matchingWorkflow.case?.category || 'family-based',
@@ -663,9 +664,10 @@ const QuestionnaireResponses: React.FC = () => {
             dueDate: matchingWorkflow.case?.dueDate || ''
           }),
 
-          // Form data from workflow - sanitized
+          // Form data from workflow - sanitized (legacy support)
           selectedForms: sanitizeObject(matchingWorkflow.selectedForms || []),
           formCaseIds: sanitizeObject(matchingWorkflow.formCaseIds || {}),
+          formNumber: matchingWorkflow.formNumber || '',
           selectedQuestionnaire: matchingWorkflow.selectedQuestionnaire || assignment.questionnaireId,
 
           // Questionnaire assignment data - sanitized

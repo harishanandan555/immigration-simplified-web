@@ -392,7 +392,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           uscisOnlineAccountNumber: workflowData.client.uscisOnlineAccountNumber || '',
           socialSecurityNumber: workflowData.client.socialSecurityNumber || '',
           status: 'active',
-          createdAt: workflowData.client.createdAt || new Date().toISOString(),
+          // NOTE: client.createdAt is REMOVED per new schema
           isExistingClient: true,
           hasUserAccount: true,
           role: workflowData.client.role || 'client',
@@ -402,18 +402,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         setClient(clientData);
       }
       
-      // Populate case data
+      // Populate case data - Updated to handle new schema structure
       if (workflowData?.case) {
         const caseInfo = {
-          id: workflowData.case._id || workflowData.case.id || '',
-          _id: workflowData.case._id || workflowData.case.id || '',
-          clientId: workflowData.client?._id || workflowData.client?.id || '',
+          // Use caseId instead of id (for new schema), but keep id for backward compatibility
+          id: workflowData.case.caseId || workflowData.case._id || workflowData.case.id || '',
+          caseId: workflowData.case.caseId || workflowData.case._id || workflowData.case.id || '',
+          _id: workflowData.case._id || workflowData.case.caseId || workflowData.case.id || '',
+          // REMOVED: clientId (removed from case object per new schema)
           title: workflowData.case.title || 'Case',
           description: workflowData.case.description || '',
           category: workflowData.case.category || 'family-based',
           subcategory: workflowData.case.subcategory || '',
           status: workflowData.case.status || 'draft',
           priority: workflowData.case.priority || 'medium',
+          type: workflowData.case.type || 'Family-Based',
+          // REMOVED: assignedForms, questionnaires (removed from case object per new schema)
+          // Keep for backward compatibility with old data
           assignedForms: Array.isArray(workflowData.case.assignedForms) ? workflowData.case.assignedForms : [],
           questionnaires: Array.isArray(workflowData.case.questionnaires) ? workflowData.case.questionnaires : [],
           createdAt: workflowData.case.createdAt || workflowData.case.openDate || new Date().toISOString(),
@@ -422,18 +427,20 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           expectedClosureDate: workflowData.case.expectedClosureDate || workflowData.case.dueDate || '',
           assignedAttorney: workflowData.case.assignedAttorney || '',
           visaType: workflowData.case.visaType || '',
-          priorityDate: workflowData.case.priorityDate || ''
+          priorityDate: workflowData.case.priorityDate || '',
+          openDate: workflowData.case.openDate || workflowData.case.startDate || ''
         };
         
         setCaseData(caseInfo);
       }
       
-      // Populate selected forms
+      // Populate selected forms (legacy support - may not be in new schema)
       if (workflowData?.selectedForms && Array.isArray(workflowData.selectedForms)) {
         setSelectedForms(workflowData.selectedForms);
       }
       
-      // Populate form case IDs
+      // Populate form case IDs (legacy support - may not be in new schema)
+      // Also check if caseNumber exists in case object and use it to populate formCaseIds
       if (workflowData?.formCaseIds) {
         // Clean the formCaseIds object to remove MongoDB schema metadata
         const cleanFormCaseIds: Record<string, string> = {};
@@ -446,6 +453,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           }
         }
         setFormCaseIds(cleanFormCaseIds);
+        console.log('✅ Form case IDs populated from workflow progress (cleaned):', cleanFormCaseIds);
+      } else if (workflowData?.case?.caseNumber && workflowData?.formNumber) {
+        // If caseNumber exists but formCaseIds doesn't, create it from caseNumber and formNumber
+        const formCaseIds: Record<string, string> = {};
+        formCaseIds[workflowData.formNumber] = workflowData.case.caseNumber;
+        setFormCaseIds(formCaseIds);
+        console.log('✅ Form case IDs created from caseNumber:', formCaseIds);
       }
       
       // Populate questionnaire assignment and responses
@@ -3274,6 +3288,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         zipCode: client.address?.zipCode
       });
 
+      // Determine formNumber (use first selected form or primary form)
+      const primaryFormNumber = selectedForms.length > 0 ? selectedForms[0] : '';
+      
+      // Determine caseNumber from formCaseIds (use the generated case ID for the primary form)
+      const primaryCaseNumber = primaryFormNumber && formCaseIds[primaryFormNumber] 
+        ? formCaseIds[primaryFormNumber] 
+        : '';
+
       // Prepare comprehensive workflow data
       const workflowData: {
         workflowId: string;
@@ -3283,9 +3305,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         status: string;
         client: any;
         case: any;
-        selectedForms: string[];
-        formCaseIds: Record<string, string>;
-        formTemplates: FormTemplate[];
+        formNumber?: string; // NEW: Form number identifier
         selectedQuestionnaire: string;
         availableQuestionnairesSummary: any[];
         clientCredentials: any;
@@ -3328,20 +3348,37 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           // Remove sensitive data from storage
           password: undefined,
           temporaryPassword: clientCredentials.createAccount ? clientCredentials.password : undefined
+          // NOTE: client.createdAt is REMOVED per new schema
         },
 
-        // Case details
+        // Case details - Updated structure
         case: {
-          ...caseData,
-          // Ensure we have valid IDs
-          id: caseData.id || generateObjectId(),
-          _id: caseData._id || caseData.id || generateObjectId()
+          // Use caseId instead of id
+          caseId: caseData._id || caseData.id || generateObjectId(),
+          _id: caseData._id || caseData.id || generateObjectId(),
+          // IMPORTANT: caseNumber is the generated case ID (from formCaseIds)
+          caseNumber: primaryCaseNumber,
+          title: caseData.title || 'Case',
+          description: caseData.description || '',
+          category: caseData.category || '',
+          subcategory: caseData.subcategory || '',
+          status: caseData.status || 'draft',
+          priority: caseData.priority || 'medium',
+          type: caseData.type || 'Family-Based',
+          visaType: caseData.visaType || '',
+          priorityDate: caseData.priorityDate || '',
+          openDate: caseData.openDate || caseData.startDate || '',
+          dueDate: caseData.dueDate || '',
+          startDate: caseData.startDate || '',
+          expectedClosureDate: caseData.expectedClosureDate || '',
+          assignedAttorney: caseData.assignedAttorney || '',
+          createdAt: caseData.createdAt || new Date().toISOString()
+          // REMOVED: case.id (use case.caseId), case.clientId, case.assignedForms, 
+          //          case.questionnaires, case.formCaseIds
         },
 
-        // Selected forms and case IDs
-        selectedForms,
-        formCaseIds,
-        formTemplates: formTemplates.filter(template => selectedForms.includes(template.formNumber)),
+        // NEW: Form number identifier
+        formNumber: primaryFormNumber,
 
         // Questionnaire selection
         selectedQuestionnaire,
@@ -3367,6 +3404,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           status: index < currentStep ? 'completed' : index === currentStep ? 'current' : 'pending',
           completedAt: index < currentStep ? new Date().toISOString() : undefined
         }))
+        // REMOVED: selectedForms, formCaseIds, formTemplates (removed from workflow schema)
       };
 
       // Add questionnaire assignment if using existing response
@@ -3381,7 +3419,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         if (existingResponse) {
           workflowData.questionnaireAssignment = {
             id: `assignment_${Date.now()}`,
-            caseId: caseData.id || caseData._id,
+            caseId: caseData._id || caseData.id || caseData.caseId,
             clientId: client.clientId || client._id,
             questionnaireId: existingResponse.questionnaireId,
             questionnaireName: existingResponse.questionnaireTitle,
@@ -3395,12 +3433,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               originalCaseId: existingResponse.caseId,
               originalSubmittedAt: existingResponse.submittedAt,
               reusedAt: new Date().toISOString(),
-              newCaseId: caseData.id || caseData._id,
-              newFormSelection: selectedForms
-            },
-            // Include form and case context
-            formCaseIds: formCaseIds,
-            selectedForms: selectedForms
+              newCaseId: caseData._id || caseData.id || caseData.caseId,
+              newFormNumber: primaryFormNumber
+            }
+            // REMOVED: formCaseIds, selectedForms (removed from workflow schema)
           };
 
           console.log('✅ DEBUG: Questionnaire assignment added with response data:', {
@@ -3707,19 +3743,36 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             }
           },
 
-          // Case details (NEW CASE)
+          // Case details (NEW CASE) - Updated structure
           case: {
-            ...caseData,
+            // Use caseId instead of id
             caseId: consistentCaseId,
-            id: consistentCaseId,
             _id: consistentCaseId,
-            clientId: client.clientId || client._id || client.email // Link case to client with proper client ID
+            // IMPORTANT: caseNumber is the generated case ID (from formCaseIds)
+            caseNumber: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : '',
+            title: caseData.title || 'Case',
+            description: caseData.description || '',
+            category: caseData.category || '',
+            subcategory: caseData.subcategory || '',
+            status: caseData.status || 'draft',
+            priority: caseData.priority || 'medium',
+            type: caseData.type || 'Family-Based',
+            visaType: caseData.visaType || '',
+            priorityDate: caseData.priorityDate || '',
+            openDate: caseData.openDate || caseData.startDate || '',
+            dueDate: caseData.dueDate || '',
+            startDate: caseData.startDate || '',
+            expectedClosureDate: caseData.expectedClosureDate || '',
+            assignedAttorney: caseData.assignedAttorney || '',
+            createdAt: caseData.createdAt || new Date().toISOString()
+            // REMOVED: case.id (use case.caseId), case.clientId, case.assignedForms, 
+            //          case.questionnaires, case.formCaseIds
           },
 
-          // Selected forms and case IDs (NEW FORMS)
-          selectedForms,
-          formCaseIds,
-          formTemplates: formTemplates.filter(template => selectedForms.includes(template.formNumber)),
+          // NEW: Form number identifier
+          formNumber: selectedForms.length > 0 ? selectedForms[0] : '',
+          
+          // REMOVED: selectedForms, formCaseIds, formTemplates (removed from workflow schema)
 
           // Questionnaire information
           // Use the effectiveQuestionnaire (may be provided by override) to avoid race with React state
@@ -3743,11 +3796,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               originalSubmittedAt: existingResponse.submittedAt,
               reusedAt: new Date().toISOString(),
               newCaseId: consistentCaseId,
-              newFormSelection: selectedForms
-            },
-            // Include new case and form information
-            formCaseIds: formCaseIds,
-            selectedForms: selectedForms
+              newFormNumber: selectedForms.length > 0 ? selectedForms[0] : ''
+            }
+            // REMOVED: formCaseIds, selectedForms (removed from workflow schema)
           },
 
           // Client credentials info
@@ -3876,63 +3927,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               });
               
               // Get current user for assignedTo field
-              // Prepare enhanced case data for existing response path
-              // const enhancedCaseData: EnhancedCaseData = {
-              //   // Required fields
-              //   type: caseData.category || 'Family-Based',
-              //   clientId: client.clientId || client._id || '',
-                
-              //   // Enhanced fields
-              //   title: caseData.title || `${client.name} - ${caseData.category || 'Immigration'} Case (Existing Response)`,
-              //   description: caseData.description || `${caseData.category || 'Immigration'} case for ${client.name} using existing questionnaire response`,
-              //   category: caseData.category || 'family-based',
-              //   subcategory: caseData.subcategory || 'adjustment-of-status',
-              //   priority: (caseData.priority?.charAt(0).toUpperCase() + caseData.priority?.slice(1)) as 'Low' | 'Medium' | 'High' | 'Urgent' || 'Medium',
-              //   dueDate: caseData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
-              //   assignedTo: assignedToId,
-                
-              //   // Form management
-              //   assignedForms: selectedForms || [],
-              //   formCaseIds: formCaseIds || {},
-              //   questionnaires: [existingResponse.questionnaireId],
-                
-              //   // Optional fields
-              //   status: 'in-progress', // Mark as in-progress since responses already exist
-              //   startDate: new Date().toISOString(),
-              //   expectedClosureDate: caseData.expectedClosureDate,
-              //   notes: `Case created with existing questionnaire response. Original response from: ${existingResponse.questionnaireTitle}. Original case: ${existingResponse.caseId}`
-              // };
-
-              // const caseResponse = await createEnhancedCase(enhancedCaseData);
-              
-              // if (caseResponse && caseResponse.data) {
-              //   console.log('✅ Enhanced case created for existing response:', {
-              //     caseId: caseResponse.data.case?._id || caseResponse.data._id,
-              //     success: caseResponse.data.success,
-              //     message: caseResponse.data.message
-              //   });
-                
-              //   // Update local case data with the newly created case information
-              //   const createdCase = caseResponse.data.case || caseResponse.data;
-              //   if (createdCase._id) {
-              //     setCaseData(prev => ({
-              //       ...prev,
-              //       id: createdCase._id,
-              //       _id: createdCase._id,
-              //       ...createdCase
-              //     }));
-              //   }
-                
-              //   toast.success(
-              //     <div>
-              //       <p>✅ Enhanced case created with existing response!</p>
-              //       <p className="text-sm mt-1">📋 Case ID: {createdCase._id}</p>
-              //       <p className="text-sm">📁 Reused response: {existingResponse.questionnaireTitle}</p>
-              //       <p className="text-xs text-green-600">💾 Saved separately in cases collection</p>
-              //     </div>,
-              //     { duration: 6000 }
-              //   );
-              // }
+              const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+              const assignedToId = currentUser._id || currentUser.id;
               
             } catch (caseError: any) {
               console.error('❌ Error creating enhanced case for existing response:', {
@@ -4402,7 +4398,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
         assignment = {
           id: responseId,
-          caseId: caseData.id,
+          caseId: caseData.caseId || caseData._id || caseData.id || '',
           clientId: clientUserId || client.clientId, // Use the user account ID for proper linking
     questionnaireId: effectiveQuestionnaire,
           questionnaireName: selectedQ?.title || selectedQ?.name || 'Questionnaire',
@@ -4456,13 +4452,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           currentStep,
           status: 'in-progress',
           
-          // Top-level client ID for database queries - use the newly created client user ID
-          clientId: clientUserId || client.id || client._id,
+          // REMOVED: Top-level clientId (use client.clientId instead)
           
           // Client information
           client: {
             ...client,
             id: clientUserId || client.id || client._id, // Use the newly created client user ID
+            clientId: clientUserId || client.clientId || client.id || client._id, // MongoDB ObjectId reference
             firstName: client.firstName,
             middleName: client.middleName || '',
             lastName: client.lastName,
@@ -4482,20 +4478,39 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               postalCode: client.address?.postalCode || '',
               country: client.address?.country || ''
             }
+            // NOTE: client.createdAt is REMOVED per new schema
           },
 
-          // Case details (NEW CASE or EXISTING CASE)
+          // Case details (NEW CASE or EXISTING CASE) - Updated structure
           case: {
-            ...caseData,
-            id: caseData.id || generateObjectId(),
+            // Use caseId instead of id
+            caseId: caseData._id || caseData.id || caseData.caseId || generateObjectId(),
             _id: caseData._id || caseData.id || generateObjectId(),
-            clientId: clientUserId || client.id || client._id // Link case to the newly created client
+            // IMPORTANT: caseNumber is the generated case ID (from formCaseIds)
+            caseNumber: selectedForms.length > 0 && formCaseIds[selectedForms[0]] ? formCaseIds[selectedForms[0]] : '',
+            title: caseData.title || 'Case',
+            description: caseData.description || '',
+            category: caseData.category || '',
+            subcategory: caseData.subcategory || '',
+            status: caseData.status || 'draft',
+            priority: caseData.priority || 'medium',
+            type: caseData.type || 'Family-Based',
+            visaType: caseData.visaType || '',
+            priorityDate: caseData.priorityDate || '',
+            openDate: caseData.openDate || caseData.startDate || '',
+            dueDate: caseData.dueDate || '',
+            startDate: caseData.startDate || '',
+            expectedClosureDate: caseData.expectedClosureDate || '',
+            assignedAttorney: caseData.assignedAttorney || '',
+            createdAt: caseData.createdAt || new Date().toISOString()
+            // REMOVED: case.id (use case.caseId), case.clientId, case.assignedForms, 
+            //          case.questionnaires, case.formCaseIds
           },
 
-          // Selected forms and case IDs
-          selectedForms,
-          formCaseIds,
-          formTemplates: formTemplates.filter(template => selectedForms.includes(template.formNumber)),
+          // NEW: Form number identifier
+          formNumber: selectedForms.length > 0 ? selectedForms[0] : '',
+          
+          // REMOVED: selectedForms, formCaseIds, formTemplates (removed from workflow schema)
 
           // Questionnaire information
           selectedQuestionnaire,
@@ -4515,14 +4530,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             assignmentMetadata: {
               isNewAssignment: true,
               assignedAt: new Date().toISOString(),
-              caseId: caseData.id || caseData._id,
-              formSelection: selectedForms,
+              caseId: caseData._id || caseData.id || caseData.caseId,
+              formNumber: selectedForms.length > 0 ? selectedForms[0] : '',
               clientAccountCreated: !!clientUserId,
               tempPassword: clientCredentials.createAccount ? clientCredentials.password : undefined
-            },
-            // Include case and form information
-            formCaseIds: formCaseIds,
-            selectedForms: selectedForms
+            }
+            // REMOVED: formCaseIds, selectedForms (removed from workflow schema)
           },
 
           // Client credentials info
@@ -4543,15 +4556,14 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
         console.log('🔄 DEBUG: Saving workflow with new questionnaire assignment to database:', {
           workflowId: workflowDataWithNewAssignment.workflowId,
-          caseId: workflowDataWithNewAssignment.case.id,
+          caseId: workflowDataWithNewAssignment.case.caseId || workflowDataWithNewAssignment.case._id,
           questionnaireId: assignment.questionnaireId,
           questionnaireName: assignment.questionnaireName,
-          selectedForms: workflowDataWithNewAssignment.selectedForms,
+          formNumber: workflowDataWithNewAssignment.formNumber,
           clientAccountCreated: !!clientUserId,
           // Client ID information
-          topLevelClientId: workflowDataWithNewAssignment.clientId,
           clientObjectId: workflowDataWithNewAssignment.client.id,
-          caseClientId: workflowDataWithNewAssignment.case.clientId,
+          clientClientId: workflowDataWithNewAssignment.client.clientId,
           assignmentClientId: assignment.clientId,
           originalClientId: client.id,
           newlyCreatedClientUserId: clientUserId
@@ -4582,9 +4594,8 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             // Console log to check client ID before saving workflow for new client
             console.log('🔍 DEBUG: About to save NEW CLIENT workflow - Client ID verification:', {
               clientUserId: clientUserId,
-              topLevelClientId: workflowDataWithNewAssignment.clientId,
               clientObjectId: workflowDataWithNewAssignment.client.id,
-              caseClientId: workflowDataWithNewAssignment.case.clientId,
+              clientClientId: workflowDataWithNewAssignment.client.clientId,
               assignmentClientId: assignment.clientId,
               originalClientId: client.id,
               clientName: client.name,

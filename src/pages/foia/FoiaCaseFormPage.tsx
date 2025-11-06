@@ -571,9 +571,16 @@ const FoiaCaseFormPage = () => {
         }
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} FOIA case. Please try again.`;
-      setError(errorMessage);
-      toast.error(errorMessage);
+      // Check if it's a USCIS system error
+      if (err instanceof Error && (err as any).isUscisError && err.message === 'USCIS_SYSTEM_UNAVAILABLE') {
+        const uscisMessage = 'USCIS system may be down for maintenance';
+        setError(uscisMessage);
+        toast.error(uscisMessage);
+      } else {
+        const errorMessage = err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} FOIA case. Please try again.`;
+        setError(errorMessage);
+        toast.error(errorMessage);
+      }
     } finally {
       setSaving(false);
     }

@@ -1703,7 +1703,6 @@ const IndividualImmigrationProcess: React.FC = () => {
 
   const steps: ImmigrationStep[] = [
     { id: 'personal-details', title: 'Personal Details', description: 'Basic personal information', isCompleted: false, isActive: true },
-    { id: 'case-setup', title: 'Case Setup', description: 'Set up case details and category', isCompleted: false, isActive: false },
     { id: 'select-form', title: 'Select Forms', description: 'Choose required forms for filing', isCompleted: false, isActive: false },
     { id: 'form-details', title: 'All Details Summary', description: 'Complete workflow details overview', isCompleted: false, isActive: false },
     { id: 'auto-fill', title: 'Auto-fill Forms', description: 'Generate completed forms', isCompleted: false, isActive: false }
@@ -4313,209 +4312,15 @@ const IndividualImmigrationProcess: React.FC = () => {
     </div>
   );
 
-  const renderCaseSetupStep = () => (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-blue-900 mb-2">Case Setup</h3>
-        <p className="text-blue-700">
-          Create a new immigration case for: <strong>{formData.personalInfo.firstName} {formData.personalInfo.lastName || 'Your Application'}</strong>
-        </p>
-      </div>
-
-      {/* Case Setup Form */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Case Title */}
-          <div className="md:col-span-2">
-            <label htmlFor="caseTitle" className="block text-sm font-medium text-gray-700 mb-2">
-              Case Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              id="caseTitle"
-              placeholder="Enter case title (e.g., Green Card Application - Marriage Based)"
-              value={caseData.title || ''}
-              onChange={e => setCaseData({ ...caseData, title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            />
-          </div>
-
-          {/* Immigration Category */}
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
-              Immigration Category <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="category"
-              value={caseData.category || ''}
-              onChange={e => {
-                setCaseData({ 
-                  ...caseData, 
-                  category: e.target.value, 
-                  subcategory: '' // Reset subcategory when category changes
-                });
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            >
-              <option value="">Select an option</option>
-              <option value="" disabled className="text-gray-400">Select category</option>
-              {IMMIGRATION_CATEGORIES.map(cat => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Subcategory */}
-          <div>
-            <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 mb-2">
-              Subcategory <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="subcategory"
-              value={caseData.subcategory || ''}
-              onChange={e => setCaseData({ ...caseData, subcategory: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-              disabled={!caseData.category}
-            >
-              <option value="">Select an option</option>
-              {caseData.category ? (
-                IMMIGRATION_CATEGORIES
-                  .find(cat => cat.id === caseData.category)
-                  ?.subcategories.map(sub => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name}
-                    </option>
-                  ))
-              ) : (
-                <option value="" disabled>Select category first</option>
-              )}
-            </select>
-          </div>
-
-          {/* Priority Level */}
-          <div>
-            <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-2">
-              Priority Level <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="priority"
-              value={caseData.priority || 'medium'}
-              onChange={e => setCaseData({ ...caseData, priority: e.target.value as Case['priority'] })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            >
-              <option value="">Select an option</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-
-          {/* Start Date */}
-          <div>
-            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
-              Start Date <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              id="startDate"
-              value={caseData.createdAt ? new Date(caseData.createdAt).toISOString().split('T')[0] : ''}
-              onChange={e => setCaseData({ ...caseData, createdAt: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            />
-          </div>
-
-          {/* Due Date */}
-          <div>
-            <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-2">
-              Expected Completion Date
-            </label>
-            <input
-              type="date"
-              id="dueDate"
-              value={caseData.dueDate ? new Date(caseData.dueDate).toISOString().split('T')[0] : ''}
-              onChange={e => setCaseData({ ...caseData, dueDate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Case Description */}
-          <div className="md:col-span-2">
-            <label htmlFor="caseDescription" className="block text-sm font-medium text-gray-700 mb-2">
-              Case Description
-            </label>
-            <textarea
-              id="caseDescription"
-              rows={4}
-              placeholder="Provide a brief description of the immigration case..."
-              value={caseData.description || ''}
-              onChange={e => setCaseData({ ...caseData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        {/* Form Preview - Show expected forms based on selection */}
-        {caseData.category && caseData.subcategory && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">Expected Forms for This Case:</h4>
-            <div className="flex flex-wrap gap-2">
-              {IMMIGRATION_CATEGORIES
-                .find(cat => cat.id === caseData.category)
-                ?.subcategories
-                .find(sub => sub.id === caseData.subcategory)
-                ?.forms.map(form => (
-                  <span 
-                    key={form}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
-                  >
-                    {form}
-                  </span>
-                ))}
-            </div>
-          </div>
-        )}
-
-        {/* Navigation Buttons */}
-        <div className="flex justify-between mt-8">
-          <button
-            type="button"
-            onClick={() => navigate('/cases')}
-            className="px-6 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={!caseData.title || !caseData.category || !caseData.subcategory}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-          >
-            Continue to Personal Details
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
         return renderPersonalDetailsStepExpanded();
       case 1:
-        return renderCaseSetupStep();
-      case 2:
         return renderFormSelectionStep();
-      case 3:
+      case 2:
         return renderFormDetailsStep();
-      case 4:
+      case 3:
         return renderAutoFillStep();
       default:
         return null;

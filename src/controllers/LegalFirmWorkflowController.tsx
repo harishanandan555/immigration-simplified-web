@@ -25,17 +25,15 @@ export interface Client {
 }
 
 export interface Case {
-  id: string;
+  caseId?: string; // ObjectId reference to IMS_Case (use this instead of id)
   _id?: string;
-  clientId: string;
+  caseNumber?: string; // Case number (generated case ID) - IMPORTANT: Always include
   title: string;
   description: string;
   category: string;
   subcategory: string;
   status: 'draft' | 'in-progress' | 'review' | 'completed' | 'Active' | 'Pending' | 'Closed' | 'On Hold';
   priority: 'low' | 'medium' | 'high' | 'Low' | 'Medium' | 'High' | 'Urgent';
-  assignedForms: string[];
-  questionnaires: string[];
   createdAt: string;
   dueDate: string;
   visaType?: string;
@@ -48,7 +46,12 @@ export interface Case {
   openDate?: string;
   startDate?: string;
   expectedClosureDate?: string;
-  formCaseIds?: Record<string, string>;
+  // Legacy fields - kept for backward compatibility but should not be used
+  id?: string; // DEPRECATED: Use caseId instead
+  clientId?: string; // DEPRECATED: Removed from case object
+  assignedForms?: string[]; // DEPRECATED: Removed from case object
+  questionnaires?: string[]; // DEPRECATED: Removed from case object
+  formCaseIds?: Record<string, string>; // DEPRECATED: Removed from case object
 }
 
 export interface QuestionnaireAssignment {
@@ -100,14 +103,12 @@ export interface FormData {
 export interface WorkflowData {
   id?: string;
   workflowId?: string;
-  clientId?: string;
   currentStep: number;
   steps?: any[];
   clientInfo?: Client;
   client?: any;
   case?: any;
-  selectedForms?: string[];
-  formCaseIds?: Record<string, string>;
+  formNumber?: string; // NEW: Form number identifier
   selectedQuestionnaire?: any;
   clientCredentials?: any;
   stepsProgress?: any[];
@@ -116,6 +117,10 @@ export interface WorkflowData {
   status: string;
   createdAt: string;
   updatedAt: string;
+  // Legacy fields - kept for backward compatibility but should not be used
+  clientId?: string; // DEPRECATED: Use client.clientId instead
+  selectedForms?: string[]; // DEPRECATED: Removed from workflow schema
+  formCaseIds?: Record<string, string>; // DEPRECATED: Removed from workflow schema
 }
 
 export interface ImmigrationProcessPayload {
