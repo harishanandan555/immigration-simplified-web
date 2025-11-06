@@ -422,9 +422,9 @@ export const createIndividualClient = async (clientData: Omit<Client, '_id' | 'i
     }
 };
 
-export const createCompanyClient = async (clientData: Omit<Client, '_id' | 'id' | 'createdAt' | 'updatedAt'> & {
+export const createCompanyClient = async (clientData: Omit<Client, '_id' | 'id' | 'createdAt' | 'updatedAt' | 'attorneyIds'> & {
     companyId: string;
-    attorneyIds?: string[];
+    attorneyIds?: string;
     sendPassword?: boolean;
     password?: string;
 }): Promise<Client> => {
