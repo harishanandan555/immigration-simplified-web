@@ -454,28 +454,6 @@ export const getWorkflowsByClient = async (
   }
 };
 
-export const checkEmailExists = async (clientEmail: string): Promise<{
-  exists: boolean;
-  userId?: string;
-  role?: string;
-  userType?: string;
-}> => {
-  try {
-    const checkResponse = await api.get(LEGAL_WORKFLOW_ENDPOINTS.CHECK_EMAIL.replace(':email', encodeURIComponent(clientEmail.toLowerCase().trim())));
-    return {
-      exists: checkResponse.data.exists || false,
-      userId: checkResponse.data.userId,
-      role: checkResponse.data.role,
-      userType: checkResponse.data.userType
-    };
-  } catch (error) {
-    console.error('Error checking email existence:', error);
-    return { exists: false };
-  }
-};
-
-
-
 export const registerCompanyClient = async (userData: {
   email: string;
   password: string;
@@ -714,7 +692,6 @@ export default {
   fetchWorkflows,
   fetchWorkflowsForClientSearch,
   getWorkflowsByClient,
-  checkEmailExists,
   registerCompanyClient,
   createFormDetails,
   assignQuestionnaireToFormDetails,

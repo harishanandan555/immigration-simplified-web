@@ -6,6 +6,8 @@ import {
   Loader, Loader2, Check, Edit3
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../utils/api';
+import { AUTH_END_POINTS } from '../utils/constants';
 
 import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../utils/idValidation';
 import {
@@ -44,6 +46,7 @@ import {
   getPdfPreviewBlob
 } from '../controllers/AnvilControllers';
 import { FormTemplate } from '../controllers/SettingsControllers';
+import { checkEmailExists } from '../controllers/AuthControllers';
 import { 
   LEGAL_WORKFLOW_ENDPOINTS,
   FORM_TEMPLATE_CATEGORIES,
@@ -56,7 +59,6 @@ import {
   fetchWorkflows,
   fetchWorkflowsForClientSearch,
   getWorkflowsByClient,
-  checkEmailExists,
   createQuestionnaireAssignment,
   generateMultipleCaseIds,
   validateFormData,
@@ -78,26 +80,70 @@ const IMMIGRATION_CATEGORIES = [
     id: 'family-based',
     name: 'Family-Based Immigration',
     subcategories: [
-      { id: 'immediate-relative', name: 'Immediate Relative (I-130)', forms: ['I-130', 'I-485'] },
-      { id: 'family-preference', name: 'Family Preference Categories', forms: ['I-130', 'I-824'] },
-      { id: 'adjustment-status', name: 'Adjustment of Status', forms: ['I-485', 'I-864'] }
+      { id: 'spouse-citizen', name: 'Spouse of U.S. Citizen', forms: ['I-130', 'I-485', 'I-864'] },
+      { id: 'parent-citizen', name: 'Parent of U.S. Citizen (21+)', forms: ['I-130', 'I-485', 'I-864'] },
+      { id: 'child-citizen', name: 'Child of U.S. Citizen (Under 21)', forms: ['I-130', 'I-485', 'I-864'] },
+      { id: 'sibling-citizen', name: 'Brother/Sister of U.S. Citizen', forms: ['I-130'] }
     ]
   },
   {
     id: 'employment-based',
     name: 'Employment-Based Immigration',
     subcategories: [
-      { id: 'professional-worker', name: 'Professional Worker (EB-2/EB-3)', forms: ['I-140', 'I-485'] },
-      { id: 'temporary-worker', name: 'Temporary Worker', forms: ['I-129', 'I-94'] },
-      { id: 'investment-based', name: 'Investment-Based (EB-5)', forms: ['I-526', 'I-485'] }
+      { id: 'eb1-extraordinary', name: 'EB-1A Extraordinary Ability', forms: ['I-140', 'I-485'] },
+      { id: 'eb2-advanced', name: 'EB-2 Advanced Degree', forms: ['I-140', 'I-485', 'ETA-9089'] },
+      { id: 'eb3-skilled', name: 'EB-3 Skilled Workers', forms: ['I-140', 'I-485', 'ETA-9089'] }
+    ]
+  },
+  {
+    id: 'humanitarian',
+    name: 'Humanitarian Relief',
+    subcategories: [
+      { id: 'asylum', name: 'Asylum Application', forms: ['I-589', 'I-765'] },
+      { id: 'u-visa', name: 'U Visa (Crime Victims)', forms: ['I-918', 'I-765'] }
     ]
   },
   {
     id: 'citizenship',
     name: 'Citizenship & Naturalization',
     subcategories: [
-      { id: 'naturalization', name: 'Naturalization Application', forms: ['N-400'] },
-      { id: 'certificate-citizenship', name: 'Certificate of Citizenship', forms: ['N-600'] }
+      { id: 'naturalization-5year', name: '5-Year Naturalization Rule', forms: ['N-400'] },
+      { id: 'naturalization-3year', name: '3-Year Rule (Spouse of Citizen)', forms: ['N-400'] }
+    ]
+  },
+  {
+    id: 'temporary-visas',
+    name: 'Temporary Visas & Status',
+    subcategories: [
+      { id: 'work-authorization', name: 'Work Authorization (EAD)', forms: ['I-765'] },
+      { id: 'advance-parole', name: 'Advance Parole (Travel Document)', forms: ['I-131'] }
+    ]
+  },
+  {
+    id: 'nonimmigrant-work',
+    name: 'Non-immigrant Work Visas',
+    subcategories: [
+      { id: 'h1b-specialty', name: 'H-1B Specialty Occupation', forms: ['I-129', 'DS-160'] },
+      { id: 'l1-intracompany', name: 'L-1 Intracompany Transfer', forms: ['I-129', 'DS-160'] },
+      { id: 'o1-extraordinary', name: 'O-1 Extraordinary Ability', forms: ['I-129', 'DS-160'] },
+      { id: 'tn-nafta', name: 'TN NAFTA Professional', forms: ['DS-160'] }
+    ]
+  },
+  {
+    id: 'student-exchange',
+    name: 'Student & Exchange Visas',
+    subcategories: [
+      { id: 'f1-student', name: 'F-1 Student Visa', forms: ['DS-160', 'I-20'] },
+      { id: 'j1-exchange', name: 'J-1 Exchange Visitor', forms: ['DS-160', 'DS-2019'] },
+      { id: 'm1-vocational', name: 'M-1 Vocational Student', forms: ['DS-160', 'I-20'] }
+    ]
+  },
+  {
+    id: 'business-tourism',
+    name: 'Business & Tourism Visas',
+    subcategories: [
+      { id: 'b1-business', name: 'B-1 Business Visitor', forms: ['DS-160'] },
+      { id: 'b2-tourism', name: 'B-2 Tourist Visitor', forms: ['DS-160'] }
     ]
   }
 ];
@@ -217,6 +263,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [useExistingResponse, setUseExistingResponse] = useState(false);
   const [, setIsExistingResponse] = useState(false);
   const [, setLoadingExistingResponses] = useState(false);
+  
+  // State for tracking submission completion
+  const [isSubmissionComplete, setIsSubmissionComplete] = useState(false);
 
   // State for form details ID (backend integration)
   // const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
@@ -1550,15 +1599,73 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setClient(updatedClient);
 
       try {
-        // Get companyId from attorney's session
-        const attorneyCompanyId = localStorage.getItem('companyId');
+        // Get current attorney information from API instead of localStorage
+        const getCurrentAttorneyInfo = async () => {
+          try {
+            // Try to get current user profile from API first
+            const token = localStorage.getItem('token');
+            if (!token) {
+              throw new Error('No authentication token found');
+            }
+
+            // Make direct API call to get current user profile using proper endpoint
+            const response = await api.get(AUTH_END_POINTS.PROFILE_GET, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+
+            const currentUser = response.data?.data || response.data;
+            console.log('🔍 DEBUG: Current user from API:', currentUser);
+
+            return {
+              attorneyId: currentUser._id || currentUser.id,
+              companyId: currentUser.companyId,
+              user: currentUser
+            };
+          } catch (apiError: any) {
+            console.warn('⚠️ Failed to get attorney info from API, falling back to localStorage:', apiError.message);
+            
+            // Fallback to localStorage if API fails
+            const storedUser = localStorage.getItem('user');
+            const storedCompanyId = localStorage.getItem('companyId');
+            
+            if (!storedUser) {
+              throw new Error('No user information found in localStorage either');
+            }
+
+            const currentUser = JSON.parse(storedUser);
+            return {
+              attorneyId: currentUser._id || currentUser.id,
+              companyId: storedCompanyId || currentUser.companyId,
+              user: currentUser
+            };
+          }
+        };
+
+        // Get attorney information
+        const attorneyInfo = await getCurrentAttorneyInfo();
+        const { attorneyId, companyId: attorneyCompanyId, user: currentUser } = attorneyInfo;
+
+        console.log('🔍 DEBUG: Attorney information for client creation:', {
+          currentUser,
+          attorneyId,
+          attorneyCompanyId,
+          hasAttorneyId: !!attorneyId,
+          hasCompanyId: !!attorneyCompanyId,
+          source: 'API with localStorage fallback'
+        });
+
+        // Validate that we have attorney information
+        if (!attorneyId) {
+          throw new Error('Attorney ID not found. Please ensure you are logged in as an attorney.');
+        }
+
         if (!attorneyCompanyId) {
           throw new Error('Attorney company ID not found. Please ensure you are logged in as an attorney.');
         }
 
-        // Get current user data for attorneyIds
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-        const attorneyIds = currentUser._id ? [currentUser._id] : [];
+        const attorneyIds = [attorneyId];
 
         // ✅ Use the new company client creation with all fields
         const response = await createCompanyClient({
@@ -3538,20 +3645,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     // Use override when provided (avoids waiting on React state updates)
     const effectiveQuestionnaire = questionnaireIdOverride ?? selectedQuestionnaire;
 
-    console.log('🔍 DEBUG: handleQuestionnaireAssignment called with state/args:', {
-      selectedQuestionnaire,
-      questionnaireIdOverride,
-      effectiveQuestionnaire,
-      useExistingResponse,
-      selectedExistingResponse,
-      hasSelectedQuestionnaire: !!effectiveQuestionnaire,
-      hasUseExistingResponse: useExistingResponse,
-      hasSelectedExistingResponse: !!selectedExistingResponse,
-      existingResponsesLength: existingQuestionnaireResponses.length,
-      clientId: client.clientId,
-      clientName: client.name
-    });
-
+  
     if (!effectiveQuestionnaire) {
       console.log('🚫 DEBUG: No selected/effective questionnaire - returning early');
       return;
@@ -6768,6 +6862,34 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                           await handleQuestionnaireAssignment();
                           
                           console.log('✅ DEBUG: Response Selected process completed successfully');
+                          
+                          // Mark submission as complete
+                          setIsSubmissionComplete(true);
+                          
+                          // Navigate back to legal firm workflow screen after successful submission
+                          setTimeout(() => {
+                            // Option 1: Reset to start of workflow
+                            setCurrentStep(0);
+                            
+                            // Option 2: Or redirect to workflow list/dashboard
+                            // window.location.href = '/legal-firm-workflow';
+                            
+                            // Reset states for new workflow
+                            setIsSubmissionComplete(false);
+                            setUseExistingResponse(false);
+                            setSelectedExistingResponse('');
+                            setSelectedQuestionnaire('');
+                            
+                            // Show notification about returning to workflow start
+                            toast.success('Returning to workflow start for new case creation', {
+                              duration: 3000,
+                              style: {
+                                background: '#3B82F6',
+                                color: 'white',
+                              }
+                            });
+                          }, 3000); // Wait 3 seconds to show success message
+                          
                         } catch (error) {
                           console.error('❌ ERROR: Failed during Response Selected process:', error);
                           toast.error('Failed to save workflow progress: ' + (error as Error).message);
@@ -6782,12 +6904,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       });
 
                       if (questionnaire) {
-                        console.log('🔄 DEBUG: New questionnaire selected - saving workflow progress...');
+                        console.log('🔄 DEBUG: New questionnaire selected - saving workflow progress and creating case...');
                         try {
-                          // Save workflow progress for new questionnaire selection as well
+                          // Save workflow progress for new questionnaire selection
                           const workflowData = await saveWorkflowProgressLocal();
                           console.log('✅ DEBUG: Workflow progress saved for new questionnaire:', workflowData?.workflowId);
-                          toast.success('Questionnaire details are complete and saved!');
+                          
+                          // IMPORTANT: Also call handleQuestionnaireAssignment to create the case
+                          await handleQuestionnaireAssignment();
+                          
+                          console.log('✅ DEBUG: Questionnaire assigned and case created successfully');
                         } catch (error) {
                           console.error('❌ ERROR: Failed to save workflow progress for new questionnaire:', error);
                           toast.error('Failed to save workflow progress: ' + (error as Error).message);
@@ -6799,13 +6925,22 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                       toast.error('Please select a questionnaire or previous response first.');
                     }
                   }}
-                  disabled={!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse)}
-                  className={`${(!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse)) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                  disabled={!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse) || isSubmissionComplete}
+                  className={`${
+                    (!selectedQuestionnaire && !(useExistingResponse && selectedExistingResponse)) || isSubmissionComplete
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
                 >
-                  {(selectedQuestionnaire || (useExistingResponse && selectedExistingResponse)) ? (
+                  {isSubmissionComplete ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                      <span className="text-green-500">✅ Submitted Successfully</span>
+                    </>
+                  ) : (selectedQuestionnaire || (useExistingResponse && selectedExistingResponse)) ? (
                     <>
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      {useExistingResponse ? 'Response Selected' : 'Details Complete'}
+                      {useExistingResponse ? 'Submit' : 'Details Complete'}
                     </>
                   ) : (
                     <>
