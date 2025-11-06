@@ -607,6 +607,27 @@ export const getUserById = async (userId: string): Promise<ApiResponse<User[]>> 
   }
 };
 
+export const checkEmailExists = async (clientEmail: string): Promise<{
+  exists: boolean;
+  userId?: string;
+  role?: string;
+  userType?: string;
+}> => {
+  try {
+    // Use the auth endpoint for checking email existence
+    const response = await api.get(`/api/auth/check-email/${encodeURIComponent(clientEmail.toLowerCase().trim())}`);
+    return {
+      exists: response.data.exists || false,
+      userId: response.data.userId,
+      role: response.data.role,
+      userType: response.data.userType
+    };
+  } catch (error) {
+    console.error('Error checking email existence:', error);
+    return { exists: false };
+  }
+};
+
 // Context and Provider
 interface AuthContextType {
   user: User | null;
