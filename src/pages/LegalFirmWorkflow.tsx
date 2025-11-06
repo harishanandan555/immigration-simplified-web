@@ -3,7 +3,7 @@ import {
   Users, FileText, ClipboardList, Send, Download, CheckCircle,
   ArrowRight, ArrowLeft, User, Briefcase,
   MessageSquare, FileCheck, AlertCircle, Info as InfoIcon,
-  Loader, Loader2, Check, Edit3
+  Loader, Loader2, Check, Edit3, Settings, ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
@@ -37,7 +37,6 @@ import {
   generateSecurePassword
 } from '../controllers/UserCreationController';
 import { getCompanyClients as fetchClientsFromAPI, createCompanyClient, Client as APIClient } from '../controllers/ClientControllers';
-import { createEnhancedCase, EnhancedCaseData } from '../controllers/CaseControllers';
 import { 
   getAnvilTemplatesList, 
   fillPdfTemplateBlob, 
@@ -162,17 +161,18 @@ const EXIST_WORKFLOW_STEPS = [
   { id: 'auto-fill', title: 'Auto-fill Forms', icon: FileCheck, description: 'Generate completed forms' }
 ];
 
+// Form-specific workflow steps for AR-11 and other specific forms
+const FORM_WORKFLOW_STEPS = [
+  { id: 'answers', title: 'Review Responses', icon: MessageSquare, description: 'Review client questionnaire responses' },
+  { id: 'all-details', title: 'All Details Summary', icon: ClipboardList, description: 'Complete workflow details overview' },
+  { id: 'auto-fill', title: 'Generate Form', icon: FileCheck, description: 'Generate completed form with client data' }
+];
+
 const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
-  // const navigate = useNavigate(); // Not used in current implementation
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
-
-  // IMMEDIATE DEBUG LOGGING FOR URL PARAMETERS
-
-
-
-  // Client data
-  const [client, setClient] = useState<any>({
+ // Client data
+ const [client, setClient] = useState<any>({
     id: '',
     clientId: '', // MongoDB ObjectId reference to DEFAULT_IMS_Client
     name: '',
@@ -202,7 +202,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     createdAt: ''
   });
 
-  // DEBUG: Log client state at render level
   
 
   // Existing clients (from API)
@@ -261,25 +260,17 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   const [existingQuestionnaireResponses, setExistingQuestionnaireResponses] = useState<any[]>([]);
   const [selectedExistingResponse, setSelectedExistingResponse] = useState<string>('');
   const [useExistingResponse, setUseExistingResponse] = useState(false);
-  const [, setIsExistingResponse] = useState(false);
-  const [, setLoadingExistingResponses] = useState(false);
   
   // State for tracking submission completion
   const [isSubmissionComplete, setIsSubmissionComplete] = useState(false);
 
-  // State for form details ID (backend integration)
-  // const [formDetailsId, setFormDetailsId] = useState<string | null>(null);
-
   // State for auto-fill data from API
-  // const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
   const [autoFillEnabled] = useState(false);
-  // const [loadingWorkflows, setLoadingWorkflows] = useState(false);
 
   // State to track if we're in view/edit mode from QuestionnaireResponses
   const [isViewEditMode] = useState(false);
 
   // State to track if this is a new response or existing response
-  // const [isNewResponse, setIsNewResponse] = useState(true);
   const [isExistResponse, setIsExistResponse] = useState(false);
 
   // State for auto-generated forms
@@ -322,58 +313,47 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // State for complete workflow details from API
   const [completeWorkflowDetails, setCompleteWorkflowDetails] = useState<any>(null);
-  const [loadingWorkflowDetails, setLoadingWorkflowDetails] = useState(false);
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null);
+
+  // State for debug console
+  const [showDebugConsole, setShowDebugConsole] = useState(false);
+  const [debugData, setDebugData] = useState<any>({
+    client,
+    caseData,
+    selectedForms,
+    formCaseIds,
+    questionnaireAssignment,
+    clientResponses,
+    completeWorkflowDetails,
+    availableQuestionnaires,
+    formTemplates,
+    isExistResponse,
+    currentStep,
+    currentWorkflowId
+  });
 
   // Function to fetch complete workflow details using getWorkflowProgress
   const fetchCompleteWorkflowDetails = async (workflowId: string) => {
-    console.log('🔄 Fetching complete workflow details for ID:', workflowId);
-    setLoadingWorkflowDetails(true);
-    
     try {
-      console.log('📞 Calling getWorkflowProgress API with workflowId:', workflowId);
       const workflowData = await getWorkflowProgress(workflowId);
-      
-      // DETAILED CONSOLE OUTPUT FOR DEBUGGING
-      console.log('✅ RAW WORKFLOW DATA RECEIVED:');
-      console.log('================================');
-      console.log('Full Workflow Data Object:', workflowData);
-      console.log('================================');
-      
-      // Log specific sections
-     
-      
-      console.log('================================');
-      console.log('END OF WORKFLOW DATA CONSOLE OUTPUT');
-      console.log('================================');
       
       setCompleteWorkflowDetails(workflowData);
       setCurrentWorkflowId(workflowId);
       
       // Auto-populate component state with fetched workflow data
-      console.log('🔄 About to populate component state from workflow data...');
       await populateStateFromWorkflowProgress(workflowData);
       
-      console.log('🎯 Workflow details fetched successfully - data populated to component state');
-      
     } catch (error) {
-      console.error('❌ Error fetching complete workflow details:', error);
-      console.error('❌ Error details:', {
-        workflowId,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorStack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      });
+      console.error('Error fetching workflow details:', error);
       setCompleteWorkflowDetails(null);
-      toast.error('Failed to load workflow details. Please check console for details.');
+      toast.error('Failed to load workflow details. Please try again.');
     } finally {
-      setLoadingWorkflowDetails(false);
+      // Loading completed
     }
   };
 
   // New method to populate component state from workflow progress data
   const populateStateFromWorkflowProgress = async (workflowData: any) => {
-    console.log('🔄 Populating component state from workflow progress data...');
     
     try {
       // Populate client data
@@ -420,7 +400,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         };
         
         setClient(clientData);
-        console.log('✅ Client data populated from workflow progress (cleaned):', clientData);
       }
       
       // Populate case data
@@ -447,13 +426,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         };
         
         setCaseData(caseInfo);
-        console.log('✅ Case data populated from workflow progress (cleaned):', caseInfo);
       }
       
       // Populate selected forms
       if (workflowData?.selectedForms && Array.isArray(workflowData.selectedForms)) {
         setSelectedForms(workflowData.selectedForms);
-        console.log('✅ Selected forms populated from workflow progress:', workflowData.selectedForms);
       }
       
       // Populate form case IDs
@@ -469,18 +446,56 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           }
         }
         setFormCaseIds(cleanFormCaseIds);
-        console.log('✅ Form case IDs populated from workflow progress (cleaned):', cleanFormCaseIds);
       }
       
       // Populate questionnaire assignment and responses
       if (workflowData?.questionnaireAssignment) {
+        // Check if we have targetAssignment data from sessionStorage for validation
+        let targetAssignment = null;
+        try {
+          const storedData = sessionStorage.getItem('legalFirmWorkflowData');
+          if (storedData) {
+            const sessionData = JSON.parse(storedData);
+            targetAssignment = sessionData.targetAssignment;
+          }
+        } catch (error) {
+          // Ignore sessionStorage errors
+        }
+
+        // Extract questionnaire ID from multiple possible locations
+        const questionnaireId = workflowData.questionnaireAssignment.questionnaire_id || 
+                               workflowData.questionnaireAssignment.questionnaireId || '';
+        
+        const questionnaireName = workflowData.questionnaireAssignment.questionnaire_title || 
+                                 workflowData.questionnaireAssignment.questionnaireName || 
+                                 'Workflow Questionnaire';
+        
+        // Validate that this workflow matches the expected assignment if we have targetAssignment
+        if (targetAssignment) {
+          const workflowFormCaseId = workflowData.questionnaireAssignment.formCaseIdGenerated;
+          const targetFormCaseId = targetAssignment.formCaseIdGenerated;
+          
+          console.log('🔍 Validating workflow assignment match:', {
+            workflowFormCaseId,
+            targetFormCaseId,
+            matches: workflowFormCaseId === targetFormCaseId,
+            workflowAssignmentId: workflowData.questionnaireAssignment.assignment_id,
+            targetAssignmentId: targetAssignment.id
+          });
+          
+          // If form case IDs don't match, log a warning but continue
+          if (targetFormCaseId && workflowFormCaseId !== targetFormCaseId) {
+            console.warn('⚠️ Workflow formCaseIdGenerated does not match target assignment. This might be the wrong workflow.');
+          }
+        }
+        
         // Create assignment object with data from multiple sources
         const assignment = {
-          id: workflowData.questionnaireAssignment.assignment_id || '',
+          id: workflowData.questionnaireAssignment.assignment_id || workflowData.questionnaireAssignment.id || '',
           caseId: workflowData.case?._id || workflowData.case?.id || '',
           clientId: workflowData.client?._id || workflowData.client?.id || '',
-          questionnaireId: workflowData.questionnaireAssignment.questionnaire_id || '',
-          questionnaireName: workflowData.questionnaireAssignment.questionnaire_title || 'Workflow Questionnaire',
+          questionnaireId: questionnaireId,
+          questionnaireName: questionnaireName,
           status: (workflowData.clientResponses?.submitted_at || workflowData.questionnaireAssignment.submitted_at) ? 'completed' as const : 'pending' as const,
           assignedAt: new Date().toISOString(),
           completedAt: workflowData.clientResponses?.submitted_at || workflowData.questionnaireAssignment.submitted_at || undefined,
@@ -495,7 +510,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         setQuestionnaireAssignment(assignment);
         
         // Ensure selectedQuestionnaire is always a string ID, not an object
-        const questionnaireId = workflowData.questionnaireAssignment.questionnaire_id || '';
         setSelectedQuestionnaire(questionnaireId);
         
         // Set client responses if available
@@ -514,13 +528,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             responseKeys: Object.keys(cleanResponses).slice(0, 10) // Show first 10 keys
           });
         }
-        
         console.log('✅ Questionnaire assignment populated from workflow progress:', assignment);
       }
       
       // Also check for clientResponses directly in the workflow data
       if (workflowData?.clientResponses?.responses) {
-        console.log('🔍 Found clientResponses.responses - processing...');
         
         // Clean the responses object to ensure it's a plain object without MongoDB metadata
         const cleanClientResponses: Record<string, any> = {};
@@ -534,16 +546,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Merge with existing responses or use as primary source
         setClientResponses(prev => {
           const merged = { ...prev, ...cleanClientResponses };
-          console.log('✅ Client responses populated from clientResponses data:', {
-            responseCount: Object.keys(merged).length,
-            responseKeys: Object.keys(merged).slice(0, 10),
-            source: 'clientResponses'
-          });
           return merged;
         });
       }
       
-      // Set workflow mode based on data availability
+      // Set workflow mode based on data availability and form context
       // Check multiple possible locations for responses
       const hasResponses = (
         (workflowData?.questionnaireAssignment?.responses && Object.keys(workflowData.questionnaireAssignment.responses).length > 0) ||
@@ -551,69 +558,55 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         (workflowData?.clientResponses && workflowData.clientResponses.submitted_at) // Check if response was submitted
       );
       
-      console.log('🔍 Checking for existing responses:', {
-        questionnaireAssignmentResponses: workflowData?.questionnaireAssignment?.responses,
-        clientResponsesResponses: workflowData?.clientResponses?.responses,
-        clientResponsesSubmittedAt: workflowData?.clientResponses?.submitted_at,
-        hasResponses,
-        workflowDataKeys: Object.keys(workflowData || {}),
-      });
+      // Check if this is a specific form workflow (AR-11, I-130, etc.) vs general workflow
+      const hasSpecificForms = workflowData?.selectedForms && Array.isArray(workflowData.selectedForms) && workflowData.selectedForms.length > 0;
+      const isSpecificFormWorkflow = hasSpecificForms && (
+        workflowData.selectedForms.includes('AR-11') ||
+        workflowData.selectedForms.includes('I-130') ||
+        workflowData.selectedForms.includes('I-485') ||
+        workflowData.selectedForms.includes('G-1041') ||
+        workflowData.selectedForms.some((form: string) => form.match(/^[A-Z]-\d+$/))
+      );
       
-      if (hasResponses) {
-        console.log('✅ SETTING EXISTING RESPONSE MODE');
-        console.log('🔧 Before state changes:', { 
-          currentIsExistResponse: isExistResponse, 
-          currentStep: currentStep 
-        });
-        
+      if (hasResponses && isSpecificFormWorkflow) {
+        // For form-specific workflows with responses, start at form details summary
         setIsExistResponse(true);
-        setCurrentStep(0); // Start at Review Responses step for existing data
-        
-        console.log('✅ Set to existing response mode - starting at Review Responses step');
-        console.log('📋 Response data found:', {
-          questionnaireResponses: workflowData?.questionnaireAssignment?.responses,
-          clientResponses: workflowData?.clientResponses?.responses,
-          responseCount: Object.keys(workflowData?.clientResponses?.responses || {}).length,
-          submittedAt: workflowData?.clientResponses?.submitted_at
-        });
-        
-        // Force trigger re-render by logging state after update
-        setTimeout(() => {
-          console.log('🔧 After state changes (delayed check):', { 
-            isExistResponse, 
-            currentStep 
-          });
-        }, 100);
+        setCurrentStep(0); // Start at Form Details Summary for form-specific workflows
+      } else if (hasResponses && !isSpecificFormWorkflow) {
+        // For general workflows with responses, use review responses
+        setIsExistResponse(true);
+        setCurrentStep(0); // Review Responses step for general workflows
       } else {
-        console.log('ℹ️ No existing responses found - continuing with current workflow flow');
+        // No responses or new workflow - start normally
+        setIsExistResponse(false);
+        setCurrentStep(0);
       }
       
-      console.log('✅ Component state population completed successfully');
-      
     } catch (error) {
-      console.error('❌ Error populating component state from workflow progress:', error);
-      console.error('❌ State population error details:', {
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorStack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      });
+      console.error('Error populating component state from workflow progress:', error);
     }
   };
 
-  // Function to get the appropriate workflow steps based on response type
-  const getWorkflowSteps = () => {
-    console.log('🔍 getWorkflowSteps called:', { 
-      isExistResponse, 
-      currentStep,
-      stepsToReturn: isExistResponse ? 'EXIST_WORKFLOW_STEPS' : 'NEW_WORKFLOW_STEPS'
-    });
-    
+  // Function to get the appropriate workflow steps based on response type and form context
+  const getWorkflowSteps = () => {    
     if (isExistResponse) {
-      console.log('✅ Returning EXIST_WORKFLOW_STEPS:', EXIST_WORKFLOW_STEPS);
+      // Check if this is a form-specific workflow
+      const hasSpecificForms = selectedForms && selectedForms.length > 0;
+      const isSpecificFormWorkflow = hasSpecificForms && (
+        selectedForms.includes('AR-11') ||
+        selectedForms.includes('I-130') ||
+        selectedForms.includes('I-485') ||
+        selectedForms.includes('G-1041') ||
+        selectedForms.some((form: string) => form.match(/^[A-Z]-\d+$/))
+      );
+      
+      if (isSpecificFormWorkflow) {
+        return FORM_WORKFLOW_STEPS;
+      }
+      
       return EXIST_WORKFLOW_STEPS;
     }
     
-    console.log('✅ Returning NEW_WORKFLOW_STEPS:', NEW_WORKFLOW_STEPS);
     return NEW_WORKFLOW_STEPS;
   };
 
@@ -625,32 +618,53 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     loadQuestionnairesAndCheckPrefilledData();
   }, []);
 
-  // Monitor isExistResponse state changes for debugging
-  useEffect(() => {
-    console.log('🔍 isExistResponse state changed:', { 
-      isExistResponse, 
-      currentStep,
-      timestamp: new Date().toISOString()
-    });
-  }, [isExistResponse, currentStep]);
-
-  // Load available workflows for auto-fill on component mount
-  useEffect(() => {
-    const loadWorkflowsForAutoFill = async () => {
-      await fetchWorkflowsFromAPI();
-    };
-
-    // Load workflows after a brief delay to allow other data to load first
-    setTimeout(loadWorkflowsForAutoFill, 1000);
-  }, []);
-
   // Monitor client state changes for debugging
   useEffect(() => {
 
   }, [client.isExistingClient, client.hasUserAccount, client.clientId, client.email]);
 
+  // Update debug data whenever component state changes
+  useEffect(() => {
+    setDebugData({
+      client,
+      caseData,
+      selectedForms,
+      formCaseIds,
+      questionnaireAssignment,
+      clientResponses,
+      completeWorkflowDetails,
+      availableQuestionnaires,
+      formTemplates,
+      isExistResponse,
+      currentStep,
+      currentWorkflowId,
+      generatedForms,
+      existingClients,
+      selectedExistingClientId,
+      selectedQuestionnaire,
+      autoFillEnabled,
+      isViewEditMode,
+      timestamp: new Date().toISOString(),
+      urlParams: Object.fromEntries(new URLSearchParams(window.location.search))
+    });
+  }, [
+    client, caseData, selectedForms, formCaseIds, questionnaireAssignment, clientResponses, 
+    completeWorkflowDetails, availableQuestionnaires, formTemplates, isExistResponse, 
+    currentStep, currentWorkflowId, generatedForms, existingClients, selectedExistingClientId,
+    selectedQuestionnaire, autoFillEnabled, isViewEditMode
+  ]);
+
   // Emergency safety check to fix undefined flags for existing clients
   useEffect(() => {
+    // Check if we're coming from QuestionnaireResponses - if so, skip this useEffect
+    const currentUrl = window.location.href;
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses') === 'true' || currentUrl.includes('fromQuestionnaireResponses=true');
+    
+    if (fromQuestionnaireResponses) {
+      return;
+    }
+    
     // EMERGENCY SAFETY CHECK: If we have a client email and it's from selectedExistingClientId, force the flags
     const isDefinitelyExistingClient = (
       selectedExistingClientId && 
@@ -659,17 +673,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     );
     
     if (isDefinitelyExistingClient && (client.isExistingClient !== true || client.hasUserAccount !== true)) {
-      console.log('🚨 DEBUG: EMERGENCY SAFETY - Detected existing client with undefined flags, FORCING correction:', {
-        selectedExistingClientId,
-        clientEmail: client.email,
-        emailMatch: client.email === selectedExistingClientId,
-        currentFlags: {
-          isExistingClient: client.isExistingClient,
-          hasUserAccount: client.hasUserAccount
-        },
-        forcingToTrue: true
-      });
-      
       // Force update the client state immediately
       setClient((prev: any) => ({
         ...prev,
@@ -690,26 +693,20 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     const targetClientId = clientId || selectedExistingClientId;
     
     if (!targetClientId) {
-      console.log('🔍 fetchClientDetails: No client ID provided, skipping fetch');
       return { success: false, error: 'No client ID provided' };
     }
 
-    console.log('🔄 fetchClientDetails: Starting client details fetch for:', targetClientId);
     setLoading(true);
     
     try {
       // Step 1: Fetch client details directly from workflow API
       let fullClient = null;
       
-      console.log('🔄 fetchClientDetails: Fetching workflows for client:', targetClientId);
-      
       const workflowResult = await getWorkflowsByClient(targetClientId, {
         page: 1,
         limit: 5,
       
       });
-
-      console.log("WORKFLOW RESULT", workflowResult)
       
       // Step 2: Extract client data from workflow API response
       if (workflowResult.success && workflowResult.data.length > 0) {
@@ -723,25 +720,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         
         if (workflowWithClient && workflowWithClient.client) {
           fullClient = workflowWithClient.client;
-          console.log('✅ fetchClientDetails: Found client in workflow data:', {
-            workflowId: workflowWithClient.workflowId || workflowWithClient._id,
-            clientName: fullClient.name || `${fullClient.firstName} ${fullClient.lastName}`,
-            clientEmail: fullClient.email,
-            clientObjectId: fullClient._id,
-            clientClientId: fullClient.clientId,
-            clientId: fullClient.id
-          });
         }
       }
       
       if (workflowResult.error) {
-        console.error('❌ fetchClientDetails: API error:', workflowResult.error);
+        console.error('Error fetching client details:', workflowResult.error);
       }
       
       // Step 3: Final fallback - try general workflow search
       if (!fullClient) {
-        console.log('🔄 fetchClientDetails: Trying fallback workflow search');
-        
         try {
           const workflows = await fetchWorkflowsForClientSearch();
           const workflowWithClient = workflows.find(w => 
@@ -751,17 +738,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           
           if (workflowWithClient && workflowWithClient.client) {
             fullClient = workflowWithClient.client;
-            console.log('✅ fetchClientDetails: Found client via fallback method');
           }
         } catch (fallbackError) {
-          console.warn('⚠️ fetchClientDetails: Fallback method failed:', fallbackError);
+          console.warn('Fallback method failed:', fallbackError);
         }
       }
       
       // Step 4: Process and return result
       if (!fullClient) {
         const errorMsg = 'Client not found in any data source';
-        console.error('❌ fetchClientDetails:', errorMsg);
+        console.error('fetchClientDetails:', errorMsg);
         toast.error('Unable to retrieve client details. Please try again.');
         return { success: false, error: errorMsg };
       }
@@ -776,14 +762,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       // Fetch additional client data (questionnaire responses) using the actual client ObjectId
       const clientObjectId = processedClient.clientId || processedClient._id || processedClient.id;
       if (clientObjectId && clientObjectId !== targetClientId) {
-        console.log('🔄 fetchClientDetails: Using client ObjectId for questionnaire responses:', clientObjectId);
         await fetchExistingQuestionnaireResponses(clientObjectId);
-      } else {
-        console.log('⚠️ fetchClientDetails: No valid ObjectId found for questionnaire responses, skipping');
       }
       
       const clientName = processedClient.name || 'Client';
-      console.log('✅ fetchClientDetails: Successfully loaded client details');
       toast.success(`Client ${clientName} details loaded successfully`);
       
       return { 
@@ -793,11 +775,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       
     } catch (error: any) {
       const errorMsg = error.message || 'Failed to fetch client details';
-      console.error('❌ fetchClientDetails: Unexpected error:', {
-        error: errorMsg,
-        stack: error.stack,
-        targetClientId
-      });
+      console.error('fetchClientDetails: Unexpected error:', error);
       
       toast.error('Failed to load client details. Please try again.');
       
@@ -827,16 +805,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     // Extract the actual MongoDB ObjectId from the client data
     const objectId = rawClient._id || rawClient.clientId || rawClient.id;
     const isValidObjectId = objectId && /^[0-9a-fA-F]{24}$/.test(objectId);
-    
-    console.log('🔍 processClientData: Client ID extraction:', {
-      rawClientId: rawClient._id,
-      rawClientClientId: rawClient.clientId,
-      rawClientId2: rawClient.id,
-      extractedObjectId: objectId,
-      isValidObjectId,
-      targetClientId,
-      clientEmail: rawClient.email
-    });
     
     // Return processed client object
     return {
@@ -874,6 +842,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Fetch client details when selectedExistingClientId changes
   useEffect(() => {
+    // Check if we're coming from QuestionnaireResponses - if so, skip this useEffect
+    const currentUrl = window.location.href;
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses') === 'true' || currentUrl.includes('fromQuestionnaireResponses=true');
+    
+    if (fromQuestionnaireResponses) {
+      return;
+    }
+    
     if (selectedExistingClientId) {
       fetchClientDetails();
     }
@@ -881,6 +858,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Load workflow data when existing client reaches Create Client step (step 1)
   useEffect(() => {
+    // Check if we're coming from QuestionnaireResponses - if so, skip this useEffect
+    const currentUrl = window.location.href;
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses') === 'true' || currentUrl.includes('fromQuestionnaireResponses=true');
+    
+    if (fromQuestionnaireResponses) {
+      console.log('🚫 Skipping existing client workflow loading - coming from QuestionnaireResponses');
+      return;
+    }
+    
     const loadWorkflowDataForExistingClient = async () => {
       console.log('🔍 DEBUG: useEffect triggered - checking conditions for workflow loading:', {
         currentStep,
@@ -1024,24 +1011,19 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
   // Load workflow data from sessionStorage ONLY when coming from QuestionnaireResponses
   useEffect(() => {
-    console.log('🔄 useEffect for workflow loading triggered');
-    
     // Check URL parameters first to determine if we're coming from QuestionnaireResponses
-    const urlParams = new URLSearchParams(window.location.search);
+    // Use multiple methods to ensure we get the current URL correctly
+    const currentUrl = window.location.href;
+    const currentSearch = window.location.search;
+    const urlParams = new URLSearchParams(currentSearch);
     const fromQuestionnaireResponses = urlParams.get('fromQuestionnaireResponses') === 'true';
     const workflowId = urlParams.get('workflowId');
     
-    console.log('🔍 URL Parameters Analysis:', {
-      fromQuestionnaireResponses,
-      workflowId,
-      hasWorkflowId: !!workflowId,
-      timestamp: new Date().toISOString(),
-      fullURL: window.location.href,
-      searchParams: window.location.search
-    });
+    // Additional check: look for the parameter in the URL string directly as backup
+    const fromQuestionnaireResponsesBackup = currentUrl.includes('fromQuestionnaireResponses=true');
+    const finalFromQuestionnaireResponses = fromQuestionnaireResponses || fromQuestionnaireResponsesBackup;
     
-    if (!fromQuestionnaireResponses) {
-      console.log('🚫 Not from QuestionnaireResponses - starting with clean workflow (New/Existing Client)');
+    if (!finalFromQuestionnaireResponses) {
       // Ensure we start from the beginning for normal access
       setCurrentStep(0);
       setIsExistResponse(false);
@@ -1050,30 +1032,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       return;
     }
     
-    console.log('🔗 Navigated from QuestionnaireResponses - processing workflow data');
-    console.log('🆔 Workflow ID from URL:', workflowId);
-    
     // PRIORITY 1: If we have a workflowId from URL, use API to fetch complete workflow details
     if (workflowId) {
-      console.log('✅ Found workflowId in URL - using API to fetch complete workflow details');
-      console.log('📋 WorkflowId Details:', {
-        workflowId,
-        length: workflowId.length,
-        isValidFormat: /^[0-9a-fA-F]{24}$/.test(workflowId) || workflowId.length > 10,
-        timestamp: new Date().toISOString()
-      });
-      
-      console.log('🚀 About to call fetchCompleteWorkflowDetails...');
-      
       // Fetch workflow progress from API - this will populate all component state
       fetchCompleteWorkflowDetails(workflowId)
         .then(() => {
-          console.log('🎯 Workflow details fetched successfully from API');
           // Clear sessionStorage since we have fresh API data
           sessionStorage.removeItem('legalFirmWorkflowData');
         })
         .catch((error) => {
-          console.error('❌ Failed to fetch workflow from API, falling back to sessionStorage:', error);
+          console.error('Failed to fetch workflow from API, falling back to sessionStorage:', error);
           // If API fails, fallback to sessionStorage
           loadWorkflowFromSessionStorage();
         });
@@ -1082,7 +1050,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
     
     // PRIORITY 2: Fallback to sessionStorage if no workflowId in URL
-    console.log('⚠️ No workflowId in URL - falling back to sessionStorage data');
     
     // Define the sessionStorage loading function
     function loadWorkflowFromSessionStorage() {
@@ -1090,7 +1057,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         const storedData = sessionStorage.getItem('legalFirmWorkflowData');
         if (storedData) {
           const workflowData = JSON.parse(storedData);
-          console.log('🔄 Loading workflow data from sessionStorage:', workflowData);
           
           // Load client data
           if (workflowData.workflowClient || workflowData.clientName) {
@@ -1115,7 +1081,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               hasUserAccount: true
             };
             setClient(clientData);
-            console.log('✅ Loaded client data:', clientData);
           }
           
           // Load case data
@@ -1139,19 +1104,16 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               assignedAttorney: ''
             };
             setCaseData(caseInfo);
-            console.log('✅ Loaded case data:', caseInfo);
           }
           
           // Load selected forms
           if (workflowData.selectedForms && Array.isArray(workflowData.selectedForms)) {
             setSelectedForms(workflowData.selectedForms);
-            console.log('✅ Loaded selected forms:', workflowData.selectedForms);
           }
           
           // Load form case IDs
           if (workflowData.formCaseIds) {
             setFormCaseIds(workflowData.formCaseIds);
-            console.log('✅ Loaded form case IDs:', workflowData.formCaseIds);
           }
           
           // Load questionnaire assignment
@@ -1161,19 +1123,31 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               ? workflowData.questionnaireId 
               : workflowData.questionnaireId?._id || workflowData.questionnaireId?.id || '';
               
-            const assignment = {
+            // Use targetAssignment data if available for more accurate assignment
+            const assignmentData = workflowData.targetAssignment || {
               id: workflowData.originalAssignmentId || '',
-              caseId: workflowData.workflowCase?.id || workflowData.workflowCase?._id || '',
+              formCaseIdGenerated: '',
               questionnaireId: questionnaireId,
-              questionnaireName: workflowData.questionnaireTitle || 'Workflow Questionnaire',
               clientId: workflowData.clientId,
-              status: 'completed' as const,
+              completedAt: null
+            };
+            
+            const assignment = {
+              id: assignmentData.id || workflowData.originalAssignmentId || '',
+              caseId: workflowData.workflowCase?.id || workflowData.workflowCase?._id || '',
+              questionnaireId: assignmentData.questionnaireId || questionnaireId,
+              questionnaireName: workflowData.questionnaireTitle || 'Workflow Questionnaire',
+              clientId: assignmentData.clientId || workflowData.clientId,
+              status: (assignmentData.completedAt || workflowData.existingResponses) ? 'completed' as const : 'pending' as const,
               assignedAt: new Date().toISOString(),
-              responses: workflowData.existingResponses || workflowData.questionnaireAssignment?.responses || {}
+              completedAt: assignmentData.completedAt || undefined,
+              responses: workflowData.existingResponses || workflowData.questionnaireAssignment?.responses || {},
+              formCaseIdGenerated: assignmentData.formCaseIdGenerated || '',
+              notes: ''
             };
             setQuestionnaireAssignment(assignment);
             setSelectedQuestionnaire(questionnaireId);
-            console.log('✅ Loaded questionnaire assignment:', assignment);
+            console.log('✅ Loaded questionnaire assignment with targetAssignment data:', assignment);
           }
           
           // Load existing responses - THIS IS THE KEY PART
@@ -2077,7 +2051,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
   // Fetch existing questionnaire responses for existing clients
   const fetchExistingQuestionnaireResponses = async (clientId: string) => {
     try {
-      setLoadingExistingResponses(true);
       console.log('🔄 DEBUG: Fetching existing questionnaire responses for client:', clientId);
       
       // Validate client ID format
@@ -2321,7 +2294,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       setExistingQuestionnaireResponses([]);
       return [];
     } finally {
-      setLoadingExistingResponses(false);
+      // Cleanup completed
     }
   };
 
@@ -2511,7 +2484,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         // Load the responses into the form
         console.log('🔄 DEBUG: Loading responses into form state');
         setClientResponses(questionnaireResponse.responses);
-        setIsExistingResponse(true);
+        setUseExistingResponse(true);
 
         toast.success(`Previous questionnaire response loaded: ${questionnaireResponse.questionnaireTitle}`);
         
@@ -3890,7 +3863,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             });
             
             // ✅ CREATE ENHANCED CASE WITH DEDICATED API ENDPOINT (for existing response path)
-            let enhancedCaseData: EnhancedCaseData | undefined;
             try {
               console.log('🔄 Creating enhanced case for existing response workflow...');
               console.log('🔍 DEBUG: Client data for enhanced case:', {
@@ -3904,9 +3876,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               });
               
               // Get current user for assignedTo field
-              const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-              const assignedToId = currentUser._id || currentUser.id;
-              
               // Prepare enhanced case data for existing response path
               // const enhancedCaseData: EnhancedCaseData = {
               //   // Required fields
@@ -3974,9 +3943,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 clientId: client.clientId || client._id,
                 hasClientId: !!(client.clientId || client._id),
                 enhancedCaseDataSnapshot: {
-                  clientId: enhancedCaseData?.clientId || workflowDataWithExistingResponse?.clientId || client.clientId || client.id || client._id,
-                  type: enhancedCaseData?.type,
-                  title: enhancedCaseData?.title
+                  clientId: workflowDataWithExistingResponse?.clientId || client.clientId || client.id || client._id,
+                  type: caseData.category || 'Family-Based',
+                  title: caseData.title || `${client.name} - ${caseData.category || 'Immigration'} Case`
                 }
               });
               
@@ -4631,10 +4600,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             try {
               console.log('🔄 Creating enhanced case with POST /api/v1/cases endpoint...');
               
-              // Get current user for assignedTo field
-              const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-              const assignedToId = currentUser._id || currentUser.id;
-              
               // Prepare enhanced case data according to API specification
               // const enhancedCaseData: EnhancedCaseData = {
               //   // Required fields
@@ -4878,94 +4843,6 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
       toast.error('There was an error saving the responses. Please try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Function to auto-fill form details from API workflow response
-  const autoFillFromAPIResponse = (apiResponse: any) => {
-    try {
-      if (!apiResponse || !apiResponse.data || apiResponse.data.length === 0) {
-        return;
-      }
-
-      const workflowData = apiResponse.data[0]; // Get the first workflow
-
-      // Auto-fill client data
-      if (workflowData.client) {
-        const clientData = {
-          ...client,
-          name: workflowData.client.name || client.name,
-          firstName: workflowData.client.firstName || client.firstName,
-          lastName: workflowData.client.lastName || client.lastName,
-          email: workflowData.client.email || client.email,
-          phone: workflowData.client.phone || client.phone,
-          dateOfBirth: workflowData.client.dateOfBirth || client.dateOfBirth,
-          nationality: workflowData.client.nationality || client.nationality,
-          // Include client ID fields
-          clientId: workflowData.client.clientId || workflowData.client._id || workflowData.client.clientId || client.clientId,
-          address: {
-            ...client.address,
-            ...workflowData.client.address
-          }
-        };
-        setClient(clientData);
-      }
-
-      // Auto-fill case data
-      if (workflowData.case) {
-        const caseDataFromAPI = {
-          ...caseData,
-          id: workflowData.case.id || caseData.id,
-          _id: workflowData.case._id || caseData._id,
-          title: workflowData.case.title || caseData.title,
-          category: workflowData.case.category || caseData.category,
-          subcategory: workflowData.case.subcategory || caseData.subcategory,
-          status: workflowData.case.status || caseData.status,
-          priority: workflowData.case.priority || caseData.priority,
-          visaType: workflowData.case.visaType || caseData.visaType,
-          description: workflowData.case.description || caseData.description,
-          openDate: workflowData.case.openDate || caseData.openDate,
-          priorityDate: workflowData.case.priorityDate || caseData.priorityDate,
-          dueDate: workflowData.case.dueDate || caseData.dueDate
-        };
-        setCaseData(caseDataFromAPI);
-      }
-
-      // Auto-fill selected forms
-      if (workflowData.selectedForms && Array.isArray(workflowData.selectedForms)) {
-        setSelectedForms(workflowData.selectedForms);
-      }
-
-      // Auto-fill form case IDs
-      if (workflowData.formCaseIds) {
-        setFormCaseIds(workflowData.formCaseIds);
-      }
-
-      // Auto-fill selected questionnaire
-      if (workflowData.selectedQuestionnaire) {
-        // Ensure selectedQuestionnaire is always a string ID, not an object
-        const questionnaireId = typeof workflowData.selectedQuestionnaire === 'string' 
-          ? workflowData.selectedQuestionnaire 
-          : workflowData.selectedQuestionnaire?._id || workflowData.selectedQuestionnaire?.id || '';
-        setSelectedQuestionnaire(questionnaireId);
-      }
-
-      // Auto-fill client credentials
-      if (workflowData.clientCredentials) {
-        setClientCredentials({
-          ...clientCredentials,
-          email: workflowData.clientCredentials.email || clientCredentials.email,
-          createAccount: workflowData.clientCredentials.createAccount || clientCredentials.createAccount
-        });
-      }
-
-      // Auto-fill current step if specified
-      if (workflowData.currentStep !== undefined && workflowData.currentStep >= 0) {
-        setCurrentStep(Math.max(workflowData.currentStep, currentStep)); // Don't go backwards
-      }
-
-    } catch (error) {
-      // Error auto-filling from API response
     }
   };
 
@@ -6340,7 +6217,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                 setUseExistingResponse(false);
                                 setSelectedExistingResponse('');
                                 setClientResponses({});
-                                setIsExistingResponse(false);
+                                setUseExistingResponse(false);
                               }}
                               className="sr-only"
                             />
@@ -6389,7 +6266,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                 
                                 if (response && response.responses) {
                                   setClientResponses(response.responses);
-                                  setIsExistingResponse(true);
+                                  setUseExistingResponse(true);
                                   console.log('✅ Previous questionnaire response loaded:', {
                                     responseId: response.id,
                                     questionnaireTitle: response.questionnaireTitle,
@@ -7031,6 +6908,345 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
   };
 
+  // Handles steps for form-specific workflows (AR-11, I-130, etc.)
+  const renderFormWorkflowStep = (step: number) => {
+    switch (step) {
+      case 0: // Review Responses
+        return renderExistResponseStep(0); // Delegate to existing review responses function
+      
+      case 1: // All Details Summary
+        return (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+              <h3 className="text-2xl font-bold text-blue-900 mb-3 flex items-center">
+                <ClipboardList className="w-6 h-6 mr-3" />
+                All Details Summary - Form Workflow
+              </h3>
+              <p className="text-blue-700 text-lg">Complete workflow details for specific form processing</p>
+              
+              {/* Debug Console Toggle */}
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowDebugConsole(!showDebugConsole)}
+                  className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200"
+                >
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  {showDebugConsole ? 'Hide' : 'Show'} Debug Console
+                </button>
+              </div>
+            </div>
+
+            {/* Debug Console */}
+            {showDebugConsole && (
+              <div className="bg-gray-900 text-green-400 rounded-lg p-4 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-lg font-semibold text-green-400">Form Workflow Debug Console</h4>
+                  <button
+                    onClick={() => {
+                      const dataStr = JSON.stringify(debugData, null, 2);
+                      navigator.clipboard.writeText(dataStr);
+                      toast.success('Form workflow debug data copied to clipboard');
+                    }}
+                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Copy to Clipboard
+                  </button>
+                </div>
+                <div className="max-h-96 overflow-y-auto font-mono text-xs">
+                  <pre className="whitespace-pre-wrap">
+                    {JSON.stringify(debugData, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            {/* Form Information - Enhanced */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <FileText className="w-5 h-5 mr-2" />
+                Form Processing Information
+              </h4>
+              <div className="space-y-6">
+                {/* Selected Forms */}
+                {selectedForms && selectedForms.length > 0 && (
+                  <div>
+                    <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Selected Forms for Processing</h5>
+                    <div className="space-y-3">
+                      {selectedForms.map((form, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center">
+                            <FileText className="w-5 h-5 text-blue-500 mr-3" />
+                            <div>
+                              <span className="font-medium text-blue-900 text-lg">{form}</span>
+                              <div className="text-sm text-blue-700 mt-1">USCIS Immigration Form</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-medium text-blue-700 mb-1">Case ID:</div>
+                            <span className="font-mono text-blue-600 bg-white px-3 py-1 rounded border text-sm">
+                              {formCaseIds[form] || 'Not generated'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Questionnaire Assignment Status */}
+                {questionnaireAssignment && (
+                  <div>
+                    <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Questionnaire Status</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Questionnaire:</span>
+                        <span className="ml-2 text-gray-600">{questionnaireAssignment.questionnaireName}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Status:</span>
+                        <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                          questionnaireAssignment.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {questionnaireAssignment.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Complete Client Information */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <User className="w-5 h-5 mr-2" />
+                Complete Client Information
+              </h4>
+              
+              {/* Basic Client Info */}
+              <div className="mb-6">
+                <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Personal Information</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">Full Name:</span>
+                    <span className="ml-2 text-gray-900">{client.name || `${client.firstName} ${client.lastName}`}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">First Name:</span>
+                    <span className="ml-2 text-gray-600">{client.firstName || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Middle Name:</span>
+                    <span className="ml-2 text-gray-600">{client.middleName || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Last Name:</span>
+                    <span className="ml-2 text-gray-600">{client.lastName || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Email:</span>
+                    <span className="ml-2 text-gray-600">{client.email}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Phone:</span>
+                    <span className="ml-2 text-gray-600">{client.phone || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Date of Birth:</span>
+                    <span className="ml-2 text-gray-600">
+                      {client.dateOfBirth ? new Date(client.dateOfBirth).toLocaleDateString() : 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Nationality:</span>
+                    <span className="ml-2 text-gray-600">{client.nationality || 'Not provided'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Immigration Numbers */}
+              <div className="mb-6">
+                <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Immigration Information</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">A-Number:</span>
+                    <span className="ml-2 text-gray-600 font-mono">{client.alienRegistrationNumber || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">SSN:</span>
+                    <span className="ml-2 text-gray-600 font-mono">{client.socialSecurityNumber || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">USCIS Account:</span>
+                    <span className="ml-2 text-gray-600 font-mono">{client.uscisOnlineAccountNumber || 'Not provided'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Address Information */}
+              {client.address && (
+                <div>
+                  <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Address Information</h5>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="text-sm text-gray-800 space-y-1">
+                      {client.address.street && <div><strong>Street:</strong> {client.address.street}</div>}
+                      {client.address.aptSuiteFlr && client.address.aptNumber && (
+                        <div><strong>Apt/Suite/Floor:</strong> {client.address.aptSuiteFlr} {client.address.aptNumber}</div>
+                      )}
+                      <div>
+                        <strong>City, State ZIP:</strong> {client.address.city}
+                        {client.address.state && `, ${client.address.state}`}
+                        {client.address.zipCode && ` ${client.address.zipCode}`}
+                      </div>
+                      {client.address.country && <div><strong>Country:</strong> {client.address.country}</div>}
+                      {client.address.province && client.address.province !== client.address.state && (
+                        <div><strong>Province:</strong> {client.address.province}</div>
+                      )}
+                      {client.address.postalCode && client.address.postalCode !== client.address.zipCode && (
+                        <div><strong>Postal Code:</strong> {client.address.postalCode}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Case Information for Form Workflow */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Briefcase className="w-5 h-5 mr-2" />
+                Case Information
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-gray-700">Case Title:</span>
+                  <span className="ml-2 text-gray-900">{caseData.title}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Category:</span>
+                  <span className="ml-2 text-gray-600">{caseData.category}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Status:</span>
+                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                    caseData.status === 'Active' ? 'bg-green-100 text-green-800' :
+                    caseData.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {caseData.status}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Priority:</span>
+                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                    caseData.priority === 'high' ? 'bg-red-100 text-red-800' :
+                    caseData.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {caseData.priority || 'Not set'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Due Date:</span>
+                  <span className="ml-2 text-gray-600">
+                    {caseData.dueDate ? new Date(caseData.dueDate).toLocaleDateString() : 'Not set'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Case ID:</span>
+                  <span className="ml-2 text-gray-600 font-mono text-xs">{caseData.id || caseData._id}</span>
+                </div>
+              </div>
+              
+              {caseData.description && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <h5 className="font-medium text-gray-700 mb-2">Description:</h5>
+                  <p className="text-sm text-gray-600">{caseData.description}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Client Responses for Form Workflow */}
+            {Object.keys(clientResponses).length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <MessageSquare className="w-5 h-5 mr-2" />
+                  Form-Specific Client Responses
+                </h4>
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Ready for Form Processing:</strong> All questionnaire responses have been collected and are ready to be used for auto-filling the selected forms.
+                  </p>
+                </div>
+                <div className="max-h-64 overflow-y-auto space-y-3">
+                  {Object.entries(clientResponses).slice(0, 10).map(([key, value]) => (
+                    <div key={key} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <div className="font-medium text-gray-900 text-sm mb-1">
+                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                      </div>
+                      <div className="text-gray-700 text-sm">
+                        {typeof value === 'object' && value !== null ? 
+                          JSON.stringify(value) : String(value || 'Not provided')
+                        }
+                      </div>
+                    </div>
+                  ))}
+                  {Object.keys(clientResponses).length > 10 && (
+                    <div className="text-center py-2">
+                      <span className="text-sm text-gray-500">
+                        Showing 10 of {Object.keys(clientResponses).length} responses
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Next Steps Information */}
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
+              <h4 className="text-lg font-semibold text-green-900 mb-3 flex items-center">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Ready for Form Generation
+              </h4>
+              <p className="text-green-700 mb-4">
+                All required information has been collected. The system is ready to auto-fill your selected forms with the client data and questionnaire responses.
+              </p>
+              <div className="space-y-2">
+                {selectedForms.map((form, index) => (
+                  <div key={index} className="flex items-center text-sm text-green-800">
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    <span>{form} - Ready for generation</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex justify-between items-center pt-6 border-t border-gray-200">
+              <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 0}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Previous
+              </Button>
+              <div className="text-sm text-gray-500">
+                Form Workflow - Step {currentStep + 1} of {getWorkflowSteps().length}
+              </div>
+              <Button onClick={handleNext} className="bg-blue-600 hover:bg-blue-700">
+                Generate Forms
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 2: // Generate Form
+        return renderExistResponseStep(2); // Reuse the auto-fill logic
+
+      default:
+        return null;
+    }
+  };
+
 
   // Handles steps for existing responses
   const renderExistResponseStep = (step: number) => {
@@ -7099,6 +7315,18 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             </div>
 
             {questionnaireAssignment && (() => {
+
+              console.log('🔍 DEBUG: Trying to find questionnaire for assignment:', {
+                questionnaireAssignmentId: questionnaireAssignment.questionnaireId,
+                availableQuestionnaires: availableQuestionnaires.map(q => ({
+                  _id: q._id,
+                  id: q.id,
+                  originalId: q.originalId,
+                  name: q.name,
+                  title: q.title,
+                  apiQuestionnaire: q.apiQuestionnaire
+                }))
+              });
 
               // Enhanced flexible matching to find the assigned questionnaire
               const questionnaire = availableQuestionnaires.find(q => {
@@ -7529,7 +7757,42 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 Complete Workflow Details Summary
               </h3>
               <p className="text-purple-700 text-lg">All collected information at a glance</p>
+              
+              {/* Debug Console Toggle */}
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowDebugConsole(!showDebugConsole)}
+                  className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-md text-purple-700 bg-purple-100 hover:bg-purple-200"
+                >
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  {showDebugConsole ? 'Hide' : 'Show'} Debug Console
+                </button>
+              </div>
             </div>
+
+            {/* Debug Console */}
+            {showDebugConsole && (
+              <div className="bg-gray-900 text-green-400 rounded-lg p-4 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-lg font-semibold text-green-400">Debug Console Output</h4>
+                  <button
+                    onClick={() => {
+                      const dataStr = JSON.stringify(debugData, null, 2);
+                      navigator.clipboard.writeText(dataStr);
+                      toast.success('Debug data copied to clipboard');
+                    }}
+                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Copy to Clipboard
+                  </button>
+                </div>
+                <div className="max-h-96 overflow-y-auto font-mono text-xs">
+                  <pre className="whitespace-pre-wrap">
+                    {JSON.stringify(debugData, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
 
             {/* Workflow Overview */}
             {completeWorkflowDetails && (
@@ -7538,10 +7801,10 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   <FileText className="w-5 h-5 mr-2" />
                   Workflow Overview
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                   <div>
                     <span className="font-medium text-gray-700">Workflow ID:</span>
-                    <span className="ml-2 text-gray-600 font-mono">{completeWorkflowDetails._id}</span>
+                    <span className="ml-2 text-gray-600 font-mono text-xs">{completeWorkflowDetails._id}</span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Status:</span>
@@ -7554,78 +7817,138 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     </span>
                   </div>
                   <div>
+                    <span className="font-medium text-gray-700">Client ID:</span>
+                    <span className="ml-2 text-gray-600 font-mono text-xs">{completeWorkflowDetails.clientId}</span>
+                  </div>
+                  <div>
                     <span className="font-medium text-gray-700">Created:</span>
                     <span className="ml-2 text-gray-600">
-                      {new Date(completeWorkflowDetails.createdAt).toLocaleDateString()}
+                      {new Date(completeWorkflowDetails.createdAt).toLocaleDateString()} at {new Date(completeWorkflowDetails.createdAt).toLocaleTimeString()}
                     </span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Updated:</span>
                     <span className="ml-2 text-gray-600">
-                      {new Date(completeWorkflowDetails.updatedAt).toLocaleDateString()}
+                      {new Date(completeWorkflowDetails.updatedAt).toLocaleDateString()} at {new Date(completeWorkflowDetails.updatedAt).toLocaleTimeString()}
                     </span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Current Step:</span>
                     <span className="ml-2 text-gray-600">{completeWorkflowDetails.currentStep || 'N/A'}</span>
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
                     <span className="font-medium text-gray-700">Created By:</span>
                     <span className="ml-2 text-gray-600">
-                      {completeWorkflowDetails.createdBy?.firstName} {completeWorkflowDetails.createdBy?.lastName}
+                      {completeWorkflowDetails.createdBy?.firstName} {completeWorkflowDetails.createdBy?.lastName} ({completeWorkflowDetails.createdBy?.email})
                     </span>
                   </div>
+                  {completeWorkflowDetails.version && (
+                    <div>
+                      <span className="font-medium text-gray-700">Version:</span>
+                      <span className="ml-2 text-gray-600">{completeWorkflowDetails.version}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Client Information */}
+            {/* Client Information - Enhanced */}
             <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
               <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                 <User className="w-5 h-5 mr-2" />
-                Client Information
+                Complete Client Information
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="font-medium text-gray-700">Full Name:</span>
-                  <span className="ml-2 text-gray-900">{client.name || `${client.firstName} ${client.lastName}`}</span>
+              
+              {/* Basic Information */}
+              <div className="mb-6">
+                <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Basic Information</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">Full Name:</span>
+                    <span className="ml-2 text-gray-900">{client.name || `${client.firstName} ${client.middleName} ${client.lastName}`.trim()}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">First Name:</span>
+                    <span className="ml-2 text-gray-600">{client.firstName || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Middle Name:</span>
+                    <span className="ml-2 text-gray-600">{client.middleName || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Last Name:</span>
+                    <span className="ml-2 text-gray-600">{client.lastName || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Email:</span>
+                    <span className="ml-2 text-gray-600">{client.email}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Phone:</span>
+                    <span className="ml-2 text-gray-600">{client.phone || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Date of Birth:</span>
+                    <span className="ml-2 text-gray-600">
+                      {client.dateOfBirth ? new Date(client.dateOfBirth).toLocaleDateString() : 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Nationality:</span>
+                    <span className="ml-2 text-gray-600">{client.nationality || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Status:</span>
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                      client.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {client.status || 'Unknown'}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium text-gray-700">Email:</span>
-                  <span className="ml-2 text-gray-600">{client.email}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Phone:</span>
-                  <span className="ml-2 text-gray-600">{client.phone || 'Not provided'}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Date of Birth:</span>
-                  <span className="ml-2 text-gray-600">
-                    {client.dateOfBirth ? new Date(client.dateOfBirth).toLocaleDateString() : 'Not provided'}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Nationality:</span>
-                  <span className="ml-2 text-gray-600">{client.nationality || 'Not provided'}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">SSN:</span>
-                  <span className="ml-2 text-gray-600">{client.socialSecurityNumber || 'Not provided'}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">A-Number:</span>
-                  <span className="ml-2 text-gray-600">{client.alienRegistrationNumber || 'Not provided'}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">USCIS Account:</span>
-                  <span className="ml-2 text-gray-600">{client.uscisOnlineAccountNumber || 'Not provided'}</span>
+              </div>
+
+              {/* Immigration Information */}
+              <div className="mb-6">
+                <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Immigration Information</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">SSN:</span>
+                    <span className="ml-2 text-gray-600 font-mono">{client.socialSecurityNumber || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">A-Number:</span>
+                    <span className="ml-2 text-gray-600 font-mono">{client.alienRegistrationNumber || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">USCIS Account:</span>
+                    <span className="ml-2 text-gray-600 font-mono">{client.uscisOnlineAccountNumber || 'Not provided'}</span>
+                  </div>
+                  {client.alienNumber && (
+                    <div>
+                      <span className="font-medium text-gray-700">Alien Number:</span>
+                      <span className="ml-2 text-gray-600 font-mono">{client.alienNumber}</span>
+                    </div>
+                  )}
+                  {client.visaCategory && (
+                    <div>
+                      <span className="font-medium text-gray-700">Visa Category:</span>
+                      <span className="ml-2 text-gray-600">{client.visaCategory}</span>
+                    </div>
+                  )}
+                  {client.entryDate && (
+                    <div>
+                      <span className="font-medium text-gray-700">Entry Date:</span>
+                      <span className="ml-2 text-gray-600">{new Date(client.entryDate).toLocaleDateString()}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               
-              {/* Address Information - Separate Fields */}
+              {/* Address Information - Detailed */}
               {client.address && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <h5 className="font-medium text-gray-700 mb-3">Address Information:</h5>
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Address Information</h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                     {client.address.street && (
                       <div>
@@ -7666,13 +7989,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     {client.address.zipCode && (
                       <div>
                         <span className="font-medium text-gray-700">ZIP Code:</span>
-                        <span className="ml-2 text-gray-600">{client.address.zipCode}</span>
+                        <span className="ml-2 text-gray-600 font-mono">{client.address.zipCode}</span>
                       </div>
                     )}
                     {client.address.postalCode && client.address.postalCode !== client.address.zipCode && (
                       <div>
                         <span className="font-medium text-gray-700">Postal Code:</span>
-                        <span className="ml-2 text-gray-600">{client.address.postalCode}</span>
+                        <span className="ml-2 text-gray-600 font-mono">{client.address.postalCode}</span>
                       </div>
                     )}
                     {client.address.country && (
@@ -7684,187 +8007,730 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Case Information */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Briefcase className="w-5 h-5 mr-2" />
-                Case Information
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="font-medium text-gray-700">Case Title:</span>
-                  <span className="ml-2 text-gray-900">{caseData.title}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Category:</span>
-                  <span className="ml-2 text-gray-600">{caseData.category}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Subcategory:</span>
-                  <span className="ml-2 text-gray-600">{caseData.subcategory}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Status:</span>
-                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                    caseData.status === 'Active' ? 'bg-green-100 text-green-800' :
-                    caseData.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {caseData.status}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Priority:</span>
-                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                    caseData.priority === 'High' ? 'bg-red-100 text-red-800' :
-                    caseData.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
-                    {caseData.priority}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Due Date:</span>
-                  <span className="ml-2 text-gray-600">
-                    {caseData.dueDate ? new Date(caseData.dueDate).toLocaleDateString() : 'Not set'}
-                  </span>
-                </div>
-              </div>
-              
-              {caseData.description && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <h5 className="font-medium text-gray-700 mb-2">Description:</h5>
-                  <p className="text-sm text-gray-600">{caseData.description}</p>
+              {/* Additional Client Information */}
+              {(client.placeOfBirth || client.gender || client.maritalStatus || client.notes) && (
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Additional Information</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                    {client.placeOfBirth && (
+                      <div>
+                        <span className="font-medium text-gray-700">Place of Birth:</span>
+                        <span className="ml-2 text-gray-600">
+                          {typeof client.placeOfBirth === 'object' ? 
+                            `${client.placeOfBirth.city || ''}, ${client.placeOfBirth.country || ''}`.replace(/^,\s*|\s*,\s*$/g, '') :
+                            client.placeOfBirth
+                          }
+                        </span>
+                      </div>
+                    )}
+                    {client.gender && (
+                      <div>
+                        <span className="font-medium text-gray-700">Gender:</span>
+                        <span className="ml-2 text-gray-600">{client.gender}</span>
+                      </div>
+                    )}
+                    {client.maritalStatus && (
+                      <div>
+                        <span className="font-medium text-gray-700">Marital Status:</span>
+                        <span className="ml-2 text-gray-600">{client.maritalStatus}</span>
+                      </div>
+                    )}
+                    {client.notes && (
+                      <div className="md:col-span-2">
+                        <span className="font-medium text-gray-700">Notes:</span>
+                        <span className="ml-2 text-gray-600">{client.notes}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
 
-            {/* Selected Forms and Case IDs */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <FileText className="w-5 h-5 mr-2" />
-                Selected Forms & Case IDs
-              </h4>
-              <div className="space-y-3">
-                {selectedForms.map(form => (
-                  <div key={form} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center">
-                      <FileText className="w-4 h-4 text-blue-500 mr-3" />
-                      <span className="font-medium text-gray-900">{form}</span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="font-medium text-gray-700">Case ID: </span>
-                      <span className="font-mono text-blue-600">{formCaseIds[form] || 'Not generated'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Questionnaire Information */}
-            {questionnaireAssignment && (
-              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <ClipboardList className="w-5 h-5 mr-2" />
-                  Questionnaire Assignment
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+              {/* Account Information */}
+              <div>
+                <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Account Information</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-700">Questionnaire:</span>
-                    <span className="ml-2 text-gray-900">{questionnaireAssignment.questionnaireName}</span>
+                    <span className="font-medium text-gray-700">Client ID:</span>
+                    <span className="ml-2 text-gray-600 font-mono text-xs">{client.clientId || client._id || client.id}</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">Status:</span>
+                    <span className="font-medium text-gray-700">User Account:</span>
                     <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                      questionnaireAssignment.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      'bg-yellow-100 text-yellow-800'
+                      client.hasUserAccount ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                     }`}>
-                      {questionnaireAssignment.status}
+                      {client.hasUserAccount ? 'Active' : 'Not Created'}
                     </span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">Assigned:</span>
-                    <span className="ml-2 text-gray-600">
-                      {new Date(questionnaireAssignment.assignedAt).toLocaleDateString()}
+                    <span className="font-medium text-gray-700">Existing Client:</span>
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                      client.isExistingClient ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {client.isExistingClient ? 'Yes' : 'No'}
                     </span>
                   </div>
-                  {questionnaireAssignment.completedAt && (
+                  {client.role && (
                     <div>
-                      <span className="font-medium text-gray-700">Completed:</span>
-                      <span className="ml-2 text-gray-600">
-                        {new Date(questionnaireAssignment.completedAt).toLocaleDateString()}
-                      </span>
+                      <span className="font-medium text-gray-700">Role:</span>
+                      <span className="ml-2 text-gray-600">{client.role}</span>
+                    </div>
+                  )}
+                  {client.userType && (
+                    <div>
+                      <span className="font-medium text-gray-700">User Type:</span>
+                      <span className="ml-2 text-gray-600">{client.userType}</span>
+                    </div>
+                  )}
+                  {client.createdAt && (
+                    <div>
+                      <span className="font-medium text-gray-700">Created At:</span>
+                      <span className="ml-2 text-gray-600">{new Date(client.createdAt).toLocaleDateString()}</span>
                     </div>
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* Case Information - Enhanced */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Briefcase className="w-5 h-5 mr-2" />
+                Complete Case Information
+              </h4>
+              
+              {/* Basic Case Information */}
+              <div className="mb-6">
+                <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Basic Case Details</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">Case ID:</span>
+                    <span className="ml-2 text-gray-600 font-mono text-xs">{caseData.id || caseData._id}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Case Title:</span>
+                    <span className="ml-2 text-gray-900">{caseData.title}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Category:</span>
+                    <span className="ml-2 text-gray-600">{caseData.category}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Subcategory:</span>
+                    <span className="ml-2 text-gray-600">{caseData.subcategory || 'Not specified'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Status:</span>
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                      caseData.status === 'Active' ? 'bg-green-100 text-green-800' :
+                      caseData.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                      caseData.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {caseData.status}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Priority:</span>
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                      caseData.priority === 'high' ? 'bg-red-100 text-red-800' :
+                      caseData.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {caseData.priority || 'Not set'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Type:</span>
+                    <span className="ml-2 text-gray-600">{caseData.type || 'Not specified'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Assigned Attorney:</span>
+                    <span className="ml-2 text-gray-600">{caseData.assignedAttorney || 'Not assigned'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Case Dates */}
+              <div className="mb-6">
+                <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Important Dates</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">Created:</span>
+                    <span className="ml-2 text-gray-600">
+                      {caseData.createdAt ? new Date(caseData.createdAt).toLocaleDateString() : 'Not recorded'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Start Date:</span>
+                    <span className="ml-2 text-gray-600">
+                      {caseData.startDate ? new Date(caseData.startDate).toLocaleDateString() : 'Not set'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Due Date:</span>
+                    <span className="ml-2 text-gray-600">
+                      {caseData.dueDate ? new Date(caseData.dueDate).toLocaleDateString() : 'Not set'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Expected Closure:</span>
+                    <span className="ml-2 text-gray-600">
+                      {caseData.expectedClosureDate ? new Date(caseData.expectedClosureDate).toLocaleDateString() : 'Not set'}
+                    </span>
+                  </div>
+                  {caseData.priorityDate && (
+                    <div>
+                      <span className="font-medium text-gray-700">Priority Date:</span>
+                      <span className="ml-2 text-gray-600">{new Date(caseData.priorityDate).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Additional Case Fields */}
+              {(caseData.visaType || caseData.description) && (
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Additional Information</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    {caseData.visaType && (
+                      <div>
+                        <span className="font-medium text-gray-700">Visa Type:</span>
+                        <span className="ml-2 text-gray-600">{caseData.visaType}</span>
+                      </div>
+                    )}
+                    {caseData.description && (
+                      <div className="md:col-span-2">
+                        <span className="font-medium text-gray-700">Description:</span>
+                        <p className="ml-2 text-gray-600 mt-1">{caseData.description}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Assigned Forms List */}
+              {caseData.assignedForms && caseData.assignedForms.length > 0 && (
+                <div>
+                  <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Assigned Forms</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {caseData.assignedForms.map((form, index) => (
+                      <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {form}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Selected Forms and Case IDs - Enhanced */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <FileText className="w-5 h-5 mr-2" />
+                Selected Forms & Generated Case IDs
+              </h4>
+              {selectedForms && selectedForms.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedForms.map(form => (
+                    <div key={form} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center">
+                        <FileText className="w-5 h-5 text-blue-500 mr-3" />
+                        <div>
+                          <span className="font-medium text-gray-900 text-lg">{form}</span>
+                          <div className="text-sm text-gray-600 mt-1">
+                            Immigration Form - Ready for processing
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-medium text-gray-700 mb-1">Case ID:</div>
+                        <span className="font-mono text-blue-600 bg-white px-3 py-1 rounded border text-sm">
+                          {formCaseIds[form] || 'Not generated'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>No forms selected for this workflow</p>
+                </div>
+              )}
+              
+              {/* Form Case IDs Summary */}
+              {Object.keys(formCaseIds).length > 0 && (
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Case ID Summary</h5>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm font-mono">
+                      {Object.entries(formCaseIds).map(([form, caseId]) => (
+                        <div key={form} className="flex justify-between">
+                          <span className="text-gray-700">{form}:</span>
+                          <span className="text-blue-600">{caseId}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Questionnaire Information - Enhanced */}
+            {questionnaireAssignment && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <ClipboardList className="w-5 h-5 mr-2" />
+                  Questionnaire Assignment Details
+                </h4>
+                
+                {/* Basic Assignment Info */}
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Assignment Information</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">Assignment ID:</span>
+                      <span className="ml-2 text-gray-600 font-mono text-xs">{questionnaireAssignment.id}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Questionnaire:</span>
+                      <span className="ml-2 text-gray-900">{questionnaireAssignment.questionnaireName}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Questionnaire ID:</span>
+                      <span className="ml-2 text-gray-600 font-mono text-xs">{questionnaireAssignment.questionnaireId}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Status:</span>
+                      <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                        questionnaireAssignment.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        questionnaireAssignment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {questionnaireAssignment.status}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Assigned:</span>
+                      <span className="ml-2 text-gray-600">
+                        {new Date(questionnaireAssignment.assignedAt).toLocaleDateString()} at {new Date(questionnaireAssignment.assignedAt).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    {questionnaireAssignment.completedAt && (
+                      <div>
+                        <span className="font-medium text-gray-700">Completed:</span>
+                        <span className="ml-2 text-gray-600">
+                          {new Date(questionnaireAssignment.completedAt).toLocaleDateString()} at {new Date(questionnaireAssignment.completedAt).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Associated IDs */}
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Associated Information</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">Case ID:</span>
+                      <span className="ml-2 text-gray-600 font-mono text-xs">{questionnaireAssignment.caseId}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Client ID:</span>
+                      <span className="ml-2 text-gray-600 font-mono text-xs">{questionnaireAssignment.clientId}</span>
+                    </div>
+                    {questionnaireAssignment.formCaseIdGenerated && (
+                      <div>
+                        <span className="font-medium text-gray-700">Form Case ID:</span>
+                        <span className="ml-2 text-gray-600 font-mono text-xs">{questionnaireAssignment.formCaseIdGenerated}</span>
+                      </div>
+                    )}
+                    {questionnaireAssignment.notes && (
+                      <div>
+                        <span className="font-medium text-gray-700">Notes:</span>
+                        <span className="ml-2 text-gray-600">{questionnaireAssignment.notes}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Selected Forms for this Assignment */}
+                {questionnaireAssignment.selectedForms && questionnaireAssignment.selectedForms.length > 0 && (
+                  <div className="mb-6">
+                    <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Selected Forms</h5>
+                    <div className="flex flex-wrap gap-2">
+                      {questionnaireAssignment.selectedForms.map((form, index) => (
+                        <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                          {form}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Form Case IDs from Assignment */}
+                {questionnaireAssignment.formCaseIds && Object.keys(questionnaireAssignment.formCaseIds).length > 0 && (
+                  <div className="mb-6">
+                    <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Assignment Form Case IDs</h5>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm font-mono">
+                        {Object.entries(questionnaireAssignment.formCaseIds).map(([form, caseId]) => (
+                          <div key={form} className="flex justify-between">
+                            <span className="text-gray-700">{form}:</span>
+                            <span className="text-indigo-600">{caseId}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes */}
+                {questionnaireAssignment.notes && (
+                  <div>
+                    <h5 className="font-medium text-gray-700 mb-3 text-sm uppercase tracking-wide">Notes</h5>
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                      <p className="text-sm text-amber-800">{questionnaireAssignment.notes}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
-            {/* Client Responses - Separate Section */}
+            {/* Client Responses - Enhanced */}
             {Object.keys(clientResponses).length > 0 && (
               <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
                 <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                   <MessageSquare className="w-5 h-5 mr-2" />
-                  Client Responses
+                  Complete Client Questionnaire Responses
                 </h4>
+                
+                {/* Response Summary */}
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-green-700">Total Responses:</span>
+                      <span className="ml-2 text-green-900 font-semibold">{Object.keys(clientResponses).length}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-700">Response Type:</span>
+                      <span className="ml-2 text-green-900">Questionnaire Submission</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-700">Status:</span>
+                      <span className="ml-2 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                        Complete
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Detailed Responses */}
                 <div className="max-h-96 overflow-y-auto">
-                  <div className="grid grid-cols-1 gap-4">
-                    {Object.entries(clientResponses).map(([key, value]) => (
-                      <div key={key} className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-lg">
-                        <div className="font-semibold text-blue-900 text-sm mb-2">
-                          {/* Convert field keys to readable titles */}
-                          {key === 'First Name' ? 'First Name' :
-                           key === 'City or Town' ? 'City or Town' :
-                           key === 'Country' ? 'Country' :
-                           key === 'Apt./Ste/Flr' ? 'Apt./Ste/Flr' :
-                           key === 'Petitioner\'s Mailing Address Street Name and Number' ? 'Mailing Address' :
-                           key === 'Postal Code' ? 'Postal Code' :
-                           key === 'Province' ? 'Province' :
-                           key === 'State' ? 'State' :
-                           key === 'ZIP Code' ? 'ZIP Code' :
-                           key.startsWith('field_') ? 
-                             (key === 'field_1760076779170' ? 'First Name' :
-                              key === 'field_1760076976522' ? 'Mailing Address' :
-                              key === 'field_1760077016842' ? 'Apt./Ste/Flr' :
-                              key === 'field_1760077133514' ? 'City or Town' :
-                              key === 'field_1760077177161' ? 'State' :
-                              key === 'field_1760077195817' ? 'ZIP Code' :
-                              key === 'field_1760077233642' ? 'Province' :
-                              key === 'field_1760077255418' ? 'Postal Code' :
-                              key === 'field_1760077280434' ? 'Country' :
-                              key) :
-                           key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
-                          }
+                  <div className="space-y-4">
+                    {Object.entries(clientResponses).map(([key, value], index) => {
+                      // Enhanced field name mapping
+                      const getReadableFieldName = (fieldKey: string) => {
+                        const fieldMappings: Record<string, string> = {
+                          'First Name': 'First Name',
+                          'Middle Name': 'Middle Name',
+                          'Last Name': 'Last Name',
+                          'City or Town': 'City or Town',
+                          'Country': 'Country',
+                          'Apt./Ste/Flr': 'Apartment/Suite/Floor',
+                          'Petitioner\'s Mailing Address Street Name and Number': 'Mailing Address',
+                          'Postal Code': 'Postal Code',
+                          'Province': 'Province',
+                          'State': 'State',
+                          'ZIP Code': 'ZIP Code',
+                          'Date of Birth': 'Date of Birth',
+                          'Phone Number': 'Phone Number',
+                          'Email Address': 'Email Address',
+                          'Nationality': 'Nationality',
+                          'field_1760076779170': 'First Name',
+                          'field_1760076976522': 'Mailing Address',
+                          'field_1760077016842': 'Apartment/Suite/Floor',
+                          'field_1760077133514': 'City or Town',
+                          'field_1760077177161': 'State',
+                          'field_1760077195817': 'ZIP Code',
+                          'field_1760077233642': 'Province',
+                          'field_1760077255418': 'Postal Code',
+                          'field_1760077280434': 'Country'
+                        };
+                        
+                        if (fieldMappings[fieldKey]) {
+                          return fieldMappings[fieldKey];
+                        }
+                        
+                        // Convert camelCase or snake_case to readable format
+                        return fieldKey
+                          .replace(/([A-Z])/g, ' $1')
+                          .replace(/_/g, ' ')
+                          .replace(/^./, str => str.toUpperCase())
+                          .trim();
+                      };
+
+                      const readableFieldName = getReadableFieldName(key);
+                      const isImportantField = ['First Name', 'Last Name', 'Email Address', 'Mailing Address', 'Date of Birth'].includes(readableFieldName);
+                      
+                      return (
+                        <div key={key} className={`p-4 rounded-lg border-l-4 ${
+                          isImportantField 
+                            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-l-blue-500 border border-blue-200' 
+                            : 'bg-gradient-to-r from-gray-50 to-slate-50 border-l-gray-400 border border-gray-200'
+                        }`}>
+                          <div className="flex items-start justify-between mb-2">
+                            <div className={`font-semibold text-sm ${
+                              isImportantField ? 'text-blue-900' : 'text-gray-700'
+                            }`}>
+                              {readableFieldName}
+                              {isImportantField && (
+                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  Key Field
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">
+                              Field #{index + 1}
+                            </div>
+                          </div>
+                          <div className={`text-sm p-3 rounded border ${
+                            isImportantField 
+                              ? 'bg-white border-blue-200 text-blue-900' 
+                              : 'bg-white border-gray-200 text-gray-800'
+                          }`}>
+                            {typeof value === 'object' && value !== null ? (
+                              <pre className="font-mono text-xs overflow-x-auto">
+                                {JSON.stringify(value, null, 2)}
+                              </pre>
+                            ) : (
+                              <span className="break-words">
+                                {String(value || 'Not provided')}
+                              </span>
+                            )}
+                          </div>
+                          {/* Show original field key for debugging */}
+                          <div className="mt-2 text-xs text-gray-400 font-mono">
+                            Original key: {key}
+                          </div>
                         </div>
-                        <div className="text-blue-800 text-sm bg-white p-2 rounded border">
-                          {typeof value === 'object' && value !== null ? 
-                            JSON.stringify(value, null, 2) : String(value || 'Not provided')
-                          }
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Raw Workflow Data for Debugging */}
+            {/* Available Questionnaires Information */}
+            {availableQuestionnaires && availableQuestionnaires.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <ClipboardList className="w-5 h-5 mr-2" />
+                  Available Questionnaires
+                </h4>
+                <div className="space-y-3">
+                  {availableQuestionnaires.map((questionnaire, index) => (
+                    <div key={questionnaire._id || questionnaire.id || index} className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h5 className="font-medium text-gray-900">{questionnaire.title}</h5>
+                          <p className="text-sm text-gray-600 mt-1">{questionnaire.description}</p>
+                        </div>
+                        <span className="px-2 py-1 text-xs rounded-full bg-slate-100 text-slate-800">
+                          {questionnaire.category}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">ID:</span>
+                          <span className="ml-2 text-gray-600 font-mono text-xs">{questionnaire._id || questionnaire.id}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Fields:</span>
+                          <span className="ml-2 text-gray-600">{questionnaire.fields?.length || 0} questions</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Selected:</span>
+                          <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                            selectedQuestionnaire === (questionnaire._id || questionnaire.id) 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {selectedQuestionnaire === (questionnaire._id || questionnaire.id) ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Form Templates Information */}
+            {formTemplates && formTemplates.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <FileText className="w-5 h-5 mr-2" />
+                  Available Form Templates
+                </h4>
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {formTemplates.map((template, index) => (
+                    <div key={template._id || index} className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h5 className="font-medium text-emerald-900">{template.name || template.formNumber}</h5>
+                          <p className="text-sm text-emerald-700 mt-1">{template.description}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800">
+                            {template.category}
+                          </span>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            template.status === 'ACTIVE' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {template.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-emerald-700">Template ID:</span>
+                          <span className="ml-2 text-emerald-600 font-mono text-xs">{template._id}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-emerald-700">Form Number:</span>
+                          <span className="ml-2 text-emerald-600">{template.formNumber}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-emerald-700">Version:</span>
+                          <span className="ml-2 text-emerald-600">{template.version}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-emerald-700">Type:</span>
+                          <span className="ml-2 text-emerald-600">{template.type}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Workflow State Information */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Settings className="w-5 h-5 mr-2" />
+                Current Workflow State
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-gray-700">Current Step:</span>
+                  <span className="ml-2 text-gray-900">{currentStep + 1} of {getWorkflowSteps().length}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Step Name:</span>
+                  <span className="ml-2 text-gray-600">{getWorkflowSteps()[currentStep]?.title}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Workflow Type:</span>
+                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                    isExistResponse ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                  }`}>
+                    {isExistResponse ? 'Existing Response' : 'New Workflow'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Auto-fill Enabled:</span>
+                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                    autoFillEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {autoFillEnabled ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">View/Edit Mode:</span>
+                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                    isViewEditMode ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {isViewEditMode ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Current Workflow ID:</span>
+                  <span className="ml-2 text-gray-600 font-mono text-xs">{currentWorkflowId || 'Not set'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* URL Parameters and Session Info */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <ExternalLink className="w-5 h-5 mr-2" />
+                Session & Navigation Information
+              </h4>
+              <div className="space-y-4">
+                <div>
+                  <h5 className="font-medium text-gray-700 mb-2 text-sm uppercase tracking-wide">URL Parameters</h5>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm font-mono">
+                      {Object.entries(debugData.urlParams || {}).map(([key, value]) => (
+                        <div key={key} className="flex justify-between">
+                          <span className="text-gray-700">{key}:</span>
+                          <span className="text-blue-600">{String(value)}</span>
+                        </div>
+                      ))}
+                      {Object.keys(debugData.urlParams || {}).length === 0 && (
+                        <div className="text-gray-500 italic">No URL parameters</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h5 className="font-medium text-gray-700 mb-2 text-sm uppercase tracking-wide">Navigation Source</h5>
+                  <div className="text-sm">
+                    <span className="font-medium text-gray-700">From Questionnaire Responses:</span>
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                      new URLSearchParams(window.location.search).get('fromQuestionnaireResponses') === 'true' 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {new URLSearchParams(window.location.search).get('fromQuestionnaireResponses') === 'true' ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Raw Workflow Data for Advanced Debugging */}
             {completeWorkflowDetails && (
               <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
                 <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                   <AlertCircle className="w-5 h-5 mr-2" />
-                  Complete Workflow Data (Debug)
+                  Complete Workflow Data (Advanced Debug)
                 </h4>
+                <div className="mb-4">
+                  <button
+                    onClick={() => {
+                      const dataStr = JSON.stringify(completeWorkflowDetails, null, 2);
+                      navigator.clipboard.writeText(dataStr);
+                      toast.success('Workflow data copied to clipboard');
+                    }}
+                    className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
+                  >
+                    Copy Workflow Data
+                  </button>
+                </div>
                 <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs max-h-96 overflow-y-auto">
-                  <pre>{JSON.stringify(completeWorkflowDetails, null, 2)}</pre>
+                  <pre className="whitespace-pre-wrap">{JSON.stringify(completeWorkflowDetails, null, 2)}</pre>
                 </div>
               </div>
             )}
 
             {/* Navigation */}
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center pt-6 border-t border-gray-200">
               <Button 
                 onClick={handlePrevious} 
                 variant="outline"
@@ -7873,6 +8739,9 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Previous
               </Button>
+              <div className="text-sm text-gray-500">
+                Step {currentStep + 1} of {getWorkflowSteps().length} - All Details Summary
+              </div>
               <Button 
                 onClick={handleNext}
                 className="bg-purple-600 hover:bg-purple-700 flex items-center"
@@ -8189,17 +9058,21 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
 
 
   const renderStepContent = () => {
-    console.log('🎨 renderStepContent called:', { 
-      isExistResponse, 
-      currentStep,
-      renderingFunction: isExistResponse ? 'renderExistResponseStep' : 'renderNewResponseStep'
-    });
+    // Check if this is a form-specific workflow
+    const hasSpecificForms = selectedForms && selectedForms.length > 0;
+    const isSpecificFormWorkflow = hasSpecificForms && (
+      selectedForms.includes('AR-11') ||
+      selectedForms.includes('I-130') ||
+      selectedForms.includes('I-485') ||
+      selectedForms.includes('G-1041') ||
+      selectedForms.some((form: string) => form.match(/^[A-Z]-\d+$/))
+    );
     
-    if (isExistResponse) {
-      console.log('🔄 Rendering existing response step:', currentStep);
+    if (isExistResponse && isSpecificFormWorkflow) {
+      return renderFormWorkflowStep(currentStep);
+    } else if (isExistResponse) {
       return renderExistResponseStep(currentStep);
     } else {
-      console.log('🔄 Rendering new response step:', currentStep);
       return renderNewResponseStep(currentStep);
     }
   };
