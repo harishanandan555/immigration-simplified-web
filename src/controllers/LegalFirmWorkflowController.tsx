@@ -194,8 +194,6 @@ export const fetchWorkflows = async (searchParams?: {
       console.warn('⚠️ fetchWorkflows: API response is not an array:', typeof workflows, workflows);
       return [];
     }
-    
-    console.log('✅ fetchWorkflows: Retrieved workflows:', workflows.length);
     return workflows;
   } catch (error) {
     console.error('❌ Error fetching workflows:', error);

@@ -226,6 +226,33 @@ export interface GetPdfPreviewResponse {
   };
 }
 
+export interface FilledPdfItem {
+  _id: string;
+  adminId: string;
+  clientId: string;
+  caseId: string;
+  formNumber: string;
+  templateId: string;
+  pdfData: string; // Base64-encoded PDF data
+  contentType: string;
+  fileSize: number;
+  filename: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GetFilledPdfsByClientAndCaseResponse {
+  success: boolean;
+  message: string;
+  data: {
+    clientId: string;
+    caseId: string;
+    filledPdfs: FilledPdfItem[];
+    totalCount: number;
+  };
+}
+
 // Anvil PDF Template Controllers
 
 /**
@@ -400,6 +427,19 @@ export const createPdfPreviewUrl = (blob: Blob): string => {
  */
 export const revokePdfPreviewUrl = (url: string): void => {
   window.URL.revokeObjectURL(url);
+};
+
+/**
+ * Convert base64-encoded PDF data to Blob
+ */
+export const base64ToBlob = (base64Data: string, contentType: string = 'application/pdf'): Blob => {
+  const byteCharacters = atob(base64Data);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: contentType });
 };
 
 /**
@@ -578,6 +618,38 @@ export const getPdfPreviewBlob = async (
     } else {
       throw new Error(response.data.message || 'Failed to get PDF preview');
     }
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+/**
+ * Get filled PDFs by client ID and case ID
+ */
+export const getFilledPdfsByClientAndCase = async (
+  clientId: string,
+  caseId: string
+): Promise<ApiResponse<GetFilledPdfsByClientAndCaseResponse>> => {
+  try {
+    // Validate required parameters
+    if (!clientId) {
+      throw new Error('Client ID is required');
+    }
+    if (!caseId) {
+      throw new Error('Case ID is required');
+    }
+
+    const endpoint = ANVIL_END_POINTS.GET_FILLED_PDFS_BY_CLIENT_AND_CASE
+      .replace(':clientId', clientId)
+      .replace(':caseId', caseId);
+
+    const response = await api.get(endpoint);
+    
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
   } catch (error) {
     return handleApiError(error);
   }
