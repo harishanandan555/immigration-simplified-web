@@ -152,10 +152,7 @@ const QuestionnaireResponses: React.FC = () => {
         limit: 100 // Increase limit to get more workflows
       });
 
-      console.log('📊 Fetched ALL workflows (including same client):', {
-        totalWorkflows: workflows.length,
-        workflowStatuses: workflows.map((w: any) => ({ id: w.id || w._id, status: w.status, client: w.client?.email }))
-      });
+      console.log('📊  ALL workflows ', workflows)
 
       return workflows;
 
@@ -474,18 +471,94 @@ const QuestionnaireResponses: React.FC = () => {
 
       console.log('Fetched workflows for auto-fill:', apiWorkflows);
       if (apiWorkflows && apiWorkflows.length > 0) {
-        // Find ALL matching workflows for this client (not just the first one)
+        // Find matching workflow - PRIORITY 1: Match by formCaseIdGenerated (specific form case)
+        const targetFormCaseId = assignment.formCaseIdGenerated;
         const clientEmail = clientInfo.email?.toLowerCase();
         const clientName = `${clientInfo.firstName} ${clientInfo.lastName}`.toLowerCase();
 
-        const allMatchingWorkflows = apiWorkflows.filter((workflow: any) => {
-          const workflowEmail = workflow.client?.email?.toLowerCase();
-          const workflowClientName = `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.toLowerCase();
+        let allMatchingWorkflows = [];
 
-          return workflowEmail === clientEmail || workflowClientName === clientName;
-        });
+        // First, try to find workflows that contain this specific formCaseIdGenerated
+        if (targetFormCaseId) {
+          allMatchingWorkflows = apiWorkflows.filter((workflow: any) => {
+            // Check multiple locations for formCaseIdGenerated match
+            const workflowFormCaseId = workflow.questionnaireAssignment?.formCaseIdGenerated;
+            const workflowFormCaseIds = workflow.formCaseIds || {};
+            
+            // Check if formCaseIdGenerated matches
+            if (workflowFormCaseId === targetFormCaseId) {
+              return true;
+            }
+            
+            // Check if any form case ID in formCaseIds matches
+            if (Object.values(workflowFormCaseIds).includes(targetFormCaseId)) {
+              return true;
+            }
+            
+            return false;
+          });
 
-        console.log('🔍 Found matching workflows for client:', {
+          console.log('🎯 Searching for workflow with formCaseIdGenerated:', {
+            targetFormCaseId,
+            foundWorkflows: allMatchingWorkflows.length,
+            workflowDetails: allMatchingWorkflows.map((w: any) => ({
+              id: w.id || w._id,
+              formCaseId: w.questionnaireAssignment?.formCaseIdGenerated,
+              formCaseIds: w.formCaseIds,
+              status: w.status
+            }))
+          });
+        }
+
+        // If no specific form case match, fall back to assignment ID matching
+        if (allMatchingWorkflows.length === 0 && assignment._id) {
+          allMatchingWorkflows = apiWorkflows.filter((workflow: any) => {
+            // Check if workflow contains this specific assignment
+            const assignmentId = assignment._id.split('_workflow_')[0]; // Remove workflow suffix if present
+            return workflow.questionnaireAssignment?.assignment_id === assignmentId ||
+                   workflow.questionnaireAssignment?.id === assignmentId ||
+                   workflow._id === assignmentId;
+          });
+
+          console.log('🔍 Searching by assignment ID:', {
+            assignmentId: assignment._id,
+            foundWorkflows: allMatchingWorkflows.length
+          });
+        }
+
+        // If still no match, fall back to client matching with more specific criteria
+        if (allMatchingWorkflows.length === 0) {
+          allMatchingWorkflows = apiWorkflows.filter((workflow: any) => {
+            const workflowEmail = workflow.client?.email?.toLowerCase();
+            const workflowClientName = `${workflow.client?.firstName || ''} ${workflow.client?.lastName || ''}`.toLowerCase();
+
+            return workflowEmail === clientEmail || workflowClientName === clientName;
+          });
+
+          console.log('📧 Falling back to client matching since no specific match found');
+          
+          // If multiple workflows found for client, try to pick the most relevant one
+          if (allMatchingWorkflows.length > 1) {
+            // Prefer workflows that have the same questionnaire assignment
+            const preferredWorkflows = allMatchingWorkflows.filter((workflow: any) => {
+              const workflowQuestionnaireId = workflow.questionnaireAssignment?.questionnaire_id || 
+                                            workflow.questionnaireAssignment?.questionnaireId;
+              const assignmentQuestionnaireId = typeof assignment.questionnaireId === 'string' 
+                ? assignment.questionnaireId 
+                : assignment.questionnaireId?._id || assignment.questionnaireId?.id;
+              
+              return workflowQuestionnaireId === assignmentQuestionnaireId;
+            });
+            
+            if (preferredWorkflows.length > 0) {
+              allMatchingWorkflows = preferredWorkflows;
+              console.log('✅ Found preferred workflows with matching questionnaire');
+            }
+          }
+        }
+
+        console.log('🔍 Final workflow matching results:', {
+          targetFormCaseId,
           clientEmail,
           clientName,
           matchingWorkflows: allMatchingWorkflows.length,
@@ -495,7 +568,8 @@ const QuestionnaireResponses: React.FC = () => {
             updatedAt: w.updatedAt,
             hasQuestionnaireAssignment: !!w.questionnaireAssignment,
             hasFormCaseIds: !!w.formCaseIds,
-            formCaseIds: w.formCaseIds
+            formCaseIds: w.formCaseIds,
+            assignmentFormCaseId: w.questionnaireAssignment?.formCaseIdGenerated
           }))
         });
 
@@ -527,6 +601,19 @@ const QuestionnaireResponses: React.FC = () => {
         fields: sanitizeObject(questionnaire?.fields || []),
         mode: responseInfo?.responses ? 'edit' : 'new',
         originalAssignmentId: assignment._id,
+
+        // Include specific assignment information to ensure correct mapping
+        targetAssignment: {
+          id: assignment._id,
+          formCaseIdGenerated: assignment.formCaseIdGenerated,
+          workflowFormCaseIdGenerated: assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated,
+          questionnaireId: typeof assignment.questionnaireId === 'string'
+            ? assignment.questionnaireId
+            : (assignment.questionnaireId as any)?._id || (assignment.questionnaireId as any)?.id,
+          clientId: clientInfo._id,
+          clientEmail: clientInfo.email,
+          completedAt: responseInfo?.submittedAt || assignment.completedAt
+        },
 
         // Include workflow IDs for All Details Summary
         ...(matchingWorkflow && {
@@ -696,7 +783,13 @@ const QuestionnaireResponses: React.FC = () => {
         ...assignment,
         // Ensure we have the response data properly mapped
         response: responseData?.data || assignment.responseId,
-        responseId: assignment.responseId || responseData?.data
+        responseId: assignment.responseId || responseData?.data,
+        // Preserve workflow-specific data for proper form number extraction
+        workflowFormCaseIds: assignment.workflowFormCaseIds,
+        workflowQuestionnaireAssignment: assignment.workflowQuestionnaireAssignment,
+        workflowCase: assignment.workflowCase,
+        workflowSelectedForms: assignment.workflowSelectedForms,
+        enhancedWithWorkflow: assignment.enhancedWithWorkflow
       };
       // Pass the assignment data through navigation state to avoid refetching in ResponseView
       navigate(`/questionnaires/response/${originalAssignmentId}`, {
@@ -872,12 +965,33 @@ const QuestionnaireResponses: React.FC = () => {
 
                   <td className="px-6 py-4">
                     {assignment.formCaseIdGenerated ? (
-                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
-                        {assignment.formCaseIdGenerated}
+                      <div>
+                        <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                          {assignment.formCaseIdGenerated}
+                        </div>
+                        {assignment.workflowFormCaseIds && (
+                          <div className="text-xs text-gray-500">
+                            {Object.keys(assignment.workflowFormCaseIds).find(formNumber => 
+                              assignment.workflowFormCaseIds && 
+                              assignment.workflowFormCaseIds[formNumber] === assignment.formCaseIdGenerated
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated ? (
-                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
-                        {assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}
+                      <div>
+                        <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                          {assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}
+                        </div>
+                        {assignment.workflowFormCaseIds && assignment.workflowQuestionnaireAssignment && (
+                          <div className="text-xs text-gray-500">
+                            {Object.keys(assignment.workflowFormCaseIds).find(formNumber => 
+                              assignment.workflowFormCaseIds && 
+                              assignment.workflowQuestionnaireAssignment &&
+                              assignment.workflowFormCaseIds[formNumber] === assignment.workflowQuestionnaireAssignment.formCaseIdGenerated
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : assignment.workflowCase?.caseNumber ? (
                       <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
