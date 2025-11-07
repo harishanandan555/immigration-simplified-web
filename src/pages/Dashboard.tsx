@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../controllers/AuthControllers';
 import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
 import { fetchWorkflows } from '../controllers/LegalFirmWorkflowController';
+import { getCasesBasedOnUserType } from '../controllers/CaseControllers';
 import {
   BarChart,
   Bar,
@@ -60,6 +61,52 @@ const Dashboard = () => {
   // Consolidated workflow data loading
   useEffect(() => {
     const loadDashboardData = async () => {
+      // For individual users, load their specific cases
+      if (isClient && user?.userType === 'individualUser') {
+        try {
+          setLoadingWorkflowData(true);
+          setLoadingWorkflows(true);
+          
+          // Load cases specifically for individual users
+          const casesResponse = await getCasesBasedOnUserType(user, { limit: 100 });
+          
+          if (casesResponse.success && casesResponse.cases) {
+            // Transform cases into the format expected by the dashboard
+            const transformedCases = casesResponse.cases.map((caseItem: any) => ({
+              id: caseItem._id,
+              _id: caseItem._id,
+              caseNumber: caseItem.caseNumber || 'N/A',
+              title: caseItem.title || 'Untitled Case',
+              description: caseItem.description || '',
+              type: caseItem.type || 'Immigration Case',
+              category: caseItem.category || '',
+              subcategory: caseItem.subcategory || '',
+              status: caseItem.status || 'Active',
+              priority: caseItem.priority || 'Medium',
+              dueDate: caseItem.dueDate,
+              formNumber: caseItem.formNumber || '',
+              clientId: user._id, // Individual user is their own client
+              documents: caseItem.documents || [],
+              tasks: caseItem.tasks || [],
+              timeline: caseItem.timeline || [],
+              createdAt: caseItem.createdAt,
+              updatedAt: caseItem.updatedAt
+            }));
+            
+            setCases(transformedCases);
+          } else {
+            setCases([]);
+          }
+        } catch (error) {
+          console.error('Error loading cases for individual user:', error);
+          setCases([]);
+        } finally {
+          setLoadingWorkflowData(false);
+          setLoadingWorkflows(false);
+        }
+        return;
+      }
+      
       // Only load workflow data for attorneys and super admins
       if (!isAttorney && !isSuperAdmin) {
         
