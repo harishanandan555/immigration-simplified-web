@@ -434,7 +434,7 @@ export const registerCompanyClient = async (
       role: 'client' as const,
       userType: 'companyClient' as const,
       companyId,
-      attorneyIds: attorneyIds || [],
+      attorneyIds: attorneyIds?.join(',') ?? undefined,
       dateOfBirth: dateOfBirth || '',
       placeOfBirth,
       gender,
@@ -448,7 +448,7 @@ export const registerCompanyClient = async (
       active: true,
       sendPassword
     };
-
+    
     const client = await createCompanyClient(clientData);
     
     // Convert Client to User format for consistency
