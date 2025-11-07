@@ -39,6 +39,39 @@ export const CASE_END_POINTS = {
     UPDATECASETASK: "/api/v1/cases/:id/tasks/:taskId",
 };
 
+export const CASE_TYPES = [
+    'Family-Based',
+    'Employment-Based',
+    'Humanitarian',
+    'Naturalization',
+    'Other'
+] as const;
+
+export const CASE_CATEGORIES = [
+    'family-based',
+    'employment-based',
+    'humanitarian',
+    'naturalization',
+    'citizenship',
+    'deportation',
+    'asylum',
+    'other'
+] as const;
+
+export const CASE_SUBCATEGORIES = [
+    'naturalization',
+    'adjustment-of-status',
+    'consular-processing',
+    'family-petition',
+    'employment-petition',
+    'asylum-application',
+    'deportation-defense',
+    'appeals',
+    'other'
+] as const;
+
+export const CASE_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'] as const;
+
 export const CLIENT_END_POINTS = {
     // Main client endpoints
     GETCLIENTS: "/api/v1/clients",
