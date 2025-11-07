@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../controllers/AuthControllers';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -61,6 +61,7 @@ import {
   generateMultipleCaseIds, 
   generateMultipleCaseIdsFromAPI 
 } from '../../utils/caseIdGenerator';
+import { createCase, CreateCasePayload } from '../../controllers/CaseControllers';
 import {
   validateFormData
 } from '../../controllers/LegalFirmWorkflowController';
@@ -136,6 +137,7 @@ interface Client {
 interface Case {
   id: string;
   _id?: string;
+  caseNumber?: string;
   clientId: string;
   title: string;
   description: string;
@@ -1091,6 +1093,7 @@ const IndividualImmigrationProcess: React.FC = () => {
 
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCreatingCase, setIsCreatingCase] = useState(false);
 
   // Add state variables for case management (same as LegalFirmWorkflow)
   const [client, setClient] = useState<Client>({
@@ -1184,6 +1187,23 @@ const IndividualImmigrationProcess: React.FC = () => {
   const [loadingClient, setLoadingClient] = useState<boolean>(false);
   const suppressNextAutoSaveRef = React.useRef<boolean>(false);
   const autoSaveTimerRef = React.useRef<number | null>(null);
+
+  const selectedFormsAllowed = useMemo(() => selectedSubcategory?.forms || [], [selectedSubcategory]);
+
+  useEffect(() => {
+    setSelectedForms(prev => {
+      if (!selectedSubcategory) {
+        return prev.length > 0 ? [] : prev;
+      }
+
+      if (prev.length === 0) {
+        return prev;
+      }
+
+      const filtered = prev.filter(form => selectedFormsAllowed.includes(form));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, [selectedSubcategory, selectedFormsAllowed]);
 
   // Helper: map API client payload to local personalInfo structure
   const mapClientToPersonalInfo = (apiClient: any): FormData['personalInfo'] => {
@@ -1662,6 +1682,25 @@ const IndividualImmigrationProcess: React.FC = () => {
     return newFormCaseIds;
   };
 
+  const findTemplateByFormNumber = useCallback(
+    (formNumber: string) => {
+      const normalizedFormNumber = formNumber.replace(/^Form\s+/i, '').toLowerCase();
+
+      return formTemplates.find(template => {
+        const templateFormNumber = (template.formNumber || '').replace(/^Form\s+/i, '').toLowerCase();
+        const metadataFormNumber = (template.metadata?.uscisFormNumber || '').replace(/^Form\s+/i, '').toLowerCase();
+        const templateName = (template.name || '').replace(/^Form\s+/i, '').toLowerCase();
+
+        return (
+          templateFormNumber === normalizedFormNumber ||
+          metadataFormNumber === normalizedFormNumber ||
+          templateName === normalizedFormNumber
+        );
+      });
+    },
+    [formTemplates]
+  );
+
   // Function to update client data from form data
   const updateClientFromFormData = () => {
     const newClient: Client = {
@@ -1867,12 +1906,46 @@ const IndividualImmigrationProcess: React.FC = () => {
       console.error('handleFormSelection called with empty formName');
       return;
     }
-    
-    if (selectedForms.includes(formName)) {
-      setSelectedForms([]); // Deselect if clicking the same form
-    } else {
-      setSelectedForms([formName]); // Select only this form
+    if (selectedFormsAllowed.length > 0 && !selectedFormsAllowed.includes(formName)) {
+      return;
     }
+
+    setSelectedForms(prev =>
+      prev.includes(formName)
+        ? prev.filter(form => form !== formName)
+        : [...prev, formName]
+    );
+  };
+
+  const handleFormCategorySelect = (categoryId: string) => {
+    const categoryMatch = immigrationCategories.find(category => category.id === categoryId) || null;
+
+    if (categoryMatch) {
+      setSelectedCategory(categoryMatch);
+      setSelectedSubcategory(null);
+    } else {
+      setSelectedCategory(null);
+      setSelectedSubcategory(null);
+    }
+
+    setSelectedForms([]);
+  };
+
+  const handleFormSubcategorySelect = (subcategoryId: string) => {
+    const categoryContainingSubcategory = immigrationCategories.find(category =>
+      category.subcategories.some(sub => sub.id === subcategoryId)
+    );
+
+    const subcategoryMatch = categoryContainingSubcategory?.subcategories.find(
+      sub => sub.id === subcategoryId
+    ) || null;
+
+    if (categoryContainingSubcategory) {
+      setSelectedCategory(categoryContainingSubcategory);
+    }
+
+    setSelectedSubcategory(subcategoryMatch);
+    setSelectedForms([]);
   };
 
   // Handle forms submit with case ID generation (matching LegalFirmWorkflow)
@@ -1912,6 +1985,79 @@ const IndividualImmigrationProcess: React.FC = () => {
       toast.error('Failed to generate case IDs. Please try again.');
     } finally {
       setGeneratingCaseIds(false);
+    }
+  };
+
+  const handleCreateCaseAndNext = async () => {
+    if (isCreatingCase) {
+      return;
+    }
+
+    if (caseData._id) {
+      handleNext();
+      return;
+    }
+
+    const resolvedClientId = (user as any)?._id  || '';
+
+    if (!resolvedClientId) {
+      toast.error('Client information is required before creating the case.');
+      return;
+    }
+
+    const priorityMap: Record<string, CreateCasePayload['priority']> = {
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      urgent: 'Urgent'
+    };
+
+    const normalizedPriority =
+      priorityMap[String(caseData.priority || '').toLowerCase()] || 'Medium';
+
+    const primaryForm = selectedForms.length > 0 ? selectedForms[0] : undefined;
+    const primaryCaseNumber = primaryForm ? formCaseIds[primaryForm] : undefined;
+
+    const payload: CreateCasePayload = {
+      type: caseData.category || selectedCategory?.id || 'immigration',
+      clientId: resolvedClientId,
+      title:
+        caseData.title ||
+        `${selectedCategory?.title || 'Immigration'} Case - ${formData.personalInfo.firstName} ${formData.personalInfo.lastName}`.trim(),
+      description: caseData.description || undefined,
+      category: caseData.category || selectedCategory?.id || undefined,
+      subcategory: caseData.subcategory || selectedSubcategory?.id || undefined,
+      priority: normalizedPriority,
+      dueDate: caseData.dueDate || undefined,
+      formNumber: primaryForm,
+      caseNumber: primaryCaseNumber
+    };
+
+    setIsCreatingCase(true);
+    try {
+      const response = await createCase(payload);
+      const createdCase = response.case;
+
+      if (!response.success || !createdCase) {
+        throw new Error(response.message || 'Unable to create case');
+      }
+
+      setCaseData(prev => ({
+        ...prev,
+        id: createdCase._id || prev.id,
+        _id: createdCase._id || prev._id,
+        caseNumber: createdCase.caseNumber || primaryCaseNumber || prev.caseNumber,
+        status: (createdCase.status as any) || prev.status,
+        priority: (createdCase.priority as any) || prev.priority
+      }));
+
+      toast.success('Case created successfully');
+      handleNext();
+    } catch (error) {
+      console.error('Failed to create case', error);
+      toast.error('Failed to create case. Please try again.');
+    } finally {
+      setIsCreatingCase(false);
     }
   };
 
@@ -2894,101 +3040,198 @@ const IndividualImmigrationProcess: React.FC = () => {
     return null;
   };
 
-  const renderFormSelectionStep = () => (
-    <div className="space-y-6">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-blue-900 mb-2">Select Immigration Form</h3>
-        <p className="text-blue-700">Choose one immigration form needed for this case.</p>
-      </div>
-      
-      <div className="space-y-4">
-        <h4 className="font-medium text-gray-900">Available Forms (Select One)</h4>
-        {loadingFormTemplates ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 text-blue-500 animate-spin mr-2" />
-            <div className="text-gray-500">Loading forms...</div>
-          </div>
-        ) : formTemplates.length === 0 ? (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-            <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-            <p className="text-gray-700 font-medium">No forms available</p>
-            <p className="text-sm text-gray-600 mt-1">Please contact support if forms should be available.</p>
-          </div>
-        ) : (
+  const renderFormSelectionStep = () => {
+    const recommendedForms = selectedSubcategory?.forms || [];
+
+    const formsWithTemplates = recommendedForms.map(formNumber => ({
+      formNumber,
+      template: findTemplateByFormNumber(formNumber)
+    }));
+
+    const missingTemplatesCount = formsWithTemplates.filter(item => !item.template).length;
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">Select Immigration Forms</h3>
+          <p className="text-blue-700">
+            {selectedSubcategory
+              ? `Recommended forms for ${selectedSubcategory.title}. Select all that apply to this case.`
+              : 'Choose an immigration category and case type to view recommended forms.'}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="font-medium text-gray-900">Choose Immigration Category</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {formTemplates.map((template) => {
-              // Get form number with fallback
-              const formNumber = template.formNumber || template.metadata?.uscisFormNumber || '';
-              
-              if (!formNumber) {
-                console.warn('Template missing formNumber:', template);
-                return null;
-              }
-              
-              const isSelected = selectedForms.includes(formNumber);
-              
+            {immigrationCategories.map(category => {
+              const isSelected = selectedCategory?.id === category.id;
               return (
                 <div
-                  key={formNumber || template._id}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('Form clicked:', formNumber);
-                    handleFormSelection(formNumber);
-                  }}
-                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${isSelected
-                      ? 'border-blue-500 bg-blue-50 shadow-md'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
+                  key={category.id}
+                  onClick={() => handleFormCategorySelect(category.id)}
+                  className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md ${isSelected
+                    ? 'border-blue-500 bg-blue-50 shadow-md'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h5 className="font-medium text-gray-900">{formNumber}</h5>
-                      {template.description && (
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{template.description}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-2">
-                        {template.category && (
-                          <span className="text-xs text-gray-400">Category: {template.category}</span>
-                        )}
-                        {template.type && (
-                          <span className="text-xs text-gray-400">• Type: {template.type}</span>
-                        )}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="text-blue-500">
+                        {category.icon}
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-gray-900">{category.title}</h5>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-3">{category.description}</p>
                       </div>
                     </div>
-                    {isSelected && (
-                      <CheckCircle className="w-5 h-5 text-blue-500 ml-2 flex-shrink-0" />
-                    )}
+                    {isSelected && <CheckCircle className="w-5 h-5 text-blue-500" />}
+                  </div>
+                  <div className="flex items-center gap-3 mt-4 text-xs text-gray-500">
+                    <span>{category.estimatedTime}</span>
+                    <span>• {category.forms.length} category form(s)</span>
+                    <span>• {category.subcategories.length} subcategory option(s)</span>
                   </div>
                 </div>
               );
             })}
           </div>
+        </div>
+
+        {selectedCategory && (
+          <div className="space-y-4">
+            <h4 className="font-medium text-gray-900">Select Case Type</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {selectedCategory.subcategories.map(subcategory => {
+                const isSelected = selectedSubcategory?.id === subcategory.id;
+                return (
+                  <div
+                    key={subcategory.id}
+                    onClick={() => handleFormSubcategorySelect(subcategory.id)}
+                    className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md ${isSelected
+                      ? 'border-blue-500 bg-blue-50 shadow-md'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h5 className="font-semibold text-gray-900">{subcategory.title}</h5>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-3">{subcategory.description}</p>
+                      </div>
+                      {isSelected && <CheckCircle className="w-5 h-5 text-blue-500" />}
+                    </div>
+                    <div className="mt-3 text-xs text-gray-500 space-y-1">
+                      <div>{subcategory.forms.length} required form(s)</div>
+                      {subcategory.processingTime && <div>Processing time: {subcategory.processingTime}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
-      </div>
-      
-      <div className="flex justify-between">
-        <button
-          onClick={handlePrevious}
-          className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
-        >
-          <ArrowLeft className="h-5 w-5 mr-2" />
-          <span>Back</span>
-        </button>
-        <button
-          onClick={handleFormsSubmit}
-          disabled={selectedForms.length === 0 || generatingCaseIds}
-          className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 ${selectedForms.length > 0 && !generatingCaseIds
-            ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
-            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+
+        <div className="space-y-4">
+          <h4 className="font-medium text-gray-900">Recommended Forms</h4>
+
+          {!selectedSubcategory && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center text-gray-600">
+              Select a category and case type to see recommended forms.
+            </div>
+          )}
+
+          {selectedSubcategory && (
+            <>
+              {loadingFormTemplates ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-blue-500 animate-spin mr-2" />
+                  <div className="text-gray-500">Loading forms...</div>
+                </div>
+              ) : formsWithTemplates.length === 0 ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                  <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+                  <p className="text-gray-700 font-medium">No recommended forms found for this case type.</p>
+                  <p className="text-sm text-gray-600 mt-1">Please choose a different case type or contact support.</p>
+                </div>
+              ) : (
+                <>
+                  {missingTemplatesCount > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+                      <p>
+                        {missingTemplatesCount} form{missingTemplatesCount === 1 ? '' : 's'} do not currently have a matching Anvil template. You can still select them and fill manually later.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {formsWithTemplates.map(({ formNumber, template }) => {
+                      const isSelected = selectedForms.includes(formNumber);
+                      return (
+                        <div
+                          key={formNumber}
+                          onClick={() => handleFormSelection(formNumber)}
+                          className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md ${isSelected
+                            ? 'border-blue-500 bg-blue-50 shadow-md'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h5 className="font-semibold text-gray-900">{formNumber}</h5>
+                              <p className="text-sm text-gray-600 mt-1 line-clamp-3">
+                                {template?.description || 'USCIS form available for this case type.'}
+                              </p>
+                            </div>
+                            {isSelected && <CheckCircle className="w-5 h-5 text-blue-500 ml-2 flex-shrink-0" />}
+                          </div>
+                          <div className="mt-3 text-xs text-gray-500 space-y-1">
+                            {template?.metadata?.instructions && (
+                              <p className="line-clamp-2">{template.metadata.instructions}</p>
+                            )}
+                            {!template && (
+                              <p className="text-yellow-700 flex items-center">
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                                Not found in template list
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-between">
+          <button
+            onClick={handlePrevious}
+            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
+          >
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            <span>Back</span>
+          </button>
+          <button
+            onClick={handleFormsSubmit}
+            disabled={selectedForms.length === 0 || generatingCaseIds}
+            className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 ${selectedForms.length > 0 && !generatingCaseIds
+              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
-        >
-          {generatingCaseIds ? 'Generating Case IDs...' : 'Continue with Selected Forms'}
-          <ArrowRight className="h-5 w-5 ml-2" />
-        </button>
+          >
+            {generatingCaseIds
+              ? 'Generating Case IDs...'
+              : selectedForms.length > 0
+                ? `Continue with ${selectedForms.length} selected form${selectedForms.length === 1 ? '' : 's'}`
+                : 'Select forms to continue'}
+            <ArrowRight className="h-5 w-5 ml-2" />
+          </button>
+        </div>
       </div>
-    </div>
-  );  
+    );
+  };
 
   // const renderPersonalDetailsStepExpanded = () => (
   //   <div className="space-y-8">
@@ -3975,13 +4218,52 @@ const IndividualImmigrationProcess: React.FC = () => {
             <p className="text-sm text-gray-600">{caseData.description}</p>
           </div>
         )}
+
+        {selectedCategory && (
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <h5 className="text-md font-semibold text-gray-900 mb-3">Selected Category Details</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-gray-700">Category:</span>
+                <span className="ml-2 text-gray-900">{selectedCategory.title}</span>
+              </div>
+              {selectedSubcategory && (
+                <div>
+                  <span className="font-medium text-gray-700">Case Type:</span>
+                  <span className="ml-2 text-gray-900">{selectedSubcategory.title}</span>
+                </div>
+              )}
+              <div>
+                <span className="font-medium text-gray-700">Estimated Timeline:</span>
+                <span className="ml-2 text-gray-600">{selectedCategory.estimatedTime}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Difficulty Level:</span>
+                <span className="ml-2 px-2 py-1 rounded-full text-xs uppercase tracking-wide bg-blue-100 text-blue-700">
+                  {selectedCategory.difficulty}
+                </span>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">{selectedCategory.description}</p>
+            {selectedSubcategory?.eligibilityRequirements?.length ? (
+              <div className="mt-4">
+                <h6 className="font-medium text-gray-700 mb-2">Eligibility Highlights:</h6>
+                <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                  {selectedSubcategory.eligibilityRequirements.map((req, idx) => (
+                    <li key={idx}>{req}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {/* Selected Forms and Case IDs */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
         <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
           <FileText className="w-5 h-5 mr-2" />
-          Selected Forms & Case IDs
+          Selected Forms & Case Numbers
         </h4>
         <div className="space-y-3">
           {selectedForms.map(form => (
@@ -3991,7 +4273,7 @@ const IndividualImmigrationProcess: React.FC = () => {
                 <span className="font-medium text-gray-900">{form}</span>
               </div>
               <div className="text-sm">
-                <span className="font-medium text-gray-700">Case ID: </span>
+                <span className="font-medium text-gray-700">Case Number: </span>
                 <span className="font-mono text-blue-600">{formCaseIds[form] || 'Not generated'}</span>
               </div>
             </div>
@@ -4009,11 +4291,15 @@ const IndividualImmigrationProcess: React.FC = () => {
           <span>Previous</span>
         </button>
         <button
-          onClick={handleNext}
-          className="px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all duration-200 flex items-center space-x-2"
+          onClick={handleCreateCaseAndNext}
+          disabled={isCreatingCase}
+          className={`px-8 py-3 rounded-lg transition-all duration-200 flex items-center space-x-2 ${isCreatingCase
+            ? 'bg-purple-300 text-white cursor-not-allowed'
+            : 'bg-purple-600 text-white hover:bg-purple-700'
+          }`}
         >
-          <span>Continue to Auto-fill Forms</span>
-          <ArrowRight className="h-5 w-5 ml-2" />
+          <span>{isCreatingCase ? 'Creating Case...' : 'Continue to Auto-fill Forms'}</span>
+          {!isCreatingCase && <ArrowRight className="h-5 w-5 ml-2" />}
         </button>
       </div>
     </div>

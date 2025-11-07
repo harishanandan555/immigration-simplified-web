@@ -1,40 +1,120 @@
 import api from '../utils/api';
 import { CASE_END_POINTS } from '../utils/constants';
 
-interface Case {
-  id?: string;
-  caseNumber: string;
-  title: string;
-  description: string;
+export interface CaseUserReference {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface CaseTimelineEntry {
+  _id: string;
+  action: string;
+  user: CaseUserReference | string;
+  notes: string;
+  date: string;
+}
+
+export interface CaseClient extends CaseUserReference {}
+
+export interface CaseDocument {
+  _id: string;
+  name?: string;
+  description?: string;
+  uploadedBy?: CaseUserReference | string;
+  uploadedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface CaseTask {
+  _id: string;
+  title?: string;
+  description?: string;
+  dueDate?: string | null;
+  assignedTo?: CaseUserReference | string;
+  completed?: boolean;
+  [key: string]: unknown;
+}
+
+export interface Case {
+  _id: string;
+  type: string;
+  clientId: CaseClient | string;
+  title?: string;
+  description?: string;
+  category?: string;
+  subcategory?: string;
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+  dueDate?: string | null;
+  formNumber?: string;
+  caseNumber?: string;
   status: string;
-  timeline: Array<{
-    action: string;
-    user: string;
-    notes: string;
-    _id: string;
-    date: string;
-  }>;
+  timeline: CaseTimelineEntry[];
+  documents?: CaseDocument[];
+  tasks?: CaseTask[];
+  isOverdue?: boolean;
   updatedAt: string;
   createdAt: string;
+  [key: string]: unknown;
 }
 
-// Define the response type from your API
-interface ApiResponse<T> {
-  data: T;
-  status: number;
-  statusText: string;
-  // Add other standard axios response fields if needed
+export interface CreateCasePayload {
+  type: string;
+  clientId: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  subcategory?: string;
+  priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
+  dueDate?: string;
+  formNumber?: string;
+  caseNumber?: string;
 }
 
-// Example in a React component or custom hook
-export const getCases = async () => {
+interface CreateCaseResponse {
+  success: boolean;
+  case: Case;
+  message: string;
+}
+
+export interface GetCasesParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  type?: string;
+  category?: string;
+  subcategory?: string;
+  priority?: string;
+  client?: string;
+  formNumber?: string;
+  caseNumber?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+}
+
+export interface PaginatedCasesResponse {
+  success: boolean;
+  cases: Case[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+    [key: string]: unknown;
+  };
+}
+
+export const getCases = async (params: GetCasesParams = {}): Promise<PaginatedCasesResponse> => {
   try {
-    const response = await api.get(CASE_END_POINTS.GETCASES);
-    // Handle the response data
-    return {
-      data: response.data.cases,
-      pagination: response.data.pagination
-    };
+    const response = await api.get<PaginatedCasesResponse>(
+      CASE_END_POINTS.GETCASES,
+      { params }
+    );
+
+    return response.data;
   } catch (error) {
     // Handle errors
     console.error('Error fetching cases:', error);
@@ -42,18 +122,14 @@ export const getCases = async () => {
   }
 };
 
-export const createCase = async (caseData: Omit<Case, 'id'>): Promise<ApiResponse<Case>> => {
+export const createCase = async (caseData: CreateCasePayload): Promise<CreateCaseResponse> => {
   try {
-    const response = await api.post<Case>(
+    const response = await api.post<CreateCaseResponse>(
       CASE_END_POINTS.CREATECASE,
       caseData
     );
 
-    return {
-      data: response.data,
-      status: response.status,
-      statusText: response.statusText
-    };
+    return response.data;
 
   } catch (error) {
     // Handle different error types if needed
@@ -63,108 +139,26 @@ export const createCase = async (caseData: Omit<Case, 'id'>): Promise<ApiRespons
     }
     throw new Error('Failed to create case due to an unknown error');
   }
+};
+
+export interface CaseDetailResponse {
+  success: boolean;
+  case: Case;
 }
 
-// Enhanced case creation interface for workflow integration
-export interface EnhancedCaseData {
-  // Required fields
-  type: string;
-  clientId: string;
-  
-  // Enhanced fields
-  title: string;
-  description: string;
-  category: string;
-  subcategory: string;
-  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  dueDate?: string;
-  assignedTo?: string;
-  
-  // Form management
-  assignedForms: string[];
-  formCaseIds: Record<string, string>;
-  questionnaires: string[];
-  
-  // Optional fields
-  status?: string;
-  startDate?: string;
-  expectedClosureDate?: string;
-  courtLocation?: string;
-  judge?: string;
-  notes?: string;
-}
-
-// Enhanced case creation function with all required fields
-export const createEnhancedCase = async (caseData: EnhancedCaseData): Promise<ApiResponse<any>> => {
+export const getCaseById = async (caseId: string): Promise<CaseDetailResponse> => {
   try {
-    // Prepare the request payload matching the API specification
-    const requestPayload = {
-      // Required fields
-      type: caseData.type,
-      clientId: caseData.clientId,
-      
-      // Enhanced fields
-      title: caseData.title,
-      description: caseData.description,
-      category: caseData.category,
-      subcategory: caseData.subcategory,
-      priority: caseData.priority,
-      dueDate: caseData.dueDate,
-      assignedTo: caseData.assignedTo,
-      
-      // Form management
-      assignedForms: caseData.assignedForms,
-      formCaseIds: caseData.formCaseIds,
-      questionnaires: caseData.questionnaires,
-      
-      // Optional fields with defaults
-      status: caseData.status || 'draft',
-      startDate: caseData.startDate || new Date().toISOString(),
-      expectedClosureDate: caseData.expectedClosureDate,
-      courtLocation: caseData.courtLocation,
-      judge: caseData.judge,
-      notes: caseData.notes,
-      createdAt: new Date().toISOString()
-    };
-
-    const response = await api.post(
-      CASE_END_POINTS.CREATECASE,
-      requestPayload
+    const response = await api.get<CaseDetailResponse>(
+      CASE_END_POINTS.GETCASEBYID.replace(':id', caseId)
     );
 
-    return {
-      data: response.data,
-      status: response.status,
-      statusText: response.statusText
-    };
-
-  } catch (error: any) {
-
-    // Handle different error types
-    if (error instanceof Error) {
-      throw new Error(`Failed to create enhanced case: ${error.message}`);
-    }
-    throw new Error('Failed to create enhanced case due to an unknown error');
-  }
-}
-
-export const getCaseByNumber = async (caseNumber: string): Promise<ApiResponse<Case>> => {
-  try {
-    const response = await api.get<Case>(
-      CASE_END_POINTS.GETCASEBYNUMBER.replace(':caseNumber', caseNumber)
-    );
-
-    return {
-      data: response.data,
-      status: response.status,
-      statusText: response.statusText
-    };
+    return response.data;
 
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching case by number:', error.message);
+      console.error('Error fetching case by id:', error.message);
       throw new Error(`Failed to fetch case: ${error.message}`);
     }
     throw new Error('Failed to fetch case due to an unknown error');
   }
-}
+};
