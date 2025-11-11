@@ -454,12 +454,25 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }
         setFormCaseIds(cleanFormCaseIds);
         console.log('✅ Form case IDs populated from workflow progress (cleaned):', cleanFormCaseIds);
+        
+        // Auto-populate selectedForms from formCaseIds
+        const preSelectedForms = Object.keys(cleanFormCaseIds);
+        if (preSelectedForms.length > 0) {
+          setSelectedForms(preSelectedForms);
+          console.log('✅ Auto-selected forms from workflow data:', preSelectedForms);
+        }
       } else if (workflowData?.case?.caseNumber && workflowData?.formNumber) {
         // If caseNumber exists but formCaseIds doesn't, create it from caseNumber and formNumber
         const formCaseIds: Record<string, string> = {};
         formCaseIds[workflowData.formNumber] = workflowData.case.caseNumber;
         setFormCaseIds(formCaseIds);
         console.log('✅ Form case IDs created from caseNumber:', formCaseIds);
+        
+        // Auto-populate selectedForms from formNumber
+        if (workflowData.formNumber) {
+          setSelectedForms([workflowData.formNumber]);
+          console.log('✅ Auto-selected form from formNumber:', [workflowData.formNumber]);
+        }
       }
       
       // Populate questionnaire assignment and responses
@@ -8397,6 +8410,40 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               </div>
             )}
 
+            {/* Auto-Selected Forms Display */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">Selected Immigration Forms</h3>
+              <p className="text-blue-700 mb-3">The following forms have been automatically selected based on your case data.</p>
+              
+              {selectedForms.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedForms.map((formNumber) => {
+                    const caseId = formCaseIds[formNumber];
+                    return (
+                      <div key={formNumber} className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-lg">
+                        <div className="flex items-center">
+                          <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
+                          <div>
+                            <div className="font-medium text-gray-900">{formNumber}</div>
+                            {caseId && (
+                              <div className="text-sm text-gray-600">Case ID: {caseId}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center text-green-600">
+                          <span className="text-sm font-medium">Ready for Auto-fill</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
+                  No forms detected from workflow data. Please ensure forms were selected in the previous workflow steps.
+                </div>
+              )}
+            </div>
+
          {/* Navigation */}
             <div className="flex justify-between items-center pt-6 border-t border-gray-200">
               <Button 
@@ -8413,6 +8460,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               <Button 
                 onClick={handleNext}
                 className="bg-purple-600 hover:bg-purple-700 flex items-center"
+                disabled={selectedForms.length === 0}
               >
                 Continue to Auto-fill Forms
                 <ArrowRight className="w-4 h-4 ml-2" />

@@ -93,6 +93,8 @@ export interface GetCasesParams {
   caseNumber?: string;
   dueDateFrom?: string;
   dueDateTo?: string;
+  userType?: string;
+  clientId?: string;
 }
 
 export interface PaginatedCasesResponse {
@@ -118,6 +120,94 @@ export const getCases = async (params: GetCasesParams = {}): Promise<PaginatedCa
   } catch (error) {
     // Handle errors
     console.error('Error fetching cases:', error);
+    throw error;
+  }
+};
+
+export const getCasesForIndividualUser = async (
+  clientId: string, 
+  params: GetCasesParams = {}
+): Promise<PaginatedCasesResponse> => {
+  try {
+    // First, try to get cases with API-level filtering
+    const individualUserParams = {
+      ...params,
+      userType: 'individualUser',
+      clientId: clientId
+    };
+
+    console.log('🔍 Fetching cases for individual user with params:', individualUserParams);
+
+    const response = await api.get<PaginatedCasesResponse>(
+      CASE_END_POINTS.GETCASES,
+      { params: individualUserParams }
+    );
+
+    console.log('📦 Individual user cases response:', response.data);
+
+    // If API doesn't support filtering, we'll get all cases and filter client-side
+    if (response.data.success && response.data.cases) {
+      // Filter cases on the client side to ensure we only get individual user cases
+      const filteredCases = response.data.cases.filter((caseItem: any) => {
+        const isCorrectUserType = caseItem.userType === 'individualUser';
+        
+        // Handle both string and object clientId
+        let caseClientId: string;
+        if (typeof caseItem.clientId === 'string') {
+          caseClientId = caseItem.clientId;
+        } else if (typeof caseItem.clientId === 'object' && caseItem.clientId !== null) {
+          // If clientId is an object, try to get the _id or id field
+          caseClientId = caseItem.clientId._id || caseItem.clientId.id || '';
+        } else {
+          caseClientId = '';
+        }
+        
+        const isCorrectClient = caseClientId === clientId;
+        
+        // Only log when cases don't match for debugging purposes
+        if (!isCorrectUserType || !isCorrectClient) {
+          console.log(`🔍 Filtering out case ${caseItem.caseNumber}: userType=${caseItem.userType}, clientId=${caseClientId}`);
+        }
+        
+        return isCorrectUserType && isCorrectClient;
+      });
+
+      console.log(`✅ Individual user filtering complete: ${filteredCases.length} cases found for user ${clientId}`);
+
+      return {
+        ...response.data,
+        cases: filteredCases,
+        pagination: {
+          ...response.data.pagination,
+          total: filteredCases.length
+        }
+      };
+    }
+
+    return response.data;
+  } catch (error) {
+    // Handle errors
+    console.error('Error fetching cases for individual user:', error);
+    throw error;
+  }
+};
+
+export const getCasesBasedOnUserType = async (
+  user: { _id: string; userType?: string; role?: string } | null,
+  params: GetCasesParams = {}
+): Promise<PaginatedCasesResponse> => {
+  try {
+    // If user is an individual user (client with individualUser type)
+    if (user?.role === 'client' && user?.userType === 'individualUser') {
+      console.log('🎯 Loading cases for individual user:', user._id);
+      return await getCasesForIndividualUser(user._id, params);
+    }
+    
+    console.log('🏢 Loading all cases for non-individual user');
+    // For all other users (attorneys, admins, company clients, etc.), use the regular getCases
+    return await getCases(params);
+  } catch (error) {
+    console.error('Error fetching cases based on user type:', error);
     throw error;
   }
 };

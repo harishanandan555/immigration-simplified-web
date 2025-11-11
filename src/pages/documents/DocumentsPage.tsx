@@ -25,7 +25,6 @@ import {
 import { getCompanyClients, Client as BaseClient } from '../../controllers/ClientControllers';
 import { useAuth } from '../../controllers/AuthControllers';
 import api from '../../utils/api';
-import { set } from 'date-fns';
 
 // Extend Client type to allow _id for MongoDB compatibility
 type Client = BaseClient & { _id?: string };
@@ -336,8 +335,9 @@ const DocumentsPage = () => {
           const responseData = response.data as any;
           const rawDocuments = responseData.data?.documents || responseData.documents || [];
 
-          // Additional client-side filtering for company clients to ensure they only see their own documents
+          // Apply appropriate filtering based on user type
           let filteredDocuments = rawDocuments;
+          
           if (isClient && user?.userType === 'companyClient') {
             console.log('Applying additional filtering for company client');
             filteredDocuments = rawDocuments.filter((doc: any) => {
@@ -355,10 +355,31 @@ const DocumentsPage = () => {
               return isOwner;
             });
             console.log(`Filtered ${rawDocuments.length} documents down to ${filteredDocuments.length} for company client`);
+          } else if (!isClient && (user?.role === 'attorney' || user?.role === 'paralegal' || user?.role === 'admin')) {
+            // For attorneys, paralegals, and admins - only show company client documents, exclude individual user documents
+            console.log('Applying filtering for attorney/paralegal/admin - excluding individual user documents');
+            filteredDocuments = rawDocuments.filter((doc: any) => {
+              // Only show documents that are NOT from individual users
+              // This excludes documents with userType 'individualUser'
+              // Also exclude documents with undefined userType unless they have uploadedBy info indicating they're from staff
+              const isIndividualUserDoc = doc.userType === 'individualUser';
+              const hasUndefinedUserType = doc.userType === undefined || doc.userType === null;
+              const isFromStaff = doc.uploadedBy && typeof doc.uploadedBy === 'object' && doc.uploadedBy.email ? true : false;
+              
+              // Include document if:
+              // 1. It's not from an individual user AND
+              // 2. Either it has a defined userType (like 'companyClient') OR it's uploaded by staff
+              const shouldInclude = !isIndividualUserDoc && (!hasUndefinedUserType || isFromStaff);
+              
+              console.log(`Document ${doc.name}: userType=${doc.userType}, isIndividualUserDoc=${isIndividualUserDoc}, hasUndefinedUserType=${hasUndefinedUserType}, isFromStaff=${isFromStaff}, include=${shouldInclude}`);
+              return shouldInclude;
+            });
+            console.log(`Filtered ${rawDocuments.length} documents down to ${filteredDocuments.length} for ${user.role} (excluded individual user documents)`);
           }
 
           const processedDocuments = processDocuments(filteredDocuments);
           setDocuments(processedDocuments);
+          setLoadingDocuments(false); // Add this line to stop the loading state
         } else {
           setLoadingDocuments(false);
           console.error("Failed to fetch documents", response.message);
@@ -484,7 +505,23 @@ const DocumentsPage = () => {
       );
     }
 
-    // For attorneys, paralegals, and admins - they can access all documents
+    // For attorneys, paralegals, and admins - they can access company client documents but not individual user documents
+    if (!isClient && (user?.role === 'attorney' || user?.role === 'paralegal' || user?.role === 'admin')) {
+      // Exclude individual user documents for attorneys/staff
+      const isIndividualUserDoc = (document as any).userType === 'individualUser';
+      const hasUndefinedUserType = (document as any).userType === undefined || (document as any).userType === null;
+      const isFromStaff = document.uploadedBy && typeof document.uploadedBy === 'object' && (document.uploadedBy as any).email ? true : false;
+      
+      // Allow access if:
+      // 1. It's not from an individual user AND
+      // 2. Either it has a defined userType (like 'companyClient') OR it's uploaded by staff
+      const canAccess = !isIndividualUserDoc && (!hasUndefinedUserType || isFromStaff);
+      
+      console.log(`canUserAccessDocument for ${document.name}: userType=${(document as any).userType}, isIndividualUserDoc=${isIndividualUserDoc}, hasUndefinedUserType=${hasUndefinedUserType}, isFromStaff=${isFromStaff}, canAccess=${canAccess}`);
+      return canAccess;
+    }
+
+    // Default access for any other user types
     return true;
   };
 
@@ -917,7 +954,9 @@ const DocumentsPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loadingDocuments ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16">
+                  <td colSpan={
+                    (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient')) ? 6 : 8
+                  } className="px-6 py-16">
                     <div className="flex flex-col justify-center items-center space-y-3">
                       <div className="animate-spin rounded-full h-8 w-8 border-2 border-b-transparent border-primary-600"></div>
                       <span className="text-sm text-gray-600">Loading Documents...</span>

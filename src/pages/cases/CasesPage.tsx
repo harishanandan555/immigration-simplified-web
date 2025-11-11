@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 
 import api from '../../utils/api';
 import { useAuth } from '../../controllers/AuthControllers';
+import { getCasesBasedOnUserType } from '../../controllers/CaseControllers';
 
 type Client = {
   _id: string;
@@ -58,6 +59,7 @@ const CasesPage: React.FC = () => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [workflowCases, setWorkflowCases] = useState<WorkflowCase[]>([]);
+  const [regularCases, setRegularCases] = useState<any[]>([]);
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -65,6 +67,7 @@ const CasesPage: React.FC = () => {
 
   // Workflow-related state
   const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+  const [loadingRegularCases, setLoadingRegularCases] = useState(false);
 
   // Determine the correct "New Case" link based on user type
   const getNewCaseLink = () => {
@@ -189,9 +192,77 @@ const CasesPage: React.FC = () => {
       }
     };
     
-    // Load workflows and transform to cases
-    loadWorkflows();
-  }, []);
+    
+    const loadRegularCases = async () => {
+      // For individual users, load their specific cases from the cases API
+      if (user?.userType === 'individualUser') {
+        try {
+          setLoadingRegularCases(true);
+          const casesResponse = await getCasesBasedOnUserType(user, { limit: 100 });
+          
+          if (casesResponse.success && casesResponse.cases) {
+            console.log('✅ Loaded', casesResponse.cases.length, 'cases for individual user');
+            // Transform regular cases to match the WorkflowCase structure for consistent rendering
+            const transformedRegularCases = casesResponse.cases.map((caseItem: any) => ({
+              _id: caseItem._id,
+              workflowId: caseItem._id, // Use case ID as workflow ID
+              caseNumber: caseItem.caseNumber || 'N/A',
+              title: caseItem.title || 'Immigration Case',
+              description: caseItem.description || '',
+              category: caseItem.category || 'immigration',
+              subcategory: caseItem.subcategory || '',
+              status: caseItem.status || 'Active',
+              priority: caseItem.priority || 'Medium',
+              dueDate: caseItem.dueDate || '',
+              assignedForms: [],
+              formCaseIds: {},
+              client: {
+                _id: user._id,
+                name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+                email: user.email || '',
+                firstName: user.firstName || '',
+                lastName: user.lastName || '',
+                phone: '',
+                nationality: ''
+              },
+              createdBy: {
+                _id: user._id,
+                firstName: user.firstName || '',
+                lastName: user.lastName || '',
+                email: user.email || '',
+                role: user.role || 'client'
+              },
+              currentStep: 1,
+              totalSteps: 1,
+              progressPercentage: 100,
+              isCompleted: caseItem.status === 'Closed',
+              selectedForms: [],
+              questionnaireAssignment: undefined,
+              createdAt: caseItem.createdAt || '',
+              updatedAt: caseItem.updatedAt || ''
+            }));
+
+            setRegularCases(transformedRegularCases);
+          } else {
+            setRegularCases([]);
+          }
+        } catch (error) {
+          console.error('Error loading regular cases for individual user:', error);
+          setRegularCases([]);
+        } finally {
+          setLoadingRegularCases(false);
+        }
+      }
+    };
+    
+    // Load workflows for attorneys and non-individual users
+    if (user?.userType !== 'individualUser') {
+      loadWorkflows();
+    }
+    
+    // Load regular cases for individual users
+    loadRegularCases();
+  }, [user]);
 
   // Helper function to get all case numbers for a workflow
   const getAllCaseNumbers = (workflowCase: WorkflowCase): string[] => {
@@ -224,7 +295,10 @@ const CasesPage: React.FC = () => {
     }
   };
 
-  const filteredCases = workflowCases.filter((workflowCase) => {
+  // Use regularCases for individual users, workflowCases for others
+  const casesToDisplay = user?.userType === 'individualUser' ? regularCases : workflowCases;
+  
+  const filteredCases = casesToDisplay.filter((workflowCase) => {
     const allCaseNumbers = getAllCaseNumbers(workflowCase);
     
     // Check if search term matches any case numbers
@@ -240,7 +314,7 @@ const CasesPage: React.FC = () => {
       caseNumberMatches ||
       workflowCase.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       workflowCase.client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      workflowCase.selectedForms.some(form => form.toLowerCase().includes(searchTerm.toLowerCase()))
+      workflowCase.selectedForms.some((form: string) => form.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   });
 
@@ -290,8 +364,8 @@ const CasesPage: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Cases</h1>
-          {loadingWorkflows && (
-            <p className="text-sm text-blue-600 mt-1">Loading workflow data...</p>
+          {(loadingWorkflows || loadingRegularCases) && (
+            <p className="text-sm text-blue-600 mt-1">Loading cases...</p>
           )}
           
         </div>
@@ -367,10 +441,10 @@ const CasesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {loadingWorkflows ? (
+              {(loadingWorkflows || loadingRegularCases) ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-3 text-center text-gray-500">
-                    Loading workflow cases...
+                    Loading cases...
                   </td>
                 </tr>
               ) : paginatedCases.length > 0 ? (
@@ -472,7 +546,10 @@ const CasesPage: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={6} className="px-3 py-3 text-center text-gray-500">
-                    No workflow cases found matching your search criteria.
+                    {user?.userType === 'individualUser' 
+                      ? "You don't have any cases yet. Start your immigration process to create your first case."
+                      : "No workflow cases found matching your search criteria."
+                    }
                   </td>
                 </tr>
               )}
