@@ -85,7 +85,7 @@ export const CLIENT_END_POINTS = {
     // New specialized client endpoints
     GETCOMPANYCLIENTS: "/api/v1/clients/company",
     GETINDIVIDUALCLIENTS: "/api/v1/clients/individual",
-    GETALLUSERS: "/api/v1/clients/users/all",
+    GETALLUSERS: "/api/v1/clients/all-users-and-clients",
     
     // Client management endpoints
     DELETECLIENT: "/api/v1/clients/:id",

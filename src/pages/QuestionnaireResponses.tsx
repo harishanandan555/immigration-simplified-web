@@ -14,7 +14,6 @@ import {
 
 import { useAuth } from '../controllers/AuthControllers';
 import {
-  getClientResponses,
   getWorkflowsFromAPI,
   getAssignmentResponse
 } from '../controllers/QuestionnaireResponseControllers';
@@ -171,7 +170,7 @@ const QuestionnaireResponses: React.FC = () => {
       return;
     }
 
-    loadAssignments();
+    loadClientResponsesFromWorkflows();
   }, [user, navigate]);
 
   useEffect(() => {
@@ -236,120 +235,180 @@ const QuestionnaireResponses: React.FC = () => {
     setFilteredAssignments(filtered);
   }, [assignments, searchTerm, statusFilter]);
 
-  const loadAssignments = async () => {
+  const loadClientResponsesFromWorkflows = async () => {
     try {
       setLoading(true);
 
-      // Get all questionnaire assignments, not just completed ones
-      // This will help us see assignments that are marked as completed but have missing response data
-      const responseData = await getClientResponses({
-        // Remove status filter to get all assignments
-        page: 1,
-        limit: 50 // Get more results for better demo
-      });
+      // Get workflows from API instead of assignments
+      const workflows = await fetchWorkflowsFromAPI();
 
-      const assignmentsData = responseData.data.assignments || [];
+      console.log('Fetched workflows for client responses:', workflows);
 
-      // Filter to only show completed assignments in the UI
-      // This way we can see completed assignments even if they have missing response data
-      const completedAssignments = assignmentsData.filter((assignment: any) =>
-        assignment.status === 'completed'
-      );
-
-      setAssignments(completedAssignments);
-      setError(null);
-
-      console.log('📋 Loaded questionnaire responses:', {
-        totalAssignments: assignmentsData.length,
-        completedAssignments: completedAssignments.length,
-        enhancedWithWorkflow: completedAssignments.filter((a: any) => a.enhancedWithWorkflow).length
-      });
-
-      // Debug: Check for specific client mentioned in issue
-      const specificClientAssignments = assignmentsData.filter((assignment: any) => {
-        const clientId = assignment.clientId || assignment.actualClient?._id || assignment.clientUserId?._id;
-        const clientEmail = assignment.actualClient?.email || assignment.clientUserId?.email;
-        return clientId === '68c1505149321ce701f936ae' || 
-               (clientEmail && clientEmail.toLowerCase().includes('anjali_b@bullbox.in'));
-      });
-
-      if (specificClientAssignments.length > 0) {
-        console.log('🎯 DEBUG: Found assignments for specific client:', {
-          clientId: '68c1505149321ce701f936ae',
-          clientEmail: 'anjali_b@bullbox.in',
-          totalAssignments: specificClientAssignments.length,
-          assignments: specificClientAssignments.map((a: any) => ({
-            id: a._id,
-            status: a.status,
-            clientId: a.clientId,
-            actualClientId: a.actualClient?._id,
-            clientUserId: a.clientUserId?._id,
-            clientEmail: a.actualClient?.email || a.clientUserId?.email,
-            hasResponseId: !!a.responseId,
-            hasResponses: !!a.responseId?.responses,
-            responseCount: a.responseId?.responses ? Object.keys(a.responseId.responses).length : 0,
-            questionnaireTitle: a.questionnaireDetails?.title
-          }))
-        });
-      } else {
-        console.log('⚠️ DEBUG: No assignments found for specific client:', {
-          clientId: '68c1505149321ce701f936ae',
-          clientEmail: 'anjali_b@bullbox.in',
-          totalAssignmentsChecked: assignmentsData.length
-        });
-        
-        // Check if there are any assignments for this client with different status
-        const allClientAssignments = assignmentsData.filter((assignment: any) => {
-          const clientId = assignment.clientId || assignment.actualClient?._id || assignment.clientUserId?._id;
-          const clientEmail = assignment.actualClient?.email || assignment.clientUserId?.email;
-          return clientId === '68c1505149321ce701f936ae' || 
-                 (clientEmail && clientEmail.toLowerCase().includes('anjali_b@bullbox.in'));
-        });
-        
-        if (allClientAssignments.length > 0) {
-          console.log('🔍 DEBUG: Found assignments for specific client with different status:', {
-            clientId: '68c1505149321ce701f936ae',
-            clientEmail: 'anjali_b@bullbox.in',
-            totalAssignments: allClientAssignments.length,
-            assignments: allClientAssignments.map((a: any) => ({
-              id: a._id,
-              status: a.status,
-              clientId: a.clientId,
-              actualClientId: a.actualClient?._id,
-              clientUserId: a.clientUserId?._id,
-              clientEmail: a.actualClient?.email || a.clientUserId?.email,
-              hasResponseId: !!a.responseId,
-              hasResponses: !!a.responseId?.responses,
-              responseCount: a.responseId?.responses ? Object.keys(a.responseId.responses).length : 0,
-              questionnaireTitle: a.questionnaireDetails?.title
-            }))
-          });
-        }
+      if (!workflows || workflows.length === 0) {
+        setAssignments([]);
+        setError(null);
+        setLoading(false);
+        return;
       }
 
-      // Debug: Log detailed information about enhanced assignments
-      completedAssignments.forEach((assignment: any, index: number) => {
-        if (assignment.enhancedWithWorkflow) {
-          console.log(`🔍 Enhanced Assignment ${index + 1}:`, {
-            assignmentId: assignment._id,
-            clientEmail: assignment.actualClient?.email,
-            // Case ID debugging
-            formCaseIdGenerated: assignment.formCaseIdGenerated,
-            workflowFormCaseIdGenerated: assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated,
-            workflowFormCaseIds: assignment.workflowFormCaseIds,
-            workflowCaseNumber: assignment.workflowCase?.caseNumber,
-            // Workflow details
-            hasWorkflowCase: !!assignment.workflowCase,
-            workflowCaseDetails: assignment.workflowCase,
-            hasWorkflowFormCaseIds: !!assignment.workflowFormCaseIds,
-            hasWorkflowQuestionnaireAssignment: !!assignment.workflowQuestionnaireAssignment,
-            workflowQuestionnaireAssignment: assignment.workflowQuestionnaireAssignment,
-            hasWorkflowSelectedForms: !!assignment.workflowSelectedForms,
-            workflowSelectedForms: assignment.workflowSelectedForms
+      // Transform workflows into assignment format
+      const transformedAssignments: QuestionnaireAssignment[] = [];
+
+      workflows.forEach((workflow: any, index: number) => {
+        // Check if workflow has questionnaire assignment with responses
+        const hasQuestionnaireAssignment = workflow.questionnaireAssignment && 
+          Object.keys(workflow.questionnaireAssignment).length > 0;
+        
+        // Check for responses in questionnaireAssignment.responses OR clientResponses.responses
+        const hasQuestionnaireResponses = (
+          (workflow.questionnaireAssignment?.responses && Object.keys(workflow.questionnaireAssignment.responses).length > 0) ||
+          (workflow.clientResponses?.responses && Object.keys(workflow.clientResponses.responses).length > 0)
+        );
+        
+        console.log('🔍 Processing workflow:', {
+          workflowId: workflow.workflowId,
+          caseNumber: workflow.case?.caseNumber,
+          hasQuestionnaireAssignment,
+          hasQuestionnaireResponses,
+          questionnaireAssignmentResponses: !!workflow.questionnaireAssignment?.responses,
+          clientResponsesResponses: !!workflow.clientResponses?.responses,
+          questionnaireStatus: workflow.questionnaireAssignment?.status,
+          questionnaireIsComplete: workflow.questionnaireAssignment?.is_complete,
+          workflowStatus: workflow.status,
+          willInclude: hasQuestionnaireAssignment && hasQuestionnaireResponses
+        });
+        
+        // Include workflows that have questionnaire assignments with responses
+        if (hasQuestionnaireAssignment && hasQuestionnaireResponses) {
+          // Determine status based on actual completion state
+          // Priority: clientResponses.is_complete > questionnaireAssignment.is_complete > workflow.status
+          let isCompleted = false;
+          
+          if (workflow.clientResponses?.is_complete !== undefined) {
+            // Use clientResponses.is_complete if available
+            isCompleted = workflow.clientResponses.is_complete === true;
+          } else if (workflow.questionnaireAssignment?.is_complete !== undefined) {
+            // Fall back to questionnaireAssignment.is_complete
+            isCompleted = workflow.questionnaireAssignment.is_complete === true;
+          } else {
+            // Fall back to workflow status
+            isCompleted = workflow.status === 'completed';
+          }
+          
+          const assignment: QuestionnaireAssignment = {
+            _id: workflow.questionnaireAssignment?.assignment_id || workflow.questionnaireAssignment?.id || workflow._id || `workflow_${index}`,
+            questionnaireId: workflow.questionnaireAssignment?.questionnaire_id || workflow.questionnaireAssignment?.questionnaireId || '',
+            questionnaireDetails: {
+              title: workflow.questionnaireAssignment?.questionnaire_title || workflow.questionnaireAssignment?.questionnaireName || 'Questionnaire',
+              category: workflow.case?.category || 'general',
+              description: workflow.case?.description || '',
+              fields: []
+            },
+            clientId: workflow.client?.email || workflow.client?._id || '',
+            clientUserId: workflow.client ? {
+              _id: workflow.client._id || '',
+              firstName: workflow.client.firstName || '',
+              lastName: workflow.client.lastName || '',
+              email: workflow.client.email || ''
+            } : undefined,
+            actualClient: workflow.client ? {
+              _id: workflow.client._id || '',
+              firstName: workflow.client.firstName || '',
+              lastName: workflow.client.lastName || '',
+              email: workflow.client.email || '',
+              client_id: workflow.client._id || ''
+            } : undefined,
+            responseId: (() => {
+              // Check for responses in questionnaireAssignment first, then clientResponses
+              if (workflow.questionnaireAssignment?.responses && Object.keys(workflow.questionnaireAssignment.responses).length > 0) {
+                return {
+                  _id: workflow.questionnaireAssignment.response_id || workflow.questionnaireAssignment.assignment_id || '',
+                  responses: workflow.questionnaireAssignment.responses || {},
+                  submittedAt: workflow.questionnaireAssignment.submitted_at || workflow.questionnaireAssignment.completedAt || '',
+                  notes: workflow.questionnaireAssignment.notes || ''
+                };
+              } else if (workflow.clientResponses?.responses && Object.keys(workflow.clientResponses.responses).length > 0) {
+                return {
+                  _id: workflow.clientResponses.response_id || '',
+                  responses: workflow.clientResponses.responses || {},
+                  submittedAt: workflow.clientResponses.submitted_at || '',
+                  notes: workflow.clientResponses.notes || ''
+                };
+              }
+              return undefined;
+            })(),
+            status: isCompleted ? 'completed' : 'in-progress',
+            assignedAt: workflow.createdAt || new Date().toISOString(),
+            completedAt: workflow.questionnaireAssignment?.submitted_at || workflow.questionnaireAssignment?.completedAt || undefined,
+            formCaseIdGenerated: workflow.questionnaireAssignment?.formCaseIdGenerated || '',
+
+            // Enhanced workflow data fields
+            workflowCase: workflow.case ? {
+              id: workflow.case.caseId || workflow.case._id || workflow.case.id,
+              _id: workflow.case._id || workflow.case.caseId || workflow.case.id,
+              title: workflow.case.title || 'Case',
+              caseNumber: workflow.case.caseNumber || '',
+              category: workflow.case.category || 'family-based',
+              subcategory: workflow.case.subcategory || '',
+              status: workflow.case.status || 'draft',
+              priority: workflow.case.priority || 'medium',
+              visaType: workflow.case.visaType || '',
+              description: workflow.case.description || ''
+            } : undefined,
+            workflowFormCaseIds: workflow.formCaseIds || {},
+            workflowQuestionnaireAssignment: workflow.questionnaireAssignment ? {
+              ...workflow.questionnaireAssignment,
+              // Ensure form number is included from multiple sources
+              formNumber: workflow.questionnaireAssignment.formNumber || 
+                         workflow.formNumber || 
+                         workflow.questionnaireAssignment.formCaseIdGenerated ||
+                         '',
+            } : undefined,
+            workflowSelectedForms: workflow.selectedForms || [],
+            workflowId: workflow._id || workflow.id,
+            workflowStatus: workflow.status || 'unknown',
+            enhancedWithWorkflow: true
+          };
+
+          transformedAssignments.push(assignment);
+
+          // Debug log for each assignment
+          console.log(`📋 Assignment ${index + 1}:`, {
+            caseNumber: workflow.case?.caseNumber,
+            clientEmail: workflow.client?.email,
+            assignmentId: workflow.questionnaireAssignment?.assignment_id || workflow.questionnaireAssignment?.id,
+            workflowId: workflow._id,
+            clientResponsesComplete: workflow.clientResponses?.is_complete,
+            questionnaireIsComplete: workflow.questionnaireAssignment?.is_complete,
+            questionnaireStatus: workflow.questionnaireAssignment?.status,
+            workflowStatus: workflow.status,
+            calculatedIsCompleted: isCompleted,
+            finalStatus: assignment.status,
+            statusSource: workflow.clientResponses?.is_complete !== undefined ? 'clientResponses' : 
+                         workflow.questionnaireAssignment?.is_complete !== undefined ? 'questionnaireAssignment' : 'workflowStatus',
+            hasQuestionnaireAssignmentResponses: !!workflow.questionnaireAssignment?.responses,
+            hasClientResponsesResponses: !!workflow.clientResponses?.responses,
+            questionnaireResponseCount: workflow.questionnaireAssignment?.responses ? Object.keys(workflow.questionnaireAssignment.responses).length : 0,
+            clientResponseCount: workflow.clientResponses?.responses ? Object.keys(workflow.clientResponses.responses).length : 0
           });
         }
       });
+
+      console.log('📋 Loaded client responses from workflows:', {
+        totalWorkflows: workflows.length,
+        totalAssignments: transformedAssignments.length,
+        completedAssignments: transformedAssignments.filter(a => a.status === 'completed').length,
+        inProgressAssignments: transformedAssignments.filter(a => a.status === 'in-progress').length,
+        enhancedWithWorkflow: transformedAssignments.filter((a: any) => a.enhancedWithWorkflow).length,
+        caseNumbers: transformedAssignments.map(a => a.workflowCase?.caseNumber).filter(Boolean),
+        clientEmails: [...new Set(transformedAssignments.map(a => a.actualClient?.email).filter(Boolean))]
+      });
+
+      setAssignments(transformedAssignments);
+      setError(null);
+
     } catch (err) {
+      console.error('Failed to load client responses from workflows:', err);
       setError('Failed to load questionnaire responses. Please try again.');
     } finally {
       setLoading(false);
@@ -750,9 +809,13 @@ const QuestionnaireResponses: React.FC = () => {
       ? assignmentId.split('_workflow_')[0]
       : assignmentId;
 
-    // Validate assignmentId is a valid MongoDB ObjectId
-    if (!/^[0-9a-fA-F]{24}$/.test(originalAssignmentId)) {
+    // Validate assignmentId (MongoDB ObjectId OR custom assignment ID)
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(originalAssignmentId);
+    const isCustomAssignmentId = /^assignment_\d+$/.test(originalAssignmentId);
+    
+    if (!isMongoId && !isCustomAssignmentId) {
       toast.error('Invalid assignment ID format');
+      console.error('Invalid assignment ID:', { assignmentId, originalAssignmentId, isMongoId, isCustomAssignmentId });
       return;
     }
 
@@ -775,8 +838,23 @@ const QuestionnaireResponses: React.FC = () => {
     }
 
     try {
-      // Use the original assignment ID for API calls
-      const responseData = await getAssignmentResponse(originalAssignmentId);
+      let responseData = null;
+      
+      // For workflow-based assignments, we already have the response data
+      if (assignment.responseId && assignment.responseId.responses) {
+        console.log('Using existing response data from workflow:', assignment.responseId);
+        responseData = {
+          data: {
+            responses: assignment.responseId.responses,
+            submittedAt: assignment.responseId.submittedAt,
+            notes: assignment.responseId.notes || ''
+          }
+        };
+      } else {
+        // For traditional assignments, fetch from API
+        console.log('Fetching response data from API for assignment:', originalAssignmentId);
+        responseData = await getAssignmentResponse(originalAssignmentId);
+      }
 
       // Create a comprehensive assignment object with all necessary data
       const completeAssignment = {
@@ -791,6 +869,16 @@ const QuestionnaireResponses: React.FC = () => {
         workflowSelectedForms: assignment.workflowSelectedForms,
         enhancedWithWorkflow: assignment.enhancedWithWorkflow
       };
+      
+      console.log('Navigating to response view with assignment:', {
+        assignmentId: completeAssignment._id,
+        workflowCase: completeAssignment.workflowCase,
+        workflowFormCaseIds: completeAssignment.workflowFormCaseIds,
+        workflowQuestionnaireAssignment: completeAssignment.workflowQuestionnaireAssignment,
+        formCaseIdGenerated: completeAssignment.formCaseIdGenerated,
+        hasWorkflowData: completeAssignment.enhancedWithWorkflow
+      });
+      
       // Pass the assignment data through navigation state to avoid refetching in ResponseView
       navigate(`/questionnaires/response/${originalAssignmentId}`, {
         state: {
@@ -1065,21 +1153,40 @@ const QuestionnaireResponses: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex flex-col items-end space-y-2">
                       <button
-                        onClick={() => handleViewResponse(assignment._id)}
-                        disabled={assignment.status !== 'completed' || !assignment.responseId || !assignment.responseId.responses}
+                        onClick={() => {
+                          console.log('🔍 Button render check for assignment:', {
+                            assignmentId: assignment._id,
+                            caseNumber: assignment.workflowCase?.caseNumber,
+                            status: assignment.status,
+                            hasResponseId: !!assignment.responseId,
+                            hasResponses: !!assignment.responseId?.responses,
+                            responseCount: assignment.responseId?.responses ? Object.keys(assignment.responseId.responses).length : 0,
+                            shouldBeDisabled: !assignment.responseId || !assignment.responseId.responses
+                          });
+                          console.log('🔘 View Response button clicked for assignment:', {
+                            assignmentId: assignment._id,
+                            status: assignment.status,
+                            hasResponseId: !!assignment.responseId,
+                            hasResponses: !!assignment.responseId?.responses,
+                            responseCount: assignment.responseId?.responses ? Object.keys(assignment.responseId.responses).length : 0,
+                            isDisabled: !assignment.responseId || !assignment.responseId.responses
+                          });
+                          handleViewResponse(assignment._id);
+                        }}
+                        disabled={!assignment.responseId || !assignment.responseId.responses}
                         className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                          assignment.status === 'completed' && assignment.responseId?.responses
+                          assignment.responseId?.responses
                             ? 'text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300'
                             : 'text-gray-400 bg-gray-50 border border-gray-200 cursor-not-allowed'
                         }`}
                         title={
-                          assignment.status !== 'completed'
-                            ? 'Assignment not completed'
-                            : !assignment.responseId
-                              ? 'No response data available'
-                              : !assignment.responseId.responses
-                                ? 'Response data is empty'
-                                : 'View the completed response'
+                          !assignment.responseId
+                            ? 'No response data available'
+                            : !assignment.responseId.responses
+                              ? 'Response data is empty'
+                              : assignment.status === 'completed'
+                                ? 'View the completed response'
+                                : 'View the current response (in-progress)'
                         }
                       >
                         <Eye className="w-4 h-4 mr-2" />

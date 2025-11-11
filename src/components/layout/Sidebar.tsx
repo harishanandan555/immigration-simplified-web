@@ -43,7 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
     // { name: 'Forms', href: '/forms', icon: FileText, visible: true },
     { name: 'Documents', href: '/documents', icon: Folder, visible: true },
     { name: 'Tasks', href: '/tasks', icon: CheckSquare, visible: !isClient || isSuperAdmin },
-    { name: 'Calendar', href: '/calendar', icon: Calendar, visible: !(isClient && user?.userType === 'individualUser' || 'companyClient') },
+    { name: 'Calendar', href: '/calendar', icon: Calendar, visible: isAttorney || isParalegal || isSuperAdmin },
     { name: 'Reports', href: '/reports', icon: BarChart, visible: isAttorney || isParalegal || isSuperAdmin },
     { name: 'Settings', href: '/settings', icon: Settings, visible: isAttorney || isParalegal || isSuperAdmin }
   ];

@@ -270,7 +270,27 @@ const ResponseView: React.FC = () => {
   };
 
   const getCaseInfo = (assignment: QuestionnaireAssignment) => {
-    return typeof assignment.caseId === 'object' ? assignment.caseId : null;
+    // First check for traditional case linking
+    if (typeof assignment.caseId === 'object' && assignment.caseId) {
+      return assignment.caseId;
+    }
+    
+    // Then check for workflow case data (using type assertion for workflow-enhanced assignments)
+    const workflowAssignment = assignment as any;
+    if (workflowAssignment.workflowCase) {
+      return {
+        _id: workflowAssignment.workflowCase._id || workflowAssignment.workflowCase.id || '',
+        title: workflowAssignment.workflowCase.title || '',
+        category: workflowAssignment.workflowCase.category || '',
+        status: workflowAssignment.workflowCase.status || '',
+        caseNumber: workflowAssignment.workflowCase.caseNumber || '',
+        subcategory: workflowAssignment.workflowCase.subcategory || '',
+        priority: workflowAssignment.workflowCase.priority || '',
+        description: workflowAssignment.workflowCase.description || ''
+      };
+    }
+    
+    return null;
   };
 
   const formatDate = (dateString?: string): string => {
@@ -307,11 +327,21 @@ const ResponseView: React.FC = () => {
       existingFormNumber: assignmentData.formNumber
     });
     
-    // Extract form number from workflowFormCaseIds using formCaseIdGenerated
+    // Extract form number from multiple workflow sources
     // ALWAYS prioritize workflow data over existing formNumber when enhanced with workflow
     let formNumber = null;
     
-    if (assignmentData.workflowFormCaseIds && assignmentData.formCaseIdGenerated && assignmentData.enhancedWithWorkflow) {
+    // First try to get form number from workflowQuestionnaireAssignment
+    if (assignmentData.workflowQuestionnaireAssignment && assignmentData.workflowQuestionnaireAssignment.formNumber) {
+      formNumber = assignmentData.workflowQuestionnaireAssignment.formNumber;
+      console.log('🔍 DEBUG: Found form number in workflowQuestionnaireAssignment:', {
+        formNumber,
+        source: 'workflowQuestionnaireAssignment'
+      });
+    }
+    
+    // Then try workflowFormCaseIds mapping if not found
+    if (!formNumber && assignmentData.workflowFormCaseIds && assignmentData.formCaseIdGenerated && assignmentData.enhancedWithWorkflow) {
       // Find the form number that maps to the current formCaseIdGenerated
       formNumber = Object.keys(assignmentData.workflowFormCaseIds).find(key => 
         assignmentData.workflowFormCaseIds[key] === assignmentData.formCaseIdGenerated
@@ -320,7 +350,7 @@ const ResponseView: React.FC = () => {
         formCaseIdGenerated: assignmentData.formCaseIdGenerated,
         workflowFormCaseIds: assignmentData.workflowFormCaseIds,
         extractedFormNumber: formNumber,
-        source: 'workflow'
+        source: 'workflowFormCaseIds'
       });
     }
     
