@@ -93,10 +93,20 @@ const TasksPage = () => {
 
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
+        console.log('🔍 Raw workflow data from API:', workflows);
         const clientsMap = new Map<string, Client>();
         const casesArray: Case[] = [];
         
         workflows.forEach((workflow: any) => {
+          console.log('📋 Processing workflow:', {
+            id: workflow._id,
+            client: workflow.client,
+            case: workflow.case,
+            formCaseIds: workflow.case?.formCaseIds,
+            hasFormCaseIds: !!(workflow.case?.formCaseIds && Object.keys(workflow.case.formCaseIds).length > 0),
+            workflowStructure: JSON.stringify(workflow, null, 2) // Show full structure
+          });
+          
           const clientData = workflow.client;
           const caseData = workflow.case;
           
@@ -120,6 +130,7 @@ const TasksPage = () => {
             // Extract case numbers from formCaseIds
             if (caseData && caseData.formCaseIds) {
               // formCaseIds is an object like { "G-1566": "CR-2025-0373" }
+              console.log('📊 Processing formCaseIds for workflow:', workflow._id, caseData.formCaseIds);
               Object.entries(caseData.formCaseIds).forEach(([formNumber, caseNumber]: [string, any]) => {
                 const caseItem: Case = {
                   id: `${workflow._id}_${formNumber}`, // Unique ID combining workflow and form number
@@ -131,6 +142,7 @@ const TasksPage = () => {
                   priorityDate: caseData.priorityDate || workflow.createdAt || ''
                 };
                 
+                console.log('➕ Adding case:', caseItem);
                 casesArray.push(caseItem);
                 
                 // Add case to client's cases array
@@ -139,11 +151,19 @@ const TasksPage = () => {
                   client.cases.push(caseItem);
                 }
               });
-            } else if (caseData) {
-              // Fallback: if no formCaseIds, create a generic case
+            } else if (caseData && (caseData.caseNumber || caseData.receiptNumber)) {
+              // Alternative: Check for direct case number fields
+              console.log('📋 Found direct case number field:', {
+                caseNumber: caseData.caseNumber,
+                receiptNumber: caseData.receiptNumber,
+                caseId: caseData.caseId
+              });
+              
+              const actualCaseNumber = caseData.caseNumber || caseData.receiptNumber || `CASE-${workflow._id?.slice(-8)}`;
+              
               const caseItem: Case = {
                 id: workflow._id || workflow.id,
-                caseNumber: `WF-${workflow.workflowId || workflow._id?.slice(-8) || 'UNKNOWN'}`,
+                caseNumber: actualCaseNumber,
                 clientId: clientId,
                 category: caseData.category || '',
                 subcategory: caseData.subcategory || '',
@@ -151,6 +171,50 @@ const TasksPage = () => {
                 priorityDate: caseData.priorityDate || workflow.createdAt || ''
               };
               
+              console.log('➕ Adding direct case:', caseItem);
+              casesArray.push(caseItem);
+              
+              // Add case to client's cases array
+              const client = clientsMap.get(clientId);
+              if (client && client.cases) {
+                client.cases.push(caseItem);
+              }
+            } else if (caseData) {
+              // Fallback: if no formCaseIds, create a generic case
+              console.log('⚠️ No formCaseIds found, using fallback for workflow:', workflow._id);
+              console.log('📄 Available case data:', caseData);
+              
+              // Generate a better case number based on available data
+              const workflowIdShort = workflow._id?.slice(-8) || 'UNKNOWN';
+              const currentYear = new Date().getFullYear();
+              let caseNumber;
+              
+              // Try to create a more meaningful case number
+              if (caseData.category) {
+                const categoryCode = caseData.category.substring(0, 3).toUpperCase();
+                caseNumber = `${categoryCode}-${currentYear}-${workflowIdShort}`;
+              } else {
+                caseNumber = `WF-${currentYear}-${workflowIdShort}`;
+              }
+              
+              // Normalize category names
+              const normalizeCategory = (cat: string) => {
+                return cat.split('-').map(word => 
+                  word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                ).join(' ');
+              };
+              
+              const caseItem: Case = {
+                id: workflow._id || workflow.id,
+                caseNumber: caseNumber,
+                clientId: clientId,
+                category: caseData.category ? normalizeCategory(caseData.category) : '',
+                subcategory: caseData.subcategory ? normalizeCategory(caseData.subcategory) : '',
+                openDate: workflow.createdAt || '',
+                priorityDate: caseData.priorityDate || workflow.createdAt || ''
+              };
+              
+              console.log('➕ Adding improved fallback case:', caseItem);
               casesArray.push(caseItem);
               
               // Add case to client's cases array
@@ -269,6 +333,7 @@ const TasksPage = () => {
       // Fetch actual tasks from API
       try {
         const tasksFromAPI = await getTasks();
+        console.log("✅ Tasks fetched from API:", tasksFromAPI);
         setTasks(tasksFromAPI);
       } catch (error) {
         console.error('❌ Error fetching tasks:', error);
@@ -316,15 +381,6 @@ const TasksPage = () => {
       return client ? client.name : 'Unknown Client';
     }
     return '';
-  };
-
-  // Get user name for assignment
-  const getUserNameForTask = (assignedTo: string | User | any) => {
-    // Handle both object format (from API) and string format (from form)
-    if (typeof assignedTo === 'object' && assignedTo) {
-      return `${assignedTo.firstName} ${assignedTo.lastName}`;
-    }
-    return assignedTo || 'Unassigned';
   };
 
   // Handle new task form submission
@@ -557,12 +613,7 @@ const TasksPage = () => {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Due Date
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Assigned To
-                </th>
-                <th scope="col" className="relative px-6 py-3">
-                  <span className="sr-only">Actions</span>
-                </th>
+               
               </tr>
             </thead>
             {filteredTasks.length > 0 && (
@@ -625,14 +676,7 @@ const TasksPage = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {getUserNameForTask(task.assignedTo)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-gray-400 hover:text-gray-500">
-                          <MoreVertical size={18} />
-                        </button>
-                      </td>
+                    
                     </tr>
                   );
                 })}
@@ -788,6 +832,8 @@ const TasksPage = () => {
                               const displayText = formNumber 
                                 ? `${caseItem.caseNumber} (${formNumber}) - ${caseItem.category || caseItem.subcategory || 'General'}`
                                 : `${caseItem.caseNumber} - ${caseItem.category || caseItem.subcategory || 'General'}`;
+                              
+                            
                               
                               return (
                                 <option key={caseItem.id} value={caseItem.id}>
