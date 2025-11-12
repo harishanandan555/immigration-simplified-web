@@ -45,7 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
     { name: 'Tasks', href: '/tasks', icon: CheckSquare, visible: !isClient || isSuperAdmin },
     { name: 'Calendar', href: '/calendar', icon: Calendar, visible: isAttorney || isParalegal || isSuperAdmin },
     { name: 'Reports', href: '/reports', icon: BarChart, visible: isAttorney || isParalegal || isSuperAdmin },
-    { name: 'Settings', href: '/settings', icon: Settings, visible: isAttorney || isParalegal || isSuperAdmin }
+    { name: 'Settings', href: '/settings', icon: Settings, visible: isAttorney || isParalegal || isSuperAdmin || (isClient && user?.userType === 'individualUser') }
   ];
 
   const isActive = (path: string): boolean => {
