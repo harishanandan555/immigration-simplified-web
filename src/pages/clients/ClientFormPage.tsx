@@ -129,8 +129,41 @@ const ClientFormPage = () => {
       return;
     }
 
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      setError('Please enter a valid email address.');
+      setSaving(false);
+      return;
+    }
+
     if (!formData.address.street.trim() || !formData.address.city.trim() || !formData.address.state.trim() || !formData.address.zipCode.trim()) {
       setError('Complete address information is required.');
+      setSaving(false);
+      return;
+    }
+
+    // Validate required immigration fields
+    if (!formData.dateOfBirth) {
+      setError('Date of birth is required.');
+      setSaving(false);
+      return;
+    }
+
+    if (!formData.nationality.trim()) {
+      setError('Nationality is required.');
+      setSaving(false);
+      return;
+    }
+
+    if (!formData.alienRegistrationNumber.trim()) {
+      setError('Alien Registration Number is required.');
+      setSaving(false);
+      return;
+    }
+
+    if (!formData.passportNumber.trim()) {
+      setError('Passport Number is required.');
       setSaving(false);
       return;
     }
@@ -142,21 +175,33 @@ const ClientFormPage = () => {
         throw new Error('Attorney company ID not found. Please ensure you are logged in as an attorney.');
       }
 
-      // Get current user data for attorneyIds
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const attorneyIds = currentUser._id ? [currentUser._id] : [];
+      // Get current user data for attorneyIds with error handling
+      let currentUser;
+      try {
+        currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      } catch (parseError) {
+        throw new Error('Unable to retrieve user information. Please try logging in again.');
+      }
+      
+      const attorneyId = currentUser._id || '';
+      if (!attorneyId) {
+        throw new Error('Attorney ID not found. Please ensure you are logged in properly.');
+      }
 
       // Prepare client data for createCompanyClient
       const clientData = {
         ...formData,
         name: `${formData.firstName} ${formData.lastName}`, // Auto-generated name
         companyId: attorneyCompanyId,
-        attorneyIds: attorneyIds,
+        attorneyIds: attorneyId, // Single attorney ID as string
         sendPassword: true, // Send password to client
         password: 'TempPassword123!' // Temporary password - should be generated or set by user
       };
 
       await createCompanyClient(clientData);
+      
+      // Reset saving state and navigate on success
+      setSaving(false);
       navigate('/clients');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save client. Please try again.');

@@ -62,12 +62,7 @@ const ClientDetailsPage = () => {
 
         console.log("Response", workflowResponse);
         
-        console.log('📊 getWorkflowsByClient response:', {
-          success: workflowResponse.success,
-          count: workflowResponse.count,
-          dataLength: workflowResponse.data?.length,
-          hasError: !!workflowResponse.error
-        });
+      
         
         if (workflowResponse.success && workflowResponse.data && workflowResponse.data.length > 0) {
           workflows = workflowResponse.data;
@@ -330,8 +325,10 @@ const ClientDetailsPage = () => {
         // Enhanced case number extraction using the detailed workflow data
         let caseNumber = 'No Case Number';
         
-        // Clean formCaseIds to remove Mongoose metadata
+        // Enhanced formCaseIds extraction from multiple sources
         const cleanFormCaseIds: Record<string, string> = {};
+        
+        // Method 1: Traditional formCaseIds object (legacy structure)
         if (workflow.formCaseIds && typeof workflow.formCaseIds === 'object') {
           Object.keys(workflow.formCaseIds).forEach(key => {
             // Skip Mongoose internal properties
@@ -341,13 +338,27 @@ const ClientDetailsPage = () => {
           });
         }
         
+        // Method 2: Extract from formNumber and questionnaireAssignment (new structure)
+        if (workflow.formNumber && workflow.questionnaireAssignment?.formCaseIdGenerated) {
+          cleanFormCaseIds[workflow.formNumber] = workflow.questionnaireAssignment.formCaseIdGenerated;
+        }
+        
+        // Method 3: Extract from formNumber and case.caseNumber (fallback)
+        if (workflow.formNumber && workflow.case?.caseNumber && !cleanFormCaseIds[workflow.formNumber]) {
+          cleanFormCaseIds[workflow.formNumber] = workflow.case.caseNumber;
+        }
+        
         // Priority 1: Case object case number
         if (workflow.case?.caseNumber) {
           caseNumber = workflow.case.caseNumber;
         }
-        // Priority 2: Form case IDs (common forms)
+        // Priority 2: Form case IDs from questionnaire assignment
+        else if (workflow.questionnaireAssignment?.formCaseIdGenerated) {
+          caseNumber = workflow.questionnaireAssignment.formCaseIdGenerated;
+        }
+        // Priority 3: Form case IDs (common forms)
         else if (Object.keys(cleanFormCaseIds).length > 0) {
-          const commonForms = ['I-485', 'I-130', 'I-765', 'I-131', 'N-400'];
+          const commonForms = ['I-485', 'I-130', 'I-765', 'I-131', 'N-400', 'G-884'];
           for (const form of commonForms) {
             if (cleanFormCaseIds[form]) {
               caseNumber = cleanFormCaseIds[form];
@@ -367,9 +378,33 @@ const ClientDetailsPage = () => {
           title = workflow.case.title;
         } else if (workflow.title) {
           title = workflow.title;
+        } else if (workflow.formNumber) {
+          title = `${workflow.formNumber} Application`;
         } else if (workflow.selectedForms && workflow.selectedForms.length > 0) {
           title = `${workflow.selectedForms.join(', ')} Application`;
         }
+        
+        // Enhanced selectedForms array construction
+        const enhancedSelectedForms = [];
+        if (workflow.selectedForms && workflow.selectedForms.length > 0) {
+          enhancedSelectedForms.push(...workflow.selectedForms);
+        }
+        if (workflow.formNumber && !enhancedSelectedForms.includes(workflow.formNumber)) {
+          enhancedSelectedForms.push(workflow.formNumber);
+        }
+        
+        // Debug logging for enhanced form processing
+        console.log('🔍 Enhanced Workflow Processing:', {
+          workflowId: workflow.workflowId || workflow._id,
+          originalFormCaseIds: workflow.formCaseIds,
+          originalSelectedForms: workflow.selectedForms,
+          formNumber: workflow.formNumber,
+          questionnaireFormCaseId: workflow.questionnaireAssignment?.formCaseIdGenerated,
+          caseNumber: workflow.case?.caseNumber,
+          enhancedFormCaseIds: cleanFormCaseIds,
+          enhancedSelectedForms,
+          finalCaseNumber: caseNumber
+        });
         
         return {
           ...workflow,
@@ -378,8 +413,9 @@ const ClientDetailsPage = () => {
           caseNumber,
           title,
           status: workflow.status || 'unknown',
-          formCaseIds: cleanFormCaseIds, // Use cleaned object
-          selectedForms: workflow.selectedForms || [],
+          formCaseIds: cleanFormCaseIds, // Use enhanced cleaned object
+          selectedForms: enhancedSelectedForms, // Use enhanced forms array
+          formNumber: workflow.formNumber, // Preserve original formNumber
           currentStep: workflow.currentStep || 0,
           createdAt: workflow.createdAt || new Date().toISOString(),
           updatedAt: workflow.updatedAt || new Date().toISOString(),
