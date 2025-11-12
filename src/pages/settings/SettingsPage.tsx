@@ -1316,9 +1316,11 @@ const SettingsPage = () => {
             }
             break;
           case 'organization':
-            data = await getOrganization(user._id);
-            if (data?.data) {
-              setOrganizationData(data.data.value);
+            if (user?.userType !== 'individualUser') {
+              data = await getOrganization(user._id);
+              if (data?.data) {
+                setOrganizationData(data.data.value);
+              }
             }
             break;
           case 'notifications':
@@ -1334,15 +1336,19 @@ const SettingsPage = () => {
             }
             break;
           case 'email':
-            data = await getEmailSettings(user._id);
-            if (data?.data) {
-              setEmailData(data.data.value);
+            if (user?.userType !== 'individualUser') {
+              data = await getEmailSettings(user._id);
+              if (data?.data) {
+                setEmailData(data.data.value);
+              }
             }
             break;
           case 'integrations':
-            data = await getIntegrations(user._id);
-            if (data?.data) {
-              setIntegrationData(data.data.value);
+            if (user?.userType !== 'individualUser') {
+              data = await getIntegrations(user._id);
+              if (data?.data) {
+                setIntegrationData(data.data.value);
+              }
             }
             break;
           case 'billing':
@@ -1515,6 +1521,13 @@ const SettingsPage = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Redirect individualUser away from hidden tabs
+  useEffect(() => {
+    if (user?.userType === 'individualUser' && ['organization', 'email', 'integrations'].includes(activeTab)) {
+      setActiveTab('profile');
+    }
+  }, [user?.userType, activeTab]);
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -1994,9 +2007,11 @@ const SettingsPage = () => {
               }
               break;
             case 'organization':
-              data = await getOrganization(user._id);
-              if (data?.data) {
-                setOrganizationData(data.data.value);
+              if (user?.userType !== 'individualUser') {
+                data = await getOrganization(user._id);
+                if (data?.data) {
+                  setOrganizationData(data.data.value);
+                }
               }
               break;
             case 'notifications':
@@ -2012,15 +2027,19 @@ const SettingsPage = () => {
               }
               break;
             case 'email':
-              data = await getEmailSettings(user._id);
-              if (data?.data) {
-                setEmailData(data.data.value);
+              if (user?.userType !== 'individualUser') {
+                data = await getEmailSettings(user._id);
+                if (data?.data) {
+                  setEmailData(data.data.value);
+                }
               }
               break;
             case 'integrations':
-              data = await getIntegrations(user._id);
-              if (data?.data) {
-                setIntegrationData(data.data.value);
+              if (user?.userType !== 'individualUser') {
+                data = await getIntegrations(user._id);
+                if (data?.data) {
+                  setIntegrationData(data.data.value);
+                }
               }
               break;
             case 'billing':
@@ -2204,7 +2223,9 @@ const SettingsPage = () => {
           await updateProfile(user._id, profileData);
           break;
         case 'organization':
-          await updateOrganization(user._id, organizationData);
+          if (user?.userType !== 'individualUser') {
+            await updateOrganization(user._id, organizationData);
+          }
           break;
         case 'notifications':
           await updateNotifications(user._id, notificationData);
@@ -2213,10 +2234,14 @@ const SettingsPage = () => {
           await updateSecurity(user._id, securityData);
           break;
         case 'email':
-          await updateEmailSettings(user._id, emailData);
+          if (user?.userType !== 'individualUser') {
+            await updateEmailSettings(user._id, emailData);
+          }
           break;
         case 'integrations':
-          await updateIntegrations(user._id, integrationData);
+          if (user?.userType !== 'individualUser') {
+            await updateIntegrations(user._id, integrationData);
+          }
           break;
         case 'billing':
           await updateBilling(user._id, billingData);
@@ -5113,6 +5138,10 @@ const SettingsPage = () => {
         <nav className="space-y-1">
           {navigationItems
             .filter(item => {
+              // Hide organization, email, and integrations for individualUser
+              if (user?.userType === 'individualUser' && ['organization', 'email', 'integrations'].includes(item.id)) {
+                return false;
+              }
               if (isSuperAdmin) return true;
               if (isAttorney) return !item.adminOnly || item.attorneyAllowed;
               return !item.adminOnly && !item.attorneyAllowed;
@@ -5246,7 +5275,7 @@ const SettingsPage = () => {
             )}
 
             {/* Organization Settings */}
-            {activeTab === 'organization' && (
+            {activeTab === 'organization' && user?.userType !== 'individualUser' && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Organization Settings</h2>
@@ -5432,7 +5461,7 @@ const SettingsPage = () => {
             {activeTab === 'security' && renderSecuritySection()}
 
             {/* Email Settings */}
-            {activeTab === 'email' && (
+            {activeTab === 'email' && user?.userType !== 'individualUser' && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Email Settings</h2>
@@ -5494,7 +5523,7 @@ const SettingsPage = () => {
             )}
 
             {/* Integrations Settings */}
-            {activeTab === 'integrations' && (
+            {activeTab === 'integrations' && user?.userType !== 'individualUser' && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Integrations</h2>
