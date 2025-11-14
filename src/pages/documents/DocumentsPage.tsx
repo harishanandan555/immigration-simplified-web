@@ -312,9 +312,7 @@ const DocumentsPage = () => {
 
         // For individual users and company clients, fetch only their documents
         if (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient') && user.id) {
-          console.log(`Fetching documents for ${user.userType}:`, user.id);
-          console.log('User email:', user.email);
-          console.log('User _id:', user._id);
+        
           setLoadingDocuments(true);
           // For company clients, we need to ensure we're using the correct identifier
           // Try multiple possible user identifiers to ensure we get the right documents
@@ -694,9 +692,39 @@ const DocumentsPage = () => {
 
 
       if (response.data?.success) {
-        // Add the new document to the list
+        // Add the new document to the list and process it like other documents
         if (response.data.data) {
-          setDocuments([response.data.data, ...documents]);
+          const newDocument = response.data.data;
+          
+          // Process the new document with the same formatting as other documents
+          const processedNewDocument = {
+            ...newDocument,
+            sizeFormatted: formatFileSize(newDocument.size || 0),
+            uploadedAt: formatDate(newDocument.uploadedAt || newDocument.createdAt),
+            uploadedBy: newDocument.uploadedBy || 'Unknown User',
+            // Ensure all required fields are present for filtering
+            type: newDocument.type || uploadDocType,
+            status: newDocument.status || 'Pending Review',
+            caseNumber: newDocument.caseNumber || uploadCaseNumber || '',
+            clientId: newDocument.clientId || effectiveClientId,
+            name: newDocument.name || (fileToUpload ? fileToUpload.name : 'Unknown Document')
+          };
+          
+          // Add to the beginning of the documents list
+          setDocuments(prevDocuments => {
+            const newList = [processedNewDocument, ...prevDocuments];
+            console.log('📋 Updated documents list:', {
+              totalDocuments: newList.length,
+              newDocument: processedNewDocument.name,
+              newDocumentId: processedNewDocument._id
+            });
+            return newList;
+          });
+          
+          console.log('✅ Document uploaded and added to list:', processedNewDocument.name);
+          
+          // Show success message
+          alert(`✅ Document "${processedNewDocument.name}" uploaded successfully!`);
         }
         setShowUploadModal(false);
         // Reset form
@@ -783,10 +811,38 @@ const DocumentsPage = () => {
 
   const handleDownload = async (documentId: string, documentName: string) => {
     try {
+      console.log('📥 Starting download for document:', { documentId, documentName });
+      
+      // Show loading state (optional - you could add a loading indicator)
+      const downloadButton = document.querySelector(`[data-download-id="${documentId}"]`);
+      if (downloadButton) {
+        downloadButton.textContent = 'Downloading...';
+      }
+      
       await downloadDocument(documentId, documentName);
-    } catch (error) {
-      console.error('Failed to download document', error);
-      console.error('An error occurred while downloading the document.');
+      
+      console.log('✅ Download completed successfully');
+      
+    } catch (error: any) {
+      console.error('❌ Download failed:', error);
+      
+      // Show user-friendly error message based on error type
+      if (error.message?.includes('404') || error.message?.includes('not found')) {
+        alert('Document not found. It may have been deleted or moved.');
+      } else if (error.message?.includes('403') || error.message?.includes('permission')) {
+        alert('You do not have permission to download this document.');
+      } else if (error.message?.includes('network') || error.message?.includes('connection')) {
+        alert('Network error. Please check your connection and try again.');
+      } else {
+        alert(`Failed to download document: ${error.message || 'Unknown error'}`);
+      }
+      
+    } finally {
+      // Reset button text
+      const downloadButton = document.querySelector(`[data-download-id="${documentId}"]`);
+      if (downloadButton) {
+        downloadButton.textContent = '';
+      }
     }
   };
 
@@ -1025,7 +1081,12 @@ const DocumentsPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button onClick={() => handleDownload(doc._id, doc.name)} className="text-gray-400 hover:text-gray-500">
+                      <button 
+                        onClick={() => handleDownload(doc._id, doc.name)} 
+                        className="text-gray-400 hover:text-gray-500 flex items-center"
+                        data-download-id={doc._id}
+                        title="Download document"
+                      >
                         <Download size={18} />
                       </button>
                       {/* Hide delete and admin actions for individual users and company clients */}

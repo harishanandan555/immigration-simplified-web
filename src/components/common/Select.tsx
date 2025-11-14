@@ -66,7 +66,6 @@ const Select: React.FC<SelectProps> = ({
           error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300'
         } ${disabled ? 'bg-gray-100 text-gray-500' : ''}`}
       >
-        <option value="">Select an option</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

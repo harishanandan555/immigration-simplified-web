@@ -3,11 +3,9 @@ import {
   Users, FileText, ClipboardList, Send, Download, CheckCircle,
   ArrowRight, ArrowLeft, User, Briefcase,
   MessageSquare, FileCheck, AlertCircle, Info as InfoIcon,
-  Loader, Loader2, Check, Edit3, Settings, ExternalLink
+  Loader, Loader2, Check, Edit3, 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../utils/api';
-import { AUTH_END_POINTS } from '../utils/constants';
 
 import { validateMongoObjectId, isValidMongoObjectId, generateObjectId } from '../utils/idValidation';
 import {
@@ -5576,18 +5574,15 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   label="Subcategory"
                   value={caseData.subcategory || ''}
                   onChange={e => setCaseData({ ...caseData, subcategory: e.target.value })}
-                  options={[
-                    { value: '', label: 'Select subcategory' },
-                    ...(caseData.category ?
-                      IMMIGRATION_CATEGORIES
-                        .find(cat => cat.id === caseData.category)
-                        ?.subcategories.map(sub => ({
-                          value: sub.id,
-                          label: sub.name
-                        })) || []
-                      : []
-                    )
-                  ]}
+                  options={caseData.category ?
+                    IMMIGRATION_CATEGORIES
+                      .find(cat => cat.id === caseData.category)
+                      ?.subcategories.map(sub => ({
+                        value: sub.id,
+                        label: sub.name
+                      })) || []
+                    : []
+                  }
                   required
                 />
                 <Select
@@ -7394,10 +7389,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                 ...clientResponses,
                                 [fieldId]: e.target.value
                               })}
-                              options={[
-                                { value: '', label: 'Select an option' },
-                                ...fieldOptions.map((opt: any) => ({ value: opt, label: opt }))
-                              ]}
+                              options={fieldOptions.map((opt: any) => ({ value: opt, label: opt }))}
                               className={fieldStatusStyle}
                             />
                           </FieldWrapper>
