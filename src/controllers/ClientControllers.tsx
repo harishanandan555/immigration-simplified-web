@@ -407,7 +407,7 @@ export const getClientById = async (id: string): Promise<Client> => {
 export const createIndividualClient = async (clientData: Omit<Client, '_id' | 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
     try {
         const response = await api.post<Client>(
-            CLIENT_END_POINTS.CREATECLIENT,
+            CLIENT_END_POINTS.CREATEINDIVIDUALCLIENT,
             clientData
         );
 
