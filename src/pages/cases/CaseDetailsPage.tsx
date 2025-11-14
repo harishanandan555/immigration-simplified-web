@@ -712,13 +712,13 @@ const CaseDetailsPage = () => {
               }`}>
                 {caseData.status}
               </span>
-              <Link
+              {/* <Link
                 to={`/cases/${id}/edit`}
                 className="flex items-center px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-gray-50 transition-colors duration-200 font-medium"
               >
                 <Edit size={16} className="mr-2" />
                 Edit Case
-              </Link>
+              </Link> */}
             </div>
           </div>
         </div>
