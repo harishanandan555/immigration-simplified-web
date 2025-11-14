@@ -75,7 +75,7 @@ export const CASE_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'] as const;
 export const CLIENT_END_POINTS = {
     // Main client endpoints
     GETCLIENTS: "/api/v1/clients",
-    CREATECLIENT: "/api/v1/clients",
+    CREATEINDIVIDUALCLIENT: "/api/v1/clients/individual",
     CREATECOMPANYCLIENT: "/api/v1/clients/company",
     GETCLIENTBYID: "/api/v1/clients/:id",
     UPDATECLIENT: "/api/v1/clients/:id",
