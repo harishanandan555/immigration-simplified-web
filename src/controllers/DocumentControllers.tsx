@@ -342,35 +342,112 @@ export const deleteDocument = async (documentId: string): Promise<ApiResponse<nu
 
 export const downloadDocument = async (documentId: string, documentName: string): Promise<void> => {
   if (!IS_DOCUMENT_DOWNLOAD_ENABLED) {
-    throw new Error('Method not enabled');
+    throw new Error('Document download is not enabled');
   }
 
   try {
+    console.log('📥 Requesting document download:', { documentId, documentName });
+    
+    // Request the file directly as a blob (since backend now returns actual file content)
     const response = await api.get(
       DOCUMENT_END_POINTS.DOWNLOADDOCUMENT.replace(':id', documentId),
       {
         responseType: 'blob',
-        timeout: 30000 // 30 second timeout
+        timeout: 60000, // 60 second timeout for large files
+        headers: {
+          'Accept': 'application/octet-stream, */*'
+        }
       }
     );
 
-    const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
-    const url = window.URL.createObjectURL(blob);
+    console.log('✅ Download blob response received:', {
+      status: response.status,
+      contentType: response.headers['content-type'],
+      contentLength: response.headers['content-length'] || response.data?.size
+    });
+
+    // Check if we actually got a blob
+    if (!response.data || response.data.size === 0) {
+      throw new Error('Downloaded file is empty or invalid');
+    }
+
+    // Since backend now returns actual file content directly as blob, we can use it directly
+    const fileBlob = response.data;
+    console.log('✅ File blob received:', {
+      size: fileBlob.size,
+      type: fileBlob.type
+    });
+
+    // Extract filename from Content-Disposition header if available
+    const contentDisposition = response.headers['content-disposition'];
+    let finalFileName = documentName;
+    
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (filenameMatch && filenameMatch[1]) {
+        finalFileName = filenameMatch[1].replace(/['"]/g, '');
+      }
+    }
+
+    // Check if file is valid
+    if (!fileBlob || fileBlob.size === 0) {
+      throw new Error('Downloaded file is empty or invalid');
+    }
+
+    // Sanitize filename and ensure it has an extension
+    if (!finalFileName.includes('.')) {
+      // Try to determine extension from blob mime type
+      const extension = fileBlob.type?.includes('pdf') ? '.pdf' : 
+                       fileBlob.type?.includes('image') ? '.jpg' :
+                       fileBlob.type?.includes('text') ? '.txt' : '';
+      finalFileName = `${finalFileName}${extension}`;
+    }
+
+    // Create download link
+    const url = window.URL.createObjectURL(fileBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = documentName;
+    
+    a.download = finalFileName;
+    a.style.display = 'none';
+    
+    // Trigger download
     document.body.appendChild(a);
     a.click();
-    a.remove();
+    
+    // Cleanup
+    document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
     
-
-  } catch (error) {
+    console.log('✅ Document download triggered successfully');
+    
+  } catch (error: any) {
     console.error('❌ Download failed:', error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to download document: ${error.message}`);
+    
+    // Enhance error messages
+    if (error.response) {
+      const status = error.response.status;
+      const message = error.response.data?.message || error.response.statusText;
+      
+      switch (status) {
+        case 404:
+          throw new Error('Document not found. It may have been deleted or moved.');
+        case 403:
+          throw new Error('You do not have permission to download this document.');
+        case 401:
+          throw new Error('Authentication required. Please log in again.');
+        case 500:
+          throw new Error('Server error occurred while downloading the document.');
+        default:
+          throw new Error(`Download failed (${status}): ${message}`);
+      }
+    } else if (error.code === 'NETWORK_ERROR' || error.message?.includes('network')) {
+      throw new Error('Network error. Please check your connection and try again.');
+    } else if (error.code === 'TIMEOUT_ERROR' || error.message?.includes('timeout')) {
+      throw new Error('Download timed out. The file may be too large or the connection is slow.');
+    } else {
+      throw new Error(`Failed to download document: ${error.message || 'Unknown error'}`);
     }
-    throw new Error('Failed to download document due to an unknown error');
   }
 };
 

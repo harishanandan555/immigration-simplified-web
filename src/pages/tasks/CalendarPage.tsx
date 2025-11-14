@@ -402,12 +402,10 @@ const CalendarPage = () => {
               {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'No date selected'}
             </h2>
             {selectedDate && (
-              <button
-                onClick={() => setShowNewTaskModal(true)}
-                className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-              >
-                + Add Task
-              </button>
+              <Link to ="/tasks"
+              className="flex items-center gap-1 border border-blue-300 hover:bg-gray-50 text-black-800 py-2 px-4 rounded-md transition-colors">
+               <span>Add Tasks +</span>
+              </Link>
             )}
           </div>
 
