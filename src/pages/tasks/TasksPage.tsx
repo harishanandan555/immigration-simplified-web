@@ -7,9 +7,9 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  MoreVertical,
   ArrowUpDown
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { getUsers, User } from '../../controllers/ClientControllers';
 import { getTasks, createTask, Task } from '../../controllers/TaskControllers';
@@ -52,6 +52,11 @@ const TasksPage = () => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Innovative UI states
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [lastCreatedTask, setLastCreatedTask] = useState<any>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  
   // New task form state
   const [newTask, setNewTask] = useState({
     title: '',
@@ -93,7 +98,6 @@ const TasksPage = () => {
 
       if (response.data?.success && response.data?.data) {
         const workflows = response.data.data;
-        console.log('🔍 Raw workflow data from API:', workflows);
         const clientsMap = new Map<string, Client>();
         const casesArray: Case[] = [];
         
@@ -130,7 +134,6 @@ const TasksPage = () => {
             // Extract case numbers from formCaseIds
             if (caseData && caseData.formCaseIds) {
               // formCaseIds is an object like { "G-1566": "CR-2025-0373" }
-              console.log('📊 Processing formCaseIds for workflow:', workflow._id, caseData.formCaseIds);
               Object.entries(caseData.formCaseIds).forEach(([formNumber, caseNumber]: [string, any]) => {
                 const caseItem: Case = {
                   id: `${workflow._id}_${formNumber}`, // Unique ID combining workflow and form number
@@ -254,30 +257,17 @@ const TasksPage = () => {
       
       try {
         // Get all users from the new client users endpoint
-        console.log('🔄 Fetching users from /api/v1/clients/users/all...');
         const response = await api.get('/api/v1/clients/users/all');
         allUsers = response.data?.users || response.data || [];
         setAllUsers(allUsers);
         
-        console.log('📊 Users fetched from client users API:', {
-          total: allUsers.length,
-          success: response.status === 200,
-          byRole: allUsers.reduce((acc: any, user: User) => {
-            acc[user.role] = (acc[user.role] || 0) + 1;
-            return acc;
-          }, {})
-        });
-        
+       
         // Filter users by role to get assignable users (attorneys and paralegals)
         const assignableUsers = allUsers.filter((user: User) => 
           user.role === 'attorney' || user.role === 'paralegal' || user.role === 'admin' || user.role === 'super_admin'
         );
         
-        console.log('👥 Assignable users found:', {
-          count: assignableUsers.length,
-          users: assignableUsers.map(u => ({ name: `${u.firstName} ${u.lastName}`, role: u.role, email: u.email }))
-        });
-        
+     
         setUsers(assignableUsers);
         
       } catch (error) {
@@ -389,29 +379,36 @@ const TasksPage = () => {
       
       // Validate required fields
       if (!newTask.title.trim()) {
-        console.error('Please enter a task title');
+        toast.error('Please enter a task title');
+        setIsCreating(false);
         return;
       }
       
       if (!newTask.clientId || !newTask.clientName) {
-        console.error('Please select a client');
+        toast.error('Please select a client');
+        setIsCreating(false);
         return;
       }
       
       if (!newTask.caseId) {
-        console.error('Please select a case');
+        toast.error('Please select a case');
+        setIsCreating(false);
         return;
       }
       
       if (!newTask.dueDate) {
-        console.error('Please select a due date');
+        toast.error('Please select a due date');
+        setIsCreating(false);
         return;
       }
       
       if (!newTask.assignedTo) {
-        console.error('Please assign the task to someone');
+        toast.error('Please assign the task to someone');
+        setIsCreating(false);
         return;
       }
+      
+      setIsCreating(true);
       
       // Find the selected case to get proper case number and form type
       const selectedCase = cases.find((c: any) => c.id === newTask.caseId);
@@ -445,8 +442,43 @@ const TasksPage = () => {
         reminders: newTask.reminders || []
       };
       
-      
       await createTask(taskData);
+      
+      // Store created task for preview and trigger success animation
+      setLastCreatedTask({
+        ...newTask,
+        selectedCase,
+        priority: newTask.priority
+      });
+      
+      // Show success animations
+      setShowSuccessAnimation(true);
+      
+      // Enhanced toast with rich content
+      toast.success(
+        <div className="flex items-center space-x-3">
+          <div className="flex-shrink-0">
+            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+          <div>
+            <p className="font-medium text-gray-900">Task Created Successfully! 🎉</p>
+            <p className="text-sm text-gray-600">
+              "{newTask.title}" assigned to {newTask.assignedTo}
+            </p>
+          </div>
+        </div>,
+        { 
+          duration: 5000,
+          style: {
+            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            border: '1px solid #0ea5e9',
+            borderRadius: '12px',
+            padding: '16px'
+          }
+        }
+      );
       
       // Reset form and close modal
       setNewTask({
@@ -464,11 +496,19 @@ const TasksPage = () => {
       });
       setShowNewTaskModal(false);
       
+      // Hide animations after delay
+      setTimeout(() => {
+        setShowSuccessAnimation(false);
+        setLastCreatedTask(null);
+      }, 4000);
+      
       // Reload tasks to show the new one
       await loadData();
     } catch (error) {
       console.error('Error creating task:', error);
-      console.error('Failed to create task. Please try again.');
+      toast.error('Failed to create task. Please try again.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -518,7 +558,45 @@ const TasksPage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <>
+      {/* Custom styles for animations */}
+      <style>{`
+        @keyframes slideUpBounce {
+          0% {
+            transform: translateY(100px);
+            opacity: 0;
+          }
+          60% {
+            transform: translateY(-10px);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-up-bounce {
+          animation: slideUpBounce 0.6s ease-out;
+        }
+        
+        @keyframes confetti {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-100vh) rotate(720deg);
+            opacity: 0;
+          }
+        }
+        
+        .animate-confetti {
+          animation: confetti 3s ease-out infinite;
+        }
+      `}</style>
+      
+      <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Tasks</h1>
@@ -585,7 +663,7 @@ const TasksPage = () => {
 
             <button className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-md transition-colors">
               <ArrowUpDown size={16} />
-              <span>Sort</span>
+              <span>Sort</span>  {/* NOT WORKING YET */}
             </button>
           </div>
         </div>
@@ -782,9 +860,9 @@ const TasksPage = () => {
                             </option>
                           ))}
                         </select>
-                        <p className="mt-1 text-xs text-gray-400">
+                        {/* <p className="mt-1 text-xs text-gray-400">
                           Workflow clients: {clients.length} | With ims_user mapping: {clients.filter(c => c.hasImsUser).length} | Cases: {cases.length}
-                        </p>
+                        </p> */}
                         {/* {clients.length > 0 && (
                           <p className="mt-1 text-xs text-blue-600">
                             Clients: {clients.map(c => c.name).join(', ')}
@@ -842,15 +920,7 @@ const TasksPage = () => {
                               );
                             })}
                         </select>
-                        {newTask.clientId && (
-                          <div className="mt-1 text-sm text-gray-500">
-                            <p>Selected Client: {newTask.clientName}</p>
-                            <p className="text-xs">Available cases for this client: {cases.filter(c => {
-                              const selectedClient = clients.find(cl => cl._id === newTask.clientId);
-                              return selectedClient && c.clientId === selectedClient.id;
-                            }).length}</p>
-                          </div>
-                        )}
+                     
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
@@ -905,9 +975,9 @@ const TasksPage = () => {
                             </option>
                           )}
                         </select>
-                        <p className="mt-1 text-xs text-gray-400">
+                        {/* <p className="mt-1 text-xs text-gray-400">
                           Available assignees: {users.length} (attorneys & paralegals)
-                        </p>
+                        </p> */}
                         {/* Debug info */}
                        
                       </div>
@@ -919,9 +989,24 @@ const TasksPage = () => {
                 <button
                   type="button"
                   onClick={handleCreateTask}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  disabled={isCreating}
+                  className={`w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white transition-all duration-200 sm:ml-3 sm:w-auto sm:text-sm ${
+                    isCreating 
+                      ? 'bg-blue-400 cursor-not-allowed transform scale-95' 
+                      : 'bg-primary-600 hover:bg-primary-700 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500'
+                  }`}
                 >
-                  Create Task
+                  {isCreating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Task
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -935,7 +1020,70 @@ const TasksPage = () => {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Confetti Animation */}
+      {showSuccessAnimation && (
+        <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
+          <div className="absolute inset-0 flex items-center justify-center">
+            {/* Confetti particles */}
+            {[...Array(50)].map((_, i) => (
+              <div
+                key={i}
+                className={`absolute w-2 h-2 animate-ping opacity-75 ${
+                  i % 4 === 0 ? 'bg-yellow-400' :
+                  i % 4 === 1 ? 'bg-green-400' :
+                  i % 4 === 2 ? 'bg-blue-400' : 'bg-pink-400'
+                }`}
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 2}s`,
+                  animationDuration: `${1 + Math.random() * 2}s`
+                }}
+              />
+            ))}
+          </div>
+          
+          {/* Success checkmark animation */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="bg-white rounded-full p-6 shadow-2xl border-4 border-green-500 animate-bounce">
+              <div className="text-green-500 text-6xl">✅</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Task Preview Card */}
+      {lastCreatedTask && showSuccessAnimation && (
+        <div className="fixed bottom-4 right-4 z-[90] transform transition-all duration-500 animate-bounce">
+          <div className="bg-white rounded-lg shadow-2xl border border-gray-200 p-4 max-w-sm">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-sm font-semibold text-gray-900">Task Created!</p>
+                </div>
+                <h3 className="font-medium text-gray-900 mb-1">{lastCreatedTask.title}</h3>
+                <p className="text-sm text-gray-600 mb-2">{lastCreatedTask.description || 'No description'}</p>
+                <div className="space-y-1 text-xs text-gray-500">
+                  <p>👤 {lastCreatedTask.assignedTo}</p>
+                  <p>📅 {new Date(lastCreatedTask.dueDate).toLocaleDateString()}</p>
+                  <p>📋 {lastCreatedTask.selectedCase?.caseNumber}</p>
+                </div>
+              </div>
+              <div className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                lastCreatedTask.priority === 'High' ? 'bg-red-100 text-red-700' :
+                lastCreatedTask.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-green-100 text-green-700'
+              }`}>
+                {lastCreatedTask.priority}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+    </>
   );
 };
 
