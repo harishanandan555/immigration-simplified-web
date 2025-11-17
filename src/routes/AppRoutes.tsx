@@ -211,12 +211,16 @@ const AppRoutes = () => {
 
           {/* Tasks and Calendar routes */}
           <Route path="/tasks" element={
-            <Suspense fallback={null}>
-              <TasksPage />
-            </Suspense>
+            (user?.role === 'superadmin' || user?.role === 'attorney' || user?.role === 'paralegal') ? (
+              <Suspense fallback={null}>
+                <TasksPage />
+              </Suspense>
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
           } />
           <Route path="/calendar" element={
-            !(user?.role === 'client' && user?.userType === 'individualUser') ? (
+            (user?.role === 'superadmin' || user?.role === 'attorney' || user?.role === 'paralegal') ? (
               <Suspense fallback={null}>
                 <CalendarPage />
               </Suspense>
