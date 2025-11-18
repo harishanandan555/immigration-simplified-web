@@ -360,231 +360,257 @@ const CasesPage: React.FC = () => {
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Cases</h1>
-          {(loadingWorkflows || loadingRegularCases) && (
-            <p className="text-sm text-blue-600 mt-1">Loading cases...</p>
-          )}
-          
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Section with Gradient Background */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Cases</h1>
+              <p className="text-blue-100 mt-1 text-sm">
+                {(loadingWorkflows || loadingRegularCases) 
+                  ? "Loading cases..." 
+                  : `Manage and track ${casesToDisplay.length} ${casesToDisplay.length === 1 ? 'case' : 'cases'}`}
+              </p>
+            </div>
+            <Link
+              to={getNewCaseLink()}
+              className="flex items-center gap-2 bg-white text-blue-600 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-lg text-sm"
+            >
+              <PlusCircle size={16} />
+              <span>New Case</span>
+            </Link>
+          </div>
         </div>
-        <Link
-          to={getNewCaseLink()}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md transition-colors"
-        >
-          <PlusCircle size={18} />
-          <span>New Case</span>
-        </Link>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-grow">
-            <input
-              type="text"
-              placeholder="Search cases by title, case number, client name, forms..."
-              className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        {/* Search and Filters Card */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+          <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
+            <h2 className="text-base font-semibold text-gray-900">Search & Filters</h2>
           </div>
-          <button className="flex items-center justify-center gap-2 border border-gray-300 rounded-md px-4 py-2 text-gray-600 hover:bg-gray-50">
-            <Filter size={18} />
-            <span>Filters</span>
-          </button>
+          <div className="p-4">
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="relative flex-grow">
+                <input
+                  type="text"
+                  placeholder="Search cases by title, case number, client name, forms..."
+                  className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 transition-colors"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+              </div>
+              <button className="flex items-center justify-center gap-2 border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                <Filter size={16} />
+                <span>Filters</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="w-full">
-          <table className="w-full divide-y divide-gray-200 table-fixed">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="w-1/7 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div 
-                    className="flex items-center gap-1 cursor-pointer"
+        {/* Cases Grid */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <h2 className="text-base font-semibold text-gray-900">Your Cases</h2>
+                <span className="ml-2 bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                  {filteredCases.length} {filteredCases.length === 1 ? 'case' : 'cases'}
+                </span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 text-xs text-gray-500">
+                  <span>Sort by:</span>
+                  <button
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
                     onClick={() => handleSort('caseNumber')}
                   >
-                    <span>Case Number</span>
-                    <ArrowUpDown size={14} />
-                  </div>
-                </th>
-                <th className="w-1/4 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="w-1/6 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div 
-                    className="flex items-center gap-1 cursor-pointer"
-                    onClick={() => handleSort('clientName')}
-                  >
-                    <span>Client</span>
-                    <ArrowUpDown size={14} />
-                  </div>
-                </th>
-                <th className="w-1/7 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div 
-                    className="flex items-center gap-1 cursor-pointer"
-                    onClick={() => handleSort('status')}
-                  >
-                    <span>Status</span>
-                    <ArrowUpDown size={14} />
-                  </div>
-                </th>
-                <th className="w-1/7 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="w-1/7 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div 
-                    className="flex items-center gap-1 cursor-pointer"
+                    Case Number
+                    <ArrowUpDown size={12} />
+                  </button>
+                  <span>•</span>
+                  <button
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
                     onClick={() => handleSort('createdAt')}
                   >
-                    <span>Due Date</span>
-                    <ArrowUpDown size={14} />
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {(loadingWorkflows || loadingRegularCases) ? (
-                <tr>
-                  <td colSpan={6} className="px-3 py-3 text-center text-gray-500">
-                    Loading cases...
-                  </td>
-                </tr>
-              ) : paginatedCases.length > 0 ? (
-                paginatedCases.map((workflowCase) => {
-                  return (
-                    <tr key={workflowCase._id} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-3 py-3 text-sm font-medium text-indigo-600">
-                        <Link to={`/cases/${workflowCase._id}`} className="block">
-                          <div className="font-bold truncate">{workflowCase.caseNumber}</div>
-                          {workflowCase.formCaseIds && Object.keys(workflowCase.formCaseIds).length > 0 && (
-                            <div className="mt-1 space-y-1">
-                              {/* {Object.entries(workflowCase.formCaseIds)
-                                .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
-                                .slice(0, 2) // Limit to first 2 form case IDs to save space
-                                .map(([formName]) => (
-                                <div 
-                                  key={formName}
-                                  className="text-xs font-mono px-1 py-0.5 rounded bg-green-50 text-green-600 truncate"
-                                  title={`${formName}`}
-                                >
-                                  {formName}
-                                </div>
-                              ))} */}
-                              {/* {Object.keys(workflowCase.formCaseIds).length > 2 && (
-                                <div className="text-xs text-gray-500">
-                                  +{Object.keys(workflowCase.formCaseIds).length - 2} more
-                                </div>
-                              )} */}
-                            </div>
-                          )}
-                      
-                        </Link>
-                      </td>
-                      <td className="px-3 py-3 text-sm text-gray-500">
-                        <div className="truncate" title={workflowCase.description}>
-                          {workflowCase.description || 'No description provided'}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-sm text-gray-500">
-                        <div>
-                          <div className="font-medium truncate" title={workflowCase.client.name}>{workflowCase.client.name}</div>
-                          {/* <div className="text-xs text-gray-400 truncate" title={workflowCase.client.email}>{workflowCase.client.email}</div>
-                          {workflowCase.client.phone && (
-                            <div className="text-xs text-gray-400 truncate">{workflowCase.client.phone}</div>
-                          )}
-                          {workflowCase.client.nationality && (
-                            <div className="text-xs text-blue-600 mt-1 truncate">
-                              🌍 {workflowCase.client.nationality}
-                            </div>
-                          )} */}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          workflowCase.status === 'active' || workflowCase.status === 'Active'
-                            ? 'bg-green-100 text-green-800'
-                            : workflowCase.status === 'in-progress'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : workflowCase.status === 'completed'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {workflowCase.status}
-                        </span>
-                        {workflowCase.priority && (
-                          <div className="mt-1">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              workflowCase.priority === 'High' 
-                                ? 'bg-red-100 text-red-800'
-                                : workflowCase.priority === 'Medium'
-                                ? 'bg-orange-100 text-orange-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {workflowCase.priority}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-gray-500">
-                        <div className="capitalize truncate">{workflowCase.category}</div>
-                        {workflowCase.selectedForms.length > 0 && (
-                          <div className="text-xs text-green-600 mt-1 truncate" title={workflowCase.selectedForms.join(', ')}>
-                            Forms: {workflowCase.selectedForms.slice(0, 2).join(', ')}
-                            {workflowCase.selectedForms.length > 2 && ` +${workflowCase.selectedForms.length - 2}`}
-                          </div>
-                        )}
-                      
-                      </td>
-                      <td className="px-3 py-3 text-sm text-gray-500">
-                         {workflowCase.dueDate && (
-                          <div className="text-xs text-orange-600 mt-1">
-                         {new Date(workflowCase.dueDate).toLocaleDateString()}
-                          </div>
-                        )}
-                        </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-3 py-3 text-center text-gray-500">
-                    {user?.userType === 'individualUser' 
-                      ? "You don't have any cases yet. Start your immigration process to create your first case."
-                      : "No workflow cases found matching your search criteria."
-                    }
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        
-        {filteredCases.length > 0 && (
-          <div className="flex justify-between items-center mt-4 py-3">
-            <div className="text-sm text-gray-500">
-              Showing <span className="font-medium">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
-              <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredCases.length)}</span> of{" "}
-              <span className="font-medium">{filteredCases.length}</span> cases
-            </div>
-            <div className="flex space-x-2">
-              <button 
-                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-              >
-                Previous
-              </button>
-              <button className="px-3 py-1 border border-gray-300 rounded text-sm bg-gray-50">
-                {currentPage}
-              </button>
-              <button 
-                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </button>
+                    Date
+                    <ArrowUpDown size={12} />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        )}
+          <div className="p-4">
+            {(loadingWorkflows || loadingRegularCases) ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600 font-medium">Loading cases...</span>
+              </div>
+            ) : paginatedCases.length > 0 ? (
+              <div className="grid gap-3">
+                {paginatedCases.map((workflowCase) => {
+                  return (
+                    <Link
+                      key={workflowCase._id}
+                      to={`/cases/${workflowCase._id}`}
+                      className="block bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-all duration-200 hover:shadow-md border border-gray-200 hover:border-blue-300"
+                    >
+                      <div className="flex items-start justify-between">
+                        {/* Left content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start space-x-3">
+                            {/* Case number and status indicator */}
+                            <div className="flex-shrink-0">
+                              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">
+                                  {workflowCase.caseNumber.split('-')[0] || 'CS'}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* Main case info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <h3 className="text-base font-semibold text-gray-900 mb-1">
+                                    {workflowCase.title}
+                                  </h3>
+                                  <p className="text-xs font-medium text-blue-600 mb-2">
+                                    Case #{workflowCase.caseNumber}
+                                  </p>
+                                  {workflowCase.description && (
+                                    <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                                      {workflowCase.description}
+                                    </p>
+                                  )}
+                                  
+                                  {/* Client info */}
+                                  <div className="flex items-center space-x-3 mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+                                      <span className="text-xs font-medium text-gray-900">
+                                        {workflowCase.client.name}
+                                      </span>
+                                    </div>
+                                    {workflowCase.client.email && (
+                                      <span className="text-xs text-gray-500">
+                                        {workflowCase.client.email}
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Tags and metadata */}
+                                  <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                    <span className="capitalize bg-gray-200 px-2 py-0.5 rounded-full text-xs">
+                                      {workflowCase.category}
+                                    </span>
+                                    {workflowCase.selectedForms.length > 0 && (
+                                      <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+                                        {workflowCase.selectedForms.length} form{workflowCase.selectedForms.length === 1 ? '' : 's'}
+                                      </span>
+                                    )}
+                                    {workflowCase.dueDate && (
+                                      <span className="text-orange-600 text-xs">
+                                        Due: {new Date(workflowCase.dueDate).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                    <span className="text-xs">
+                                      Created: {new Date(workflowCase.createdAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                </div>
+                                
+                                {/* Right side - Status and Priority badges */}
+                                <div className="flex flex-col items-end space-y-1 ml-3">
+                                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                    workflowCase.status === 'active' || workflowCase.status === 'Active'
+                                      ? 'bg-green-100 text-green-800'
+                                      : workflowCase.status === 'in-progress'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : workflowCase.status === 'completed'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {workflowCase.status}
+                                  </span>
+                                  {workflowCase.priority && (
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                      workflowCase.priority === 'High' 
+                                        ? 'bg-red-100 text-red-800'
+                                        : workflowCase.priority === 'Medium'
+                                        ? 'bg-orange-100 text-orange-800'
+                                        : 'bg-green-100 text-green-800'
+                                    }`}>
+                                      {workflowCase.priority}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="mx-auto w-16 h-16 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
+                  <PlusCircle className="h-8 w-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No cases found</h3>
+                <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
+                  {user?.userType === 'individualUser' 
+                    ? "You don't have any cases yet. Start your immigration process to create your first case."
+                    : "No workflow cases found matching your search criteria."
+                  }
+                </p>
+                <Link
+                  to={getNewCaseLink()}
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium text-sm"
+                >
+                  <PlusCircle size={16} />
+                  Create Your First Case
+                </Link>
+              </div>
+            )}
+          </div>
+          
+          {filteredCases.length > 0 && (
+            <div className="border-t border-gray-200 px-4 py-3 bg-gray-50 rounded-b-lg">
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-gray-500">
+                  Showing <span className="font-medium">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
+                  <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredCases.length)}</span> of{" "}
+                  <span className="font-medium">{filteredCases.length}</span> cases
+                </div>
+                <div className="flex space-x-2">
+                  <button 
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-xs disabled:opacity-50 bg-white hover:bg-gray-50 transition-colors"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <button 
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-xs disabled:opacity-50 bg-white hover:bg-gray-50 transition-colors"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
