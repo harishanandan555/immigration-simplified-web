@@ -576,7 +576,10 @@ useEffect(() => {
     : cases;
 
   // Filter upcoming tasks with better validation and mapping from tasksFromAPI
-  const upcomingDeadlines = tasks
+  // For individual users, don't show task-related deadlines since they don't have access to tasks
+  const upcomingDeadlines = (isClient && user?.userType === 'individualUser') 
+    ? [] // Individual users don't have access to tasks, so no upcoming deadlines
+    : tasks
     .filter((task: any) => {
       // Validate task structure from API response
       if (!task || typeof task !== 'object' || !task.dueDate) {
@@ -800,8 +803,8 @@ useEffect(() => {
               </div>
             </div>
             <div className="mt-4">
-              <Link to="/tasks" className="text-sm text-orange-600 hover:text-orange-700 font-medium">
-                View deadlines →
+              <Link to="/documents" className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+                View documents →
               </Link>
             </div>
           </div>
@@ -1029,8 +1032,8 @@ useEffect(() => {
             <div className="card">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-medium">Upcoming Deadlines</h2>
-                <Link to="/tasks" className="text-sm text-primary-600 hover:text-primary-700">
-                  View all
+                <Link to="/documents" className="text-sm text-primary-600 hover:text-primary-700">
+                  View documents
                 </Link>
               </div>
 
