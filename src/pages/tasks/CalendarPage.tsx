@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
+import {
   CheckSquare,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Grid3X3,
+  List
 } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 import { format, isSameDay, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
@@ -29,9 +35,9 @@ type Task = {
   updatedAt?: string;
 };
 
-type Case = { 
-  id: string; 
-  caseNumber: string; 
+type Case = {
+  id: string;
+  caseNumber: string;
   clientId: string;
   category?: string;
   subcategory?: string;
@@ -55,12 +61,10 @@ type Client = {
 const CalendarPage = () => {
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
-  
+
   // State for real data
   const [tasks, setTasks] = useState<Task[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Load data from TasksPage logic
@@ -88,14 +92,14 @@ const CalendarPage = () => {
         const workflows = response.data.data;
         const clientsMap = new Map<string, Client>();
         const casesArray: Case[] = [];
-        
+
         workflows.forEach((workflow: any) => {
           const clientData = workflow.client;
           const caseData = workflow.case;
-          
+
           if (clientData && clientData.name && clientData.email) {
             const clientId = clientData.email;
-            
+
             // Add client if not already exists
             if (!clientsMap.has(clientId)) {
               clientsMap.set(clientId, {
@@ -109,7 +113,7 @@ const CalendarPage = () => {
                 cases: []
               });
             }
-            
+
             // Extract case numbers from formCaseIds
             if (caseData && caseData.formCaseIds) {
               Object.entries(caseData.formCaseIds).forEach(([formNumber, caseNumber]: [string, any]) => {
@@ -122,9 +126,9 @@ const CalendarPage = () => {
                   openDate: workflow.createdAt || '',
                   priorityDate: caseData.priorityDate || workflow.createdAt || ''
                 };
-                
+
                 casesArray.push(caseItem);
-                
+
                 // Add case to client's cases array
                 const client = clientsMap.get(clientId);
                 if (client && client.cases) {
@@ -142,9 +146,9 @@ const CalendarPage = () => {
                 openDate: workflow.createdAt || '',
                 priorityDate: caseData.priorityDate || workflow.createdAt || ''
               };
-              
+
               casesArray.push(caseItem);
-              
+
               // Add case to client's cases array
               const client = clientsMap.get(clientId);
               if (client && client.cases) {
@@ -154,9 +158,9 @@ const CalendarPage = () => {
           }
         });
 
-        return { 
-          clients: Array.from(clientsMap.values()), 
-          cases: casesArray 
+        return {
+          clients: Array.from(clientsMap.values()),
+          cases: casesArray
         };
       } else {
         return { clients: [], cases: [] };
@@ -171,32 +175,30 @@ const CalendarPage = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch clients and cases from workflows API
-      const { clients: workflowClients, cases: workflowCases } = await fetchWorkflowsFromAPI();
-      
-      setClients(workflowClients);
+      const { cases: workflowCases } = await fetchWorkflowsFromAPI();
+
       setCases(workflowCases || []);
-      
-  // Fetch actual tasks from API
+
+      // Fetch actual tasks from API
       try {
         const tasksFromAPI = await getTasks();
-        
+
         // Ensure all tasks have priority and status for calendar display
         const tasksWithDefaults = tasksFromAPI.map(task => ({
           ...task,
           priority: task.priority || 'Medium',
           status: task.status || 'Pending'
         }));
-        
-       setTasks(tasksWithDefaults);
+
+        setTasks(tasksWithDefaults);
       } catch (error) {
         console.error('❌ Error fetching tasks for calendar:', error);
         setTasks([]);
       }
     } catch (error) {
       console.error('Error loading calendar data:', error);
-      setClients([]);
       setCases([]);
       setTasks([]);
     } finally {
@@ -214,35 +216,9 @@ const CalendarPage = () => {
   });
 
   // Get tasks for the selected date
-  const selectedDateTasks = selectedDate 
+  const selectedDateTasks = selectedDate
     ? monthTasks.filter((task: Task) => isSameDay(new Date(task.dueDate), selectedDate))
     : [];
-
-  const getTaskStatusColor = (status: 'Pending' | 'In Progress' | 'Completed') => {
-    switch (status) {
-      case 'Completed':
-        return 'bg-green-100 text-green-800';
-      case 'In Progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'Pending':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getPriorityColor = (priority: 'High' | 'Medium' | 'Low') => {
-    switch (priority) {
-      case 'High':
-        return 'bg-red-100 text-red-800';
-      case 'Medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Low':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   if (loading) {
     return (
@@ -256,246 +232,361 @@ const CalendarPage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Calendar</h1>
-          <p className="text-gray-500 mt-1">View and manage tasks by date</p>
-        </div>
-        <div className="flex gap-3">
-          <Link
-            to="/tasks"
-            className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-md transition-colors"
-          >
-            <CheckSquare size={18} />
-            <span>List View</span>
-          </Link>
-          {/* <button
-            onClick={() => setShowNewTaskModal(true)}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-md transition-colors"
-          >
-            <Plus size={18} />
-            <span>New Task</span>
-          </button> */}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Modern Header Section */}
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between py-6">
+            <div className="flex items-center space-x-4">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-3 rounded-xl">
+                <Calendar className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Task Calendar</h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  {format(selectedMonth, 'MMMM yyyy')} • {monthTasks.length} tasks this month
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button className="flex items-center gap-2 px-3 py-2 bg-white text-gray-700 rounded-md shadow-sm text-sm font-medium transition-colors">
+                  <Grid3X3 size={16} />
+                  Month
+                </button>
+                <button className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:text-gray-700 rounded-md text-sm font-medium transition-colors">
+                  <List size={16} />
+                  List
+                </button>
+              </div>
+              
+              <Link
+                to="/tasks"
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-2.5 px-4 rounded-lg transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+              >
+                <CheckSquare size={18} />
+                <span>Manage Tasks</span>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-md p-6">
-          <DayPicker
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            month={selectedMonth}
-            onMonthChange={setSelectedMonth}
-            modifiers={{
-              hasTasks: (day) => monthTasks.some((task: Task) => 
-                isSameDay(new Date(task.dueDate), day)
-              )
-            }}
-            modifiersStyles={{
-              hasTasks: {
-                fontWeight: 'bold'
-              }
-            }}
-            components={{
-              DayContent: ({ date }) => {
-                const dayTasks = monthTasks.filter((task: Task) => 
-                  isSameDay(new Date(task.dueDate), date)
-                );
-                
-                return (
-                  <div className="relative w-full h-full flex flex-col items-center justify-center">
-                    {/* Task name above the date */}
-                    {dayTasks.length > 0 && (
-                      <div className="text-xs text-gray-600 mb-1 max-w-full text-center">
-                        {dayTasks.slice(0, 1).map((task, index) => (
-                          <div key={index} className="truncate leading-tight">
-                            {task.title.length > 10 ? task.title.substring(0, 10) + '...' : task.title}
-                          </div>
-                        ))}
-                        {dayTasks.length > 1 && (
-                          <div className="text-xs text-gray-400">+{dayTasks.length - 1}</div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Date number with priority color border */}
-                    <div className={`font-medium text-center w-8 h-8 rounded-full flex items-center justify-center ${
-                      dayTasks.length > 0 
-                        ? dayTasks.some(task => task.priority === 'High')
-                          ? 'border-2 border-red-500 bg-red-50 text-red-700'
-                          : dayTasks.some(task => task.priority === 'Medium')
-                          ? 'border-2 border-yellow-500 bg-yellow-50 text-yellow-700'
-                          : 'border-2 border-green-500 bg-green-50 text-green-700'
-                        : ''
-                    }`}>
-                      {format(date, 'd')}
-                    </div>
-                    
-                    {/* Task indicators below the date */}
-                    {dayTasks.length > 0 && (
-                      <div className="flex flex-col items-center mt-1">
-                        <div className="flex gap-1">
-                          {dayTasks.some((task: Task) => 
-                            new Date(task.dueDate) < new Date() && task.status !== 'Completed'
-                          ) && (
-                            <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                          )}
-                          {dayTasks.some((task: Task) => task.priority === 'High') && (
-                            <div className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-                          )}
-                          {!dayTasks.some((task: Task) => 
-                            new Date(task.dueDate) < new Date() && task.status !== 'Completed'
-                          ) && !dayTasks.some((task: Task) => task.priority === 'High') && (
-                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                          )}
-                        </div>
-                      </div>
-                    )}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+          {/* Main Calendar Section */}
+          <div className="xl:col-span-3">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              {/* Calendar Header */}
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                    {format(selectedMonth, 'MMMM yyyy')}
+                  </h2>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}
+                      className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-gray-600" />
+                    </button>
+                    <button
+                      onClick={() => setSelectedMonth(new Date())}
+                      className="px-3 py-1 text-sm font-medium text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}
+                      className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5 text-gray-600" />
+                    </button>
                   </div>
-                );
-              }
-            }}
-            styles={{
-              months: { margin: '0' },
-              caption: { marginBottom: '1rem' },
-              caption_label: { fontSize: '1.1rem', fontWeight: '600' },
-              nav_button: { 
-                border: '1px solid #e5e7eb',
-                borderRadius: '0.375rem',
-                padding: '0.5rem',
-                color: '#4b5563'
-              },
-              table: { width: '100%' },
-              head_cell: { 
-                padding: '0.75rem',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                color: '#6b7280'
-              },
-              cell: { 
-                padding: '0.5rem',
-                fontSize: '0.875rem',
-                height: '4rem', // Increased height to accommodate task name
-                verticalAlign: 'middle'
-              },
-              day: {
-                margin: '0',
-                width: '100%',
-                height: '100%',
-                fontSize: '0.875rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }
-            }}
-            className="w-full"
-          />
-        </div>
+                </div>
+              </div>
 
-        {/* Tasks for selected date */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium text-gray-900">
-              {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'No date selected'}
-            </h2>
-            {selectedDate && (
-              <Link to ="/tasks"
-              className="flex items-center gap-1 border border-blue-300 hover:bg-gray-50 text-black-800 py-2 px-4 rounded-md transition-colors">
-               <span>Add Tasks +</span>
-              </Link>
-            )}
+              {/* Calendar Body */}
+              <div className="p-6">
+                <DayPicker
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  month={selectedMonth}
+                  onMonthChange={setSelectedMonth}
+                  modifiers={{
+                    hasTasks: (day) => monthTasks.some((task: Task) =>
+                      isSameDay(new Date(task.dueDate), day)
+                    )
+                  }}
+                  modifiersStyles={{
+                    hasTasks: {
+                      fontWeight: 'bold'
+                    }
+                  }}
+                  components={{
+                    DayContent: ({ date }) => {
+                      const dayTasks = monthTasks.filter((task: Task) =>
+                        isSameDay(new Date(task.dueDate), date)
+                      );
+
+                      const highPriorityTasks = dayTasks.filter(task => task.priority === 'High');
+                      const overdueTasks = dayTasks.filter(task => 
+                        new Date(task.dueDate) < new Date() && task.status !== 'Completed'
+                      );
+
+                      return (
+                        <div className="relative w-full h-full">
+                          {/* Task indicators at top */}
+                          {dayTasks.length > 0 && (
+                            <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 flex gap-1">
+                              {overdueTasks.length > 0 && (
+                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                              )}
+                              {highPriorityTasks.length > 0 && !overdueTasks.length && (
+                                <div className="w-2 h-2 rounded-full bg-orange-400" />
+                              )}
+                              {dayTasks.length > 0 && !overdueTasks.length && !highPriorityTasks.length && (
+                                <div className="w-2 h-2 rounded-full bg-blue-400" />
+                              )}
+                            </div>
+                          )}
+
+                          {/* Date number */}
+                          <div className={`w-full h-full flex flex-col items-center justify-center rounded-lg transition-all hover:bg-gray-50 ${
+                            dayTasks.length > 0
+                              ? overdueTasks.length > 0
+                                ? 'bg-red-50 border border-red-200 text-red-700'
+                                : highPriorityTasks.length > 0
+                                ? 'bg-orange-50 border border-orange-200 text-orange-700'
+                                : 'bg-blue-50 border border-blue-200 text-blue-700'
+                              : ''
+                          }`}>
+                            <span className="text-sm font-medium">
+                              {format(date, 'd')}
+                            </span>
+                            
+                            {/* Task count */}
+                            {dayTasks.length > 0 && (
+                              <span className={`text-xs mt-1 px-1.5 py-0.5 rounded-full ${
+                                overdueTasks.length > 0
+                                  ? 'bg-red-200 text-red-700'
+                                  : highPriorityTasks.length > 0
+                                  ? 'bg-orange-200 text-orange-700'
+                                  : 'bg-blue-200 text-blue-700'
+                              }`}>
+                                {dayTasks.length}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                  }}
+                  styles={{
+                    months: { margin: '0' },
+                    caption: { display: 'none' }, // Hide default caption
+                    table: { width: '100%', borderCollapse: 'separate', borderSpacing: '4px' },
+                    head_cell: {
+                      padding: '12px 4px',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      color: '#6b7280',
+                      textAlign: 'center',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    },
+                    cell: {
+                      padding: '2px',
+                      height: '60px',
+                      verticalAlign: 'middle'
+                    },
+                    day: {
+                      margin: '0',
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                      background: 'transparent',
+                      fontSize: '0.875rem',
+                      cursor: 'pointer'
+                    }
+                  }}
+                  className="w-full"
+                />
+              </div>
+            </div>
           </div>
 
-          {selectedDateTasks.length > 0 ? (
-            <div className="space-y-4">
-              {selectedDateTasks.map((task: Task) => {
-                // Handle both old format (caseId) and new format (relatedCaseId)
-                const caseIdentifier = task.caseId || task.relatedCaseId;
-                const relatedCase = cases.find((c: Case) => 
-                  c.id === caseIdentifier || 
-                  c.caseNumber === caseIdentifier?.split(' ')[0]
-                );
-                const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'Completed';
-                
-                return (
-                  <div 
-                    key={task._id || task.id}
-                    className={`p-4 rounded-lg border ${
-                      isOverdue 
-                        ? 'border-error-200 bg-error-50'
-                        : 'border-gray-200 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-medium text-gray-900">
-                            {task.title}
-                          </h3>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getTaskStatusColor(task.status)}`}>
-                            {task.status}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-500">
-                          {task.description}
-                        </p>
-                        <div className="mt-2 flex items-center gap-4">
-                          {relatedCase && (
-                            <Link 
-                              to={`/cases/${relatedCase.id}`}
-                              className="text-xs text-primary-600 hover:text-primary-700"
-                            >
-                              {relatedCase.caseNumber}
-                            </Link>
-                          )}
-                          {task.clientName && (
-                            <span className="text-xs text-gray-500">
-                              Client: {task.clientName}
-                            </span>
-                          )}
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                            {task.priority} Priority
-                          </span>
-                        </div>
-                      </div>
-                      {isOverdue && (
-                        <AlertCircle className="h-5 w-5 text-error-500 flex-shrink-0" />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Clock className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No tasks scheduled</h3>
-              {selectedDate && (
-                <p className="mt-1 text-sm text-gray-500">
-                  Get started by creating a new task for this date.
+          {/* Enhanced Sidebar */}
+          <div className="xl:col-span-1 space-y-6">
+            {/* Selected Date Tasks */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-3 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {selectedDate ? format(selectedDate, 'MMM d, yyyy') : 'Select a Date'}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {selectedDateTasks.length} task{selectedDateTasks.length === 1 ? '' : 's'}
                 </p>
-              )}
-            </div>
-          )}
+              </div>
+              
+              <div className="p-4">
+                {selectedDateTasks.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedDateTasks.map((task: Task) => {
+                      const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'Completed';
 
-          {/* Legend */}
-          <div className="mt-8 border-t border-gray-200 pt-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Legend</h3>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-error-500" />
-                <span className="text-sm text-gray-600">Overdue Tasks</span>
+                      return (
+                        <div
+                          key={task._id || task.id}
+                          className={`p-3 rounded-lg border-l-4 transition-all hover:shadow-md ${
+                            isOverdue
+                              ? 'border-red-500 bg-red-50'
+                              : task.priority === 'High'
+                              ? 'border-orange-500 bg-orange-50'
+                              : task.priority === 'Medium'
+                              ? 'border-yellow-500 bg-yellow-50'
+                              : 'border-blue-500 bg-blue-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-semibold text-gray-900 truncate">
+                                {task.title}
+                              </h4>
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                {task.description}
+                              </p>
+                              
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                  task.priority === 'High'
+                                    ? 'bg-red-100 text-red-700'
+                                    : task.priority === 'Medium'
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}>
+                                  {task.priority}
+                                </span>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                  task.status === 'Completed'
+                                    ? 'bg-green-100 text-green-700'
+                                    : task.status === 'In Progress'
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {task.status}
+                                </span>
+                              </div>
+                              
+                              {task.clientName && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Client: {task.clientName}
+                                </p>
+                              )}
+                            </div>
+                            
+                            {isOverdue && (
+                              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 ml-2" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Clock className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">No tasks scheduled</h4>
+                    <p className="text-xs text-gray-500">
+                      {selectedDate ? 'No tasks for this date' : 'Select a date to view tasks'}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-warning-500" />
-                <span className="text-sm text-gray-600">High Priority</span>
+            </div>
+
+            {/* Quick Stats Card */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">This Month</h3>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-primary-500" />
-                <span className="text-sm text-gray-600">Normal Tasks</span>
+              
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-gray-600">Overdue</span>
+                  </div>
+                  <span className="text-sm font-semibold text-red-600">
+                    {monthTasks.filter(task => new Date(task.dueDate) < new Date() && task.status !== 'Completed').length}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-400 rounded-full"></div>
+                    <span className="text-sm text-gray-600">High Priority</span>
+                  </div>
+                  <span className="text-sm font-semibold text-orange-600">
+                    {monthTasks.filter(task => task.priority === 'High').length}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-sm text-gray-600">Completed</span>
+                  </div>
+                  <span className="text-sm font-semibold text-green-600">
+                    {monthTasks.filter(task => task.status === 'Completed').length}
+                  </span>
+                </div>
+                
+                <div className="pt-3 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900">Total Tasks</span>
+                    <span className="text-lg font-bold text-gray-900">
+                      {monthTasks.length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-3 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
+              </div>
+              
+              <div className="p-4 space-y-3">
+                <Link
+                  to="/tasks"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors group"
+                >
+                  <div className="bg-blue-100 group-hover:bg-blue-200 p-2 rounded-lg">
+                    <CheckSquare className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Manage Tasks</p>
+                    <p className="text-xs text-gray-500">View all tasks in list format</p>
+                  </div>
+                </Link>
+                
+                <button className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors group w-full">
+                  <div className="bg-purple-100 group-hover:bg-purple-200 p-2 rounded-lg">
+                    <Filter className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-gray-900">Filter Tasks</p>
+                    <p className="text-xs text-gray-500">Filter by priority or status</p>
+                  </div>
+                </button>
               </div>
             </div>
           </div>
