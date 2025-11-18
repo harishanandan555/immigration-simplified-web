@@ -13,13 +13,13 @@ const RegisterPage: React.FC = () => {
   const [, setSubscriptionPlan] = useState<SubscriptionPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentSection, setCurrentSection] = useState(0);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   
   const sections = [
     'Basic Information',
     'Address & Birth',
     'Personal Details',
     'Identification',
-    'Family Information',
     'Employment & Education',
     'Travel & Financial',
     'History & Additional'
@@ -148,21 +148,38 @@ const RegisterPage: React.FC = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     
+    // Clear error for this field when user types (handles both direct and nested fields)
+    if (formErrors[name]) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    
     // Handle nested object fields
     if (name.includes('.')) {
-      const [parent, child, grandchild] = name.split('.');
+      const parts = name.split('.');
       setFormData(prev => {
-        const parentValue = prev[parent as keyof typeof prev] as any;
-        return {
-          ...prev,
-          [parent]: {
-            ...parentValue,
-            [child]: grandchild ? {
-              ...(parentValue?.[child] || {}),
-              [grandchild]: type === 'number' ? Number(value) : value
-            } : (type === 'number' ? Number(value) : value)
+        const newData = { ...prev };
+        
+        // Recursive function to update nested objects
+        const updateNested = (obj: any, keys: string[], value: any, index: number = 0): any => {
+          if (index === keys.length - 1) {
+            // Last key - set the value
+            return { ...obj, [keys[index]]: type === 'number' ? Number(value) : value };
           }
+          
+          // Not the last key - recurse deeper
+          const currentKey = keys[index];
+          const currentValue = obj[currentKey] || {};
+          return {
+            ...obj,
+            [currentKey]: updateNested(currentValue, keys, value, index + 1)
+          };
         };
+        
+        return updateNested(newData, parts, value);
       });
     } else {
       setFormData(prev => {
@@ -171,7 +188,7 @@ const RegisterPage: React.FC = () => {
           [name]: type === 'number' ? Number(value) : value
         };
         
-        // Clear spouse data if marital status is changed to single
+        // Clear spouse and children data if marital status is changed to single
         if (name === 'maritalStatus' && value === 'single') {
           newData.spouse = {
             firstName: '',
@@ -180,6 +197,18 @@ const RegisterPage: React.FC = () => {
             nationality: '',
             alienRegistrationNumber: ''
           };
+          newData.children = [];
+          
+          // Clear spouse and children related errors
+          setFormErrors(prev => {
+            const newErrors = { ...prev };
+            Object.keys(newErrors).forEach(key => {
+              if (key.startsWith('spouse.') || key.startsWith('children.')) {
+                delete newErrors[key];
+              }
+            });
+            return newErrors;
+          });
         }
         
         return newData;
@@ -237,6 +266,16 @@ const RegisterPage: React.FC = () => {
         i === index ? { ...child, [field]: value } : child
       )
     }));
+    
+    // Clear error for this field when user types
+    const errorKey = `children.${index}.${field}`;
+    if (formErrors[errorKey]) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[errorKey];
+        return newErrors;
+      });
+    }
   };
 
   const addTravelHistory = () => {
@@ -265,6 +304,337 @@ const RegisterPage: React.FC = () => {
         i === index ? { ...travel, [field]: value } : travel
       )
     }));
+    
+    // Clear error for this field when user types
+    const errorKey = `travelHistory.${index}.${field}`;
+    if (formErrors[errorKey]) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[errorKey];
+        return newErrors;
+      });
+    }
+  };
+
+  const validateCurrentSection = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    switch (currentSection) {
+      case 0: // Basic Information
+        if (!formData.firstName?.trim()) errors['firstName'] = 'First name is required';
+        if (!formData.lastName?.trim()) errors['lastName'] = 'Last name is required';
+        if (!formData.email?.trim()) errors['email'] = 'Email address is required';
+        if (!formData.password) errors['password'] = 'Password is required';
+        if (formData.password && formData.password.length < 8) errors['password'] = 'Password must be at least 8 characters';
+        if (formData.password !== formData.confirmPassword) errors['confirmPassword'] = 'Passwords do not match';
+        if (!formData.dateOfBirth) errors['dateOfBirth'] = 'Date of birth is required';
+        
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (formData.email && !emailRegex.test(formData.email)) {
+          errors['email'] = 'Invalid email format';
+        }
+        
+        // Phone validation (optional but must be in international format if provided)
+        const phoneRegex = /^\+[1-9]\d{1,14}$/;
+        if (formData.phone && !phoneRegex.test(formData.phone)) {
+          errors['phone'] = 'Phone must be in international format (+1234567890)';
+        }
+        break;
+
+      case 1: // Address & Birth
+        if (!formData.address?.street?.trim()) errors['address.street'] = 'Street address is required';
+        if (!formData.address?.city?.trim()) errors['address.city'] = 'City is required';
+        if (!formData.address?.country?.trim()) errors['address.country'] = 'Country is required';
+        
+        // US-specific validations
+        if (formData.address?.country === 'United States' || formData.address?.country === 'US') {
+          if (!formData.address?.state?.trim()) errors['address.state'] = 'State is required for US addresses';
+          if (!formData.address?.zipCode?.trim()) errors['address.zipCode'] = 'Zip code is required for US addresses';
+          if (formData.address?.zipCode && !/^\d{5}(-\d{4})?$/.test(formData.address.zipCode)) {
+            errors['address.zipCode'] = 'Invalid US zip code format (e.g., 12345 or 12345-6789)';
+          }
+        }
+        
+        if (!formData.placeOfBirth?.country?.trim()) errors['placeOfBirth.country'] = 'Birth country is required';
+        break;
+
+      case 2: // Personal Details
+        if (!formData.gender) errors['gender'] = 'Gender is required';
+        if (!formData.maritalStatus) errors['maritalStatus'] = 'Marital status is required';
+        if (!formData.immigrationPurpose) errors['immigrationPurpose'] = 'Immigration purpose is required';
+        
+        // Spouse validation (if married)
+        if (formData.maritalStatus !== 'single' && formData.maritalStatus !== '') {
+          if (!formData.spouse?.firstName?.trim()) errors['spouse.firstName'] = 'Spouse first name is required';
+          if (!formData.spouse?.lastName?.trim()) errors['spouse.lastName'] = 'Spouse last name is required';
+          if (!formData.spouse?.dateOfBirth) errors['spouse.dateOfBirth'] = 'Spouse date of birth is required';
+          if (!formData.spouse?.nationality?.trim()) errors['spouse.nationality'] = 'Spouse nationality is required';
+          
+          if (formData.spouse?.alienRegistrationNumber && !/^\d{9}$/.test(formData.spouse.alienRegistrationNumber)) {
+            errors['spouse.alienRegistrationNumber'] = 'Alien registration number must be exactly 9 digits';
+          }
+        }
+        
+        // Children validation
+        formData.children?.forEach((child, index) => {
+          if (!child?.firstName?.trim()) errors[`children.${index}.firstName`] = 'Child first name is required';
+          if (!child?.lastName?.trim()) errors[`children.${index}.lastName`] = 'Child last name is required';
+          if (!child?.dateOfBirth) errors[`children.${index}.dateOfBirth`] = 'Child date of birth is required';
+          if (!child?.nationality?.trim()) errors[`children.${index}.nationality`] = 'Child nationality is required';
+          
+          if (child?.alienRegistrationNumber && !/^\d{9}$/.test(child.alienRegistrationNumber)) {
+            errors[`children.${index}.alienRegistrationNumber`] = 'Alien registration number must be exactly 9 digits';
+          }
+        });
+        break;
+
+      case 3: // Identification
+        if (formData.alienRegistrationNumber && !/^\d{9}$/.test(formData.alienRegistrationNumber)) {
+          errors['alienRegistrationNumber'] = 'Alien registration number must be exactly 9 digits';
+        }
+        break;
+
+      case 4: // Employment & Education
+        if (formData.employment?.annualIncome !== undefined && formData.employment.annualIncome < 0) {
+          errors['employment.annualIncome'] = 'Annual income cannot be negative';
+        }
+        
+        // Employment address validation (if employer name is provided)
+        if (formData.employment?.currentEmployer?.name?.trim()) {
+          if (!formData.employment?.currentEmployer?.address?.street?.trim()) {
+            errors['employment.currentEmployer.address.street'] = 'Employer street address is required';
+          }
+          if (!formData.employment?.currentEmployer?.address?.city?.trim()) {
+            errors['employment.currentEmployer.address.city'] = 'Employer city is required';
+          }
+          if (!formData.employment?.currentEmployer?.address?.country?.trim()) {
+            errors['employment.currentEmployer.address.country'] = 'Employer country is required';
+          }
+          
+          if (formData.employment?.currentEmployer?.address?.country === 'United States' || 
+              formData.employment?.currentEmployer?.address?.country === 'US') {
+            if (!formData.employment?.currentEmployer?.address?.state?.trim()) {
+              errors['employment.currentEmployer.address.state'] = 'Employer state is required for US addresses';
+            }
+            if (!formData.employment?.currentEmployer?.address?.zipCode?.trim()) {
+              errors['employment.currentEmployer.address.zipCode'] = 'Employer zip code is required for US addresses';
+            }
+            if (formData.employment?.currentEmployer?.address?.zipCode && 
+                !/^\d{5}(-\d{4})?$/.test(formData.employment.currentEmployer.address.zipCode)) {
+              errors['employment.currentEmployer.address.zipCode'] = 'Invalid US zip code format';
+            }
+          }
+        }
+        
+        if (formData.education?.highestLevel && !formData.education?.institutionName?.trim()) {
+          errors['education.institutionName'] = 'Institution name is required when education level is provided';
+        }
+        break;
+
+      case 5: // Travel & Financial
+        formData.travelHistory?.forEach((travel, index) => {
+          if (!travel?.country?.trim()) errors[`travelHistory.${index}.country`] = 'Country is required';
+          if (!travel?.visitDate) errors[`travelHistory.${index}.visitDate`] = 'Visit date is required';
+          if (!travel?.purpose) errors[`travelHistory.${index}.purpose`] = 'Purpose is required';
+          if (travel?.duration !== undefined && travel.duration < 0) errors[`travelHistory.${index}.duration`] = 'Duration cannot be negative';
+        });
+        
+        if (formData.financialInfo?.annualIncome !== undefined && formData.financialInfo.annualIncome < 0) {
+          errors['financialInfo.annualIncome'] = 'Annual income cannot be negative';
+        }
+        if (formData.financialInfo?.bankAccountBalance !== undefined && formData.financialInfo.bankAccountBalance < 0) {
+          errors['financialInfo.bankAccountBalance'] = 'Bank account balance cannot be negative';
+        }
+        break;
+
+      case 6: // History & Additional
+        if (formData.criminalHistory?.hasCriminalRecord && !formData.criminalHistory?.details?.trim()) {
+          errors['criminalHistory.details'] = 'Criminal history details are required when criminal record is checked';
+        }
+        if (formData.medicalHistory?.hasMedicalConditions && !formData.medicalHistory?.details?.trim()) {
+          errors['medicalHistory.details'] = 'Medical history details are required when medical conditions are checked';
+        }
+        break;
+    }
+
+    // Update form errors - merge current section errors with existing errors
+    setFormErrors(prev => {
+      const newErrors = { ...prev };
+      
+      // Clear errors for current section fields before adding new ones
+      const sectionFieldPrefixes: Record<number, string[]> = {
+        0: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone', 'dateOfBirth'],
+        1: ['address.', 'placeOfBirth.'],
+        2: ['gender', 'maritalStatus', 'immigrationPurpose', 'spouse.', 'children.'],
+        3: ['alienRegistrationNumber'],
+        4: ['employment.', 'education.'],
+        5: ['travelHistory.', 'financialInfo.'],
+        6: ['criminalHistory.', 'medicalHistory.']
+      };
+      
+      const prefixes = sectionFieldPrefixes[currentSection] || [];
+      Object.keys(newErrors).forEach(key => {
+        if (prefixes.some(prefix => key.startsWith(prefix))) {
+          delete newErrors[key];
+        }
+      });
+      
+      // Add new errors for current section
+      Object.keys(errors).forEach(key => {
+        newErrors[key] = errors[key];
+      });
+      
+      return newErrors;
+    });
+
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    // Basic Information - Required fields
+    if (!formData.firstName?.trim()) errors['firstName'] = 'First name is required';
+    if (!formData.lastName?.trim()) errors['lastName'] = 'Last name is required';
+    if (!formData.email?.trim()) errors['email'] = 'Email address is required';
+    if (!formData.password) errors['password'] = 'Password is required';
+    if (formData.password && formData.password.length < 8) errors['password'] = 'Password must be at least 8 characters';
+    if (formData.password !== formData.confirmPassword) errors['confirmPassword'] = 'Passwords do not match';
+    if (!formData.dateOfBirth) errors['dateOfBirth'] = 'Date of birth is required';
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (formData.email && !emailRegex.test(formData.email)) {
+      errors['email'] = 'Invalid email format';
+    }
+
+    // Phone validation (optional but must be in international format if provided)
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (formData.phone && !phoneRegex.test(formData.phone)) {
+      errors['phone'] = 'Phone must be in international format (+1234567890)';
+    }
+
+    // Address validation
+    if (!formData.address?.street?.trim()) errors['address.street'] = 'Street address is required';
+    if (!formData.address?.city?.trim()) errors['address.city'] = 'City is required';
+    if (!formData.address?.country?.trim()) errors['address.country'] = 'Country is required';
+    
+    // US-specific validations
+    if (formData.address?.country === 'United States' || formData.address?.country === 'US') {
+      if (!formData.address?.state?.trim()) errors['address.state'] = 'State is required for US addresses';
+      if (!formData.address?.zipCode?.trim()) errors['address.zipCode'] = 'Zip code is required for US addresses';
+      if (formData.address?.zipCode && !/^\d{5}(-\d{4})?$/.test(formData.address.zipCode)) {
+        errors['address.zipCode'] = 'Invalid US zip code format (e.g., 12345 or 12345-6789)';
+      }
+    }
+
+    // Place of Birth validation
+    if (!formData.placeOfBirth?.country?.trim()) errors['placeOfBirth.country'] = 'Birth country is required';
+
+    // Personal Details validation
+    if (!formData.gender) errors['gender'] = 'Gender is required';
+    if (!formData.maritalStatus) errors['maritalStatus'] = 'Marital status is required';
+    if (!formData.immigrationPurpose) errors['immigrationPurpose'] = 'Immigration purpose is required';
+
+    // Spouse validation (if married)
+    if (formData.maritalStatus !== 'single' && formData.maritalStatus !== '') {
+      if (!formData.spouse?.firstName?.trim()) errors['spouse.firstName'] = 'Spouse first name is required';
+      if (!formData.spouse?.lastName?.trim()) errors['spouse.lastName'] = 'Spouse last name is required';
+      if (!formData.spouse?.dateOfBirth) errors['spouse.dateOfBirth'] = 'Spouse date of birth is required';
+      if (!formData.spouse?.nationality?.trim()) errors['spouse.nationality'] = 'Spouse nationality is required';
+      
+      // Alien registration number validation (optional but must be 9 digits if provided)
+      if (formData.spouse?.alienRegistrationNumber && !/^\d{9}$/.test(formData.spouse.alienRegistrationNumber)) {
+        errors['spouse.alienRegistrationNumber'] = 'Alien registration number must be exactly 9 digits';
+      }
+    }
+
+    // Children validation
+    formData.children?.forEach((child, index) => {
+      if (!child?.firstName?.trim()) errors[`children.${index}.firstName`] = 'Child first name is required';
+      if (!child?.lastName?.trim()) errors[`children.${index}.lastName`] = 'Child last name is required';
+      if (!child?.dateOfBirth) errors[`children.${index}.dateOfBirth`] = 'Child date of birth is required';
+      if (!child?.nationality?.trim()) errors[`children.${index}.nationality`] = 'Child nationality is required';
+      
+      // Alien registration number validation (optional but must be 9 digits if provided)
+      if (child?.alienRegistrationNumber && !/^\d{9}$/.test(child.alienRegistrationNumber)) {
+        errors[`children.${index}.alienRegistrationNumber`] = 'Alien registration number must be exactly 9 digits';
+      }
+    });
+
+    // Identification validation
+    // Alien registration number validation (optional but must be 9 digits if provided)
+    if (formData.alienRegistrationNumber && !/^\d{9}$/.test(formData.alienRegistrationNumber)) {
+      errors['alienRegistrationNumber'] = 'Alien registration number must be exactly 9 digits';
+    }
+
+    // Employment validation
+    if (formData.employment?.annualIncome !== undefined && formData.employment.annualIncome < 0) {
+      errors['employment.annualIncome'] = 'Annual income cannot be negative';
+    }
+    
+    // Employment address validation (if employer name is provided)
+    if (formData.employment?.currentEmployer?.name?.trim()) {
+      if (!formData.employment?.currentEmployer?.address?.street?.trim()) {
+        errors['employment.currentEmployer.address.street'] = 'Employer street address is required';
+      }
+      if (!formData.employment?.currentEmployer?.address?.city?.trim()) {
+        errors['employment.currentEmployer.address.city'] = 'Employer city is required';
+      }
+      if (!formData.employment?.currentEmployer?.address?.country?.trim()) {
+        errors['employment.currentEmployer.address.country'] = 'Employer country is required';
+      }
+      
+      // US-specific validations for employer address
+      if (formData.employment?.currentEmployer?.address?.country === 'United States' || 
+          formData.employment?.currentEmployer?.address?.country === 'US') {
+        if (!formData.employment?.currentEmployer?.address?.state?.trim()) {
+          errors['employment.currentEmployer.address.state'] = 'Employer state is required for US addresses';
+        }
+        if (!formData.employment?.currentEmployer?.address?.zipCode?.trim()) {
+          errors['employment.currentEmployer.address.zipCode'] = 'Employer zip code is required for US addresses';
+        }
+        if (formData.employment?.currentEmployer?.address?.zipCode && 
+            !/^\d{5}(-\d{4})?$/.test(formData.employment.currentEmployer.address.zipCode)) {
+          errors['employment.currentEmployer.address.zipCode'] = 'Invalid US zip code format';
+        }
+      }
+    }
+
+    // Education validation
+    if (formData.education?.highestLevel && !formData.education?.institutionName?.trim()) {
+      errors['education.institutionName'] = 'Institution name is required when education level is provided';
+    }
+
+    // Travel History validation
+    formData.travelHistory?.forEach((travel, index) => {
+      if (!travel?.country?.trim()) errors[`travelHistory.${index}.country`] = 'Country is required';
+      if (!travel?.visitDate) errors[`travelHistory.${index}.visitDate`] = 'Visit date is required';
+      if (!travel?.purpose) errors[`travelHistory.${index}.purpose`] = 'Purpose is required';
+      if (travel?.duration !== undefined && travel.duration < 0) errors[`travelHistory.${index}.duration`] = 'Duration cannot be negative';
+    });
+
+    // Financial Information validation
+    if (formData.financialInfo?.annualIncome !== undefined && formData.financialInfo.annualIncome < 0) {
+      errors['financialInfo.annualIncome'] = 'Annual income cannot be negative';
+    }
+    if (formData.financialInfo?.bankAccountBalance !== undefined && formData.financialInfo.bankAccountBalance < 0) {
+      errors['financialInfo.bankAccountBalance'] = 'Bank account balance cannot be negative';
+    }
+
+    // Criminal History validation
+    if (formData.criminalHistory?.hasCriminalRecord && !formData.criminalHistory?.details?.trim()) {
+      errors['criminalHistory.details'] = 'Criminal history details are required when criminal record is checked';
+    }
+
+    // Medical History validation
+    if (formData.medicalHistory?.hasMedicalConditions && !formData.medicalHistory?.details?.trim()) {
+      errors['medicalHistory.details'] = 'Medical history details are required when medical conditions are checked';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -277,17 +647,23 @@ const RegisterPage: React.FC = () => {
       return;
     }
     
+    // Validate form
+    if (!validateForm()) {
+      toast.error('Please fix the form errors before submitting');
+      // Scroll to first error
+      const firstErrorField = Object.keys(formErrors)[0];
+      if (firstErrorField) {
+        const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      // Validate form
-      if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
-        throw new Error('Please fill in all required fields');
-      }
-
-      if (formData.password !== formData.confirmPassword) {
-        throw new Error('Passwords do not match');
-      }
 
       // Create individual client
       const clientData = {
@@ -342,6 +718,13 @@ const RegisterPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Add error display helper
+  const getError = (fieldName: string) => {
+    return formErrors[fieldName] ? (
+      <p className="mt-1 text-sm text-red-600">{formErrors[fieldName]}</p>
+    ) : null;
   };
 
   const renderPlanSelection = () => (
@@ -420,7 +803,41 @@ const RegisterPage: React.FC = () => {
         {sections.map((_, index) => (
           <button
             key={index}
-            onClick={() => setCurrentSection(index)}
+            onClick={() => {
+              // Allow backward navigation without validation
+              if (index <= currentSection) {
+                setCurrentSection(index);
+              } else {
+                // Validate current section before moving forward
+                if (validateCurrentSection()) {
+                  setCurrentSection(index);
+                } else {
+                  toast.error('Please fix the errors in the current section before proceeding');
+                  // Scroll to first error
+                  const firstErrorField = Object.keys(formErrors).find(key => {
+                    const sectionFieldPrefixes: Record<number, string[]> = {
+                      0: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone', 'dateOfBirth'],
+                      1: ['address.', 'placeOfBirth.'],
+                      2: ['gender', 'maritalStatus', 'immigrationPurpose', 'spouse.', 'children.'],
+                      3: ['alienRegistrationNumber'],
+                      4: ['employment.', 'education.'],
+                      5: ['travelHistory.', 'financialInfo.'],
+                      6: ['criminalHistory.', 'medicalHistory.']
+                    };
+                    const prefixes = sectionFieldPrefixes[currentSection] || [];
+                    return prefixes.some(prefix => key.startsWith(prefix));
+                  });
+                  
+                  if (firstErrorField) {
+                    const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+                    if (errorElement) {
+                      errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      (errorElement as HTMLElement).focus();
+                    }
+                  }
+                }
+              }
+            }}
             className={`px-3 py-1 text-xs rounded-full transition-colors ${
               index === currentSection
                 ? 'bg-primary-600 text-white'
@@ -450,8 +867,11 @@ const RegisterPage: React.FC = () => {
             required
             value={formData.firstName}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            className={`mt-1 block w-full px-3 py-2 border ${
+              formErrors['firstName'] ? 'border-red-300' : 'border-gray-300'
+            } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
           />
+          {getError('firstName')}
         </div>
 
         <div>
@@ -465,8 +885,11 @@ const RegisterPage: React.FC = () => {
             required
             value={formData.lastName}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            className={`mt-1 block w-full px-3 py-2 border ${
+              formErrors['lastName'] ? 'border-red-300' : 'border-gray-300'
+            } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
           />
+          {getError('lastName')}
         </div>
       </div>
 
@@ -481,8 +904,11 @@ const RegisterPage: React.FC = () => {
           required
           value={formData.email}
           onChange={handleInputChange}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          className={`mt-1 block w-full px-3 py-2 border ${
+            formErrors['email'] ? 'border-red-300' : 'border-gray-300'
+          } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
         />
+        {getError('email')}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -497,8 +923,11 @@ const RegisterPage: React.FC = () => {
             required
             value={formData.password}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            className={`mt-1 block w-full px-3 py-2 border ${
+              formErrors['password'] ? 'border-red-300' : 'border-gray-300'
+            } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
           />
+          {getError('password')}
         </div>
 
         <div>
@@ -512,8 +941,11 @@ const RegisterPage: React.FC = () => {
             required
             value={formData.confirmPassword}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            className={`mt-1 block w-full px-3 py-2 border ${
+              formErrors['confirmPassword'] ? 'border-red-300' : 'border-gray-300'
+            } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
           />
+          {getError('confirmPassword')}
         </div>
       </div>
 
@@ -528,8 +960,12 @@ const RegisterPage: React.FC = () => {
             name="phone"
             value={formData.phone}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            className={`mt-1 block w-full px-3 py-2 border ${
+              formErrors['phone'] ? 'border-red-300' : 'border-gray-300'
+            } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+            placeholder="+1234567890 (international format)"
           />
+          {getError('phone')}
         </div>
 
         <div>
@@ -549,7 +985,7 @@ const RegisterPage: React.FC = () => {
 
       <div>
         <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">
-          Date of Birth
+          Date of Birth *
         </label>
         <input
           type="date"
@@ -557,8 +993,11 @@ const RegisterPage: React.FC = () => {
           name="dateOfBirth"
           value={formData.dateOfBirth}
           onChange={handleInputChange}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          className={`mt-1 block w-full px-3 py-2 border ${
+            formErrors['dateOfBirth'] ? 'border-red-300' : 'border-gray-300'
+          } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
         />
+        {getError('dateOfBirth')}
       </div>
     </div>
   );
@@ -578,12 +1017,15 @@ const RegisterPage: React.FC = () => {
               name="address.street"
               value={formData.address.street}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['address.street'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('address.street')}
           </div>
           <div>
             <label htmlFor="address.city" className="block text-sm font-medium text-gray-700">
-              City
+              City *
             </label>
             <input
               type="text"
@@ -591,8 +1033,11 @@ const RegisterPage: React.FC = () => {
               name="address.city"
               value={formData.address.city}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['address.city'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('address.city')}
           </div>
           <div>
             <label htmlFor="address.state" className="block text-sm font-medium text-gray-700">
@@ -604,8 +1049,11 @@ const RegisterPage: React.FC = () => {
               name="address.state"
               value={formData.address.state}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['address.state'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('address.state')}
           </div>
           <div>
             <label htmlFor="address.zipCode" className="block text-sm font-medium text-gray-700">
@@ -617,12 +1065,15 @@ const RegisterPage: React.FC = () => {
               name="address.zipCode"
               value={formData.address.zipCode}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['address.zipCode'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('address.zipCode')}
           </div>
           <div>
             <label htmlFor="address.country" className="block text-sm font-medium text-gray-700">
-              Country
+              Country *
             </label>
             <input
               type="text"
@@ -630,8 +1081,11 @@ const RegisterPage: React.FC = () => {
               name="address.country"
               value={formData.address.country}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['address.country'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('address.country')}
           </div>
         </div>
       </div>
@@ -675,8 +1129,11 @@ const RegisterPage: React.FC = () => {
               name="placeOfBirth.country"
               value={formData.placeOfBirth.country}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['placeOfBirth.country'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('placeOfBirth.country')}
           </div>
         </div>
       </div>
@@ -688,14 +1145,16 @@ const RegisterPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
-            Gender
+            Gender *
           </label>
           <select
             id="gender"
             name="gender"
             value={formData.gender}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            className={`mt-1 block w-full px-3 py-2 border ${
+              formErrors['gender'] ? 'border-red-300' : 'border-gray-300'
+            } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
           >
             <option value="">Select Gender</option>
             <option value="male">Male</option>
@@ -703,18 +1162,21 @@ const RegisterPage: React.FC = () => {
             <option value="other">Other</option>
             <option value="prefer_not_to_say">Prefer not to say</option>
           </select>
+          {getError('gender')}
         </div>
 
         <div>
           <label htmlFor="maritalStatus" className="block text-sm font-medium text-gray-700">
-            Marital Status
+            Marital Status *
           </label>
           <select
             id="maritalStatus"
             name="maritalStatus"
             value={formData.maritalStatus}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            className={`mt-1 block w-full px-3 py-2 border ${
+              formErrors['maritalStatus'] ? 'border-red-300' : 'border-gray-300'
+            } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
           >
             <option value="">Select Marital Status</option>
             <option value="single">Single</option>
@@ -724,19 +1186,22 @@ const RegisterPage: React.FC = () => {
             <option value="separated">Separated</option>
             <option value="civil_union">Civil Union</option>
           </select>
+          {getError('maritalStatus')}
         </div>
       </div>
 
       <div>
         <label htmlFor="immigrationPurpose" className="block text-sm font-medium text-gray-700">
-          Immigration Purpose
+          Immigration Purpose *
         </label>
         <select
           id="immigrationPurpose"
           name="immigrationPurpose"
           value={formData.immigrationPurpose}
           onChange={handleInputChange}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          className={`mt-1 block w-full px-3 py-2 border ${
+            formErrors['immigrationPurpose'] ? 'border-red-300' : 'border-gray-300'
+          } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
         >
           <option value="">Select Immigration Purpose</option>
           <option value="family_reunification">Family Reunification</option>
@@ -747,6 +1212,7 @@ const RegisterPage: React.FC = () => {
           <option value="diversity_lottery">Diversity Lottery</option>
           <option value="other">Other</option>
         </select>
+        {getError('immigrationPurpose')}
       </div>
 
       <div>
@@ -762,6 +1228,220 @@ const RegisterPage: React.FC = () => {
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
           placeholder="Tell us about yourself, your background, or any additional information..."
         />
+      </div>
+
+      {/* Family Information */}
+      {/* Only show spouse information if not single */}
+      {formData.maritalStatus !== 'single' && (
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Spouse Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="spouse.firstName" className="block text-sm font-medium text-gray-700">
+                Spouse First Name *
+              </label>
+              <input
+                type="text"
+                id="spouse.firstName"
+                name="spouse.firstName"
+                value={formData.spouse.firstName}
+                onChange={handleInputChange}
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['spouse.firstName'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+              />
+              {getError('spouse.firstName')}
+            </div>
+            <div>
+              <label htmlFor="spouse.lastName" className="block text-sm font-medium text-gray-700">
+                Spouse Last Name *
+              </label>
+              <input
+                type="text"
+                id="spouse.lastName"
+                name="spouse.lastName"
+                value={formData.spouse.lastName}
+                onChange={handleInputChange}
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['spouse.lastName'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+              />
+              {getError('spouse.lastName')}
+            </div>
+            <div>
+              <label htmlFor="spouse.dateOfBirth" className="block text-sm font-medium text-gray-700">
+                Spouse Date of Birth *
+              </label>
+              <input
+                type="date"
+                id="spouse.dateOfBirth"
+                name="spouse.dateOfBirth"
+                value={formData.spouse.dateOfBirth}
+                onChange={handleInputChange}
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['spouse.dateOfBirth'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+              />
+              {getError('spouse.dateOfBirth')}
+            </div>
+            <div>
+              <label htmlFor="spouse.nationality" className="block text-sm font-medium text-gray-700">
+                Spouse Nationality *
+              </label>
+              <input
+                type="text"
+                id="spouse.nationality"
+                name="spouse.nationality"
+                value={formData.spouse.nationality}
+                onChange={handleInputChange}
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['spouse.nationality'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+              />
+              {getError('spouse.nationality')}
+            </div>
+            <div>
+              <label htmlFor="spouse.alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
+                Spouse A-Number
+              </label>
+              <input
+                type="text"
+                id="spouse.alienRegistrationNumber"
+                name="spouse.alienRegistrationNumber"
+                value={formData.spouse.alienRegistrationNumber}
+                onChange={handleInputChange}
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['spouse.alienRegistrationNumber'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+                placeholder="9 digits"
+              />
+              {getError('spouse.alienRegistrationNumber')}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`bg-gray-50 p-4 rounded-lg ${formData.maritalStatus === 'single' ? 'opacity-60 pointer-events-none' : ''}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Children Information</h3>
+          {formData.maritalStatus !== 'single' && (
+            <button
+              type="button"
+              onClick={addChild}
+              className="flex items-center px-3 py-1 text-sm text-primary-600 hover:text-primary-700"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add Child
+            </button>
+          )}
+        </div>
+        
+        {/* Show message for single people */}
+        {formData.maritalStatus === 'single' && (
+          <div className="text-center py-8 text-gray-500">
+            <p className="text-sm">
+              Children information is not required for single marital status.
+            </p>
+          </div>
+        )}
+        
+        {formData.maritalStatus !== 'single' && formData.children.map((child, index) => (
+          <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-md font-medium text-gray-800">Child {index + 1}</h4>
+              <button
+                type="button"
+                onClick={() => removeChild(index)}
+                className="text-red-600 hover:text-red-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  value={child.firstName}
+                  onChange={(e) => updateChild(index, 'firstName', e.target.value)}
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`children.${index}.firstName`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+                />
+                {formErrors[`children.${index}.firstName`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`children.${index}.firstName`]}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Last Name *
+                </label>
+                <input
+                  type="text"
+                  value={child.lastName}
+                  onChange={(e) => updateChild(index, 'lastName', e.target.value)}
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`children.${index}.lastName`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+                />
+                {formErrors[`children.${index}.lastName`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`children.${index}.lastName`]}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Date of Birth *
+                </label>
+                <input
+                  type="date"
+                  value={child.dateOfBirth}
+                  onChange={(e) => updateChild(index, 'dateOfBirth', e.target.value)}
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`children.${index}.dateOfBirth`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+                />
+                {formErrors[`children.${index}.dateOfBirth`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`children.${index}.dateOfBirth`]}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Nationality *
+                </label>
+                <input
+                  type="text"
+                  value={child.nationality}
+                  onChange={(e) => updateChild(index, 'nationality', e.target.value)}
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`children.${index}.nationality`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+                />
+                {formErrors[`children.${index}.nationality`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`children.${index}.nationality`]}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  A-Number
+                </label>
+                <input
+                  type="text"
+                  value={child.alienRegistrationNumber}
+                  onChange={(e) => updateChild(index, 'alienRegistrationNumber', e.target.value)}
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`children.${index}.alienRegistrationNumber`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
+                  placeholder="9 digits"
+                />
+                {formErrors[`children.${index}.alienRegistrationNumber`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`children.${index}.alienRegistrationNumber`]}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -794,8 +1474,12 @@ const RegisterPage: React.FC = () => {
               name="alienRegistrationNumber"
               value={formData.alienRegistrationNumber}
               onChange={handleInputChange}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 h-10"
+              className={`block w-full px-3 py-2 border ${
+                formErrors['alienRegistrationNumber'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 h-10`}
+              placeholder="9 digits"
             />
+            {getError('alienRegistrationNumber')}
           </div>
           <div className="md:col-span-2">
             <label htmlFor="nationalIdNumber" className="block text-sm font-medium text-gray-700">
@@ -811,179 +1495,6 @@ const RegisterPage: React.FC = () => {
             />
           </div>
         </div>
-      </div>
-    </div>
-  );
-
-  const renderFamilyInformation = () => (
-    <div className="space-y-6">
-      {/* Only show spouse information if not single */}
-      {formData.maritalStatus !== 'single' && (
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Spouse Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="spouse.firstName" className="block text-sm font-medium text-gray-700">
-                Spouse First Name
-              </label>
-              <input
-                type="text"
-                id="spouse.firstName"
-                name="spouse.firstName"
-                value={formData.spouse.firstName}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="spouse.lastName" className="block text-sm font-medium text-gray-700">
-                Spouse Last Name
-              </label>
-              <input
-                type="text"
-                id="spouse.lastName"
-                name="spouse.lastName"
-                value={formData.spouse.lastName}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="spouse.dateOfBirth" className="block text-sm font-medium text-gray-700">
-                Spouse Date of Birth
-              </label>
-              <input
-                type="date"
-                id="spouse.dateOfBirth"
-                name="spouse.dateOfBirth"
-                value={formData.spouse.dateOfBirth}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="spouse.nationality" className="block text-sm font-medium text-gray-700">
-                Spouse Nationality
-              </label>
-              <input
-                type="text"
-                id="spouse.nationality"
-                name="spouse.nationality"
-                value={formData.spouse.nationality}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="spouse.alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
-                Spouse A-Number
-              </label>
-              <input
-                type="text"
-                id="spouse.alienRegistrationNumber"
-                name="spouse.alienRegistrationNumber"
-                value={formData.spouse.alienRegistrationNumber}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Children Information</h3>
-          <button
-            type="button"
-            onClick={addChild}
-            className="flex items-center px-3 py-1 text-sm text-primary-600 hover:text-primary-700"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Child
-          </button>
-        </div>
-        
-        {/* Show message for single people */}
-        {formData.maritalStatus === 'single' && formData.children.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <p className="text-sm">
-              Children information is optional. Click "Add Child" if you have children to include.
-            </p>
-          </div>
-        )}
-        
-        {formData.children.map((child, index) => (
-          <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-md font-medium text-gray-800">Child {index + 1}</h4>
-              <button
-                type="button"
-                onClick={() => removeChild(index)}
-                className="text-red-600 hover:text-red-700"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  First Name
-                </label>
-                <input
-                  type="text"
-                  value={child.firstName}
-                  onChange={(e) => updateChild(index, 'firstName', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  value={child.lastName}
-                  onChange={(e) => updateChild(index, 'lastName', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Date of Birth
-                </label>
-                <input
-                  type="date"
-                  value={child.dateOfBirth}
-                  onChange={(e) => updateChild(index, 'dateOfBirth', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Nationality
-                </label>
-                <input
-                  type="text"
-                  value={child.nationality}
-                  onChange={(e) => updateChild(index, 'nationality', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  A-Number
-                </label>
-                <input
-                  type="text"
-                  value={child.alienRegistrationNumber}
-                  onChange={(e) => updateChild(index, 'alienRegistrationNumber', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -1042,8 +1553,11 @@ const RegisterPage: React.FC = () => {
               name="employment.annualIncome"
               value={formData.employment.annualIncome}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['employment.annualIncome'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('employment.annualIncome')}
           </div>
         </div>
         
@@ -1060,8 +1574,11 @@ const RegisterPage: React.FC = () => {
                 name="employment.currentEmployer.address.street"
                 value={formData.employment.currentEmployer.address.street}
                 onChange={handleInputChange}
-                className="mt-4 block w-328 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className={`mt-4 block w-328 px-3 py-2 border ${
+                  formErrors['employment.currentEmployer.address.street'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
               />
+              {getError('employment.currentEmployer.address.street')}
             </div>
             <div>
               <label htmlFor="employment.currentEmployer.address.city" className="block text-sm font-medium text-gray-700">
@@ -1073,8 +1590,11 @@ const RegisterPage: React.FC = () => {
                 name="employment.currentEmployer.address.city"
                 value={formData.employment.currentEmployer.address.city}
                 onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['employment.currentEmployer.address.city'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
               />
+              {getError('employment.currentEmployer.address.city')}
             </div>
             <div>
               <label htmlFor="employment.currentEmployer.address.state" className="block text-sm font-medium text-gray-700">
@@ -1086,8 +1606,11 @@ const RegisterPage: React.FC = () => {
                 name="employment.currentEmployer.address.state"
                 value={formData.employment.currentEmployer.address.state}
                 onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['employment.currentEmployer.address.state'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
               />
+              {getError('employment.currentEmployer.address.state')}
             </div>
             <div>
               <label htmlFor="employment.currentEmployer.address.zipCode" className="block text-sm font-medium text-gray-700">
@@ -1099,8 +1622,11 @@ const RegisterPage: React.FC = () => {
                 name="employment.currentEmployer.address.zipCode"
                 value={formData.employment.currentEmployer.address.zipCode}
                 onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['employment.currentEmployer.address.zipCode'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
               />
+              {getError('employment.currentEmployer.address.zipCode')}
             </div>
             <div>
               <label htmlFor="employment.currentEmployer.address.country" className="block text-sm font-medium text-gray-700">
@@ -1112,8 +1638,11 @@ const RegisterPage: React.FC = () => {
                 name="employment.currentEmployer.address.country"
                 value={formData.employment.currentEmployer.address.country}
                 onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['employment.currentEmployer.address.country'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
               />
+              {getError('employment.currentEmployer.address.country')}
             </div>
           </div>
         </div>
@@ -1152,8 +1681,11 @@ const RegisterPage: React.FC = () => {
               name="education.institutionName"
               value={formData.education.institutionName}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['education.institutionName'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('education.institutionName')}
           </div>
           <div>
             <label htmlFor="education.datesAttended.startDate" className="block text-sm font-medium text-gray-700">
@@ -1235,28 +1767,40 @@ const RegisterPage: React.FC = () => {
                   type="text"
                   value={travel.country}
                   onChange={(e) => updateTravelHistory(index, 'country', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`travelHistory.${index}.country`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
                 />
+                {formErrors[`travelHistory.${index}.country`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`travelHistory.${index}.country`]}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Visit Date
+                  Visit Date *
                 </label>
                 <input
                   type="date"
                   value={travel.visitDate}
                   onChange={(e) => updateTravelHistory(index, 'visitDate', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`travelHistory.${index}.visitDate`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
                 />
+                {formErrors[`travelHistory.${index}.visitDate`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`travelHistory.${index}.visitDate`]}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Purpose
+                  Purpose *
                 </label>
                 <select
                   value={travel.purpose}
                   onChange={(e) => updateTravelHistory(index, 'purpose', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`travelHistory.${index}.purpose`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
                 >
                   <option value="">Select Purpose</option>
                   <option value="tourism">Tourism</option>
@@ -1265,6 +1809,9 @@ const RegisterPage: React.FC = () => {
                   <option value="family">Family</option>
                   <option value="other">Other</option>
                 </select>
+                {formErrors[`travelHistory.${index}.purpose`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`travelHistory.${index}.purpose`]}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
@@ -1274,8 +1821,13 @@ const RegisterPage: React.FC = () => {
                   type="number"
                   value={travel.duration}
                   onChange={(e) => updateTravelHistory(index, 'duration', Number(e.target.value))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`mt-1 block w-full px-3 py-2 border ${
+                    formErrors[`travelHistory.${index}.duration`] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
                 />
+                {formErrors[`travelHistory.${index}.duration`] && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors[`travelHistory.${index}.duration`]}</p>
+                )}
               </div>
             </div>
           </div>
@@ -1295,8 +1847,11 @@ const RegisterPage: React.FC = () => {
               name="financialInfo.annualIncome"
               value={formData.financialInfo.annualIncome}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['financialInfo.annualIncome'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('financialInfo.annualIncome')}
           </div>
           <div>
             <label htmlFor="financialInfo.sourceOfFunds" className="block text-sm font-medium text-gray-700">
@@ -1327,8 +1882,11 @@ const RegisterPage: React.FC = () => {
               name="financialInfo.bankAccountBalance"
               value={formData.financialInfo.bankAccountBalance}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['financialInfo.bankAccountBalance'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('financialInfo.bankAccountBalance')}
           </div>
         </div>
       </div>
@@ -1356,7 +1914,7 @@ const RegisterPage: React.FC = () => {
           {formData.criminalHistory.hasCriminalRecord && (
             <div>
               <label htmlFor="criminalHistory.details" className="block text-sm font-medium text-gray-700">
-                Details
+                Details *
               </label>
               <textarea
                 id="criminalHistory.details"
@@ -1364,9 +1922,12 @@ const RegisterPage: React.FC = () => {
                 rows={4}
                 value={formData.criminalHistory.details}
                 onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['criminalHistory.details'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
                 placeholder="Please provide details about your criminal history..."
               />
+              {getError('criminalHistory.details')}
             </div>
           )}
         </div>
@@ -1391,7 +1952,7 @@ const RegisterPage: React.FC = () => {
           {formData.medicalHistory.hasMedicalConditions && (
             <div>
               <label htmlFor="medicalHistory.details" className="block text-sm font-medium text-gray-700">
-                Details
+                Details *
               </label>
               <textarea
                 id="medicalHistory.details"
@@ -1399,9 +1960,12 @@ const RegisterPage: React.FC = () => {
                 rows={4}
                 value={formData.medicalHistory.details}
                 onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  formErrors['medicalHistory.details'] ? 'border-red-300' : 'border-gray-300'
+                } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
                 placeholder="Please provide details about your medical conditions..."
               />
+              {getError('medicalHistory.details')}
             </div>
           )}
         </div>
@@ -1426,10 +1990,9 @@ const RegisterPage: React.FC = () => {
       {currentSection === 1 && renderAddressAndBirth()}
       {currentSection === 2 && renderPersonalDetails()}
       {currentSection === 3 && renderIdentification()}
-      {currentSection === 4 && renderFamilyInformation()}
-      {currentSection === 5 && renderEmploymentAndEducation()}
-      {currentSection === 6 && renderTravelAndFinancial()}
-      {currentSection === 7 && renderHistoryAndAdditional()}
+      {currentSection === 4 && renderEmploymentAndEducation()}
+      {currentSection === 5 && renderTravelAndFinancial()}
+      {currentSection === 6 && renderHistoryAndAdditional()}
       
       <div className="flex justify-between pt-6">
         <button
@@ -1447,7 +2010,35 @@ const RegisterPage: React.FC = () => {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setCurrentSection(Math.min(sections.length - 1, currentSection + 1));
+              
+              // Validate current section before moving forward
+              if (validateCurrentSection()) {
+                setCurrentSection(Math.min(sections.length - 1, currentSection + 1));
+              } else {
+                // Scroll to first error in current section
+                const firstErrorField = Object.keys(formErrors).find(key => {
+                  const sectionFieldPrefixes: Record<number, string[]> = {
+                    0: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone', 'dateOfBirth'],
+                    1: ['address.', 'placeOfBirth.'],
+                    2: ['gender', 'maritalStatus', 'immigrationPurpose', 'spouse.', 'children.'],
+                    3: ['alienRegistrationNumber'],
+                    4: ['employment.', 'education.'],
+                    5: ['travelHistory.', 'financialInfo.'],
+                    6: ['criminalHistory.', 'medicalHistory.']
+                  };
+                  const prefixes = sectionFieldPrefixes[currentSection] || [];
+                  return prefixes.some(prefix => key.startsWith(prefix));
+                });
+                
+                if (firstErrorField) {
+                  const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+                  if (errorElement) {
+                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    (errorElement as HTMLElement).focus();
+                  }
+                }
+                toast.error('Please fix the errors in the current section before proceeding');
+              }
             }}
             className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-lg hover:bg-primary-700"
           >
