@@ -1626,10 +1626,10 @@ const SettingsPage = () => {
     setLoading(true);
     try {
       await updateSecurity(user._id, securityData);
-      // Show success message
+      toast.success('Security settings updated successfully');
     } catch (error) {
       console.error('Error updating security:', error);
-      // Show error message
+      toast.error('Failed to update security settings');
     } finally {
       setLoading(false);
     }
@@ -2318,7 +2318,7 @@ const SettingsPage = () => {
     { id: 'integrations', name: 'Integrations', icon: Globe, adminOnly: false },
     { id: 'billing', name: 'Billing', icon: CreditCard, adminOnly: false },
     { id: 'users', name: 'User Management', icon: Users, adminOnly: false, attorneyAllowed: true },
-    { id: 'cases', name: 'Case Settings', icon: Briefcase, adminOnly: false, attorneyAllowed: true },
+    // { id: 'cases', name: 'Case Settings', icon: Briefcase, adminOnly: false, attorneyAllowed: true },
     { id: 'forms', name: 'Form Templates', icon: FileText, adminOnly: false, attorneyAllowed: true },
     { id: 'form-builder', name: 'Form Builder', icon: Edit, adminOnly: false, attorneyAllowed: true },
     { id: 'reports', name: 'Report Settings', icon: BarChart, adminOnly: false, attorneyAllowed: true },

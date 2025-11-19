@@ -43,7 +43,7 @@ const RegisterPage: React.FC = () => {
       city: '',
       state: '',
       zipCode: '',
-      country: 'United States'
+      country: ''
     },
     
     // Place of Birth
@@ -328,6 +328,8 @@ const RegisterPage: React.FC = () => {
         if (formData.password && formData.password.length < 8) errors['password'] = 'Password must be at least 8 characters';
         if (formData.password !== formData.confirmPassword) errors['confirmPassword'] = 'Passwords do not match';
         if (!formData.dateOfBirth) errors['dateOfBirth'] = 'Date of birth is required';
+        if (!formData.phone?.trim()) errors['phone'] = 'Phone number is required';
+        if (!formData.nationality?.trim()) errors['nationality'] = 'Nationality is required';
         
         // Email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -335,7 +337,7 @@ const RegisterPage: React.FC = () => {
           errors['email'] = 'Invalid email format';
         }
         
-        // Phone validation (optional but must be in international format if provided)
+        // Phone validation (must be in international format)
         const phoneRegex = /^\+[1-9]\d{1,14}$/;
         if (formData.phone && !phoneRegex.test(formData.phone)) {
           errors['phone'] = 'Phone must be in international format (+1234567890)';
@@ -345,17 +347,19 @@ const RegisterPage: React.FC = () => {
       case 1: // Address & Birth
         if (!formData.address?.street?.trim()) errors['address.street'] = 'Street address is required';
         if (!formData.address?.city?.trim()) errors['address.city'] = 'City is required';
+        if (!formData.address?.state?.trim()) errors['address.state'] = 'State/Province is required';
+        if (!formData.address?.zipCode?.trim()) errors['address.zipCode'] = 'ZIP/Postal code is required';
         if (!formData.address?.country?.trim()) errors['address.country'] = 'Country is required';
         
-        // US-specific validations
+        // US-specific validations for zip code format
         if (formData.address?.country === 'United States' || formData.address?.country === 'US') {
-          if (!formData.address?.state?.trim()) errors['address.state'] = 'State is required for US addresses';
-          if (!formData.address?.zipCode?.trim()) errors['address.zipCode'] = 'Zip code is required for US addresses';
           if (formData.address?.zipCode && !/^\d{5}(-\d{4})?$/.test(formData.address.zipCode)) {
             errors['address.zipCode'] = 'Invalid US zip code format (e.g., 12345 or 12345-6789)';
           }
         }
         
+        if (!formData.placeOfBirth?.city?.trim()) errors['placeOfBirth.city'] = 'Birth city is required';
+        if (!formData.placeOfBirth?.state?.trim()) errors['placeOfBirth.state'] = 'Birth state/province is required';
         if (!formData.placeOfBirth?.country?.trim()) errors['placeOfBirth.country'] = 'Birth country is required';
         break;
 
@@ -363,6 +367,7 @@ const RegisterPage: React.FC = () => {
         if (!formData.gender) errors['gender'] = 'Gender is required';
         if (!formData.maritalStatus) errors['maritalStatus'] = 'Marital status is required';
         if (!formData.immigrationPurpose) errors['immigrationPurpose'] = 'Immigration purpose is required';
+        if (!formData.bio?.trim()) errors['bio'] = 'Bio/Additional information is required';
         
         // Spouse validation (if married)
         if (formData.maritalStatus !== 'single' && formData.maritalStatus !== '') {
@@ -370,81 +375,102 @@ const RegisterPage: React.FC = () => {
           if (!formData.spouse?.lastName?.trim()) errors['spouse.lastName'] = 'Spouse last name is required';
           if (!formData.spouse?.dateOfBirth) errors['spouse.dateOfBirth'] = 'Spouse date of birth is required';
           if (!formData.spouse?.nationality?.trim()) errors['spouse.nationality'] = 'Spouse nationality is required';
+          if (!formData.spouse?.alienRegistrationNumber?.trim()) errors['spouse.alienRegistrationNumber'] = 'Spouse A-Number is required';
           
           if (formData.spouse?.alienRegistrationNumber && !/^\d{9}$/.test(formData.spouse.alienRegistrationNumber)) {
             errors['spouse.alienRegistrationNumber'] = 'Alien registration number must be exactly 9 digits';
           }
         }
         
-        // Children validation
-        formData.children?.forEach((child, index) => {
-          if (!child?.firstName?.trim()) errors[`children.${index}.firstName`] = 'Child first name is required';
-          if (!child?.lastName?.trim()) errors[`children.${index}.lastName`] = 'Child last name is required';
-          if (!child?.dateOfBirth) errors[`children.${index}.dateOfBirth`] = 'Child date of birth is required';
-          if (!child?.nationality?.trim()) errors[`children.${index}.nationality`] = 'Child nationality is required';
-          
-          if (child?.alienRegistrationNumber && !/^\d{9}$/.test(child.alienRegistrationNumber)) {
-            errors[`children.${index}.alienRegistrationNumber`] = 'Alien registration number must be exactly 9 digits';
-          }
-        });
+        // Children validation (only if NOT single)
+        if (formData.maritalStatus !== 'single' && formData.maritalStatus !== '') {
+          formData.children?.forEach((child, index) => {
+            if (!child?.firstName?.trim()) errors[`children.${index}.firstName`] = 'Child first name is required';
+            if (!child?.lastName?.trim()) errors[`children.${index}.lastName`] = 'Child last name is required';
+            if (!child?.dateOfBirth) errors[`children.${index}.dateOfBirth`] = 'Child date of birth is required';
+            if (!child?.nationality?.trim()) errors[`children.${index}.nationality`] = 'Child nationality is required';
+            if (!child?.alienRegistrationNumber?.trim()) errors[`children.${index}.alienRegistrationNumber`] = 'Child A-Number is required';
+            
+            if (child?.alienRegistrationNumber && !/^\d{9}$/.test(child.alienRegistrationNumber)) {
+              errors[`children.${index}.alienRegistrationNumber`] = 'Alien registration number must be exactly 9 digits';
+            }
+          });
+        }
         break;
 
       case 3: // Identification
+        if (!formData.passportNumber?.trim()) errors['passportNumber'] = 'Passport number is required';
+        if (!formData.alienRegistrationNumber?.trim()) errors['alienRegistrationNumber'] = 'A-Number is required';
+        if (!formData.nationalIdNumber?.trim()) errors['nationalIdNumber'] = 'National ID number is required';
+        
         if (formData.alienRegistrationNumber && !/^\d{9}$/.test(formData.alienRegistrationNumber)) {
           errors['alienRegistrationNumber'] = 'Alien registration number must be exactly 9 digits';
         }
         break;
 
       case 4: // Employment & Education
-        if (formData.employment?.annualIncome !== undefined && formData.employment.annualIncome < 0) {
-          errors['employment.annualIncome'] = 'Annual income cannot be negative';
+        if (!formData.employment?.currentEmployer?.name?.trim()) errors['employment.currentEmployer.name'] = 'Current employer name is required';
+        if (!formData.employment?.jobTitle?.trim()) errors['employment.jobTitle'] = 'Job title is required';
+        if (!formData.employment?.employmentStartDate) errors['employment.employmentStartDate'] = 'Employment start date is required';
+        if (!formData.employment?.annualIncome || formData.employment.annualIncome <= 0) {
+          errors['employment.annualIncome'] = 'Annual income is required and must be greater than 0';
         }
         
-        // Employment address validation (if employer name is provided)
-        if (formData.employment?.currentEmployer?.name?.trim()) {
-          if (!formData.employment?.currentEmployer?.address?.street?.trim()) {
-            errors['employment.currentEmployer.address.street'] = 'Employer street address is required';
-          }
-          if (!formData.employment?.currentEmployer?.address?.city?.trim()) {
-            errors['employment.currentEmployer.address.city'] = 'Employer city is required';
-          }
-          if (!formData.employment?.currentEmployer?.address?.country?.trim()) {
-            errors['employment.currentEmployer.address.country'] = 'Employer country is required';
-          }
-          
-          if (formData.employment?.currentEmployer?.address?.country === 'United States' || 
-              formData.employment?.currentEmployer?.address?.country === 'US') {
-            if (!formData.employment?.currentEmployer?.address?.state?.trim()) {
-              errors['employment.currentEmployer.address.state'] = 'Employer state is required for US addresses';
-            }
-            if (!formData.employment?.currentEmployer?.address?.zipCode?.trim()) {
-              errors['employment.currentEmployer.address.zipCode'] = 'Employer zip code is required for US addresses';
-            }
-            if (formData.employment?.currentEmployer?.address?.zipCode && 
-                !/^\d{5}(-\d{4})?$/.test(formData.employment.currentEmployer.address.zipCode)) {
-              errors['employment.currentEmployer.address.zipCode'] = 'Invalid US zip code format';
-            }
+        // Employment address validation
+        if (!formData.employment?.currentEmployer?.address?.street?.trim()) {
+          errors['employment.currentEmployer.address.street'] = 'Employer street address is required';
+        }
+        if (!formData.employment?.currentEmployer?.address?.city?.trim()) {
+          errors['employment.currentEmployer.address.city'] = 'Employer city is required';
+        }
+        if (!formData.employment?.currentEmployer?.address?.state?.trim()) {
+          errors['employment.currentEmployer.address.state'] = 'Employer state is required';
+        }
+        if (!formData.employment?.currentEmployer?.address?.zipCode?.trim()) {
+          errors['employment.currentEmployer.address.zipCode'] = 'Employer zip code is required';
+        }
+        if (!formData.employment?.currentEmployer?.address?.country?.trim()) {
+          errors['employment.currentEmployer.address.country'] = 'Employer country is required';
+        }
+        
+        // US-specific validations for employer address zip code format
+        if (formData.employment?.currentEmployer?.address?.country === 'United States' || 
+            formData.employment?.currentEmployer?.address?.country === 'US') {
+          if (formData.employment?.currentEmployer?.address?.zipCode && 
+              !/^\d{5}(-\d{4})?$/.test(formData.employment.currentEmployer.address.zipCode)) {
+            errors['employment.currentEmployer.address.zipCode'] = 'Invalid US zip code format';
           }
         }
         
-        if (formData.education?.highestLevel && !formData.education?.institutionName?.trim()) {
-          errors['education.institutionName'] = 'Institution name is required when education level is provided';
-        }
+        if (!formData.education?.highestLevel) errors['education.highestLevel'] = 'Highest education level is required';
+        if (!formData.education?.institutionName?.trim()) errors['education.institutionName'] = 'Institution name is required';
+        if (!formData.education?.datesAttended?.startDate) errors['education.datesAttended.startDate'] = 'Education start date is required';
+        if (!formData.education?.datesAttended?.endDate) errors['education.datesAttended.endDate'] = 'Education end date is required';
+        if (!formData.education?.fieldOfStudy?.trim()) errors['education.fieldOfStudy'] = 'Field of study is required';
         break;
 
       case 5: // Travel & Financial
+        if (!formData.travelHistory || formData.travelHistory.length === 0) {
+          errors['travelHistory'] = 'At least one travel history record is required';
+        }
+        
         formData.travelHistory?.forEach((travel, index) => {
           if (!travel?.country?.trim()) errors[`travelHistory.${index}.country`] = 'Country is required';
           if (!travel?.visitDate) errors[`travelHistory.${index}.visitDate`] = 'Visit date is required';
           if (!travel?.purpose) errors[`travelHistory.${index}.purpose`] = 'Purpose is required';
-          if (travel?.duration !== undefined && travel.duration < 0) errors[`travelHistory.${index}.duration`] = 'Duration cannot be negative';
+          if (travel?.duration === undefined || travel.duration <= 0) {
+            errors[`travelHistory.${index}.duration`] = 'Duration is required and must be greater than 0';
+          }
         });
         
-        if (formData.financialInfo?.annualIncome !== undefined && formData.financialInfo.annualIncome < 0) {
-          errors['financialInfo.annualIncome'] = 'Annual income cannot be negative';
+        if (!formData.financialInfo?.annualIncome || formData.financialInfo.annualIncome <= 0) {
+          errors['financialInfo.annualIncome'] = 'Annual income is required and must be greater than 0';
         }
-        if (formData.financialInfo?.bankAccountBalance !== undefined && formData.financialInfo.bankAccountBalance < 0) {
-          errors['financialInfo.bankAccountBalance'] = 'Bank account balance cannot be negative';
+        if (!formData.financialInfo?.sourceOfFunds?.trim()) {
+          errors['financialInfo.sourceOfFunds'] = 'Source of funds is required';
+        }
+        if (!formData.financialInfo?.bankAccountBalance || formData.financialInfo.bankAccountBalance < 0) {
+          errors['financialInfo.bankAccountBalance'] = 'Bank account balance is required and cannot be negative';
         }
         break;
 
@@ -509,33 +535,40 @@ const RegisterPage: React.FC = () => {
       errors['email'] = 'Invalid email format';
     }
 
-    // Phone validation (optional but must be in international format if provided)
+    // Phone validation (must be in international format)
+    if (!formData.phone?.trim()) errors['phone'] = 'Phone number is required';
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (formData.phone && !phoneRegex.test(formData.phone)) {
       errors['phone'] = 'Phone must be in international format (+1234567890)';
     }
 
+    // Nationality validation
+    if (!formData.nationality?.trim()) errors['nationality'] = 'Nationality is required';
+
     // Address validation
     if (!formData.address?.street?.trim()) errors['address.street'] = 'Street address is required';
     if (!formData.address?.city?.trim()) errors['address.city'] = 'City is required';
+    if (!formData.address?.state?.trim()) errors['address.state'] = 'State/Province is required';
+    if (!formData.address?.zipCode?.trim()) errors['address.zipCode'] = 'ZIP/Postal code is required';
     if (!formData.address?.country?.trim()) errors['address.country'] = 'Country is required';
     
-    // US-specific validations
+    // US-specific validations for zip code format
     if (formData.address?.country === 'United States' || formData.address?.country === 'US') {
-      if (!formData.address?.state?.trim()) errors['address.state'] = 'State is required for US addresses';
-      if (!formData.address?.zipCode?.trim()) errors['address.zipCode'] = 'Zip code is required for US addresses';
       if (formData.address?.zipCode && !/^\d{5}(-\d{4})?$/.test(formData.address.zipCode)) {
         errors['address.zipCode'] = 'Invalid US zip code format (e.g., 12345 or 12345-6789)';
       }
     }
 
     // Place of Birth validation
+    if (!formData.placeOfBirth?.city?.trim()) errors['placeOfBirth.city'] = 'Birth city is required';
+    if (!formData.placeOfBirth?.state?.trim()) errors['placeOfBirth.state'] = 'Birth state/province is required';
     if (!formData.placeOfBirth?.country?.trim()) errors['placeOfBirth.country'] = 'Birth country is required';
 
     // Personal Details validation
     if (!formData.gender) errors['gender'] = 'Gender is required';
     if (!formData.maritalStatus) errors['maritalStatus'] = 'Marital status is required';
     if (!formData.immigrationPurpose) errors['immigrationPurpose'] = 'Immigration purpose is required';
+    if (!formData.bio?.trim()) errors['bio'] = 'Bio/Additional information is required';
 
     // Spouse validation (if married)
     if (formData.maritalStatus !== 'single' && formData.maritalStatus !== '') {
@@ -543,84 +576,104 @@ const RegisterPage: React.FC = () => {
       if (!formData.spouse?.lastName?.trim()) errors['spouse.lastName'] = 'Spouse last name is required';
       if (!formData.spouse?.dateOfBirth) errors['spouse.dateOfBirth'] = 'Spouse date of birth is required';
       if (!formData.spouse?.nationality?.trim()) errors['spouse.nationality'] = 'Spouse nationality is required';
+      if (!formData.spouse?.alienRegistrationNumber?.trim()) errors['spouse.alienRegistrationNumber'] = 'Spouse A-Number is required';
       
-      // Alien registration number validation (optional but must be 9 digits if provided)
+      // Alien registration number validation (must be 9 digits)
       if (formData.spouse?.alienRegistrationNumber && !/^\d{9}$/.test(formData.spouse.alienRegistrationNumber)) {
         errors['spouse.alienRegistrationNumber'] = 'Alien registration number must be exactly 9 digits';
       }
     }
 
-    // Children validation
-    formData.children?.forEach((child, index) => {
-      if (!child?.firstName?.trim()) errors[`children.${index}.firstName`] = 'Child first name is required';
-      if (!child?.lastName?.trim()) errors[`children.${index}.lastName`] = 'Child last name is required';
-      if (!child?.dateOfBirth) errors[`children.${index}.dateOfBirth`] = 'Child date of birth is required';
-      if (!child?.nationality?.trim()) errors[`children.${index}.nationality`] = 'Child nationality is required';
-      
-      // Alien registration number validation (optional but must be 9 digits if provided)
-      if (child?.alienRegistrationNumber && !/^\d{9}$/.test(child.alienRegistrationNumber)) {
-        errors[`children.${index}.alienRegistrationNumber`] = 'Alien registration number must be exactly 9 digits';
-      }
-    });
+    // Children validation (only if NOT single)
+    if (formData.maritalStatus !== 'single' && formData.maritalStatus !== '') {
+      formData.children?.forEach((child, index) => {
+        if (!child?.firstName?.trim()) errors[`children.${index}.firstName`] = 'Child first name is required';
+        if (!child?.lastName?.trim()) errors[`children.${index}.lastName`] = 'Child last name is required';
+        if (!child?.dateOfBirth) errors[`children.${index}.dateOfBirth`] = 'Child date of birth is required';
+        if (!child?.nationality?.trim()) errors[`children.${index}.nationality`] = 'Child nationality is required';
+        if (!child?.alienRegistrationNumber?.trim()) errors[`children.${index}.alienRegistrationNumber`] = 'Child A-Number is required';
+        
+        // Alien registration number validation (must be 9 digits)
+        if (child?.alienRegistrationNumber && !/^\d{9}$/.test(child.alienRegistrationNumber)) {
+          errors[`children.${index}.alienRegistrationNumber`] = 'Alien registration number must be exactly 9 digits';
+        }
+      });
+    }
 
     // Identification validation
-    // Alien registration number validation (optional but must be 9 digits if provided)
+    if (!formData.passportNumber?.trim()) errors['passportNumber'] = 'Passport number is required';
+    if (!formData.alienRegistrationNumber?.trim()) errors['alienRegistrationNumber'] = 'A-Number is required';
+    if (!formData.nationalIdNumber?.trim()) errors['nationalIdNumber'] = 'National ID number is required';
+    
+    // Alien registration number validation (must be 9 digits)
     if (formData.alienRegistrationNumber && !/^\d{9}$/.test(formData.alienRegistrationNumber)) {
       errors['alienRegistrationNumber'] = 'Alien registration number must be exactly 9 digits';
     }
 
     // Employment validation
-    if (formData.employment?.annualIncome !== undefined && formData.employment.annualIncome < 0) {
-      errors['employment.annualIncome'] = 'Annual income cannot be negative';
+    if (!formData.employment?.currentEmployer?.name?.trim()) errors['employment.currentEmployer.name'] = 'Current employer name is required';
+    if (!formData.employment?.jobTitle?.trim()) errors['employment.jobTitle'] = 'Job title is required';
+    if (!formData.employment?.employmentStartDate) errors['employment.employmentStartDate'] = 'Employment start date is required';
+    if (!formData.employment?.annualIncome || formData.employment.annualIncome <= 0) {
+      errors['employment.annualIncome'] = 'Annual income is required and must be greater than 0';
     }
     
-    // Employment address validation (if employer name is provided)
-    if (formData.employment?.currentEmployer?.name?.trim()) {
-      if (!formData.employment?.currentEmployer?.address?.street?.trim()) {
-        errors['employment.currentEmployer.address.street'] = 'Employer street address is required';
-      }
-      if (!formData.employment?.currentEmployer?.address?.city?.trim()) {
-        errors['employment.currentEmployer.address.city'] = 'Employer city is required';
-      }
-      if (!formData.employment?.currentEmployer?.address?.country?.trim()) {
-        errors['employment.currentEmployer.address.country'] = 'Employer country is required';
-      }
-      
-      // US-specific validations for employer address
-      if (formData.employment?.currentEmployer?.address?.country === 'United States' || 
-          formData.employment?.currentEmployer?.address?.country === 'US') {
-        if (!formData.employment?.currentEmployer?.address?.state?.trim()) {
-          errors['employment.currentEmployer.address.state'] = 'Employer state is required for US addresses';
-        }
-        if (!formData.employment?.currentEmployer?.address?.zipCode?.trim()) {
-          errors['employment.currentEmployer.address.zipCode'] = 'Employer zip code is required for US addresses';
-        }
-        if (formData.employment?.currentEmployer?.address?.zipCode && 
-            !/^\d{5}(-\d{4})?$/.test(formData.employment.currentEmployer.address.zipCode)) {
-          errors['employment.currentEmployer.address.zipCode'] = 'Invalid US zip code format';
-        }
+    // Employment address validation
+    if (!formData.employment?.currentEmployer?.address?.street?.trim()) {
+      errors['employment.currentEmployer.address.street'] = 'Employer street address is required';
+    }
+    if (!formData.employment?.currentEmployer?.address?.city?.trim()) {
+      errors['employment.currentEmployer.address.city'] = 'Employer city is required';
+    }
+    if (!formData.employment?.currentEmployer?.address?.state?.trim()) {
+      errors['employment.currentEmployer.address.state'] = 'Employer state is required';
+    }
+    if (!formData.employment?.currentEmployer?.address?.zipCode?.trim()) {
+      errors['employment.currentEmployer.address.zipCode'] = 'Employer zip code is required';
+    }
+    if (!formData.employment?.currentEmployer?.address?.country?.trim()) {
+      errors['employment.currentEmployer.address.country'] = 'Employer country is required';
+    }
+    
+    // US-specific validations for employer address zip code format
+    if (formData.employment?.currentEmployer?.address?.country === 'United States' || 
+        formData.employment?.currentEmployer?.address?.country === 'US') {
+      if (formData.employment?.currentEmployer?.address?.zipCode && 
+          !/^\d{5}(-\d{4})?$/.test(formData.employment.currentEmployer.address.zipCode)) {
+        errors['employment.currentEmployer.address.zipCode'] = 'Invalid US zip code format';
       }
     }
 
     // Education validation
-    if (formData.education?.highestLevel && !formData.education?.institutionName?.trim()) {
-      errors['education.institutionName'] = 'Institution name is required when education level is provided';
-    }
+    if (!formData.education?.highestLevel) errors['education.highestLevel'] = 'Highest education level is required';
+    if (!formData.education?.institutionName?.trim()) errors['education.institutionName'] = 'Institution name is required';
+    if (!formData.education?.datesAttended?.startDate) errors['education.datesAttended.startDate'] = 'Education start date is required';
+    if (!formData.education?.datesAttended?.endDate) errors['education.datesAttended.endDate'] = 'Education end date is required';
+    if (!formData.education?.fieldOfStudy?.trim()) errors['education.fieldOfStudy'] = 'Field of study is required';
 
     // Travel History validation
+    if (!formData.travelHistory || formData.travelHistory.length === 0) {
+      errors['travelHistory'] = 'At least one travel history record is required';
+    }
+    
     formData.travelHistory?.forEach((travel, index) => {
       if (!travel?.country?.trim()) errors[`travelHistory.${index}.country`] = 'Country is required';
       if (!travel?.visitDate) errors[`travelHistory.${index}.visitDate`] = 'Visit date is required';
       if (!travel?.purpose) errors[`travelHistory.${index}.purpose`] = 'Purpose is required';
-      if (travel?.duration !== undefined && travel.duration < 0) errors[`travelHistory.${index}.duration`] = 'Duration cannot be negative';
+      if (travel?.duration === undefined || travel.duration <= 0) {
+        errors[`travelHistory.${index}.duration`] = 'Duration is required and must be greater than 0';
+      }
     });
 
     // Financial Information validation
-    if (formData.financialInfo?.annualIncome !== undefined && formData.financialInfo.annualIncome < 0) {
-      errors['financialInfo.annualIncome'] = 'Annual income cannot be negative';
+    if (!formData.financialInfo?.annualIncome || formData.financialInfo.annualIncome <= 0) {
+      errors['financialInfo.annualIncome'] = 'Annual income is required and must be greater than 0';
     }
-    if (formData.financialInfo?.bankAccountBalance !== undefined && formData.financialInfo.bankAccountBalance < 0) {
-      errors['financialInfo.bankAccountBalance'] = 'Bank account balance cannot be negative';
+    if (!formData.financialInfo?.sourceOfFunds?.trim()) {
+      errors['financialInfo.sourceOfFunds'] = 'Source of funds is required';
+    }
+    if (!formData.financialInfo?.bankAccountBalance || formData.financialInfo.bankAccountBalance < 0) {
+      errors['financialInfo.bankAccountBalance'] = 'Bank account balance is required and cannot be negative';
     }
 
     // Criminal History validation
@@ -816,12 +869,12 @@ const RegisterPage: React.FC = () => {
                   // Scroll to first error
                   const firstErrorField = Object.keys(formErrors).find(key => {
                     const sectionFieldPrefixes: Record<number, string[]> = {
-                      0: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone', 'dateOfBirth'],
+                      0: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone', 'dateOfBirth', 'nationality'],
                       1: ['address.', 'placeOfBirth.'],
-                      2: ['gender', 'maritalStatus', 'immigrationPurpose', 'spouse.', 'children.'],
-                      3: ['alienRegistrationNumber'],
+                      2: ['gender', 'maritalStatus', 'immigrationPurpose', 'spouse.', 'children.', 'bio'],
+                      3: ['passportNumber', 'alienRegistrationNumber', 'nationalIdNumber'],
                       4: ['employment.', 'education.'],
-                      5: ['travelHistory.', 'financialInfo.'],
+                      5: ['travelHistory', 'travelHistory.', 'financialInfo.'],
                       6: ['criminalHistory.', 'medicalHistory.']
                     };
                     const prefixes = sectionFieldPrefixes[currentSection] || [];
@@ -952,7 +1005,7 @@ const RegisterPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-            Phone Number
+            Phone Number *
           </label>
           <input
             type="tel"
@@ -970,7 +1023,7 @@ const RegisterPage: React.FC = () => {
 
         <div>
           <label htmlFor="nationality" className="block text-sm font-medium text-gray-700">
-            Nationality
+            Nationality *
           </label>
           <input
             type="text"
@@ -978,8 +1031,11 @@ const RegisterPage: React.FC = () => {
             name="nationality"
             value={formData.nationality}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            className={`mt-1 block w-full px-3 py-2 border ${
+              formErrors['nationality'] ? 'border-red-300' : 'border-gray-300'
+            } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
           />
+          {getError('nationality')}
         </div>
       </div>
 
@@ -1009,7 +1065,7 @@ const RegisterPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label htmlFor="address.street" className="block text-sm font-medium text-gray-700">
-              Street Address
+              Street Address *
             </label>
             <input
               type="text"
@@ -1041,7 +1097,7 @@ const RegisterPage: React.FC = () => {
           </div>
           <div>
             <label htmlFor="address.state" className="block text-sm font-medium text-gray-700">
-              State/Province
+              State/Province *
             </label>
             <input
               type="text"
@@ -1057,7 +1113,7 @@ const RegisterPage: React.FC = () => {
           </div>
           <div>
             <label htmlFor="address.zipCode" className="block text-sm font-medium text-gray-700">
-              ZIP/Postal Code
+              ZIP/Postal Code *
             </label>
             <input
               type="text"
@@ -1095,7 +1151,7 @@ const RegisterPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label htmlFor="placeOfBirth.city" className="block text-sm font-medium text-gray-700">
-              City
+              City *
             </label>
             <input
               type="text"
@@ -1103,12 +1159,15 @@ const RegisterPage: React.FC = () => {
               name="placeOfBirth.city"
               value={formData.placeOfBirth.city}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['placeOfBirth.city'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('placeOfBirth.city')}
           </div>
           <div>
             <label htmlFor="placeOfBirth.state" className="block text-sm font-medium text-gray-700">
-              State/Province
+              State/Province *
             </label>
             <input
               type="text"
@@ -1116,12 +1175,15 @@ const RegisterPage: React.FC = () => {
               name="placeOfBirth.state"
               value={formData.placeOfBirth.state}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['placeOfBirth.state'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('placeOfBirth.state')}
           </div>
           <div>
             <label htmlFor="placeOfBirth.country" className="block text-sm font-medium text-gray-700">
-              Country
+              Country *
             </label>
             <input
               type="text"
@@ -1217,7 +1279,7 @@ const RegisterPage: React.FC = () => {
 
       <div>
         <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
-          Bio/Additional Information
+          Bio/Additional Information *
         </label>
         <textarea
           id="bio"
@@ -1225,9 +1287,12 @@ const RegisterPage: React.FC = () => {
           rows={4}
           value={formData.bio}
           onChange={handleInputChange}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          className={`mt-1 block w-full px-3 py-2 border ${
+            formErrors['bio'] ? 'border-red-300' : 'border-gray-300'
+          } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
           placeholder="Tell us about yourself, your background, or any additional information..."
         />
+        {getError('bio')}
       </div>
 
       {/* Family Information */}
@@ -1302,7 +1367,7 @@ const RegisterPage: React.FC = () => {
             </div>
             <div>
               <label htmlFor="spouse.alienRegistrationNumber" className="block text-sm font-medium text-gray-700">
-                Spouse A-Number
+                Spouse A-Number *
               </label>
               <input
                 type="text"
@@ -1321,10 +1386,10 @@ const RegisterPage: React.FC = () => {
         </div>
       )}
 
-      <div className={`bg-gray-50 p-4 rounded-lg ${formData.maritalStatus === 'single' ? 'opacity-60 pointer-events-none' : ''}`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Children Information</h3>
-          {formData.maritalStatus !== 'single' && (
+      {formData.maritalStatus !== 'single' && (
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Children Information</h3>
             <button
               type="button"
               onClick={addChild}
@@ -1333,19 +1398,9 @@ const RegisterPage: React.FC = () => {
               <Plus className="h-4 w-4 mr-1" />
               Add Child
             </button>
-          )}
-        </div>
-        
-        {/* Show message for single people */}
-        {formData.maritalStatus === 'single' && (
-          <div className="text-center py-8 text-gray-500">
-            <p className="text-sm">
-              Children information is not required for single marital status.
-            </p>
           </div>
-        )}
-        
-        {formData.maritalStatus !== 'single' && formData.children.map((child, index) => (
+          
+          {formData.children.map((child, index) => (
           <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-md font-medium text-gray-800">Child {index + 1}</h4>
@@ -1360,7 +1415,7 @@ const RegisterPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  First Name
+                  First Name *
                 </label>
                 <input
                   type="text"
@@ -1424,7 +1479,7 @@ const RegisterPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  A-Number
+                  A-Number *
                 </label>
                 <input
                   type="text"
@@ -1442,7 +1497,8 @@ const RegisterPage: React.FC = () => {
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1453,7 +1509,7 @@ const RegisterPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
             <label htmlFor="passportNumber" className="block text-sm font-medium text-gray-700 leading-5 h-10 flex items-center">
-              Passport Number
+              Passport Number *
             </label>
             <input
               type="text"
@@ -1461,12 +1517,15 @@ const RegisterPage: React.FC = () => {
               name="passportNumber"
               value={formData.passportNumber}
               onChange={handleInputChange}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 h-10"
+              className={`block w-full px-3 py-2 border ${
+                formErrors['passportNumber'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 h-10`}
             />
+            {getError('passportNumber')}
           </div>
           <div className="space-y-1">
             <label htmlFor="alienRegistrationNumber" className="block text-sm font-medium text-gray-700 leading-4 h-10 flex items-center whitespace-nowrap overflow-hidden text-ellipsis">
-              A-Number (Alien Registration)
+              A-Number (Alien Registration) *
             </label>
             <input
               type="text"
@@ -1483,7 +1542,7 @@ const RegisterPage: React.FC = () => {
           </div>
           <div className="md:col-span-2">
             <label htmlFor="nationalIdNumber" className="block text-sm font-medium text-gray-700">
-              National ID Number
+              National ID Number *
             </label>
             <input
               type="text"
@@ -1491,8 +1550,11 @@ const RegisterPage: React.FC = () => {
               name="nationalIdNumber"
               value={formData.nationalIdNumber}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['nationalIdNumber'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('nationalIdNumber')}
           </div>
         </div>
       </div>
@@ -1506,7 +1568,7 @@ const RegisterPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label htmlFor="employment.currentEmployer.name" className="block text-sm font-medium text-gray-700">
-              Current Employer Name
+              Current Employer Name *
             </label>
             <input
               type="text"
@@ -1514,12 +1576,15 @@ const RegisterPage: React.FC = () => {
               name="employment.currentEmployer.name"
               value={formData.employment.currentEmployer.name}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['employment.currentEmployer.name'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('employment.currentEmployer.name')}
           </div>
           <div>
             <label htmlFor="employment.jobTitle" className="block text-sm font-medium text-gray-700">
-              Job Title
+              Job Title *
             </label>
             <input
               type="text"
@@ -1527,12 +1592,15 @@ const RegisterPage: React.FC = () => {
               name="employment.jobTitle"
               value={formData.employment.jobTitle}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['employment.jobTitle'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('employment.jobTitle')}
           </div>
           <div>
             <label htmlFor="employment.employmentStartDate" className="block text-sm font-medium text-gray-700">
-              Employment Start Date
+              Employment Start Date *
             </label>
             <input
               type="date"
@@ -1540,12 +1608,15 @@ const RegisterPage: React.FC = () => {
               name="employment.employmentStartDate"
               value={formData.employment.employmentStartDate}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['employment.employmentStartDate'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('employment.employmentStartDate')}
           </div>
           <div>
             <label htmlFor="employment.annualIncome" className="block text-sm font-medium text-gray-700">
-              Annual Income ($)
+              Annual Income ($) *
             </label>
             <input
               type="number"
@@ -1566,7 +1637,7 @@ const RegisterPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label htmlFor="employment.currentEmployer.address.street" className="block text-sm font-medium text-gray-700">
-                Street Address
+                Street Address *
               </label>
               <input
                 type="text"
@@ -1582,7 +1653,7 @@ const RegisterPage: React.FC = () => {
             </div>
             <div>
               <label htmlFor="employment.currentEmployer.address.city" className="block text-sm font-medium text-gray-700">
-                City
+                City *
               </label>
               <input
                 type="text"
@@ -1598,7 +1669,7 @@ const RegisterPage: React.FC = () => {
             </div>
             <div>
               <label htmlFor="employment.currentEmployer.address.state" className="block text-sm font-medium text-gray-700">
-                State
+                State *
               </label>
               <input
                 type="text"
@@ -1614,7 +1685,7 @@ const RegisterPage: React.FC = () => {
             </div>
             <div>
               <label htmlFor="employment.currentEmployer.address.zipCode" className="block text-sm font-medium text-gray-700">
-                ZIP Code
+                ZIP Code *
               </label>
               <input
                 type="text"
@@ -1630,7 +1701,7 @@ const RegisterPage: React.FC = () => {
             </div>
             <div>
               <label htmlFor="employment.currentEmployer.address.country" className="block text-sm font-medium text-gray-700">
-                Country
+                Country *
               </label>
               <input
                 type="text"
@@ -1653,14 +1724,16 @@ const RegisterPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="education.highestLevel" className="block text-sm font-medium text-gray-700">
-              Highest Education Level
+              Highest Education Level *
             </label>
             <select
               id="education.highestLevel"
               name="education.highestLevel"
               value={formData.education.highestLevel}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['education.highestLevel'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             >
               <option value="">Select Education Level</option>
               <option value="high_school">High School</option>
@@ -1670,10 +1743,11 @@ const RegisterPage: React.FC = () => {
               <option value="doctorate">Doctorate</option>
               <option value="other">Other</option>
             </select>
+            {getError('education.highestLevel')}
           </div>
           <div>
             <label htmlFor="education.institutionName" className="block text-sm font-medium text-gray-700">
-              Institution Name
+              Institution Name *
             </label>
             <input
               type="text"
@@ -1689,7 +1763,7 @@ const RegisterPage: React.FC = () => {
           </div>
           <div>
             <label htmlFor="education.datesAttended.startDate" className="block text-sm font-medium text-gray-700">
-              Start Date
+              Start Date *
             </label>
             <input
               type="date"
@@ -1697,12 +1771,15 @@ const RegisterPage: React.FC = () => {
               name="education.datesAttended.startDate"
               value={formData.education.datesAttended.startDate}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['education.datesAttended.startDate'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('education.datesAttended.startDate')}
           </div>
           <div>
             <label htmlFor="education.datesAttended.endDate" className="block text-sm font-medium text-gray-700">
-              End Date
+              End Date *
             </label>
             <input
               type="date"
@@ -1710,12 +1787,15 @@ const RegisterPage: React.FC = () => {
               name="education.datesAttended.endDate"
               value={formData.education.datesAttended.endDate}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['education.datesAttended.endDate'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('education.datesAttended.endDate')}
           </div>
           <div>
             <label htmlFor="education.fieldOfStudy" className="block text-sm font-medium text-gray-700">
-              Field of Study
+              Field of Study *
             </label>
             <input
               type="text"
@@ -1723,8 +1803,11 @@ const RegisterPage: React.FC = () => {
               name="education.fieldOfStudy"
               value={formData.education.fieldOfStudy}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['education.fieldOfStudy'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             />
+            {getError('education.fieldOfStudy')}
           </div>
         </div>
       </div>
@@ -1746,6 +1829,10 @@ const RegisterPage: React.FC = () => {
           </button>
         </div>
         
+        {formErrors['travelHistory'] && (
+          <p className="mb-4 text-sm text-red-600">{formErrors['travelHistory']}</p>
+        )}
+        
         {formData.travelHistory.map((travel, index) => (
           <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-4">
@@ -1761,7 +1848,7 @@ const RegisterPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Country
+                  Country *
                 </label>
                 <input
                   type="text"
@@ -1815,7 +1902,7 @@ const RegisterPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Duration (days)
+                  Duration (days) *
                 </label>
                 <input
                   type="number"
@@ -1839,7 +1926,7 @@ const RegisterPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="financialInfo.annualIncome" className="block text-sm font-medium text-gray-700">
-              Annual Income ($)
+              Annual Income ($) *
             </label>
             <input
               type="number"
@@ -1855,14 +1942,16 @@ const RegisterPage: React.FC = () => {
           </div>
           <div>
             <label htmlFor="financialInfo.sourceOfFunds" className="block text-sm font-medium text-gray-700">
-              Source of Funds
+              Source of Funds *
             </label>
             <select
               id="financialInfo.sourceOfFunds"
               name="financialInfo.sourceOfFunds"
               value={formData.financialInfo.sourceOfFunds}
               onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                formErrors['financialInfo.sourceOfFunds'] ? 'border-red-300' : 'border-gray-300'
+              } rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500`}
             >
               <option value="">Select Source</option>
               <option value="employment">Employment</option>
@@ -1871,10 +1960,11 @@ const RegisterPage: React.FC = () => {
               <option value="savings">Savings</option>
               <option value="other">Other</option>
             </select>
+            {getError('financialInfo.sourceOfFunds')}
           </div>
           <div>
             <label htmlFor="financialInfo.bankAccountBalance" className="block text-sm font-medium text-gray-700">
-              Bank Account Balance ($)
+              Bank Account Balance ($) *
             </label>
             <input
               type="number"
@@ -2018,12 +2108,12 @@ const RegisterPage: React.FC = () => {
                 // Scroll to first error in current section
                 const firstErrorField = Object.keys(formErrors).find(key => {
                   const sectionFieldPrefixes: Record<number, string[]> = {
-                    0: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone', 'dateOfBirth'],
+                    0: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone', 'dateOfBirth', 'nationality'],
                     1: ['address.', 'placeOfBirth.'],
-                    2: ['gender', 'maritalStatus', 'immigrationPurpose', 'spouse.', 'children.'],
-                    3: ['alienRegistrationNumber'],
+                    2: ['gender', 'maritalStatus', 'immigrationPurpose', 'spouse.', 'children.', 'bio'],
+                    3: ['passportNumber', 'alienRegistrationNumber', 'nationalIdNumber'],
                     4: ['employment.', 'education.'],
-                    5: ['travelHistory.', 'financialInfo.'],
+                    5: ['travelHistory', 'travelHistory.', 'financialInfo.'],
                     6: ['criminalHistory.', 'medicalHistory.']
                   };
                   const prefixes = sectionFieldPrefixes[currentSection] || [];
