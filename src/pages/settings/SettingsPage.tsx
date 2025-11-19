@@ -67,7 +67,7 @@ import {
   Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { toast } from 'react-toastify';
+import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { useAuth, updateUser, deleteUser, registerAttorney, registerCompanyUser, getUserById } from '../../controllers/AuthControllers';
@@ -1625,8 +1625,19 @@ const SettingsPage = () => {
     if (!user?._id) return;
     setLoading(true);
     try {
-      await updateSecurity(user._id, securityData);
-      toast.success('Security settings updated successfully');
+      const response = await updateSecurity(user._id, securityData);
+      if (response.status === 200 || response.status === 201) {
+        toast.success('Security settings updated successfully');
+        // Clear password fields after successful update
+        setSecurityData(prev => ({
+          ...prev,
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        }));
+      } else {
+        toast.error('Failed to update security settings');
+      }
     } catch (error) {
       console.error('Error updating security:', error);
       toast.error('Failed to update security settings');
@@ -9236,6 +9247,19 @@ const SettingsPage = () => {
           </div>
         </div>
       )}
+
+      {/* Toast Container for notifications */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
 
     </div>
   );
