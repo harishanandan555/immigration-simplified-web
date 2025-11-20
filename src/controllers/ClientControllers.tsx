@@ -1,5 +1,6 @@
 import api from '../utils/api';
 import { CLIENT_END_POINTS, USER_END_POINTS } from '../utils/constants';
+import axios from 'axios';
 
 export interface Address {
   street: string;
@@ -414,10 +415,22 @@ export const createIndividualClient = async (clientData: Omit<Client, '_id' | 'i
         return response.data;
 
     } catch (error) {
+        if (axios.isAxiosError(error)) {
+            // Extract error message from API response
+            const errorMessage = error.response?.data?.error?.message 
+                || error.response?.data?.message 
+                || error.response?.data?.error
+                || error.message;
+            
+            console.error('Error creating client:', errorMessage);
+            throw new Error(errorMessage);
+        }
+        
         if (error instanceof Error) {
             console.error('Error creating client:', error.message);
             throw new Error(`Failed to create client: ${error.message}`);
         }
+        
         throw new Error('Failed to create client due to an unknown error');
     }
 };
@@ -437,10 +450,22 @@ export const createCompanyClient = async (clientData: Omit<Client, '_id' | 'id' 
         return response.data;
 
     } catch (error) {
+        if (axios.isAxiosError(error)) {
+            // Extract error message from API response
+            const errorMessage = error.response?.data?.error?.message 
+                || error.response?.data?.message 
+                || error.response?.data?.error
+                || error.message;
+            
+            console.error('Error creating company client:', errorMessage);
+            throw new Error(errorMessage);
+        }
+        
         if (error instanceof Error) {
             console.error('Error creating company client:', error.message);
             throw new Error(`Failed to create company client: ${error.message}`);
         }
+        
         throw new Error('Failed to create company client due to an unknown error');
     }
 };
