@@ -842,7 +842,6 @@ const QuestionnaireResponses: React.FC = () => {
       
       // For workflow-based assignments, we already have the response data
       if (assignment.responseId && assignment.responseId.responses) {
-        console.log('Using existing response data from workflow:', assignment.responseId);
         responseData = {
           data: {
             responses: assignment.responseId.responses,
@@ -870,14 +869,7 @@ const QuestionnaireResponses: React.FC = () => {
         enhancedWithWorkflow: assignment.enhancedWithWorkflow
       };
       
-      console.log('Navigating to response view with assignment:', {
-        assignmentId: completeAssignment._id,
-        workflowCase: completeAssignment.workflowCase,
-        workflowFormCaseIds: completeAssignment.workflowFormCaseIds,
-        workflowQuestionnaireAssignment: completeAssignment.workflowQuestionnaireAssignment,
-        formCaseIdGenerated: completeAssignment.formCaseIdGenerated,
-        hasWorkflowData: completeAssignment.enhancedWithWorkflow
-      });
+      
       
       // Pass the assignment data through navigation state to avoid refetching in ResponseView
       navigate(`/questionnaires/response/${originalAssignmentId}`, {
@@ -894,275 +886,233 @@ const QuestionnaireResponses: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Client Questionnaire Responses</h1>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="mb-6 flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
-        <div className="relative md:w-1/2">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <SearchIcon className="h-5 w-5 text-gray-400" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Client Questionnaire Responses</h1>
+              <p className="mt-1 text-sm text-gray-600">Manage and review completed client questionnaires</p>
+            </div>
+            <div className="mt-3 lg:mt-0">
+              <div className="flex items-center space-x-3">
+                <div className="bg-blue-50 px-3 py-1 rounded-md">
+                  <span className="text-xs font-medium text-blue-700">
+                    {filteredAssignments.length} Total Response{filteredAssignments.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="bg-green-50 px-3 py-1 rounded-md">
+                  <span className="text-xs font-medium text-green-700">
+                    {filteredAssignments.filter(a => a.status === 'completed').length} Completed
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          <input
-            type="text"
-            placeholder="Search questionnaires, clients or cases..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          />
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Filter className="h-5 w-5 text-gray-400" />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in-progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-          <span className="ml-3 text-gray-600">Loading questionnaire responses...</span>
-        </div>
-      ) : error ? (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
-          <div className="flex items-center">
-            <AlertTriangle className="w-5 h-5 mr-2" />
-            <p>{error}</p>
+      <div className="container mx-auto px-4 py-4">
+        {/* Filters and Search */}
+        <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex flex-col lg:flex-row gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Search Responses
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                  <SearchIcon className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search by client name, questionnaire, or case..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 pr-3 py-2 border border-gray-300 rounded-md w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="lg:w-56">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Filter by Status
+              </label>
+              <div className="relative">
+                <Filter className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="pl-8 pr-3 py-2 border border-gray-300 rounded-md w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
-      ) : filteredAssignments.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
-          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">No Completed Questionnaire Responses</h2>
-          <p className="text-gray-600 mb-4">
-            {searchTerm || statusFilter !== 'all' ?
-              'No completed responses match your search criteria.' :
-              'There are no completed questionnaire responses available yet.'}
-          </p>
-          <p className="text-sm text-gray-500">
-            Responses will appear here once clients complete their assigned questionnaires.
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto sticky-scroll-container">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 sticky top-0 z-10">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Questionnaire
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Case
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Dates
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAssignments.map(assignment => (
-                <tr key={assignment._id} className="hover:bg-gray-50">
 
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div
-                      className="flex items-center cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
-                      onClick={() => handleClientClick(assignment)}
-                      title="Click to edit client responses in Legal Firm Workflow"
-                    >
-                      <div className="flex-shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
-                        <User className="h-4 w-4 text-gray-500" />
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
-                          {assignment.actualClient?.firstName && assignment.actualClient?.lastName ?
-                            `${assignment.actualClient.firstName} ${assignment.actualClient.lastName}` :
-                            assignment.clientUserId?.firstName && assignment.clientUserId?.lastName ?
-                              `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}` :
-                              'Client Name Not Available'
-                          }
-                          {/* {assignment.workflowTotal && assignment.workflowTotal > 1 && (
-                            <span className="ml-2 text-xs text-purple-600 font-medium">
-                              (Workflow {assignment.workflowIndex}/{assignment.workflowTotal})
+        {loading ? (
+          <div className="flex justify-center items-center py-16">
+            <div className="bg-white rounded-lg shadow-sm p-6 text-center">
+              <Loader2 className="w-10 h-10 animate-spin text-blue-500 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-1">Loading Responses</h3>
+              <p className="text-gray-600 text-sm">Fetching questionnaire responses...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-lg shadow-sm border border-red-200 p-6">
+            <div className="flex items-center justify-center text-red-700">
+              <AlertTriangle className="w-6 h-6 mr-2" />
+              <div>
+                <h3 className="text-lg font-semibold mb-1">Error Loading Responses</h3>
+                <p className="text-sm">{error}</p>
+              </div>
+            </div>
+          </div>
+        ) : filteredAssignments.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+            <div className="max-w-md mx-auto">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-700 mb-3">No Questionnaire Responses</h2>
+              <p className="text-gray-600 mb-4 leading-relaxed text-sm">
+                {searchTerm || statusFilter !== 'all' ?
+                  'No responses match your search criteria. Try adjusting your filters.' :
+                  'There are no completed questionnaire responses available yet. Responses will appear here once clients complete their assigned questionnaires.'}
+              </p>
+              {searchTerm || statusFilter !== 'all' ? (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                  }}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Clear Filters
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredAssignments.map(assignment => (
+              <div key={assignment._id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="p-4">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between space-y-3 lg:space-y-0">
+                    
+                    {/* Main Content */}
+                    <div className="flex-1">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        
+                        {/* Client Information */}
+                        <div>
+                          <div className="flex items-center mb-2">
+                            <div className="flex-shrink-0 h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                              <User className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <div className="ml-2">
+                              <h3 className="text-sm font-semibold text-gray-900">
+                                {assignment.actualClient?.firstName && assignment.actualClient?.lastName ?
+                                  `${assignment.actualClient.firstName} ${assignment.actualClient.lastName}` :
+                                  assignment.clientUserId?.firstName && assignment.clientUserId?.lastName ?
+                                    `${assignment.clientUserId.firstName} ${assignment.clientUserId.lastName}` :
+                                    'Client Name Not Available'
+                                }
+                              </h3>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-600 mb-2">
+                            {assignment.actualClient?.email || assignment.clientUserId?.email || 'No email available'}
+                          </p>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                            <span>Client Profile</span>
+                          </div>
+                        </div>
+
+                        {/* Questionnaire & Case Info */}
+                        <div>
+                          <div className="flex items-center mb-2">
+                            <FileText className="h-4 w-4 text-green-600 mr-1" />
+                            <h4 className="font-medium text-gray-900 text-sm">
+                              {assignment.questionnaireDetails?.title ||
+                                assignment.workflowQuestionnaireAssignment?.questionnaire_title ||
+                                assignment.workflowQuestionnaireAssignment?.formNumber ||
+                                'Untitled Questionnaire'}
+                            </h4>
+                          </div>
+                          <p className="text-xs text-gray-600 mb-2">
+                            Category: {assignment.questionnaireDetails?.category ||
+                              assignment.workflowQuestionnaireAssignment?.formNumber ||
+                              assignment.workflowCase?.category ||
+                              'No category'}
+                          </p>
+                          {(assignment.formCaseIdGenerated || 
+                            assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated || 
+                            assignment.workflowCase?.caseNumber) && (
+                            <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                              Case: {assignment.formCaseIdGenerated ||
+                                assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated ||
+                                assignment.workflowCase?.caseNumber ||
+                                assignment.workflowCase?.title ||
+                                'No case linked'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Status & Dates */}
+                        <div>
+                          <div className="flex items-center mb-2">
+                            <span
+                              className={`px-2 py-1 text-xs font-medium rounded-full inline-flex items-center ${getStatusColor(assignment.status, assignment.isOverdue)}`}
+                            >
+                              {getStatusIcon(assignment.status, assignment.isOverdue)}
+                              <span className="ml-1">
+                                {assignment.isOverdue ? 'Overdue' : assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
+                              </span>
                             </span>
-                          )} */}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {assignment.actualClient?.email || assignment.clientUserId?.email || 'No email available'}
-                        </div>
-
-                        <div className="text-xs text-blue-600 mt-1">
-                          Click to {assignment.responseId?.responses ? 'edit' : 'create'} responses →
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">
-                      {assignment.questionnaireDetails?.title ||
-                        assignment.workflowQuestionnaireAssignment?.questionnaire_title ||
-                        assignment.workflowQuestionnaireAssignment?.formNumber ||
-                        'Untitled'}
-                      {/* {assignment.workflowTotal && assignment.workflowTotal > 1 && (
-                        <span className="ml-2 text-xs text-purple-600 font-medium">
-                          (Workflow {assignment.workflowIndex}/{assignment.workflowTotal})
-                        </span>
-                      )} */}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {assignment.questionnaireDetails?.category ||
-                        assignment.workflowQuestionnaireAssignment?.formNumber ||
-                        assignment.workflowCase?.category ||
-                        'No category'}
-                    </div>
-                    {/* {assignment.enhancedWithWorkflow && (
-                      <div className="text-xs text-blue-500 mt-1">
-                        From workflow
-                        {assignment.workflowStatus && (
-                          <span className={`ml-1 px-1 rounded ${
-                            assignment.workflowStatus === 'completed' ? 'bg-green-100 text-green-600' :
-                            assignment.workflowStatus === 'in-progress' ? 'bg-blue-100 text-blue-600' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                            {assignment.workflowStatus}
-                          </span>
-                        )}
-                      </div>
-                    )} */}
-                  </td>
-
-                  <td className="px-6 py-4">
-                    {assignment.formCaseIdGenerated ? (
-                      <div>
-                        <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
-                          {assignment.formCaseIdGenerated}
-                        </div>
-                        {assignment.workflowFormCaseIds && (
-                          <div className="text-xs text-gray-500">
-                            {Object.keys(assignment.workflowFormCaseIds).find(formNumber => 
-                              assignment.workflowFormCaseIds && 
-                              assignment.workflowFormCaseIds[formNumber] === assignment.formCaseIdGenerated
+                          </div>
+                          
+                          <div className="space-y-1 text-xs text-gray-600">
+                            {assignment.completedAt && (
+                              <div className="flex items-center text-green-600">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                <span>Completed: {formatDate(assignment.completedAt)}</span>
+                              </div>
+                            )}
+                            {assignment.dueDate && !assignment.completedAt && (
+                              <div className={`flex items-center ${assignment.isOverdue ? 'text-red-600' : 'text-gray-600'}`}>
+                                <Clock className="w-3 h-3 mr-1" />
+                                <span>Due: {formatDate(assignment.dueDate)}</span>
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
-                    ) : assignment.workflowQuestionnaireAssignment?.formCaseIdGenerated ? (
-                      <div>
-                        <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
-                          {assignment.workflowQuestionnaireAssignment.formCaseIdGenerated}
-                        </div>
-                        {assignment.workflowFormCaseIds && assignment.workflowQuestionnaireAssignment && (
-                          <div className="text-xs text-gray-500">
-                            {Object.keys(assignment.workflowFormCaseIds).find(formNumber => 
-                              assignment.workflowFormCaseIds && 
-                              assignment.workflowQuestionnaireAssignment &&
-                              assignment.workflowFormCaseIds[formNumber] === assignment.workflowQuestionnaireAssignment.formCaseIdGenerated
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : assignment.workflowCase?.caseNumber ? (
-                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
-                        {assignment.workflowCase.caseNumber}
-                      </div>
-                    ) : assignment.workflowCase?.title ? (
-                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
-                        {assignment.workflowCase.title}
-                      </div>
-                    ) : assignment.caseId ? (
-                      <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
-                        {assignment.caseId.title}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-500 whitespace-nowrap">No case linked</span>
-                    )}
-                  </td>
-                  
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full inline-flex items-center ${getStatusColor(assignment.status, assignment.isOverdue)}`}
-                    >
-                      {getStatusIcon(assignment.status, assignment.isOverdue)}
-                      <span className="ml-1">
-                        {assignment.isOverdue ? 'Overdue' : assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
-                      </span>
-                    </span>
-                    {assignment.status === 'completed' && !assignment.responseId && (
-                      <div className="mt-1">
-                        <span className="px-2 py-1 text-xs rounded-full bg-orange-50 text-orange-600 border border-orange-200">
-                          <AlertTriangle className="w-3 h-3 inline mr-1" />
-                          Missing Response Data
-                        </span>
-                      </div>
-                    )}
-                    {assignment.workflowQuestionnaireAssignment?.reuseMetadata?.isReused && (
-                      <div className="mt-1">
-                        <span className="px-2 py-1 text-xs rounded-full bg-blue-50 text-blue-600 border border-blue-200">
-                          🔄 Reused Response
-                        </span>
-                      </div>
-                    )}
-                  </td>
 
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-500">
-                      {/* <div className="flex items-center mb-1">
-                        <Calendar className="w-3 h-3 mr-1" />
-                        <span>Assigned: {formatDate(assignment.assignedAt)}</span>
-                      </div> */}
-                      {assignment.completedAt && (
-                        <div className="flex items-center mb-1 text-green-600">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          <span>Completed: {formatDate(assignment.completedAt)}</span>
+                          {assignment.workflowQuestionnaireAssignment?.reuseMetadata?.isReused && (
+                            <div className="mt-1 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200">
+                              🔄 Reused Response
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {assignment.dueDate && !assignment.completedAt && (
-                        <div className={`flex items-center ${assignment.isOverdue ? 'text-red-600' : ''}`}>
-                          <Clock className="w-3 h-3 mr-1" />
-                          <span>Due: {formatDate(assignment.dueDate)}</span>
-                        </div>
-                      )}
-                      {assignment.workflowQuestionnaireAssignment?.reuseMetadata?.isReused && (
-                        <div className="flex items-center text-blue-600 mt-1">
-                          <span className="text-xs">🔄 Reused from: {formatDate(assignment.workflowQuestionnaireAssignment.reuseMetadata.originalCompletedAt)}</span>
-                        </div>
-                      )}
+                      </div>
                     </div>
-                  </td>
 
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex flex-col items-end space-y-2">
+                    {/* Action Buttons */}
+                    <div className="flex flex-row lg:flex-col gap-2 lg:w-40">
+                      <button
+                        onClick={() => handleClientClick(assignment)}
+                        className="flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-sm"
+                        title="Edit client responses in Legal Firm Workflow"
+                      >
+                        <User className="w-4 h-4 mr-1" />
+                        {assignment.responseId?.responses ? 'Edit Responses' : 'Create Responses'}
+                      </button>
+                      
                       <button
                         onClick={() => {
-                          console.log('🔍 Button render check for assignment:', {
-                            assignmentId: assignment._id,
-                            caseNumber: assignment.workflowCase?.caseNumber,
-                            status: assignment.status,
-                            hasResponseId: !!assignment.responseId,
-                            hasResponses: !!assignment.responseId?.responses,
-                            responseCount: assignment.responseId?.responses ? Object.keys(assignment.responseId.responses).length : 0,
-                            shouldBeDisabled: !assignment.responseId || !assignment.responseId.responses
-                          });
                           console.log('🔘 View Response button clicked for assignment:', {
                             assignmentId: assignment._id,
                             status: assignment.status,
@@ -1174,10 +1124,10 @@ const QuestionnaireResponses: React.FC = () => {
                           handleViewResponse(assignment._id);
                         }}
                         disabled={!assignment.responseId || !assignment.responseId.responses}
-                        className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                        className={`flex items-center justify-center px-3 py-2 rounded-md border font-medium transition-colors text-sm ${
                           assignment.responseId?.responses
-                            ? 'text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300'
-                            : 'text-gray-400 bg-gray-50 border border-gray-200 cursor-not-allowed'
+                            ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                            : 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
                         }`}
                         title={
                           !assignment.responseId
@@ -1189,27 +1139,28 @@ const QuestionnaireResponses: React.FC = () => {
                                 : 'View the current response (in-progress)'
                         }
                       >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Response
+                        <Eye className="w-4 h-4 mr-1" />
+                        View Details
                       </button>
-                      {/* {assignment.responseId?.responses ? (
-                        <div className="text-xs text-green-600 font-medium">
-                          {Object.keys(assignment.responseId.responses).length} fields completed
-                        </div>
-                      ) : assignment.status === 'completed' ? (
-                        <div className="text-xs text-red-600 font-medium">
-                          No response data available
-                        </div>
-                      ) : null} */}
                     </div>
-                  </td>
+                  </div>
 
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  {/* Additional Status Indicators */}
+                  {assignment.status === 'completed' && !assignment.responseId && (
+                    <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-md">
+                      <div className="flex items-center">
+                        <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
+                        <span className="text-xs font-medium text-orange-800">Missing Response Data</span>
+                      </div>
+                      <p className="text-xs text-orange-600 mt-1">This response is marked as completed but the response data is not available.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

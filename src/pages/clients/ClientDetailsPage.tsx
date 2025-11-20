@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, FileText, Briefcase, PlusCircle, Download, Eye, Clock, FolderOpen, CheckCircle } from 'lucide-react';
-import { 
-  Document, 
+import {
+  Document,
   getDocuments,
   downloadDocument,
   previewDocument
@@ -18,11 +18,11 @@ const ClientDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [clientCases, setClientCases] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Document-related state
   const [clientDocuments, setClientDocuments] = useState<Document[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
-  
+
   // Activity-related state
   const [activities, setActivities] = useState<any[]>([]);
 
@@ -38,19 +38,19 @@ const ClientDetailsPage = () => {
   const fetchClientWorkflows = async (clientId: string, clientData?: any) => {
     try {
       // Clear any previous error
-      
+
       const clientEmail = (clientData || client)?.email?.trim().toLowerCase() || '';
-      
-      console.log('🔄 Starting comprehensive workflow fetch for client:', { 
-        clientId, 
+
+      console.log('🔄 Starting comprehensive workflow fetch for client:', {
+        clientId,
         clientEmail,
         clientName: (clientData || client)?.name,
         hasClientData: !!clientData
       });
-      
+
       let workflows: any[] = [];
       let workflowFetchSuccess = false;
-      
+
       // Strategy 1: Use enhanced getWorkflowsByClient with client ID (primary method)
       try {
         console.log('📡 Strategy 1: Using enhanced getWorkflowsByClient with client ID...');
@@ -61,19 +61,19 @@ const ClientDetailsPage = () => {
         });
 
         console.log("Response", workflowResponse);
-        
-      
-        
+
+
+
         if (workflowResponse.success && workflowResponse.data && workflowResponse.data.length > 0) {
           workflows = workflowResponse.data;
           workflowFetchSuccess = true;
           console.log('✅ Strategy 1 SUCCESS: Found workflows by client ID:', workflows.length);
-          
+
           // Extract and update client data from workflow response
           if (workflows[0]?.client) {
             const clientFromWorkflow = workflows[0].client;
             console.log('🔄 Updating client data from workflow response:', clientFromWorkflow);
-            
+
             // Update the client state with the more complete data from workflow
             if (clientFromWorkflow._id === clientId || clientFromWorkflow.clientId === clientId) {
               setClient(prevClient => ({
@@ -100,7 +100,7 @@ const ClientDetailsPage = () => {
               } as Client));
             }
           }
-          
+
         } else if (workflowResponse.success && workflowResponse.count === 0) {
           console.log('ℹ️ Strategy 1: No workflows found for client ID, this is normal for new clients');
         } else {
@@ -109,7 +109,7 @@ const ClientDetailsPage = () => {
       } catch (error) {
         console.warn('⚠️ Strategy 1 FAILED: getWorkflowsByClient with ID failed:', error);
       }
-      
+
       // Strategy 2: Try with client email if ID approach didn't work and we have an email
       if (!workflowFetchSuccess && clientEmail) {
         try {
@@ -117,21 +117,21 @@ const ClientDetailsPage = () => {
           const emailWorkflowResponse = await getWorkflowsByClient(clientEmail, {
             page: 1,
             limit: 50,
-           
+
           });
-         
+
           console.log("EMAIL RESPONSE", emailWorkflowResponse);
-          
+
           if (emailWorkflowResponse.success && emailWorkflowResponse.data && emailWorkflowResponse.data.length > 0) {
             workflows = emailWorkflowResponse.data;
             workflowFetchSuccess = true;
             console.log('✅ Strategy 2 SUCCESS: Found workflows by client email:', workflows.length);
-            
+
             // Extract and update client data from workflow response
             if (workflows[0]?.client) {
               const clientFromWorkflow = workflows[0].client;
               console.log('🔄 Strategy 2: Updating client data from workflow response:', clientFromWorkflow);
-              
+
               setClient(prevClient => ({
                 ...prevClient,
                 ...clientFromWorkflow,
@@ -140,7 +140,7 @@ const ClientDetailsPage = () => {
                 name: clientFromWorkflow.name || `${clientFromWorkflow.firstName || ''} ${clientFromWorkflow.lastName || ''}`.trim(),
               } as Client));
             }
-            
+
           } else if (emailWorkflowResponse.success && emailWorkflowResponse.count === 0) {
             console.log('ℹ️ Strategy 2: No workflows found for client email');
           }
@@ -148,42 +148,42 @@ const ClientDetailsPage = () => {
           console.warn('⚠️ Strategy 2 FAILED: getWorkflowsByClient with email failed:', emailError);
         }
       }
-      
+
       // Strategy 3: Fallback to general workflow search and filter locally (proven working method)
       if (!workflowFetchSuccess) {
         try {
           console.log('📡 Strategy 3: Fallback to general workflow fetch and local filtering...');
-          
+
           console.log('🔍 Strategy 3: Calling fetchWorkflows with parameters:', {
             limit: 100,
             endpoint: '/api/v1/workflows',
             timestamp: new Date().toISOString()
           });
-          
+
           const allWorkflows = await fetchWorkflows({
             limit: 100
           });
 
-          
+
           console.log('📊 Strategy 3: fetchWorkflows raw response:', {
             type: typeof allWorkflows,
             isArray: Array.isArray(allWorkflows),
             length: Array.isArray(allWorkflows) ? allWorkflows.length : 'N/A',
             response: allWorkflows
           });
-          
+
           if (Array.isArray(allWorkflows) && allWorkflows.length > 0) {
             console.log('📊 Fetched all workflows for filtering:', allWorkflows.length);
-            
+
             // Filter workflows for this specific client with detailed logging
             workflows = allWorkflows.filter((workflow: any) => {
               const workflowClientId = workflow.clientId || workflow.client?.clientId || workflow.client?.id || workflow.client?._id;
               const workflowClientEmail = workflow.client?.email?.trim().toLowerCase();
-              
+
               // Match by ID or email
               const matchesId = workflowClientId === clientId;
               const matchesEmail = clientEmail && workflowClientEmail === clientEmail;
-              
+
               console.log('🔍 Workflow filter analysis:', {
                 workflowId: workflow.id || workflow._id,
                 workflowClientId,
@@ -194,19 +194,19 @@ const ClientDetailsPage = () => {
                 matchesEmail,
                 finalMatch: matchesId || matchesEmail
               });
-              
+
               return matchesId || matchesEmail;
             });
-            
+
             if (workflows.length > 0) {
               workflowFetchSuccess = true;
               console.log('✅ Strategy 3 SUCCESS: Found workflows after local filtering:', workflows.length);
-              
+
               // Extract and update client data from workflow response
               if (workflows[0]?.client) {
                 const clientFromWorkflow = workflows[0].client;
                 console.log('🔄 Strategy 3: Updating client data from workflow response:', clientFromWorkflow);
-                
+
                 setClient(prevClient => ({
                   ...prevClient,
                   ...clientFromWorkflow,
@@ -215,7 +215,7 @@ const ClientDetailsPage = () => {
                   name: clientFromWorkflow.name || `${clientFromWorkflow.firstName || ''} ${clientFromWorkflow.lastName || ''}`.trim(),
                 } as Client));
               }
-              
+
             } else {
               console.log('ℹ️ Strategy 3: No workflows matched after filtering');
             }
@@ -233,16 +233,16 @@ const ClientDetailsPage = () => {
           });
         }
       }
-      
+
       // Strategy 4: Direct API call test if all other strategies failed
       if (!workflowFetchSuccess) {
         try {
           console.log('📡 Strategy 4: Direct API test to check server connectivity...');
-          
+
           const directResponse = await api.get('/api/v1/workflows', {
             params: { limit: 5 }
           });
-          
+
           console.log('📊 Strategy 4: Direct API response:', {
             status: directResponse.status,
             statusText: directResponse.statusText,
@@ -251,7 +251,7 @@ const ClientDetailsPage = () => {
             dataType: typeof directResponse.data,
             rawResponse: directResponse.data
           });
-          
+
           if (directResponse.data) {
             const directWorkflows = directResponse.data.data || directResponse.data.workflows || directResponse.data || [];
             console.log('📊 Strategy 4: Extracted workflows:', {
@@ -259,28 +259,28 @@ const ClientDetailsPage = () => {
               isArray: Array.isArray(directWorkflows),
               length: Array.isArray(directWorkflows) ? directWorkflows.length : 'N/A'
             });
-            
+
             if (Array.isArray(directWorkflows)) {
               // Try filtering these workflows
               workflows = directWorkflows.filter((workflow: any) => {
                 const workflowClientId = workflow.clientId || workflow.client?.clientId || workflow.client?.id || workflow.client?._id;
                 const workflowClientEmail = workflow.client?.email?.trim().toLowerCase();
-                
+
                 const matchesId = workflowClientId === clientId;
                 const matchesEmail = clientEmail && workflowClientEmail === clientEmail;
-                
+
                 return matchesId || matchesEmail;
               });
-              
+
               if (workflows.length > 0) {
                 workflowFetchSuccess = true;
                 console.log('✅ Strategy 4 SUCCESS: Found workflows after direct API filtering:', workflows.length);
-                
+
                 // Extract and update client data from workflow response
                 if (workflows[0]?.client) {
                   const clientFromWorkflow = workflows[0].client;
                   console.log('🔄 Strategy 4: Updating client data from workflow response:', clientFromWorkflow);
-                  
+
                   setClient(prevClient => ({
                     ...prevClient,
                     ...clientFromWorkflow,
@@ -302,7 +302,7 @@ const ClientDetailsPage = () => {
           });
         }
       }
-      
+
       console.log('📊 Final workflow processing result:', {
         totalFound: workflows.length,
         fetchMethod: workflowFetchSuccess ? 'Direct API Success' : 'Fallback Method',
@@ -319,15 +319,15 @@ const ClientDetailsPage = () => {
           formCaseIdsCount: w.formCaseIds ? Object.keys(w.formCaseIds).length : 0
         }))
       });
-      
+
       // Process workflows to extract case information and activities
       const processedWorkflows = workflows.map((workflow: any) => {
         // Enhanced case number extraction using the detailed workflow data
         let caseNumber = 'No Case Number';
-        
+
         // Enhanced formCaseIds extraction from multiple sources
         const cleanFormCaseIds: Record<string, string> = {};
-        
+
         // Method 1: Traditional formCaseIds object (legacy structure)
         if (workflow.formCaseIds && typeof workflow.formCaseIds === 'object') {
           Object.keys(workflow.formCaseIds).forEach(key => {
@@ -337,17 +337,17 @@ const ClientDetailsPage = () => {
             }
           });
         }
-        
+
         // Method 2: Extract from formNumber and questionnaireAssignment (new structure)
         if (workflow.formNumber && workflow.questionnaireAssignment?.formCaseIdGenerated) {
           cleanFormCaseIds[workflow.formNumber] = workflow.questionnaireAssignment.formCaseIdGenerated;
         }
-        
+
         // Method 3: Extract from formNumber and case.caseNumber (fallback)
         if (workflow.formNumber && workflow.case?.caseNumber && !cleanFormCaseIds[workflow.formNumber]) {
           cleanFormCaseIds[workflow.formNumber] = workflow.case.caseNumber;
         }
-        
+
         // Priority 1: Case object case number
         if (workflow.case?.caseNumber) {
           caseNumber = workflow.case.caseNumber;
@@ -371,7 +371,7 @@ const ClientDetailsPage = () => {
             caseNumber = `${firstForm}: ${cleanFormCaseIds[firstForm]}`;
           }
         }
-        
+
         // Enhanced title extraction
         let title = `Workflow ${(workflow.id || workflow._id || '').slice(-8)}`;
         if (workflow.case?.title) {
@@ -383,7 +383,7 @@ const ClientDetailsPage = () => {
         } else if (workflow.selectedForms && workflow.selectedForms.length > 0) {
           title = `${workflow.selectedForms.join(', ')} Application`;
         }
-        
+
         // Enhanced selectedForms array construction
         const enhancedSelectedForms = [];
         if (workflow.selectedForms && workflow.selectedForms.length > 0) {
@@ -392,7 +392,7 @@ const ClientDetailsPage = () => {
         if (workflow.formNumber && !enhancedSelectedForms.includes(workflow.formNumber)) {
           enhancedSelectedForms.push(workflow.formNumber);
         }
-        
+
         // Debug logging for enhanced form processing
         console.log('🔍 Enhanced Workflow Processing:', {
           workflowId: workflow.workflowId || workflow._id,
@@ -405,7 +405,7 @@ const ClientDetailsPage = () => {
           enhancedSelectedForms,
           finalCaseNumber: caseNumber
         });
-        
+
         return {
           ...workflow,
           id: workflow.id || workflow._id,
@@ -425,20 +425,20 @@ const ClientDetailsPage = () => {
           case: workflow.case
         };
       });
-      
+
       setClientWorkflows(processedWorkflows);
-      
+
       // Check if workflow fetching completely failed and set appropriate error state
       if (!workflowFetchSuccess && processedWorkflows.length === 0) {
         console.warn('⚠️ All workflow fetching strategies failed - workflow data unavailable');
       } else {
         // Clear any previous error
       }
-      
+
       // Show success message if workflows found
       if (processedWorkflows.length > 0) {
         console.log(`✅ Successfully loaded ${processedWorkflows.length} workflow(s) for client using ${workflowFetchSuccess ? 'direct API' : 'fallback method'}`);
-        
+
         // Log detailed workflow information for debugging
         processedWorkflows.forEach((workflow, index) => {
           console.log(`📋 Processed Workflow ${index + 1}:`, {
@@ -456,10 +456,10 @@ const ClientDetailsPage = () => {
       } else {
         console.log('ℹ️ No workflows found for this client');
       }
-      
+
       // Generate enhanced workflow activities for the activity timeline
       const workflowActivities: any[] = [];
-      
+
       processedWorkflows.forEach((workflow: any) => {
         // Main workflow creation activity
         workflowActivities.push({
@@ -475,11 +475,11 @@ const ClientDetailsPage = () => {
             selectedForms: workflow.selectedForms
           }
         });
-        
+
         // Add questionnaire-related activities if available
         if (workflow.questionnaireAssignment) {
           const qa = workflow.questionnaireAssignment;
-          
+
           // Questionnaire assignment activity
           workflowActivities.push({
             id: `questionnaire-assigned-${workflow.id}`,
@@ -494,7 +494,7 @@ const ClientDetailsPage = () => {
               status: qa.status
             }
           });
-          
+
           // Questionnaire submission activity if completed
           if (qa.submitted_at && qa.responses) {
             workflowActivities.push({
@@ -512,7 +512,7 @@ const ClientDetailsPage = () => {
             });
           }
         }
-        
+
         // Add case-related activities if available
         if (workflow.case && workflow.case.createdAt) {
           workflowActivities.push({
@@ -532,17 +532,17 @@ const ClientDetailsPage = () => {
           });
         }
       });
-      
+
       // Merge with existing activities
       setActivities(prev => {
         const combined = [...prev, ...workflowActivities];
         return combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       });
-      
+
     } catch (error) {
       console.error('❌ Error fetching client workflows:', error);
       setClientWorkflows([]);
-      
+
       // Show user-friendly error message
       toast.error('Some workflow information could not be loaded, but the page will continue to function normally.');
     } finally {
@@ -552,44 +552,44 @@ const ClientDetailsPage = () => {
   const fetchClientDocuments = async (clientId: string, clientData?: any) => {
     try {
       setLoadingDocuments(true);
-      
+
       const response = await getDocuments();
-      
+
       if (response.success) {
         // Handle the actual API response structure - same fix as DocumentsPage
         const responseData = response.data as any;
         const allDocuments = responseData.data?.documents || responseData.documents || [];
-        
+
         // Filter documents by client email (primary method)
         const clientEmail = (clientData || client)?.email?.trim().toLowerCase() || '';
-        
+
         const filteredDocuments = allDocuments.filter((doc: Document) => {
           // Primary strategy: Match by client email
           // This works with the new clientEmail field we added to document uploads
           const docClientEmail = (doc as any).clientEmail?.toString().trim().toLowerCase() || '';
           const docUploadedBy = (doc as any).uploadedBy?.toString().trim().toLowerCase() || '';
-          
+
           // Strategy 1: Direct email match in clientEmail field (new field)
           const matchesClientEmail = docClientEmail === clientEmail;
-          
+
           // Strategy 2: Email match in uploadedBy field (fallback)
           const matchesUploadedByEmail = docUploadedBy === clientEmail;
-          
+
           // Strategy 3: For backward compatibility, check if clientId matches our client
           const docClientId = (doc as any).clientId?.toString().trim().toLowerCase() || '';
           const searchClientId = clientId?.toString().trim().toLowerCase() || '';
           const clientActualId = (clientData || client)?._id?.toString().trim().toLowerCase() || '';
           const matchesClientId = docClientId === searchClientId || docClientId === clientActualId;
-          
+
           const isMatch = matchesClientEmail || matchesUploadedByEmail || matchesClientId;
-          
+
           return isMatch;
         });
-        
+
         // Process documents for display with formatted data
         const processedDocuments = processDocumentsForDisplay(filteredDocuments);
         setClientDocuments(processedDocuments);
-        
+
         // Generate activity log only from the client's documents (not all documents)
         const documentActivities = processedDocuments.map((doc: Document) => ({
           id: `doc-${doc._id}`,
@@ -603,12 +603,12 @@ const ClientDetailsPage = () => {
             documentId: doc._id
           }
         }));
-        
+
         // Sort activities by timestamp (newest first)
-        const sortedActivities = documentActivities.sort((a: any, b: any) => 
+        const sortedActivities = documentActivities.sort((a: any, b: any) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         );
-        
+
         setActivities(sortedActivities);
       } else {
         console.error('Failed to fetch documents:', response.message);
@@ -631,7 +631,7 @@ const ClientDetailsPage = () => {
     const diffInMs = now.getTime() - past.getTime();
     const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
     const diffInDays = Math.floor(diffInHours / 24);
-    
+
     if (diffInHours < 1) {
       const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
       return diffInMinutes < 1 ? 'Just now' : `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
@@ -688,13 +688,13 @@ const ClientDetailsPage = () => {
         if (!id) {
           throw new Error('Client ID is required');
         }
-        
+
         setLoading(true);
-        
+
         // Fetch client data using getClientById
         const clientData = await getClientById(id);
         setClient(clientData);
-        
+
         // Fetch client cases using proper API
         try {
           console.log('🔄 Fetching client cases for client:', id);
@@ -712,20 +712,20 @@ const ClientDetailsPage = () => {
             setClientCases([]);
           }
         }
-        
+
         // Fetch client workflows
         await fetchClientWorkflows(id, clientData);
-        
+
         // Log the final client state after all data fetching
         console.log('🔍 Final client state after all data fetching:', {
           originalClientData: clientData,
           currentClientState: client,
           hasWorkflows: clientWorkflows.length > 0
         });
-        
+
         // Fetch client documents
         await fetchClientDocuments(id, clientData);
-        
+
       } catch (err) {
         console.error('❌ Error in fetchClientData:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch client data');
@@ -800,20 +800,19 @@ const ClientDetailsPage = () => {
             <ArrowLeft size={20} />
           </Link>
           <h1 className="text-2xl font-bold">{safeClient.name}</h1>
-          <span className={`ml-4 px-3 py-1 text-sm font-medium rounded-full ${
-            safeClient.status === 'Active' 
-              ? 'bg-green-100 text-green-800'
-              : 'bg-gray-100 text-gray-800'
-          }`}>
+          <span className={`ml-4 px-3 py-1 text-sm font-medium rounded-full ${safeClient.status === 'Active'
+            ? 'bg-green-100 text-green-800'
+            : 'bg-gray-100 text-gray-800'
+            }`}>
             {safeClient.status}
           </span>
         </div>
-      
+
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        
+
+
         {/* Main client information */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-lg shadow">
@@ -857,11 +856,11 @@ const ClientDetailsPage = () => {
                         <div className="space-y-1">
                           {/* Primary address line */}
                           <div className="font-medium">
-                            {(safeClient.address as any)?.formattedAddress || 
+                            {(safeClient.address as any)?.formattedAddress ||
                               `${safeClient.address.street || ''}${(safeClient.address as any)?.aptSuiteFlr && (safeClient.address as any)?.aptNumber ? `, ${(safeClient.address as any).aptSuiteFlr} ${(safeClient.address as any).aptNumber}` : ''}`
                             }
                           </div>
-                          
+
                           {/* City, State, ZIP */}
                           <div className="text-sm text-gray-600">
                             {[
@@ -870,7 +869,7 @@ const ClientDetailsPage = () => {
                               safeClient.address.zipCode || (safeClient.address as any)?.postalCode
                             ].filter(Boolean).join(', ')}
                           </div>
-                          
+
                           {/* Country */}
                           {safeClient.address.country && (
                             <div className="text-sm text-gray-500">
@@ -930,8 +929,8 @@ const ClientDetailsPage = () => {
                 <div>
                   <p className="text-sm text-gray-500">Immigration Purpose</p>
                   <p className="font-medium mt-1">
-                    {(safeClient as any)?.immigrationPurpose ? 
-                      (safeClient as any).immigrationPurpose.replace(/[-_]/g, ' ').split(' ').map((word: string) => 
+                    {(safeClient as any)?.immigrationPurpose ?
+                      (safeClient as any).immigrationPurpose.replace(/[-_]/g, ' ').split(' ').map((word: string) =>
                         word.charAt(0).toUpperCase() + word.slice(1)
                       ).join(' ') : 'Not provided'
                     }
@@ -940,7 +939,7 @@ const ClientDetailsPage = () => {
                 <div>
                   <p className="text-sm text-gray-500">Place of Birth</p>
                   <p className="font-medium mt-1">
-                    {(safeClient as any)?.placeOfBirth && ((safeClient as any).placeOfBirth.city !== 'TBD' || (safeClient as any).placeOfBirth.country !== 'TBD') ? 
+                    {(safeClient as any)?.placeOfBirth && ((safeClient as any).placeOfBirth.city !== 'TBD' || (safeClient as any).placeOfBirth.country !== 'TBD') ?
                       `${(safeClient as any).placeOfBirth.city || ''}, ${(safeClient as any).placeOfBirth.country || ''}`.replace(/^,\s*|\s*,\s*$/g, '') :
                       'Not provided'
                     }
@@ -971,27 +970,26 @@ const ClientDetailsPage = () => {
                           <div>
                             <p className="text-sm text-gray-500">Case Category</p>
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                              {workflow.case?.category ? 
-                                workflow.case.category.replace(/[-_]/g, ' ').split(' ').map((word: string) => 
+                              {workflow.case?.category ?
+                                workflow.case.category.replace(/[-_]/g, ' ').split(' ').map((word: string) =>
                                   word.charAt(0).toUpperCase() + word.slice(1)
                                 ).join(' ') : 'Unknown'
                               }
                             </span>
                           </div>
-                          
+
                           <div>
                             <p className="text-sm text-gray-500">Case Title</p>
                             <p className="font-medium">{workflow.case?.title || 'Not specified'}</p>
                           </div>
-                          
+
                           <div>
                             <p className="text-sm text-gray-500">Case Status</p>
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              workflow.case?.status === 'Active' ? 'bg-green-100 text-green-800' :
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${workflow.case?.status === 'Active' ? 'bg-green-100 text-green-800' :
                               workflow.case?.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                              workflow.case?.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
+                                workflow.case?.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-gray-100 text-gray-800'
+                              }`}>
                               {workflow.case?.status || workflow.status || 'Unknown'}
                             </span>
                           </div>
@@ -1019,15 +1017,14 @@ const ClientDetailsPage = () => {
                               )}
                             </div>
                           </div>
-                          
+
                           <div>
                             <p className="text-sm text-gray-500">Priority</p>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                              workflow.case?.priority === 'High' ? 'bg-red-100 text-red-800' :
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${workflow.case?.priority === 'High' ? 'bg-red-100 text-red-800' :
                               workflow.case?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                              workflow.case?.priority === 'Low' ? 'bg-green-100 text-green-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
+                                workflow.case?.priority === 'Low' ? 'bg-green-100 text-green-800' :
+                                  'bg-gray-100 text-gray-800'
+                              }`}>
                               {workflow.case?.priority || 'Medium'}
                             </span>
                           </div>
@@ -1065,7 +1062,7 @@ const ClientDetailsPage = () => {
                               )}
                             </div>
                           </div>
-                          
+
                           {workflow.case?.dueDate && (
                             <div>
                               <p className="text-sm text-gray-500">Due Date</p>
@@ -1074,7 +1071,7 @@ const ClientDetailsPage = () => {
                           )}
                         </div>
                       </div>
-                      
+
                       {workflow.case?.description && (
                         <div className="mt-4 pt-4 border-t">
                           <p className="text-sm text-gray-500">Description</p>
@@ -1346,8 +1343,89 @@ const ClientDetailsPage = () => {
               )}
             </div>
           </div>
+          <div className="bg-white rounded-lg shadow">
+            <div className="border-b p-4">
+              <h2 className="text-xl font-semibold">Assigned Forms</h2>
+              <div className="p-4">
+                {clientWorkflows && clientWorkflows.length > 0 ? (
+                  <div className="space-y-6">
+                    {clientWorkflows.map((workflow, index) => (
+                      <div key={workflow._id || workflow.id || index} className="border rounded-lg p-4 hover:bg-gray-50">
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-sm text-gray-500">Assigned Forms</p>
+                            <div className="space-y-1">
+                              {workflow.case?.assignedForms && workflow.case.assignedForms.length > 0 ? (
+                                workflow.case.assignedForms.map((form: string) => (
+                                  <span key={form} className="inline-flex items-center px-2 py-0.5 rounded text-m font-medium bg-blue-100 text-blue-900 mr-1">
+                                    📋 {form}
+                                  </span>
+                                ))
+                              ) : workflow.selectedForms && workflow.selectedForms.length > 0 ? (
+                                workflow.selectedForms.map((form: string) => (
+                                  <span key={form} className="inline-flex items-center px-2 py-0.5 rounded text-m font-medium bg-blue-100 text-blue-900 mr-1">
+                                    📋 {form}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-gray-500 italic">No forms assigned</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-sm text-gray-500">Form Case Numbers</p>
+                              <div className="space-y-2">
+                                {workflow.formCaseIds && typeof workflow.formCaseIds === 'object' && Object.keys(workflow.formCaseIds).length > 0 ? (
+                                  Object.entries(workflow.formCaseIds)
+                                    .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
+                                    .map(([form, caseId]) => (
+                                      <div key={form} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                        
+                                        <span className="font-mono text-m bg-white px-2 py-1 rounded border">
+                                          {String(caseId)}
+                                        </span>
+                                      </div>
+                                    ))
+                                ) : workflow.case?.formCaseIds && typeof workflow.case.formCaseIds === 'object' && Object.keys(workflow.case.formCaseIds).length > 0 ? (
+                                  Object.entries(workflow.case.formCaseIds)
+                                    .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
+                                    .map(([form, caseId]) => (
+                                      <div key={form} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                       
+                                        <span className="font-mono text-m bg-white px-2 py-1 rounded border">
+                                          {String(caseId)}
+                                        </span>
+                                      </div>
+                                    ))
+                                ) : (
+                                  <span className="text-gray-500 italic text-sm">No case numbers available</span>
+                                )}
+                              </div>
+                            </div>
+
+                          
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <FileText className="mx-auto h-8 w-8 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No forms assigned</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      No forms have been assigned to this client yet.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
+
     </div>
   );
 };
