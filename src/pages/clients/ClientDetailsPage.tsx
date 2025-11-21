@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, FileText, Briefcase, PlusCircle, Download, Eye, Clock, FolderOpen, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, FileText, Briefcase, PlusCircle, Download, Clock, FolderOpen, CheckCircle } from 'lucide-react';
 import {
   Document,
   getDocuments,
-  downloadDocument,
-  previewDocument
+  downloadDocument
 } from '../../controllers/DocumentControllers';
 import { getClientById, Client, getClientCases } from '../../controllers/ClientControllers';
 import { getWorkflowsByClient, fetchWorkflows } from '../../controllers/LegalFirmWorkflowController';
@@ -25,6 +24,7 @@ const ClientDetailsPage = () => {
 
   // Activity-related state
   const [activities, setActivities] = useState<any[]>([]);
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
   // Workflow-related state
   const [clientWorkflows, setClientWorkflows] = useState<any[]>([]);
@@ -609,16 +609,24 @@ const ClientDetailsPage = () => {
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         );
 
-        setActivities(sortedActivities);
+        // Merge with existing workflow activities instead of replacing them
+        setActivities(prev => {
+          const combined = [...prev, ...sortedActivities];
+          // Remove duplicates based on id and sort by timestamp
+          const unique = combined.filter((activity, index, self) =>
+            index === self.findIndex(a => a.id === activity.id)
+          );
+          return unique.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        });
       } else {
         console.error('Failed to fetch documents:', response.message);
         setClientDocuments([]);
-        setActivities([]);
+        // Don't clear activities here as workflow activities should remain
       }
     } catch (error) {
       console.error('❌ Error fetching client documents:', error);
       setClientDocuments([]);
-      setActivities([]);
+      // Don't clear activities here as workflow activities should remain
     } finally {
       setLoadingDocuments(false);
     }
@@ -666,21 +674,17 @@ const ClientDetailsPage = () => {
   // Document action handlers
   const handleDownloadDocument = async (documentId: string, documentName: string) => {
     try {
+      console.log('🔽 Attempting to download document:', { documentId, documentName });
+      toast.loading('Downloading document...', { id: 'download' });
       await downloadDocument(documentId, documentName);
+      toast.success('Document downloaded successfully', { id: 'download' });
     } catch (error) {
-      console.error('Failed to download document', error);
-      toast.error('Failed to download document');
+      console.error('❌ Failed to download document:', { error, documentId, documentName });
+      toast.error(`Failed to download document: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'download' });
     }
   };
 
-  const handlePreviewDocument = async (documentId: string) => {
-    try {
-      await previewDocument(documentId);
-    } catch (error) {
-      console.error('Failed to preview document', error);
-      toast.error('Failed to preview document');
-    }
-  };
+
 
   useEffect(() => {
     const fetchClientData = async () => {
@@ -1029,47 +1033,13 @@ const ClientDetailsPage = () => {
                             </span>
                           </div>
                         </div>
-
-                        {/* Case Numbers */}
-                        <div className="space-y-3">
+                         {workflow.case?.dueDate && (
                           <div>
-                            <p className="text-sm text-gray-500">Form Case Numbers</p>
-                            <div className="space-y-2">
-                              {workflow.formCaseIds && typeof workflow.formCaseIds === 'object' && Object.keys(workflow.formCaseIds).length > 0 ? (
-                                Object.entries(workflow.formCaseIds)
-                                  .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
-                                  .map(([form, caseId]) => (
-                                    <div key={form} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                      <span className="text-xs font-medium text-gray-700">{form}</span>
-                                      <span className="font-mono text-xs bg-white px-2 py-1 rounded border">
-                                        {String(caseId)}
-                                      </span>
-                                    </div>
-                                  ))
-                              ) : workflow.case?.formCaseIds && typeof workflow.case.formCaseIds === 'object' && Object.keys(workflow.case.formCaseIds).length > 0 ? (
-                                Object.entries(workflow.case.formCaseIds)
-                                  .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
-                                  .map(([form, caseId]) => (
-                                    <div key={form} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                      <span className="text-xs font-medium text-gray-700">{form}</span>
-                                      <span className="font-mono text-xs bg-white px-2 py-1 rounded border">
-                                        {String(caseId)}
-                                      </span>
-                                    </div>
-                                  ))
-                              ) : (
-                                <span className="text-gray-500 italic text-sm">No case numbers available</span>
-                              )}
-                            </div>
+                            <p className="text-sm text-gray-500">Due Date</p>
+                            <p className="font-medium text-sm">{new Date(workflow.case.dueDate).toLocaleDateString()}</p>
                           </div>
+                        )}
 
-                          {workflow.case?.dueDate && (
-                            <div>
-                              <p className="text-sm text-gray-500">Due Date</p>
-                              <p className="font-medium text-sm">{new Date(workflow.case.dueDate).toLocaleDateString()}</p>
-                            </div>
-                          )}
-                        </div>
                       </div>
 
                       {workflow.case?.description && (
@@ -1196,35 +1166,43 @@ const ClientDetailsPage = () => {
                 </div>
               ) : clientDocuments.length > 0 ? (
                 <div className="space-y-3">
-                  {clientDocuments.slice(0, 5).map((doc) => (
-                    <div key={doc._id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md">
-                      <div className="flex items-center flex-1">
-                        <FileText className="h-5 w-5 text-gray-400 mr-3" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {formatFileSize(doc.size || 0)} • {getTimeAgo(doc.uploadedAt || doc.createdAt)}
-                          </p>
+                  {clientDocuments.slice(0, 5).map((doc) => {
+                    console.log('📄 Document data for buttons:', { 
+                      id: doc._id, 
+                      name: doc.name,
+                      hasId: !!doc._id,
+                      hasName: !!doc.name,
+                      fullDoc: doc 
+                    });
+                    return (
+                      <div key={doc._id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-md border">
+                        <div className="flex items-center flex-1 min-w-0 mr-3">
+                          <FileText className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {formatFileSize(doc.size || 0)} • {getTimeAgo(doc.uploadedAt || doc.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                        
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log('🖱️ Download button clicked for:', { id: doc._id, name: doc.name });
+                              handleDownloadDocument(doc._id, doc.name);
+                            }}
+                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                            title="Download document"
+                          >
+                            <Download size={16} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handlePreviewDocument(doc._id)}
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                          title="Preview document"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDownloadDocument(doc._id, doc.name)}
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                          title="Download document"
-                        >
-                          <Download size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {clientDocuments.length > 5 && (
                     <p className="text-xs text-gray-500 text-center py-2">
                       Showing 5 of {clientDocuments.length} documents
@@ -1255,76 +1233,92 @@ const ClientDetailsPage = () => {
             </div>
             <div className="p-4">
               {activities.length > 0 ? (
-                <div className="flow-root">
-                  <ul className="-mb-8">
-                    {activities.slice(0, 10).map((activity, index) => (
-                      <li key={activity.id} className={index !== activities.length - 1 && index !== 9 ? "relative pb-8" : "relative"}>
-                        {index !== activities.length - 1 && index !== 9 && (
-                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
-                        )}
-                        <div className="relative flex space-x-3">
-                          <div>
-                            <span className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center ring-8 ring-white">
-                              {activity.icon === 'FileText' ? (
-                                <FileText className="h-4 w-4 text-white" />
-                              ) : activity.icon === 'FolderOpen' ? (
-                                <FolderOpen className="h-4 w-4 text-white" />
-                              ) : activity.icon === 'CheckCircle' ? (
-                                <CheckCircle className="h-4 w-4 text-white" />
-                              ) : activity.icon === 'Briefcase' ? (
-                                <Briefcase className="h-4 w-4 text-white" />
-                              ) : (
-                                <Clock className="h-4 w-4 text-white" />
-                              )}
+                <>
+                  <div className="max-h-80 overflow-y-auto space-y-4">
+                    {(showAllActivities ? activities : activities.slice(0, 10)).map((activity) => (
+                      <div key={activity.id} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                        <div className="flex-shrink-0">
+                          <span className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center">
+                            {activity.icon === 'FileText' ? (
+                              <FileText className="h-4 w-4 text-white" />
+                            ) : activity.icon === 'FolderOpen' ? (
+                              <FolderOpen className="h-4 w-4 text-white" />
+                            ) : activity.icon === 'CheckCircle' ? (
+                              <CheckCircle className="h-4 w-4 text-white" />
+                            ) : activity.icon === 'Briefcase' ? (
+                              <Briefcase className="h-4 w-4 text-white" />
+                            ) : (
+                              <Clock className="h-4 w-4 text-white" />
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <p className="text-sm font-medium text-gray-900">{activity.description}</p>
+                            <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                              {getTimeAgo(activity.timestamp)}
                             </span>
                           </div>
-                          <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
-                            <div>
-                              <p className="text-sm text-gray-500">
-                                {activity.description}
+
+                          {(activity.data?.documentType || activity.data?.caseNumber || activity.data?.status ||
+                            activity.data?.questionnaireTitle || activity.data?.responseCount || activity.data?.category) && (
+                              <div className="flex flex-wrap gap-1 mt-2">
                                 {activity.data?.documentType && (
-                                  <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                     {activity.data.documentType}
                                   </span>
                                 )}
+
                                 {activity.data?.caseNumber && activity.data.caseNumber !== 'No Case Number' && (
-                                  <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                     Case: {activity.data.caseNumber}
                                   </span>
                                 )}
+
                                 {activity.data?.status && (
-                                  <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                     {activity.data.status}
                                   </span>
                                 )}
+
                                 {activity.data?.questionnaireTitle && (
-                                  <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                     {activity.data.questionnaireTitle}
                                   </span>
                                 )}
+
                                 {activity.data?.responseCount && (
-                                  <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                                     {activity.data.responseCount} responses
                                   </span>
                                 )}
+
                                 {activity.data?.category && (
-                                  <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                                     {activity.data.category}
                                   </span>
                                 )}
-                              </p>
-                            </div>
-                            <div className="text-right text-sm whitespace-nowrap text-gray-500">
-                              <time dateTime={activity.timestamp}>
-                                {getTimeAgo(activity.timestamp)}
-                              </time>
-                            </div>
-                          </div>
+                              </div>
+                            )}
                         </div>
-                      </li>
+                      </div>
                     ))}
-                  </ul>
-                </div>
+                  </div>
+                  {activities.length > 10 && (
+                    <div className="mt-4 pt-4 border-t text-center">
+                      <button 
+                        onClick={() => setShowAllActivities(!showAllActivities)}
+                        className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        {showAllActivities 
+                          ? `Show recent activities (${activities.length} total)` 
+                          : `View full activity log (${activities.length} total activities)`
+                        }
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center py-6">
                   <Clock className="mx-auto h-8 w-8 text-gray-400" />
@@ -1334,94 +1328,89 @@ const ClientDetailsPage = () => {
                   </p>
                 </div>
               )}
-              {activities.length > 10 && (
-                <div className="mt-6 text-center">
-                  <button className="text-sm text-primary-600 hover:text-primary-700">
-                    View full activity log ({activities.length} total activities)
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           <div className="bg-white rounded-lg shadow">
             <div className="border-b p-4">
               <h2 className="text-xl font-semibold">Assigned Forms</h2>
-              <div className="p-4">
-                {clientWorkflows && clientWorkflows.length > 0 ? (
-                  <div className="space-y-6">
-                    {clientWorkflows.map((workflow, index) => (
-                      <div key={workflow._id || workflow.id || index} className="border rounded-lg p-4 hover:bg-gray-50">
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-sm text-gray-500">Assigned Forms</p>
-                            <div className="space-y-1">
-                              {workflow.case?.assignedForms && workflow.case.assignedForms.length > 0 ? (
-                                workflow.case.assignedForms.map((form: string) => (
-                                  <span key={form} className="inline-flex items-center px-2 py-0.5 rounded text-m font-medium bg-blue-100 text-blue-900 mr-1">
-                                    📋 {form}
-                                  </span>
-                                ))
-                              ) : workflow.selectedForms && workflow.selectedForms.length > 0 ? (
-                                workflow.selectedForms.map((form: string) => (
-                                  <span key={form} className="inline-flex items-center px-2 py-0.5 rounded text-m font-medium bg-blue-100 text-blue-900 mr-1">
-                                    📋 {form}
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-gray-500 italic">No forms assigned</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-sm text-gray-500">Form Case Numbers</p>
-                              <div className="space-y-2">
-                                {workflow.formCaseIds && typeof workflow.formCaseIds === 'object' && Object.keys(workflow.formCaseIds).length > 0 ? (
-                                  Object.entries(workflow.formCaseIds)
-                                    .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
-                                    .map(([form, caseId]) => (
-                                      <div key={form} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                        
-                                        <span className="font-mono text-m bg-white px-2 py-1 rounded border">
-                                          {String(caseId)}
-                                        </span>
-                                      </div>
-                                    ))
-                                ) : workflow.case?.formCaseIds && typeof workflow.case.formCaseIds === 'object' && Object.keys(workflow.case.formCaseIds).length > 0 ? (
-                                  Object.entries(workflow.case.formCaseIds)
-                                    .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
-                                    .map(([form, caseId]) => (
-                                      <div key={form} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                       
-                                        <span className="font-mono text-m bg-white px-2 py-1 rounded border">
-                                          {String(caseId)}
-                                        </span>
-                                      </div>
-                                    ))
-                                ) : (
-                                  <span className="text-gray-500 italic text-sm">No case numbers available</span>
-                                )}
-                              </div>
-                            </div>
-
-                          
+            </div>
+            <div className="p-4">
+              {clientWorkflows && clientWorkflows.length > 0 ? (
+                <div className="space-y-4">
+                  {clientWorkflows.map((workflow, index) => (
+                    <div key={workflow._id || workflow.id || index} className="border rounded-lg p-4 hover:bg-gray-50">
+                      <div className="space-y-4">
+                        {/* Assigned Forms */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Assigned Forms</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {workflow.case?.assignedForms && workflow.case.assignedForms.length > 0 ? (
+                              workflow.case.assignedForms.map((form: string) => (
+                                <span key={form} className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-800">
+                                  📋 {form}
+                                </span>
+                              ))
+                            ) : workflow.selectedForms && workflow.selectedForms.length > 0 ? (
+                              workflow.selectedForms.map((form: string) => (
+                                <span key={form} className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-800">
+                                  📋 {form}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-gray-500 italic text-sm">No forms assigned</span>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-6">
-                    <FileText className="mx-auto h-8 w-8 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No forms assigned</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      No forms have been assigned to this client yet.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
 
+                        {/* Form Case Numbers */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Form Case Numbers</h4>
+                          <div className="space-y-2">
+                            {workflow.formCaseIds && typeof workflow.formCaseIds === 'object' && Object.keys(workflow.formCaseIds).length > 0 ? (
+                              Object.entries(workflow.formCaseIds)
+                                .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
+                                .map(([form, caseId]) => (
+                                  <div key={form} className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
+                                    
+                                    <span className="font-mono text-sm bg-white px-3 py-1 rounded border font-semibold text-blue-900">
+                                      {String(caseId)}
+                                    </span>
+                                  </div>
+                                ))
+                            ) : workflow.case?.formCaseIds && typeof workflow.case.formCaseIds === 'object' && Object.keys(workflow.case.formCaseIds).length > 0 ? (
+                              Object.entries(workflow.case.formCaseIds)
+                                .filter(([key, value]) => !key.startsWith('$') && !key.startsWith('_') && typeof value === 'string')
+                                .map(([form, caseId]) => (
+                                  <div key={form} className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
+                                   
+                                    <span className="font-mono text-sm bg-white px-3 py-1 rounded border font-semibold text-blue-900">
+                                      {String(caseId)}
+                                    </span>
+                                  </div>
+                                ))
+                            ) : (
+                              <div className="text-center py-4">
+                                <span className="text-gray-500 italic text-sm">No case numbers available</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No forms assigned</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    No forms have been assigned to this client yet.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
