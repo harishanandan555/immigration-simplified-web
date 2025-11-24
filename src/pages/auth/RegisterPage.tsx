@@ -450,10 +450,7 @@ const RegisterPage: React.FC = () => {
         break;
 
       case 5: // Travel & Financial
-        if (!formData.travelHistory || formData.travelHistory.length === 0) {
-          errors['travelHistory'] = 'At least one travel history record is required';
-        }
-        
+        // Travel history is optional, but if entries exist, they must be valid
         formData.travelHistory?.forEach((travel, index) => {
           if (!travel?.country?.trim()) errors[`travelHistory.${index}.country`] = 'Country is required';
           if (!travel?.visitDate) errors[`travelHistory.${index}.visitDate`] = 'Visit date is required';
@@ -651,11 +648,7 @@ const RegisterPage: React.FC = () => {
     if (!formData.education?.datesAttended?.endDate) errors['education.datesAttended.endDate'] = 'Education end date is required';
     if (!formData.education?.fieldOfStudy?.trim()) errors['education.fieldOfStudy'] = 'Field of study is required';
 
-    // Travel History validation
-    if (!formData.travelHistory || formData.travelHistory.length === 0) {
-      errors['travelHistory'] = 'At least one travel history record is required';
-    }
-    
+    // Travel History validation (optional - only validate entries if they exist)
     formData.travelHistory?.forEach((travel, index) => {
       if (!travel?.country?.trim()) errors[`travelHistory.${index}.country`] = 'Country is required';
       if (!travel?.visitDate) errors[`travelHistory.${index}.visitDate`] = 'Visit date is required';
