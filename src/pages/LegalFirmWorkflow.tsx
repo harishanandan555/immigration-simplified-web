@@ -5562,11 +5562,20 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   id="category"
                   label="Immigration Category"
                   value={caseData.category || ''}
-                  onChange={e => setCaseData({ ...caseData, category: e.target.value })}
-                  options={IMMIGRATION_CATEGORIES.map(cat => ({
-                    value: cat.id,
-                    label: cat.name
-                  }))}
+                  onChange={e => {
+                    setCaseData({ 
+                      ...caseData, 
+                      category: e.target.value,
+                      subcategory: '' // Reset subcategory when category changes
+                    });
+                  }}
+                  options={[
+                    { value: '', label: 'Select an Immigration Category' },
+                    ...IMMIGRATION_CATEGORIES.map(cat => ({
+                      value: cat.id,
+                      label: cat.name
+                    }))
+                  ]}
                   required
                 />
                 <Select
@@ -5574,40 +5583,44 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   label="Subcategory"
                   value={caseData.subcategory || ''}
                   onChange={e => setCaseData({ ...caseData, subcategory: e.target.value })}
-                  options={caseData.category ?
-                    IMMIGRATION_CATEGORIES
+                  options={caseData.category ? [
+                    { value: '', label: 'Select a Subcategory' },
+                    ...(IMMIGRATION_CATEGORIES
                       .find(cat => cat.id === caseData.category)
                       ?.subcategories.map(sub => ({
                         value: sub.id,
                         label: sub.name
-                      })) || []
-                    : []
-                  }
+                      })) || [])
+                  ] : [
+                    { value: '', label: 'Please select an Immigration Category first' }
+                  ]}
+                  disabled={!caseData.category}
                   required
                 />
                 <Select
                   id="status"
                   label="Case Status"
-                  value={caseData.status || 'Active'}
+                  value={caseData.status || 'active'}
                   onChange={e => setCaseData({ ...caseData, status: e.target.value as Case['status'] })}
                   options={[
-                    { value: 'Active', label: 'Active' },
-                    { value: 'Pending', label: 'Pending' },
-                    { value: 'Closed', label: 'Closed' },
-                    { value: 'On Hold', label: 'On Hold' }
+                    { value: 'active', label: 'Active' },
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'closed', label: 'Closed' },
+                    { value: 'on-hold', label: 'On Hold' },
+                    { value: 'draft', label: 'Draft' }
                   ]}
                   required
                 />
                 <Select
                   id="priority"
                   label="Priority Level"
-                  value={caseData.priority || 'Medium'}
+                  value={caseData.priority || 'medium'}
                   onChange={e => setCaseData({ ...caseData, priority: e.target.value as Case['priority'] })}
                   options={[
-                    { value: 'Low', label: 'Low' },
-                    { value: 'Medium', label: 'Medium' },
-                    { value: 'High', label: 'High' },
-                    { value: 'Urgent', label: 'Urgent' }
+                    { value: 'low', label: 'Low' },
+                    { value: 'medium', label: 'Medium' },
+                    { value: 'high', label: 'High' },
+                    { value: 'urgent', label: 'Urgent' }
                   ]}
                   required
                 />
@@ -5655,7 +5668,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                   
                   setCurrentStep(3);
                 }}
-                disabled={!caseData.title || !caseData.category}
+                disabled={!caseData.title || !caseData.category || !caseData.subcategory}
               >
                 Create Case & Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
