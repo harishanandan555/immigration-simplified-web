@@ -4560,7 +4560,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
               accountCreated: !!clientUserId
             });
 
-            const response = await saveWorkflowProgress(workflowDataWithNewAssignment);
+            await saveWorkflowProgress(workflowDataWithNewAssignment);
             
             toast.success(
               <div>

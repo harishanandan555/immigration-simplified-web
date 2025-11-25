@@ -1297,27 +1297,7 @@ const DocumentsPage = () => {
                             </p>
                           )}
                           {/* Debug info */}
-                          {import.meta.env.DEV && (
-                            <div className="mt-2 text-xs text-gray-500">
-                              <p>Workflows loaded: {workflows.length}</p>
-                              <p>Workflow clients: {workflowClients.length}</p>
-                              <p>Available cases: {availableCases.length}</p>
-                              <p>Total clients in dropdown: {(clients || []).length}</p>
-                              {(clients || []).length > 0 && (
-                                <details className="mt-1">
-                                  <summary>Sample clients</summary>
-                                  <pre className="text-xs mt-1">
-                                    {JSON.stringify((clients || []).slice(0, 2).map(c => ({
-                                      id: c.id,
-                                      _id: c._id,
-                                      name: c.name,
-                                      email: c.email
-                                    })), null, 2)}
-                                  </pre>
-                                </details>
-                              )}
-                            </div>
-                          )}
+                        
                         </div>
 
                         <div>
