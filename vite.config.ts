@@ -27,25 +27,43 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Vendor chunks
+          // Vendor chunks - split more granularly to reduce bundle size
           if (id.includes('node_modules')) {
+            // React core libraries
             if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
               return 'react-vendor';
             }
+            // MUI and Emotion - split into separate chunk as they're large
             if (id.includes('@mui') || id.includes('@emotion')) {
               return 'ui-vendor';
             }
+            // PDF libraries - large, keep separate
             if (id.includes('pdf') || id.includes('pdfjs')) {
               return 'pdf-vendor';
             }
+            // Form libraries
             if (id.includes('react-hook-form') || id.includes('react-day-picker')) {
               return 'form-vendor';
             }
+            // Chart library
             if (id.includes('recharts')) {
               return 'chart-vendor';
             }
+            // Nutrient SDK
             if (id.includes('@nutrient-sdk')) {
               return 'nutrient-vendor';
+            }
+            // Large animation library
+            if (id.includes('framer-motion')) {
+              return 'animation-vendor';
+            }
+            // Date utilities
+            if (id.includes('date-fns')) {
+              return 'date-vendor';
+            }
+            // HTTP client
+            if (id.includes('axios')) {
+              return 'http-vendor';
             }
             // Other node_modules go into vendor chunk
             return 'vendor';
