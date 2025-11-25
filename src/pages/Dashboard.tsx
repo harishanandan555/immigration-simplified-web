@@ -885,7 +885,7 @@ useEffect(() => {
                 </div>
 
                 <div className="space-y-4">
-                  {filteredCases.slice(0, 3).map((caseItem: any, caseIndex: number) => {
+                  {filteredCases.slice(0, 3).map((caseItem: any) => {
                     if (!caseItem || typeof caseItem !== 'object') {
                       return null;
                     }
@@ -1039,7 +1039,7 @@ useEffect(() => {
 
               <div className="space-y-4">
                 {upcomingDeadlines.length > 0 ? (
-                  upcomingDeadlines.map((task: any, taskIndex: number) => {
+                  upcomingDeadlines.map((task: any) => {
                     if (!task || typeof task !== 'object' || !task.id) {
                       return null;
                     }

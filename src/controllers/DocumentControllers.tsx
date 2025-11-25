@@ -186,7 +186,6 @@ export const getDocuments = async (params?: DocumentSearchParams): Promise<ApiRe
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching documents:', error.message);
       throw new Error(`Failed to fetch documents: ${error.message}`);
     }
     throw new Error('Failed to fetch documents due to an unknown error');
@@ -215,7 +214,6 @@ export const getDocumentById = async (documentId: string): Promise<ApiResponse<D
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching document:', error.message);
       throw new Error(`Failed to fetch document: ${error.message}`);
     }
     throw new Error('Failed to fetch document due to an unknown error');
@@ -273,7 +271,6 @@ export const createDocument = async (documentData: DocumentUploadRequest): Promi
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error creating document:', error.message);
       throw new Error(`Failed to create document: ${error.message}`);
     }
     throw new Error('Failed to create document due to an unknown error');
@@ -303,7 +300,6 @@ export const updateDocument = async (documentId: string, updateData: DocumentUpd
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error updating document:', error.message);
       throw new Error(`Failed to update document: ${error.message}`);
     }
     throw new Error('Failed to update document due to an unknown error');
@@ -333,7 +329,6 @@ export const deleteDocument = async (documentId: string): Promise<ApiResponse<nu
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error deleting document:', error.message);
       throw new Error(`Failed to delete document: ${error.message}`);
     }
     throw new Error('Failed to delete document due to an unknown error');
@@ -346,7 +341,6 @@ export const downloadDocument = async (documentId: string, documentName: string)
   }
 
   try {
-    console.log('📥 Requesting document download:', { documentId, documentName });
     
     // Request the file directly as a blob (since backend now returns actual file content)
     const response = await api.get(
@@ -360,12 +354,6 @@ export const downloadDocument = async (documentId: string, documentName: string)
       }
     );
 
-    console.log('✅ Download blob response received:', {
-      status: response.status,
-      contentType: response.headers['content-type'],
-      contentLength: response.headers['content-length'] || response.data?.size
-    });
-
     // Check if we actually got a blob
     if (!response.data || response.data.size === 0) {
       throw new Error('Downloaded file is empty or invalid');
@@ -373,17 +361,13 @@ export const downloadDocument = async (documentId: string, documentName: string)
 
     // Since backend now returns actual file content directly as blob, we can use it directly
     const fileBlob = response.data;
-    console.log('✅ File blob received:', {
-      size: fileBlob.size,
-      type: fileBlob.type
-    });
 
     // Extract filename from Content-Disposition header if available
     const contentDisposition = response.headers['content-disposition'];
     let finalFileName = documentName;
     
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/); 
       if (filenameMatch && filenameMatch[1]) {
         finalFileName = filenameMatch[1].replace(/['"]/g, '');
       }
@@ -419,12 +403,7 @@ export const downloadDocument = async (documentId: string, documentName: string)
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
     
-    console.log('✅ Document download triggered successfully');
-    
-  } catch (error: any) {
-    console.error('❌ Download failed:', error);
-    
-    // Enhance error messages
+  } catch (error: any) {    // Enhance error messages
     if (error.response) {
       const status = error.response.status;
       const message = error.response.data?.message || error.response.statusText;
@@ -484,13 +463,11 @@ export const previewDocument = async (documentId: string): Promise<void> => {
       
       // Check if it's a dummy URL
       if (previewUrl.includes('storage.example.com')) {
-        console.warn('Preview not available: This is a demo document with a placeholder URL. Please upload a real document to test preview functionality.');
-        return;
+        throw new Error('This is a demo document with a placeholder URL. Please upload a real document to test preview functionality.');
       }
       
       window.open(previewUrl, '_blank');
     } else {
-      console.warn('⚠️ No preview URL found in response, trying alternative method');
       // Fallback: try to serve the file directly through the API
       const fallbackUrl = `${window.location.origin}/api/v1/documents/${documentId}/download`;
       window.open(fallbackUrl, '_blank');
@@ -498,15 +475,14 @@ export const previewDocument = async (documentId: string): Promise<void> => {
     
     
   } catch (error: any) {
-    console.error('❌ Preview failed:', error);
     
     // More specific error handling
     if (error.response?.status === 404) {
-      console.error('Document not found or preview not available.');
+      
     } else if (error.response?.status === 403) {
-      console.error('You do not have permission to preview this document.');
+      
     } else {
-      console.error(`Preview failed: ${error.message || 'Unknown error'}`);
+      
     }
     
     if (error instanceof Error) {
@@ -539,7 +515,6 @@ export const updateDocumentStatus = async (documentId: string, status: DocumentS
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error updating document status:', error.message);
       throw new Error(`Failed to update document status: ${error.message}`);
     }
     throw new Error('Failed to update document status due to an unknown error');
@@ -568,7 +543,6 @@ export const verifyDocument = async (documentId: string): Promise<ApiResponse<Do
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error verifying document:', error.message);
       throw new Error(`Failed to verify document: ${error.message}`);
     }
     throw new Error('Failed to verify document due to an unknown error');
@@ -598,7 +572,6 @@ export const rejectDocument = async (documentId: string, reason?: string): Promi
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error rejecting document:', error.message);
       throw new Error(`Failed to reject document: ${error.message}`);
     }
     throw new Error('Failed to reject document due to an unknown error');
@@ -628,7 +601,6 @@ export const getDocumentsByClient = async (clientId: string, params?: DocumentSe
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching client documents:', error.message);
       throw new Error(`Failed to fetch client documents: ${error.message}`);
     }
     throw new Error('Failed to fetch client documents due to an unknown error');
@@ -658,7 +630,6 @@ export const getDocumentsByCase = async (caseId: string, params?: DocumentSearch
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching case documents:', error.message);
       throw new Error(`Failed to fetch case documents: ${error.message}`);
     }
     throw new Error('Failed to fetch case documents due to an unknown error');
@@ -685,7 +656,6 @@ export const getDocumentTypes = async (): Promise<ApiResponse<DocumentType[]>> =
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching document types:', error.message);
       throw new Error(`Failed to fetch document types: ${error.message}`);
     }
     throw new Error('Failed to fetch document types due to an unknown error');
@@ -712,7 +682,6 @@ export const getDocumentStatuses = async (): Promise<ApiResponse<DocumentStatus[
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching document statuses:', error.message);
       throw new Error(`Failed to fetch document statuses: ${error.message}`);
     }
     throw new Error('Failed to fetch document statuses due to an unknown error');
@@ -742,7 +711,6 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<Api
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error searching documents:', error.message);
       throw new Error(`Failed to search documents: ${error.message}`);
     }
     throw new Error('Failed to search documents due to an unknown error');
@@ -772,7 +740,6 @@ export const bulkDeleteDocuments = async (documentIds: string[]): Promise<ApiRes
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error bulk deleting documents:', error.message);
       throw new Error(`Failed to bulk delete documents: ${error.message}`);
     }
     throw new Error('Failed to bulk delete documents due to an unknown error');
@@ -802,7 +769,6 @@ export const bulkVerifyDocuments = async (documentIds: string[]): Promise<ApiRes
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error bulk verifying documents:', error.message);
       throw new Error(`Failed to bulk verify documents: ${error.message}`);
     }
     throw new Error('Failed to bulk verify documents due to an unknown error');
@@ -831,7 +797,6 @@ export const getDocumentComments = async (documentId: string): Promise<ApiRespon
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching document comments:', error.message);
       throw new Error(`Failed to fetch document comments: ${error.message}`);
     }
     throw new Error('Failed to fetch document comments due to an unknown error');
@@ -861,7 +826,6 @@ export const addDocumentComment = async (documentId: string, content: string): P
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error adding document comment:', error.message);
       throw new Error(`Failed to add document comment: ${error.message}`);
     }
     throw new Error('Failed to add document comment due to an unknown error');
@@ -888,7 +852,6 @@ export const getDocumentFolders = async (): Promise<ApiResponse<DocumentFolder[]
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error fetching document folders:', error.message);
       throw new Error(`Failed to fetch document folders: ${error.message}`);
     }
     throw new Error('Failed to fetch document folders due to an unknown error');
@@ -918,7 +881,6 @@ export const createDocumentFolder = async (folderData: { name: string; descripti
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error creating document folder:', error.message);
       throw new Error(`Failed to create document folder: ${error.message}`);
     }
     throw new Error('Failed to create document folder due to an unknown error');
@@ -948,7 +910,6 @@ export const moveDocumentToFolder = async (documentId: string, folderId: string)
     };
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error moving document to folder:', error.message);
       throw new Error(`Failed to move document to folder: ${error.message}`);
     }
     throw new Error('Failed to move document to folder due to an unknown error');
@@ -972,7 +933,6 @@ export const exportDocuments = async (documentIds: string[], format: 'pdf' | 'cs
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      console.error('Error exporting documents:', error.message);
       throw new Error(`Failed to export documents: ${error.message}`);
     }
     throw new Error('Failed to export documents due to an unknown error');
