@@ -1,6 +1,5 @@
 import api from '../utils/api';
 import { LEGAL_WORKFLOW_ENDPOINTS } from '../utils/constants';
-import { registerCompanyClient as authRegisterCompanyClient } from './AuthControllers';
 
 // Types
 export interface Client {
@@ -485,6 +484,9 @@ export const registerCompanyClient = async (userData: {
   sendPassword?: boolean;
 }): Promise<any> => {
   try {
+    // Import the client registration function from AuthControllers
+    const { registerCompanyClient: authRegisterCompanyClient } = await import('./AuthControllers');
+    
     const response = await authRegisterCompanyClient(
       userData.firstName,
       userData.lastName,
