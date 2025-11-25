@@ -22,4 +22,40 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   logLevel: 'warn',
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Vendor chunks
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react-vendor';
+            }
+            if (id.includes('@mui') || id.includes('@emotion')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('pdf') || id.includes('pdfjs')) {
+              return 'pdf-vendor';
+            }
+            if (id.includes('react-hook-form') || id.includes('react-day-picker')) {
+              return 'form-vendor';
+            }
+            if (id.includes('recharts')) {
+              return 'chart-vendor';
+            }
+            if (id.includes('@nutrient-sdk')) {
+              return 'nutrient-vendor';
+            }
+            // Other node_modules go into vendor chunk
+            return 'vendor';
+          }
+          // Controller chunks
+          if (id.includes('/controllers/')) {
+            return 'controllers';
+          }
+        },
+      },
+    },
+  },
 });

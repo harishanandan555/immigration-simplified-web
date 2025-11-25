@@ -4,6 +4,7 @@ import api from '../utils/api';
 import { AUTH_END_POINTS } from '../utils/constants';
 import { useAutoLogout } from '../hooks/useAutoLogout';
 import toast from 'react-hot-toast';
+import { createIndividualClient, createCompanyClient } from './ClientControllers';
 
 // Define common response type
 interface ApiResponse<T> {
@@ -314,9 +315,6 @@ export const registerIndividualClient = async (
   }
 
   try {
-    // Import ClientControllers functions
-    const { createIndividualClient } = await import('./ClientControllers');
-    
     const clientData = {
       firstName,
       lastName,
@@ -414,9 +412,6 @@ export const registerCompanyClient = async (
   }
 
   try {
-    // Import ClientControllers functions
-    const { createCompanyClient } = await import('./ClientControllers');
-    
     const clientData = {
       firstName,
       lastName,
