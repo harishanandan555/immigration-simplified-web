@@ -69,6 +69,11 @@ const CasesPage: React.FC = () => {
   const [loadingWorkflows, setLoadingWorkflows] = useState(false);
   const [loadingRegularCases, setLoadingRegularCases] = useState(false);
 
+  // Filter state
+  const [showFilters, setShowFilters] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+
   // Determine the correct "New Case" link based on user type
   const getNewCaseLink = () => {
     // For individual users, use the individual immigration process
@@ -306,7 +311,8 @@ const CasesPage: React.FC = () => {
       number.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
-    return (
+    // Search filter
+    const searchMatch = (
       workflowCase.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       workflowCase.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       workflowCase.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -316,6 +322,17 @@ const CasesPage: React.FC = () => {
       workflowCase.client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       workflowCase.selectedForms.some((form: string) => form.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
+    // Category filter
+    const categoryMatch = categoryFilter === 'all' || 
+      workflowCase.category.toLowerCase().includes(categoryFilter.toLowerCase()) ||
+      workflowCase.subcategory.toLowerCase().includes(categoryFilter.toLowerCase());
+
+    // Priority filter
+    const priorityMatch = priorityFilter === 'all' || 
+      workflowCase.priority?.toLowerCase() === priorityFilter.toLowerCase();
+
+    return searchMatch && categoryMatch && priorityMatch;
   });
 
   const sortedCases = [...filteredCases].sort((a, b) => {
@@ -403,11 +420,91 @@ const CasesPage: React.FC = () => {
                 />
                 <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
               </div>
-              <button className="flex items-center justify-center gap-2 border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+              <button 
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center justify-center gap-2 border rounded-lg px-4 py-2 text-sm transition-colors ${
+                  showFilters || categoryFilter !== 'all' || priorityFilter !== 'all'
+                    ? 'bg-blue-50 border-blue-300 text-blue-700'
+                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
                 <Filter size={16} />
                 <span>Filters</span>
+                {(categoryFilter !== 'all' || priorityFilter !== 'all') && (
+                  <span className="ml-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {[categoryFilter !== 'all', priorityFilter !== 'all'].filter(Boolean).length}
+                  </span>
+                )}
               </button>
             </div>
+
+            {/* Filter Options Panel */}
+            {showFilters && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Category Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Category
+                    </label>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => {
+                        setCategoryFilter(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    >
+                      <option value="all">All Categories</option>
+                      <option value="employment-based">Employment-Based</option>
+                      <option value="family-based">Family-Based</option>
+                      <option value="citizenship">Citizenship</option>
+                      <option value="humanitarian">Humanitarian</option>
+                      <option value="temporary-visas">Temporary Visas</option>
+                      <option value="student-visa">Student Visa</option>
+                      <option value="business-visa">Business Visa</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Priority Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Priority
+                    </label>
+                    <select
+                      value={priorityFilter}
+                      onChange={(e) => {
+                        setPriorityFilter(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    >
+                      <option value="all">All Priorities</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Clear Filters Button */}
+                {(categoryFilter !== 'all' || priorityFilter !== 'all') && (
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => {
+                        setCategoryFilter('all');
+                        setPriorityFilter('all');
+                        setCurrentPage(1);
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
