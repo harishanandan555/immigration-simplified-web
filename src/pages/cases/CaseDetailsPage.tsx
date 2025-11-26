@@ -1267,6 +1267,7 @@ const CaseDetailsPage = () => {
         return (
           <PdfEditor
             key={formName}
+            pdfBlob={form.blob}
             pdfUrl={form.downloadUrl}
             filename={form.fileName}
             onClose={() => handleCloseEditor(formName)}

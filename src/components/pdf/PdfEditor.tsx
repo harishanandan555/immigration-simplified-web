@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Save, Download, RotateCcw } from 'lucide-react';
 
 interface PdfEditorProps {
-  pdfUrl: string;
+  pdfUrl?: string;
+  pdfBlob?: Blob;
   filename: string;
   onClose: () => void;
   onSave?: (editedPdfBlob: Blob) => void;
@@ -14,6 +15,7 @@ type NutrientViewerInstance = any;
 
 const PdfEditor: React.FC<PdfEditorProps> = ({
   pdfUrl,
+  pdfBlob,
   filename,
   onClose,
   onSave,
@@ -26,6 +28,8 @@ const PdfEditor: React.FC<PdfEditorProps> = ({
   const nutrientViewerRef = useRef<NutrientViewerInstance | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const initializeNutrientViewer = async () => {
       try {
         setIsLoading(true);
@@ -35,57 +39,158 @@ const PdfEditor: React.FC<PdfEditorProps> = ({
           throw new Error('Viewer container not found');
         }
 
-        // Debug: Check container positioning
-        const containerStyle = window.getComputedStyle(viewerRef.current);
-        console.log('Container position:', containerStyle.position);
-        console.log('Container display:', containerStyle.display);
-        console.log('Container dimensions:', {
-          width: containerStyle.width,
-          height: containerStyle.height
-        });
-
         // Import Nutrient SDK dynamically as per documentation
         const NutrientViewer = (await import("@nutrient-sdk/viewer")).default;
 
-        // Ensure there's only one NutrientViewer instance
-        NutrientViewer.unload(viewerRef.current);
+        // Clean up any existing instance first
+        if (nutrientViewerRef.current && viewerRef.current) {
+          try {
+            NutrientViewer.unload(viewerRef.current);
+          } catch (unloadError) {
+            // Ignore errors if there's no instance to unload
+            console.warn('Error unloading previous instance:', unloadError);
+          }
+          nutrientViewerRef.current = null;
+        }
+
+        // Also try to unload using the container directly (in case ref is stale)
+        try {
+          NutrientViewer.unload(viewerRef.current);
+        } catch (unloadError) {
+          // This is expected if there's no instance - ignore
+        }
+
+        // Clear the container to ensure it's clean
+        if (viewerRef.current) {
+          viewerRef.current.innerHTML = '';
+        }
+
+        // Small delay to ensure cleanup is complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (!isMounted || !viewerRef.current) {
+          return;
+        }
+
+        // Determine document source - prefer blob over URL to avoid revocation issues
+        let documentSource: string | ArrayBuffer;
+        
+        if (pdfBlob) {
+          // Use blob directly - convert to ArrayBuffer
+          documentSource = await pdfBlob.arrayBuffer();
+        } else if (pdfUrl) {
+          // Fall back to URL
+          if (pdfUrl.startsWith('blob:')) {
+            // Fetch the blob URL and convert to ArrayBuffer with retry logic
+            let arrayBuffer: ArrayBuffer | null = null;
+            let lastError: Error | null = null;
+            const maxRetries = 3;
+            const retryDelay = 200; // milliseconds
+            
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              try {
+                // Add a small delay before retrying (except first attempt)
+                if (attempt > 0) {
+                  await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+                }
+                
+                const response = await fetch(pdfUrl, {
+                  method: 'GET',
+                  cache: 'no-cache',
+                });
+                
+                if (!response.ok) {
+                  throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                arrayBuffer = await response.arrayBuffer();
+                
+                // Verify we got valid data
+                if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                  throw new Error('Received empty response');
+                }
+                
+                // Success - break out of retry loop
+                break;
+              } catch (fetchError) {
+                lastError = fetchError instanceof Error ? fetchError : new Error(String(fetchError));
+                console.warn(`Blob URL fetch attempt ${attempt + 1}/${maxRetries} failed:`, lastError.message);
+                
+                // If this was the last attempt, throw the error
+                if (attempt === maxRetries - 1) {
+                  throw new Error(
+                    `Failed to load PDF from blob URL after ${maxRetries} attempts. ` +
+                    `The blob URL may have been revoked or is no longer accessible. ` +
+                    `Please ensure the blob URL is still valid or pass the PDF blob directly. ` +
+                    `Original error: ${lastError.message}`
+                  );
+                }
+              }
+            }
+            
+            if (!arrayBuffer) {
+              throw new Error('Failed to fetch blob URL: No data received');
+            }
+            
+            documentSource = arrayBuffer;
+          } else {
+            // Regular URL (not blob:)
+            documentSource = pdfUrl;
+          }
+        } else {
+          throw new Error('Either pdfUrl or pdfBlob must be provided');
+        }
+
+        if (!isMounted || !viewerRef.current) {
+          return;
+        }
 
         // Load Nutrient viewer with the PDF document
         const instance = await NutrientViewer.load({
           container: viewerRef.current,
-          document: pdfUrl,
+          document: documentSource,
           // baseUrl: where SDK should load its assets from (copied by rollup-plugin-copy)
           baseUrl: `${window.location.protocol}//${window.location.host}/${
             import.meta.env.PUBLIC_URL ?? "" // Usually empty for Vite, but supports custom deployments
           }`,
         });
 
-        nutrientViewerRef.current = instance;
-        setIsLoading(false);
+        if (isMounted) {
+          nutrientViewerRef.current = instance;
+          setIsLoading(false);
+        }
 
       } catch (err) {
-        console.error('Error initializing Nutrient viewer:', err);
-        setError(err instanceof Error ? err.message : 'Failed to initialize PDF editor. Please ensure @nutrient-sdk/viewer is properly installed.');
-        setIsLoading(false);
+        if (isMounted) {
+          console.error('Error initializing Nutrient viewer:', err);
+          setError(err instanceof Error ? err.message : 'Failed to initialize PDF editor. Please ensure @nutrient-sdk/viewer is properly installed.');
+          setIsLoading(false);
+        }
       }
     };
 
     initializeNutrientViewer();
 
-    // Cleanup on unmount
+    // Cleanup on unmount or when pdfUrl/pdfBlob changes
     return () => {
+      isMounted = false;
       if (nutrientViewerRef.current && viewerRef.current) {
-        try {
-          // Use the correct cleanup method from the documentation
-          const NutrientViewer = require("@nutrient-sdk/viewer").default;
-          NutrientViewer.unload(viewerRef.current);
-        } catch (err) {
-          console.warn('Error destroying Nutrient viewer:', err);
-        }
+        const container = viewerRef.current;
+        // Use dynamic import for cleanup as well
+        import("@nutrient-sdk/viewer").then((module) => {
+          const NutrientViewer = module.default;
+          try {
+            NutrientViewer.unload(container);
+          } catch (err) {
+            console.warn('Error destroying Nutrient viewer:', err);
+          }
+        }).catch((err) => {
+          console.warn('Error importing Nutrient viewer for cleanup:', err);
+        });
         nutrientViewerRef.current = null;
       }
     };
-  }, [pdfUrl]);
+  }, [pdfUrl, pdfBlob]);
 
   const handleSave = async () => {
     if (!nutrientViewerRef.current || !onSave) return;
@@ -139,36 +244,122 @@ const PdfEditor: React.FC<PdfEditorProps> = ({
   };
 
   const handleReset = async () => {
-    if (!nutrientViewerRef.current) return;
+    if (!nutrientViewerRef.current || !viewerRef.current) return;
 
     try {
+      setIsLoading(true);
+      setError(null);
+
       // For now, we'll reload the document to reset changes
       // This is a simple approach - in a more sophisticated implementation,
       // we could track changes and revert them individually
       const NutrientViewer = (await import("@nutrient-sdk/viewer")).default;
       
       // Unload current instance
-      if (viewerRef.current) {
+      try {
         NutrientViewer.unload(viewerRef.current);
+      } catch (unloadError) {
+        console.warn('Error unloading during reset:', unloadError);
       }
+      
+      nutrientViewerRef.current = null;
+
+      // Clear the container
+      if (viewerRef.current) {
+        viewerRef.current.innerHTML = '';
+      }
+
+      // Small delay to ensure cleanup is complete
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Reload the document
       if (!viewerRef.current) {
         throw new Error('Viewer container not found');
       }
       
+      // Determine document source - prefer blob over URL to avoid revocation issues
+      let documentSource: string | ArrayBuffer;
+      
+      if (pdfBlob) {
+        // Use blob directly - convert to ArrayBuffer
+        documentSource = await pdfBlob.arrayBuffer();
+      } else if (pdfUrl) {
+        // Fall back to URL
+        if (pdfUrl.startsWith('blob:')) {
+          // Fetch the blob URL and convert to ArrayBuffer with retry logic
+          let arrayBuffer: ArrayBuffer | null = null;
+          let lastError: Error | null = null;
+          const maxRetries = 3;
+          const retryDelay = 200; // milliseconds
+          
+          for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+              // Add a small delay before retrying (except first attempt)
+              if (attempt > 0) {
+                await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+              }
+              
+              const response = await fetch(pdfUrl, {
+                method: 'GET',
+                cache: 'no-cache',
+              });
+              
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+              }
+              
+              arrayBuffer = await response.arrayBuffer();
+              
+              // Verify we got valid data
+              if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                throw new Error('Received empty response');
+              }
+              
+              // Success - break out of retry loop
+              break;
+            } catch (fetchError) {
+              lastError = fetchError instanceof Error ? fetchError : new Error(String(fetchError));
+              console.warn(`Blob URL fetch attempt ${attempt + 1}/${maxRetries} failed:`, lastError.message);
+              
+              // If this was the last attempt, throw the error
+              if (attempt === maxRetries - 1) {
+                throw new Error(
+                  `Failed to load PDF from blob URL after ${maxRetries} attempts. ` +
+                  `The blob URL may have been revoked or is no longer accessible. ` +
+                  `Please ensure the blob URL is still valid or pass the PDF blob directly. ` +
+                  `Original error: ${lastError.message}`
+                );
+              }
+            }
+          }
+          
+          if (!arrayBuffer) {
+            throw new Error('Failed to fetch blob URL: No data received');
+          }
+          
+          documentSource = arrayBuffer;
+        } else {
+          // Regular URL (not blob:)
+          documentSource = pdfUrl;
+        }
+      } else {
+        throw new Error('Either pdfUrl or pdfBlob must be provided');
+      }
+      
       const instance = await NutrientViewer.load({
         container: viewerRef.current,
-        document: pdfUrl,
+        document: documentSource,
         baseUrl: `${window.location.protocol}//${window.location.host}/${
           import.meta.env.PUBLIC_URL ?? ""
         }`,
       });
 
       nutrientViewerRef.current = instance;
+      setIsLoading(false);
     } catch (err) {
       console.error('Error resetting PDF:', err);
       setError('Failed to reset PDF. Please close and reopen the editor.');
+      setIsLoading(false);
     }
   };
 
