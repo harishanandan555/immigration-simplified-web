@@ -8643,6 +8643,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                   <Download className="w-4 h-4 mr-1" />
                                   Download
                                 </Button>
+                                
                                 <Button
                                   onClick={() => handlePreviewForm(form.formName)}
                                   size="sm"
@@ -8656,6 +8657,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                                   )}
                                   {loadingPreview[form.formName] ? 'Loading...' : 'Preview'}
                                 </Button>
+
                                 <Button
                                   onClick={() => handleEditForm(form.formName)}
                                   size="sm"
