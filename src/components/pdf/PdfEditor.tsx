@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Save, Download, RotateCcw } from 'lucide-react';
 
 interface PdfEditorProps {
-  pdfUrl: string;
+  pdfUrl?: string;
+  pdfBlob?: Blob;
   filename: string;
   onClose: () => void;
   onSave?: (editedPdfBlob: Blob) => void;
@@ -14,6 +15,7 @@ type NutrientViewerInstance = any;
 
 const PdfEditor: React.FC<PdfEditorProps> = ({
   pdfUrl,
+  pdfBlob,
   filename,
   onClose,
   onSave,
@@ -70,22 +72,73 @@ const PdfEditor: React.FC<PdfEditorProps> = ({
           return;
         }
 
-        // Handle blob URLs by converting them to ArrayBuffer
-        let documentSource: string | ArrayBuffer = pdfUrl;
+        // Determine document source - prefer blob over URL to avoid revocation issues
+        let documentSource: string | ArrayBuffer;
         
-        if (pdfUrl.startsWith('blob:')) {
-          // Fetch the blob URL and convert to ArrayBuffer
-          try {
-            const response = await fetch(pdfUrl);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch blob URL: ${response.statusText}`);
+        if (pdfBlob) {
+          // Use blob directly - convert to ArrayBuffer
+          documentSource = await pdfBlob.arrayBuffer();
+        } else if (pdfUrl) {
+          // Fall back to URL
+          if (pdfUrl.startsWith('blob:')) {
+            // Fetch the blob URL and convert to ArrayBuffer with retry logic
+            let arrayBuffer: ArrayBuffer | null = null;
+            let lastError: Error | null = null;
+            const maxRetries = 3;
+            const retryDelay = 200; // milliseconds
+            
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              try {
+                // Add a small delay before retrying (except first attempt)
+                if (attempt > 0) {
+                  await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+                }
+                
+                const response = await fetch(pdfUrl, {
+                  method: 'GET',
+                  cache: 'no-cache',
+                });
+                
+                if (!response.ok) {
+                  throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                arrayBuffer = await response.arrayBuffer();
+                
+                // Verify we got valid data
+                if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                  throw new Error('Received empty response');
+                }
+                
+                // Success - break out of retry loop
+                break;
+              } catch (fetchError) {
+                lastError = fetchError instanceof Error ? fetchError : new Error(String(fetchError));
+                console.warn(`Blob URL fetch attempt ${attempt + 1}/${maxRetries} failed:`, lastError.message);
+                
+                // If this was the last attempt, throw the error
+                if (attempt === maxRetries - 1) {
+                  throw new Error(
+                    `Failed to load PDF from blob URL after ${maxRetries} attempts. ` +
+                    `The blob URL may have been revoked or is no longer accessible. ` +
+                    `Please ensure the blob URL is still valid or pass the PDF blob directly. ` +
+                    `Original error: ${lastError.message}`
+                  );
+                }
+              }
             }
-            const arrayBuffer = await response.arrayBuffer();
+            
+            if (!arrayBuffer) {
+              throw new Error('Failed to fetch blob URL: No data received');
+            }
+            
             documentSource = arrayBuffer;
-          } catch (fetchError) {
-            console.error('Error fetching blob URL:', fetchError);
-            throw new Error(`Failed to load PDF from blob URL: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
+          } else {
+            // Regular URL (not blob:)
+            documentSource = pdfUrl;
           }
+        } else {
+          throw new Error('Either pdfUrl or pdfBlob must be provided');
         }
 
         if (!isMounted || !viewerRef.current) {
@@ -118,7 +171,7 @@ const PdfEditor: React.FC<PdfEditorProps> = ({
 
     initializeNutrientViewer();
 
-    // Cleanup on unmount or when pdfUrl changes
+    // Cleanup on unmount or when pdfUrl/pdfBlob changes
     return () => {
       isMounted = false;
       if (nutrientViewerRef.current && viewerRef.current) {
@@ -137,7 +190,7 @@ const PdfEditor: React.FC<PdfEditorProps> = ({
         nutrientViewerRef.current = null;
       }
     };
-  }, [pdfUrl]);
+  }, [pdfUrl, pdfBlob]);
 
   const handleSave = async () => {
     if (!nutrientViewerRef.current || !onSave) return;
@@ -224,22 +277,73 @@ const PdfEditor: React.FC<PdfEditorProps> = ({
         throw new Error('Viewer container not found');
       }
       
-      // Handle blob URLs by converting them to ArrayBuffer
-      let documentSource: string | ArrayBuffer = pdfUrl;
+      // Determine document source - prefer blob over URL to avoid revocation issues
+      let documentSource: string | ArrayBuffer;
       
-      if (pdfUrl.startsWith('blob:')) {
-        // Fetch the blob URL and convert to ArrayBuffer
-        try {
-          const response = await fetch(pdfUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch blob URL: ${response.statusText}`);
+      if (pdfBlob) {
+        // Use blob directly - convert to ArrayBuffer
+        documentSource = await pdfBlob.arrayBuffer();
+      } else if (pdfUrl) {
+        // Fall back to URL
+        if (pdfUrl.startsWith('blob:')) {
+          // Fetch the blob URL and convert to ArrayBuffer with retry logic
+          let arrayBuffer: ArrayBuffer | null = null;
+          let lastError: Error | null = null;
+          const maxRetries = 3;
+          const retryDelay = 200; // milliseconds
+          
+          for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+              // Add a small delay before retrying (except first attempt)
+              if (attempt > 0) {
+                await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+              }
+              
+              const response = await fetch(pdfUrl, {
+                method: 'GET',
+                cache: 'no-cache',
+              });
+              
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+              }
+              
+              arrayBuffer = await response.arrayBuffer();
+              
+              // Verify we got valid data
+              if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                throw new Error('Received empty response');
+              }
+              
+              // Success - break out of retry loop
+              break;
+            } catch (fetchError) {
+              lastError = fetchError instanceof Error ? fetchError : new Error(String(fetchError));
+              console.warn(`Blob URL fetch attempt ${attempt + 1}/${maxRetries} failed:`, lastError.message);
+              
+              // If this was the last attempt, throw the error
+              if (attempt === maxRetries - 1) {
+                throw new Error(
+                  `Failed to load PDF from blob URL after ${maxRetries} attempts. ` +
+                  `The blob URL may have been revoked or is no longer accessible. ` +
+                  `Please ensure the blob URL is still valid or pass the PDF blob directly. ` +
+                  `Original error: ${lastError.message}`
+                );
+              }
+            }
           }
-          const arrayBuffer = await response.arrayBuffer();
+          
+          if (!arrayBuffer) {
+            throw new Error('Failed to fetch blob URL: No data received');
+          }
+          
           documentSource = arrayBuffer;
-        } catch (fetchError) {
-          console.error('Error fetching blob URL:', fetchError);
-          throw new Error(`Failed to load PDF from blob URL: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
+        } else {
+          // Regular URL (not blob:)
+          documentSource = pdfUrl;
         }
+      } else {
+        throw new Error('Either pdfUrl or pdfBlob must be provided');
       }
       
       const instance = await NutrientViewer.load({
