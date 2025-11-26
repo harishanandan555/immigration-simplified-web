@@ -1004,16 +1004,14 @@ useEffect(() => {
             {filteredCases.length > 0 && (
               <div className="card">
                 <h2 className="text-lg font-medium mb-4">My Case Status</h2>
-                <div className="h-64">
+                <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={statusData}
                         cx="50%"
                         cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={60}
+                        outerRadius={90}
                         fill="#8884d8"
                         dataKey="value"
                       >
@@ -1022,6 +1020,11 @@ useEffect(() => {
                         ))}
                       </Pie>
                       <Tooltip />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        height={36}
+                        formatter={(value, entry: any) => `${value}: ${((entry.payload.value / filteredCases.length) * 100).toFixed(0)}%`}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
