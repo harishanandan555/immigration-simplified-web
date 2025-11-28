@@ -2145,7 +2145,11 @@ const IndividualImmigrationProcess: React.FC = () => {
 
         // Form details
         selectedForms: selectedForms || [],
-        questionnaireResponses: {},
+        questionnaireResponses: customQuestionnaireAnswers || {},
+        
+        // Special flag to indicate checkbox behavior
+        // If no questionnaire responses, tell backend to leave checkboxes unchecked
+        _checkboxBehavior: Object.keys(customQuestionnaireAnswers || {}).length > 0 ? 'fill' : 'leave-empty',
 
         // Additional metadata
         workflowStep: currentStep,
@@ -2162,6 +2166,9 @@ const IndividualImmigrationProcess: React.FC = () => {
 
       // Prepare the data for the API
       const preparedData = prepareFormData(autoFillFormData);
+      
+      // Console log to check what data is being sent to Anvil API
+     
 
       // Generate forms for each selected form
       const newGeneratedForms = [];
