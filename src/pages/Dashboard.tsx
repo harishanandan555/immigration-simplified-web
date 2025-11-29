@@ -18,19 +18,7 @@ import { useAuth } from '../controllers/AuthControllers';
 import questionnaireAssignmentService from '../services/questionnaireAssignmentService';
 import { fetchWorkflows } from '../controllers/LegalFirmWorkflowController';
 import { getCasesBasedOnUserType } from '../controllers/CaseControllers';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+import { getDocumentsByClient } from '../controllers/DocumentControllers';
 import {getTasks} from '../controllers/TaskControllers';
 
 const Dashboard = () => {
@@ -46,6 +34,7 @@ const Dashboard = () => {
   const [workflowClients, setWorkflowClients] = useState<any[]>([]); // Dedicated client count from workflows
   const [cases, setCases] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
   const [loadingWorkflowData, setLoadingWorkflowData] = useState(false);
   
   // Workflow states
@@ -85,7 +74,8 @@ const Dashboard = () => {
               priority: caseItem.priority || 'Medium',
               dueDate: caseItem.dueDate,
               formNumber: caseItem.formNumber || '',
-              clientId: user._id, // Individual user is their own client
+              clientId: user._id || user.id, // Individual user is their own client
+              userId: user._id || user.id,
               documents: caseItem.documents || [],
               tasks: caseItem.tasks || [],
               timeline: caseItem.timeline || [],
@@ -97,9 +87,43 @@ const Dashboard = () => {
           } else {
             setCases([]);
           }
+
+          // Load documents for individual user
+          try {
+            const docsResponse = await getDocumentsByClient(user._id);
+            console.log('📄 Document response:', docsResponse);
+            
+            // Check if documents exist in the response
+            const responseDocuments = docsResponse.data?.data?.documents || docsResponse.data?.documents || [];
+            
+            if (docsResponse.success && responseDocuments.length > 0) {
+              setDocuments(responseDocuments);
+              console.log('✅ Loaded documents for individual user:', responseDocuments.length);
+            } else {
+              // If no documents found by client, try loading by cases
+              console.log('⚠️ No documents found by clientId, trying to load from cases...');
+              const allCaseDocuments: any[] = [];
+              
+              if (casesResponse.success && casesResponse.cases) {
+                casesResponse.cases.forEach((caseItem: any) => {
+                  console.log('📦 Case documents:', caseItem.caseNumber, caseItem.documents?.length || 0, caseItem.documents);
+                  if (caseItem.documents && Array.isArray(caseItem.documents)) {
+                    allCaseDocuments.push(...caseItem.documents);
+                  }
+                });
+              }
+              
+              setDocuments(allCaseDocuments);
+              console.log(`✅ Loaded ${allCaseDocuments.length} documents from cases`);
+            }
+          } catch (docError) {
+            console.error('❌ Error loading documents for individual user:', docError);
+            setDocuments([]);
+          }
         } catch (error) {
           console.error('Error loading cases for individual user:', error);
           setCases([]);
+          setDocuments([]);
         } finally {
           setLoadingWorkflowData(false);
           setLoadingWorkflows(false);
@@ -109,8 +133,35 @@ const Dashboard = () => {
       
       // Only load workflow data for attorneys and super admins
       if (!isAttorney && !isSuperAdmin) {
+        // For company clients, still load their documents
+        if (isClient && user?.userType === 'companyClient') {
+          try {
+            setLoadingWorkflowData(true);
+            const userId = user._id || user.id;
+            
+            // Load documents for company client
+            const docsResponse = await getDocumentsByClient(userId);
+            console.log('📄 Company client document response:', docsResponse);
+            
+            const responseDocuments = docsResponse.data?.data?.documents || docsResponse.data?.documents || [];
+            
+            if (docsResponse.success && responseDocuments.length > 0) {
+              setDocuments(responseDocuments);
+              console.log('✅ Loaded documents for company client:', responseDocuments.length);
+            } else {
+              setDocuments([]);
+              console.log('⚠️ No documents found for company client');
+            }
+          } catch (error) {
+            console.error('❌ Error loading documents for company client:', error);
+            setDocuments([]);
+          } finally {
+            setLoadingWorkflowData(false);
+          }
+        } else {
+          setLoadingWorkflowData(false);
+        }
         
-        setLoadingWorkflowData(false);
         setLoadingWorkflows(false);
         return;
       }
@@ -571,14 +622,45 @@ useEffect(() => {
   };
 
   // Filter cases if user is a client
-  const filteredCases = isClient && user?.id
-    ? cases.filter((c: any) => c.clientId === user.id)
+  const filteredCases = isClient && (user?.id || user?._id)
+    ? cases.filter((c: any) => 
+        c.clientId === user.id || 
+        c.clientId === user._id || 
+        c.userId === user.id || 
+        c.userId === user._id
+      )
     : cases;
 
   // Filter upcoming tasks with better validation and mapping from tasksFromAPI
-  // For individual users, don't show task-related deadlines since they don't have access to tasks
+  // For individual users, use case due dates as deadlines
   const upcomingDeadlines = (isClient && user?.userType === 'individualUser') 
-    ? [] // Individual users don't have access to tasks, so no upcoming deadlines
+    ? filteredCases
+        .filter((c: any) => c.dueDate)
+        .map((c: any) => {
+          const dueDate = new Date(c.dueDate);
+          const now = new Date();
+          const daysLeft = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const isOverdue = daysLeft < 0;
+          const isUrgent = daysLeft <= 3 && daysLeft >= 0;
+
+          return {
+            id: c._id || c.id,
+            title: c.description || c.title || c.caseNumber || 'Immigration Case',
+            dueDate: c.dueDate,
+            daysLeft: Math.abs(daysLeft),
+            isOverdue,
+            isUrgent,
+            caseId: c._id || c.id
+          };
+        })
+        .filter((d: any) => {
+          const dueDate = new Date(d.dueDate);
+          const now = new Date();
+          const daysDifference = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return daysDifference >= -7; // Show upcoming or recently overdue (within 7 days)
+        })
+        .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+        .slice(0, 5)
     : tasks
     .filter((task: any) => {
       // Validate task structure from API response
@@ -733,10 +815,12 @@ useEffect(() => {
   //   realDeadlines: upcomingDeadlines.slice(0, 2)
   // });
 
-  // Status counts for charts with validation
+  // Status counts for charts with validation - normalize to avoid duplicates
   const statusCounts = filteredCases.reduce((acc: any, c: any) => {
     if (c && c.status && typeof c.status === 'string') {
-      acc[c.status] = (acc[c.status] || 0) + 1;
+      // Normalize status to title case to avoid duplicates like "active" and "Active"
+      const normalizedStatus = c.status.charAt(0).toUpperCase() + c.status.slice(1).toLowerCase();
+      acc[normalizedStatus] = (acc[normalizedStatus] || 0) + 1;
     }
     return acc;
   }, {} as Record<string, number>);
@@ -766,6 +850,8 @@ useEffect(() => {
 
   // Individual User Dashboard Layout - No questionnaires, focused on immigration process
   const renderIndividualUserDashboard = () => {
+
+    
     return (
       <div>
         <div className="mb-6">
@@ -803,8 +889,8 @@ useEffect(() => {
               </div>
             </div>
             <div className="mt-4">
-              <Link to="/documents" className="text-sm text-orange-600 hover:text-orange-700 font-medium">
-                View documents →
+              <Link to="/cases" className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+                View deadlines →
               </Link>
             </div>
           </div>
@@ -813,9 +899,12 @@ useEffect(() => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-gray-500 text-sm">Documents</p>
-                <p className="text-2xl font-bold mt-1">{
-                  filteredCases.reduce((sum: number, c: any) => sum + (c.documents?.length || 0), 0)
-                }</p>
+                <p className="text-2xl font-bold mt-1">
+                  {(isClient && user?.userType === 'individualUser') 
+                    ? (documents.length > 0 ? documents.length : filteredCases.reduce((sum: number, c: any) => sum + (c.documents?.length || 0), 0))
+                    : filteredCases.reduce((sum: number, c: any) => sum + (c.documents?.length || 0), 0)
+                  }
+                </p>
               </div>
               <div className="p-2 bg-green-100 rounded-lg text-green-600">
                 <FileCheck size={20} />
@@ -1000,30 +1089,66 @@ useEffect(() => {
 
           {/* Right column - Status and deadlines */}
           <div className="space-y-8">
-            {/* Case Status Chart */}
+            {/* Case Status Overview */}
             {filteredCases.length > 0 && (
               <div className="card">
                 <h2 className="text-lg font-medium mb-4">My Case Status</h2>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={statusData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={60}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {statusData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                
+                <div className="space-y-3">
+                  {statusData.length > 0 ? (
+                    statusData.map((status, index) => {
+                      const percentage = filteredCases.length > 0 
+                        ? ((status.value / filteredCases.length) * 100).toFixed(0) 
+                        : 0;
+                      const statusColors: Record<string, { bg: string; text: string; bar: string }> = {
+                        'pending': { bg: 'bg-yellow-50', text: 'text-yellow-700', bar: 'bg-yellow-500' },
+                        'in-progress': { bg: 'bg-blue-50', text: 'text-blue-700', bar: 'bg-blue-500' },
+                        'completed': { bg: 'bg-green-50', text: 'text-green-700', bar: 'bg-green-500' },
+                        'draft': { bg: 'bg-gray-50', text: 'text-gray-700', bar: 'bg-gray-500' },
+                        'active': { bg: 'bg-indigo-50', text: 'text-indigo-700', bar: 'bg-indigo-500' },
+                        'new': { bg: 'bg-purple-50', text: 'text-purple-700', bar: 'bg-purple-500' }
+                      };
+                      
+                      const statusKey = status.name.toLowerCase().replace(/\s+/g, '-');
+                      const colors = statusColors[statusKey] || { 
+                        bg: 'bg-gray-50', 
+                        text: 'text-gray-700', 
+                        bar: COLORS[index % COLORS.length].replace('#', 'bg-[#') + ']'
+                      };
+                      
+                      return (
+                        <div key={index} className={`${colors.bg} rounded-lg p-3 border border-gray-200`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2.5 h-2.5 rounded-full ${colors.bar}`}></div>
+                              <span className={`text-sm font-semibold ${colors.text} uppercase tracking-wide`}>
+                                {status.name}
+                              </span>
+                            </div>
+                            <span className={`text-xl font-bold ${colors.text}`}>{status.value}</span>
+                          </div>
+                          
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs text-gray-600">
+                              <span>{percentage}% of total</span>
+                              <span className="font-medium">{status.value} / {filteredCases.length}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className={`${colors.bar} h-2 rounded-full transition-all duration-700`}
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      <FileText className="mx-auto h-10 w-10 text-gray-300" />
+                      <p className="mt-2 text-sm">No cases to display</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1212,10 +1337,10 @@ useEffect(() => {
           <div className="card">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Documents</p>
-                <p className="text-2xl font-bold mt-1">{
-                  filteredCases.reduce((sum: number, c: any) => sum + (c.documents?.length || 0), 0)
-                }</p>
+                <p className="text-gray-500 text-sm">My Documents</p>
+                <p className="text-2xl font-bold mt-1">
+                  {loadingWorkflowData ? '...' : documents.length}
+                </p>
               </div>
               <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
                 <FileCheck size={20} />
@@ -1432,43 +1557,7 @@ useEffect(() => {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* <div className="card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Active Cases</p>
-              <p className="text-2xl font-bold mt-1">{filteredCases.filter(c => c.status !== 'Closed').length}</p>
-            </div>
-            <div className="p-2 bg-primary-100 rounded-lg text-primary-600">
-              <Briefcase size={20} />
-            </div>
-          </div>
-          <div className="mt-4">
-            <Link to="/cases" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-              View all cases →
-            </Link>
-          </div>
-        </div> */}
-
-        {/* <div className="card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Pending Forms</p>
-              <p className="text-2xl font-bold mt-1">{
-                filteredCases.reduce((sum: number, c: any) => sum + (c.pendingForms || 0), 0)
-              }</p>
-            </div>
-            <div className="p-2 bg-secondary-100 rounded-lg text-secondary-600">
-              <FileText size={20} />
-            </div>
-          </div>
-          <div className="mt-4">
-            <Link to="/forms" className="text-sm text-secondary-600 hover:text-secondary-700 font-medium">
-              Manage forms →
-            </Link>
-          </div>
-        </div> */}
-
-        <div className="card">
+      <div className="card">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-gray-500 text-sm">Upcoming Deadlines</p>
@@ -1576,357 +1665,267 @@ useEffect(() => {
       </div>
 
       {/* Main content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left column - Case charts */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Case Type Chart - Hide for company clients */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column - Case overview */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Case Type Distribution - Modern Vertical Bar Chart */}
           {!(isClient && user?.userType === 'companyClient') && (
-            <div className="card">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-medium">Cases by Type</h2>
-                <div className="flex space-x-2">
-                <button
-                  onClick={() => setTimeframe('week')}
-                  className={`px-3 py-1 text-xs rounded-md ${timeframe === 'week'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                >
-                  Week
-                </button>
-                <button
-                  onClick={() => setTimeframe('month')}
-                  className={`px-3 py-1 text-xs rounded-md ${timeframe === 'month'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                >
-                  Month
-                </button>
-                <button
-                  onClick={() => setTimeframe('quarter')}
-                  className={`px-3 py-1 text-xs rounded-md ${timeframe === 'quarter'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                >
-                  Quarter
-                </button>
-              </div>
-            </div>
-
-            <div className="h-80">
-              <ResponsiveContainer width="90%" height="100%">
-                <BarChart data={typeData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="cases" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            
-            {/* Debug info for case type mapping */}
-            <div className="mt-2 text-xs text-gray-500">
-              Total Cases: {filteredCases.length} | 
-              {typeData.map(item => ` ${item.name}: ${item.cases}`).join(' |')}
-            </div>
-          </div>
-          )}
-
-          {/* Workflow Status Chart for Attorneys/Admins */}
-          {(isAttorney || isSuperAdmin) && (
-            <div className="card">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-medium">Workflow Status Overview</h2>
-                <div className="text-sm text-gray-500">
-                  Total: {workflowStats.total} workflows
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Cases by Type</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">{filteredCases.length} total cases</p>
                 </div>
               </div>
 
-              <div className="h-80">
-                <ResponsiveContainer width="90%" height="100%">
-                  <BarChart data={[
-                    { name: 'In Progress', count: workflowStats.inProgress },
-                    { name: 'Completed', count: workflowStats.completed },
-                    { name: 'Draft', count: workflowStats.draft }
-                  ]} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="count" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="space-y-4">
+                {typeData.map((item, index) => {
+                  const percentage = filteredCases.length > 0 
+                    ? ((item.cases / filteredCases.length) * 100) 
+                    : 0;
+                  const barColors = [
+                    '#3b82f6', // blue
+                    '#10b981', // emerald
+                    '#f59e0b', // amber
+                    '#8b5cf6', // violet
+                    '#ef4444', // rose
+                    '#6366f1'  // indigo
+                  ];
+                  const barColor = barColors[index];
+                  
+                  return (
+                    <div key={index} className="flex items-center gap-4">
+                      {/* Label */}
+                      <div className="w-32 text-sm font-medium text-gray-700">
+                        {item.name}
+                      </div>
+                      
+                      {/* Bar */}
+                      <div className="flex-1 flex items-center gap-3">
+                        <div className="flex-1 bg-gray-100 rounded-full h-8 overflow-hidden">
+                          <div 
+                            className="h-full rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3"
+                            style={{ 
+                              width: `${percentage}%`,
+                              minWidth: item.cases > 0 ? '60px' : '0%',
+                              backgroundColor: barColor
+                            }}
+                          >
+                            <span className="text-white text-sm font-semibold">{item.cases}</span>
+                          </div>
+                        </div>
+                        
+                        {/* Percentage */}
+                        <div className="w-16 text-sm text-gray-600 font-medium text-right">
+                          {percentage.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              
-              {/* Debug info for workflow status mapping */}
-              <div className="mt-2 text-xs text-gray-500">
-                Workflows: {workflowStats.total} | In Progress: {workflowStats.inProgress} | Completed: {workflowStats.completed} | Draft: {workflowStats.draft}
+          </div>
+          )}
+
+          {/* Workflow Status Overview for Attorneys/Admins */}
+          {(isAttorney || isSuperAdmin) && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">Workflow Status</h2>
+                <p className="text-sm text-gray-500 mt-0.5">{workflowStats.total} total workflows</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-100">
+                  <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg mb-3">
+                    <Clock className="w-5 h-5 text-white" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">{workflowStats.inProgress}</p>
+                  <p className="text-xs text-gray-600 mt-1">In Progress</p>
+                </div>
+
+                <div className="text-center p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <div className="inline-flex items-center justify-center w-10 h-10 bg-emerald-500 rounded-lg mb-3">
+                    <CheckCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">{workflowStats.completed}</p>
+                  <p className="text-xs text-gray-600 mt-1">Completed</p>
+                </div>
+
+                <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-400 rounded-lg mb-3">
+                    <FileText className="w-5 h-5 text-white" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">{workflowStats.draft}</p>
+                  <p className="text-xs text-gray-600 mt-1">Draft</p>
+                </div>
+              </div>
+
+              <div className="mt-5 pt-5 border-t border-gray-200">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Completion Rate</span>
+                  <span className="font-semibold text-gray-900">
+                    {workflowStats.total > 0 
+                      ? ((workflowStats.completed / workflowStats.total) * 100).toFixed(0) 
+                      : 0}%
+                  </span>
+                </div>
+                <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-700"
+                    style={{ 
+                      width: `${workflowStats.total > 0 ? (workflowStats.completed / workflowStats.total) * 100 : 0}%` 
+                    }}
+                  ></div>
+                </div>
               </div>
             </div>
           )}
-
-          {/* Recent Cases */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium">Recent Cases</h2>
-              <Link to="/cases" className="text-sm text-primary-600 hover:text-primary-700">
-                View all
-              </Link>
-            </div>
-
-            <div className="overflow-hidden rounded-lg border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Case Number
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredCases.slice(0, 4).map((caseItem: any, caseIndex: number) => {
-                    // Comprehensive safety check and data cleaning
-                    if (!caseItem || typeof caseItem !== 'object' || Array.isArray(caseItem)) {
-                      console.warn('Invalid case item at index', caseIndex, caseItem);
-                      return null;
-                    }
-
-                    // Clean the case data by removing Mongoose metadata
-                    const cleanCaseData = {
-                      id: caseItem.id || caseItem._id,
-                      _id: caseItem._id || caseItem.id,
-                      caseNumber: caseItem.caseNumber || caseItem.title || 'No Case Number',
-                      type: caseItem.type || 'Unknown',
-                      status: caseItem.status || 'Unknown',
-                      clientId: caseItem.clientId,
-                      clientName: caseItem.clientName || 'Unknown Client',
-                      workflowId: caseItem.workflowId,
-                      formCaseIds: caseItem.formCaseIds && typeof caseItem.formCaseIds === 'object' 
-                        ? Object.fromEntries(
-                            Object.entries(caseItem.formCaseIds).filter(([key, value]) => 
-                              !key.startsWith('$') && typeof key === 'string' && value
-                            )
-                          )
-                        : {}
-                    };
-
-                    // Ensure all properties are strings/primitives for display
-                    const caseId = String(cleanCaseData.id || '');
-                    const caseNumber = String(cleanCaseData.caseNumber);
-                    const caseType = String(cleanCaseData.type);
-                    const caseStatus = String(cleanCaseData.status);
-                    const clientName = String(cleanCaseData.clientName);
-
-                    if (!caseId) {
-                      console.warn('Skipping case without valid ID', cleanCaseData);
-                      return null;
-                    }
-
-                    const client = clients.find((c: any) => c.id === cleanCaseData.clientId);
-                    const matchingWorkflow = getWorkflowCaseNumber(cleanCaseData);
-                    
-                    return (
-                      <tr key={caseId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Link to={`/cases/${caseId}`} className="text-primary-600 hover:text-primary-700 font-medium">
-                            <div className="font-medium">{caseNumber}</div>
-                            {Object.keys(cleanCaseData.formCaseIds).length > 0 && (
-                              <div className="mt-1 space-y-1">
-                                {Object.entries(cleanCaseData.formCaseIds).map(([formType, caseNum], index) => (
-                                  <div 
-                                    key={index}
-                                    className="text-xs font-mono px-2 py-1 rounded inline-block mr-1 bg-green-50 text-green-600"
-                                  >
-                                    {String(formType)}: {String(caseNum)}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {matchingWorkflow && (
-                              <div className="text-xs text-purple-600 mt-1">
-                                📋 Workflow Status: {String(matchingWorkflow.status || 'in-progress')}
-                              </div>
-                            )}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="font-medium">{caseType}</div>
-                          {matchingWorkflow?.selectedForms && Array.isArray(matchingWorkflow.selectedForms) && matchingWorkflow.selectedForms.length > 0 && (
-                            <div className="text-xs text-green-600 mt-1">
-                              Forms: {matchingWorkflow.selectedForms.map((form: any) => String(form)).join(', ')}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>
-                            <div className="font-medium">{String(client?.name || clientName)}</div>
-                            {client?.email && (
-                              <div className="text-xs text-gray-400">{String(client.email)}</div>
-                            )}
-                            {matchingWorkflow?.client && (
-                              <div className="text-xs text-blue-600 mt-1">
-                                🔗 Linked to workflow
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            ${caseStatus.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              caseStatus.toLowerCase() === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                                caseStatus.toLowerCase() === 'completed' ? 'bg-green-100 text-green-800' :
-                                  caseStatus.toLowerCase() === 'draft' ? 'bg-gray-100 text-gray-800' :
-                                    caseStatus === 'Document Collection' ? 'bg-yellow-100 text-yellow-800' :
-                                      caseStatus === 'Waiting on USCIS' ? 'bg-purple-100 text-purple-800' :
-                                        caseStatus === 'RFE Received' ? 'bg-orange-100 text-orange-800' :
-                                          caseStatus === 'Approved' ? 'bg-green-100 text-green-800' :
-                                            caseStatus === 'Closed' ? 'bg-gray-100 text-gray-800' :
-                                              'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {caseStatus}
-                          </span>
-                          {matchingWorkflow && (
-                            <div className="mt-1">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                                Step {String(matchingWorkflow.currentStep || 1)}
-                              </span>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
 
-        {/* Right column - Case status & tasks */}
-        <div className="space-y-8">
-          {/* Case Status Chart */}
-          <div className="card">
-            <h2 className="text-lg font-medium mb-4">Case Status</h2>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent, cx, cy, midAngle, innerRadius, outerRadius }) => {
-                      const RADIAN = Math.PI / 180;
-                      const radius = innerRadius + (outerRadius - innerRadius) * 1.4;
-                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                      
-                      return (
-                        <text 
-                          x={x} 
-                          y={y} 
-                          fill="#2d66c2ff" 
-                          textAnchor={x > cx ? 'start' : 'end'} 
-                          dominantBaseline="central"
-                          fontSize="14"
-                          fontWeight="500"
-                        >
-                          {`${name}: ${(percent * 100).toFixed(0)}%`}
-                        </text>
-                      );
-                    }}
-                    outerRadius={60}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {statusData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+        {/* Right column - Status & Quick Info */}
+        <div className="space-y-6">
+          {/* Case Status Overview - Professional Pie Chart */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">Status Distribution</h2>
+            
+            {statusData.length > 0 ? (
+              <div className="space-y-6">
+                {/* Pie Chart Visual */}
+                <div className="relative h-48 flex items-center justify-center">
+                  <div className="relative w-40 h-40">
+                    {/* Donut Chart */}
+                    <svg viewBox="0 0 100 100" className="transform -rotate-90">
+                      {statusData.map((status, index) => {
+                        const statusColors: Record<string, string> = {
+                          'pending': '#f59e0b',
+                          'in-progress': '#3b82f6',
+                          'completed': '#10b981',
+                          'draft': '#9ca3af',
+                          'active': '#6366f1',
+                          'new': '#8b5cf6'
+                        };
+                        
+                        const statusKey = status.name.toLowerCase().replace(/\s+/g, '-');
+                        const fillColor = statusColors[statusKey] || COLORS[index % COLORS.length];
+                        
+                        // Calculate arc parameters
+                        const total = statusData.reduce((sum, s) => sum + s.value, 0);
+                        const percentage = (status.value / total) * 100;
+                        const previousPercentage = statusData.slice(0, index).reduce((sum, s) => sum + (s.value / total) * 100, 0);
+                        
+                        const radius = 40;
+                        const circumference = 2 * Math.PI * radius;
+                        const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
+                        const strokeDashoffset = -((previousPercentage / 100) * circumference);
+                        
+                        return (
+                          <circle
+                            key={index}
+                            cx="50"
+                            cy="50"
+                            r={radius}
+                            fill="transparent"
+                            stroke={fillColor}
+                            strokeWidth="20"
+                            strokeDasharray={strokeDasharray}
+                            strokeDashoffset={strokeDashoffset}
+                            className="transition-all duration-700"
+                          />
+                        );
+                      })}
+                    </svg>
+                    {/* Center text */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <p className="text-2xl font-bold text-gray-900">{filteredCases.length}</p>
+                      <p className="text-xs text-gray-500">Total</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="grid grid-cols-2 gap-3">
+                  {statusData.map((status, index) => {
+                    const percentage = filteredCases.length > 0 
+                      ? ((status.value / filteredCases.length) * 100).toFixed(1) 
+                      : 0;
+                    const statusColors: Record<string, { dot: string; bg: string }> = {
+                      'pending': { dot: 'bg-amber-500', bg: 'bg-amber-50' },
+                      'in-progress': { dot: 'bg-blue-500', bg: 'bg-blue-50' },
+                      'completed': { dot: 'bg-emerald-500', bg: 'bg-emerald-50' },
+                      'draft': { dot: 'bg-gray-400', bg: 'bg-gray-50' },
+                      'active': { dot: 'bg-indigo-500', bg: 'bg-indigo-50' },
+                      'new': { dot: 'bg-violet-500', bg: 'bg-violet-50' }
+                    };
+                    
+                    const statusKey = status.name.toLowerCase().replace(/\s+/g, '-');
+                    const colors = statusColors[statusKey] || { dot: 'bg-gray-400', bg: 'bg-gray-50' };
+                    
+                    return (
+                      <div key={index} className={`${colors.bg} rounded-lg p-3 border border-gray-200`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`w-3 h-3 rounded-full ${colors.dot}`}></div>
+                          <span className="text-xs font-medium text-gray-700">{status.name}</span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-lg font-bold text-gray-900">{status.value}</span>
+                          <span className="text-xs text-gray-500">({percentage}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                <FileText className="mx-auto h-10 w-10 mb-2" />
+                <p className="text-sm">No cases yet</p>
+              </div>
+            )}
           </div>
 
-          {/* Workflow Progress for Attorneys/Admins */}
+          {/* Quick Stats for Attorneys/Admins */}
           {(isAttorney || isSuperAdmin) && (
-            <div className="card">
-              <h2 className="text-lg font-medium mb-4">Workflow Progress</h2>
-              <div className="space-y-4">
-                {loadingWorkflows ? (
-                  <div className="py-4 text-center text-gray-500">
-                    <p className="text-sm">Loading workflow data...</p>
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h2>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <span className="text-sm font-medium">Active</span>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                      <div className="flex items-center">
-                        <Clock className="h-5 w-5 text-blue-600 mr-2" />
-                        <span className="text-sm font-medium text-blue-900">In Progress</span>
-                      </div>
-                      <span className="text-lg font-bold text-blue-600">{workflowStats.inProgress}</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                      <div className="flex items-center">
-                        <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                        <span className="text-sm font-medium text-green-900">Completed</span>
-                      </div>
-                      <span className="text-lg font-bold text-green-600">{workflowStats.completed}</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center">
-                        <FileText className="h-5 w-5 text-gray-600 mr-2" />
-                        <span className="text-sm font-medium text-gray-900">Draft</span>
-                      </div>
-                      <span className="text-lg font-bold text-gray-600">{workflowStats.draft}</span>
-                    </div>
-
-                    {/* <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="text-xs text-gray-500 mb-2">
-                        Total: {workflowStats.total} workflows from {availableWorkflows.length} records
-                      </div>
-                      <Link 
-                        to="/workflows" 
-                        className="block w-full text-center py-2 px-4 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 font-medium"
-                      >
-                        Manage All Workflows
-                      </Link>
-                    </div> */}
-                  </>
-                )}
+                  <span className="text-lg font-bold">{workflowStats.inProgress}</span>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl text-white">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Done</span>
+                  </div>
+                  <span className="text-lg font-bold">{workflowStats.completed}</span>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 bg-gradient-to-r from-violet-500 to-violet-600 rounded-xl text-white">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    <span className="text-sm font-medium">Clients</span>
+                  </div>
+                  <span className="text-lg font-bold">{workflowClients.length}</span>
+                </div>
               </div>
             </div>
           )}
 
           {/* Upcoming Deadlines */}
-          <div className="card">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium">Upcoming Deadlines</h2>
-              <Link to="/tasks" className="text-sm text-primary-600 hover:text-primary-700">
-                View all
+              <h2 className="text-lg font-semibold text-gray-900">Deadlines</h2>
+              <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                View all →
               </Link>
             </div>
 
-            <div className="space-y-4">
-              {upcomingDeadlines.length > 0 ? (
+            <div className="space-y-2.5">{upcomingDeadlines.length > 0 ? (
                 upcomingDeadlines.map((task: any, taskIndex: number) => {
                   // Safety check to prevent rendering objects
                   if (!task || typeof task !== 'object' || !task.id) {
@@ -1967,117 +1966,27 @@ useEffect(() => {
                   return (
                     <div
                       key={taskId}
-                      className={`p-3 rounded-lg border ${isUrgent || task.isOverdue
-                        ? 'border-error-200 bg-error-50'
-                        : 'border-gray-200 bg-white'
+                      className={`p-3 rounded-lg border transition-all ${isUrgent || task.isOverdue
+                        ? 'border-red-200 bg-red-50'
+                        : 'border-gray-200 bg-gray-50 hover:bg-white'
                         }`}
                     >
-                      <div className="flex items-start">
-                        <div className={`flex-shrink-0 ${isUrgent || task.isOverdue ? 'text-error-500' : 'text-gray-400'}`}>
-                          {isUrgent || task.isOverdue ? <AlertCircle size={18} /> : <CalendarDays size={18} />}
+                      <div className="flex items-start gap-3">
+                        <div className={`flex-shrink-0 mt-0.5 ${isUrgent || task.isOverdue ? 'text-red-500' : 'text-gray-400'}`}>
+                          {isUrgent || task.isOverdue ? <AlertCircle size={16} /> : <CalendarDays size={16} />}
                         </div>
-                        <div className="ml-3 flex-1">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className={`text-sm font-medium ${isUrgent || task.isOverdue ? 'text-error-600' : 'text-gray-900'}`}>
-                                {taskTitle}
-                              </p>
-                              {taskDescription && (
-                                <p className="text-xs text-gray-500 mt-1">{taskDescription}</p>
-                              )}
-                            </div>
-                            <div className="text-right ml-2">
-                              <p className={`text-xs font-medium ${isUrgent || task.isOverdue ? 'text-error-600' : 'text-gray-500'}`}>
-                                {task.isOverdue ? 'Overdue' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`}
-                              </p>
-                              {taskPriority && taskPriority !== 'Medium' && (
-                                <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${
-                                  taskPriority === 'High' || taskPriority === 'Urgent' 
-                                    ? 'bg-red-100 text-red-800' 
-                                    : taskPriority === 'Low' 
-                                      ? 'bg-gray-100 text-gray-800'
-                                      : 'bg-blue-100 text-blue-800'
-                                }`}>
-                                  {taskPriority}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                {/* Use mapped task data for client and case information */}
-                                <span>Client: {task.clientName || getClientNameForCase(caseIdentifier) || 'Unknown Client'}</span>
-                                <span className="ml-2">Case: {task.caseNumber || relatedCase?.caseNumber || caseIdentifier || 'No Case'}</span>
-                              </div>
-                            </div>
-                            
-                            {/* Show assigned to information from API */}
-                            {task.assignedToName && (
-                              <div className="mt-1">
-                                <span className="text-blue-600">
-                                  Assigned to: {task.assignedToName}
-                                </span>
-                                {task.assignedToEmail && (
-                                  <span className="ml-1 text-gray-400">({task.assignedToEmail})</span>
-                                )}
-                              </div>
-                            )}
-                            
-                            {workflowCaseNumbers.length > 0 && (
-                              <div className="mt-1 space-y-1">
-                                {workflowCaseNumbers.map((caseNum: any, index: number) => {
-                                  // Safety check to ensure we have valid data
-                                  if (!caseNum || typeof caseNum !== 'object' || !caseNum.type || !caseNum.number) {
-                                    return null;
-                                  }
-                                  return (
-                                    <span 
-                                      key={index}
-                                      className={`text-xs font-mono px-2 py-1 rounded inline-block mr-1 ${
-                                        caseNum.source === 'case' 
-                                          ? 'text-blue-600 bg-blue-50' 
-                                          : 'text-green-600 bg-green-50'
-                                      }`}
-                                    >
-                                      {caseNum.type}: {caseNum.number}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {matchingWorkflow && (
-                              <div className="text-xs text-purple-600 mt-1">
-                                📋 Workflow Status: {String(matchingWorkflow.status || 'in-progress')}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-between mt-2">
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isUrgent || task.isOverdue ? 'text-red-900' : 'text-gray-900'}`}>
+                            {taskTitle}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
                             <p className="text-xs text-gray-500">
-                              Due: {taskDueDate ? new Date(taskDueDate).toLocaleDateString() : 'No due date'}
+                              {taskDueDate ? new Date(taskDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date'}
                             </p>
-                            <div className="flex gap-2">
-                              {/* Show task tags if available from API */}
-                              {task.tags && task.tags.length > 0 && (
-                                <div className="flex gap-1">
-                                  {task.tags.slice(0, 2).map((tag: string, tagIndex: number) => (
-                                    <span key={tagIndex} className="text-xs px-1 py-0.5 bg-gray-100 text-gray-600 rounded">
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                                ${taskStatus === 'Completed' ? 'bg-green-100 text-green-800' :
-                                  taskStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                                    taskStatus === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                                      'bg-gray-100 text-gray-800'
-                                }`}
-                              >
-                                {taskStatus}
-                              </span>
-                            </div>
+                            <span className="text-xs text-gray-300">•</span>
+                            <p className={`text-xs font-medium ${isUrgent || task.isOverdue ? 'text-red-600' : 'text-gray-600'}`}>
+                              {task.isOverdue ? 'Overdue' : `${daysLeft}d left`}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -2085,9 +1994,9 @@ useEffect(() => {
                   );
                 })
               ) : (
-                <div className="py-4 text-center text-gray-500">
-                  <CheckCircle className="mx-auto h-8 w-8 text-gray-400" />
-                  <p className="mt-2 text-sm">No upcoming deadlines</p>
+                <div className="py-8 text-center text-gray-400">
+                  <CheckCircle className="mx-auto h-8 w-8 mb-2" />
+                  <p className="text-sm">All clear!</p>
                 </div>
               )}
             </div>
@@ -2095,18 +2004,17 @@ useEffect(() => {
 
           {/* Questionnaires */}
           {isClient && (
-            <div className="card">
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium">Questionnaires</h2>
-                <Link to="/my-questionnaires" className="text-sm text-primary-600 hover:text-primary-700">
-                  View all
+                <h2 className="text-lg font-semibold text-gray-900">Questionnaires</h2>
+                <Link to="/my-questionnaires" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  View all →
                 </Link>
               </div>
 
-              <div className="space-y-4">
-                {loadingQuestionnaires ? (
-                  <div className="py-4 text-center text-gray-500">
-                    <p className="text-sm">Loading your questionnaires...</p>
+              <div className="space-y-2.5">{loadingQuestionnaires ? (
+                  <div className="py-8 text-center text-gray-400">
+                    <p className="text-sm">Loading...</p>
                   </div>
                 ) : assignments.length > 0 ? (
                   assignments.map((assignment, index) => {
@@ -2129,33 +2037,31 @@ useEffect(() => {
                     return (
                       <div
                         key={assignmentId}
-                        className="p-3 rounded-lg border border-gray-200 bg-white"
+                        className="p-3 rounded-lg border border-gray-200 bg-gray-50 hover:bg-white transition-colors"
                       >
                         <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
                               {title}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Due: {dueDate ? new Date(dueDate).toLocaleDateString() : 'No due date'}
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Due: {dueDate ? new Date(dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date'}
                             </p>
                           </div>
-                          <div>
-                            <Link
-                              to={`/questionnaires/fill/${assignmentId}`}
-                              className="inline-flex items-center px-3 py-1 text-xs rounded-md bg-primary-100 text-primary-700 hover:bg-primary-200"
-                            >
-                              {status === 'completed' ? 'View Responses' : 'Continue Questionnaire'}
-                            </Link>
-                          </div>
+                          <Link
+                            to={`/questionnaires/fill/${assignmentId}`}
+                            className="ml-3 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                          >
+                            {status === 'completed' ? 'View' : 'Start'}
+                          </Link>
                         </div>
                       </div>
                     );
                   })
                 ) : (
-                  <div className="py-4 text-center text-gray-500">
-                    <ClipboardList className="mx-auto h-8 w-8 text-gray-400" />
-                    <p className="mt-2 text-sm">No questionnaires assigned</p>
+                  <div className="py-8 text-center text-gray-400">
+                    <ClipboardList className="mx-auto h-8 w-8 mb-2" />
+                    <p className="text-sm">No questionnaires</p>
                   </div>
                 )}
               </div>

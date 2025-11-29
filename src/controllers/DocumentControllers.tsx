@@ -142,6 +142,7 @@ export interface DocumentSearchParams {
 }
 
 export interface DocumentSearchResponse {
+  data: any;
   documents: Document[];
   pagination: {
     total: number;
@@ -167,7 +168,10 @@ interface ApiResponse<T> {
 export const getDocuments = async (params?: DocumentSearchParams): Promise<ApiResponse<DocumentSearchResponse>> => {
   if (!IS_DOCUMENTS_ENABLED) {
     return {
-      data: { documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
+      data: {
+        documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 },
+        data: undefined
+      },
       success: true,
       status: 0,
       message: 'Method skipped'
@@ -581,7 +585,7 @@ export const rejectDocument = async (documentId: string, reason?: string): Promi
 export const getDocumentsByClient = async (clientId: string, params?: DocumentSearchParams): Promise<ApiResponse<DocumentSearchResponse>> => {
   if (!IS_DOCUMENTS_ENABLED) {
     return {
-      data: { documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
+      data: { data: null, documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
       success: true,
       status: 0,
       message: 'Method skipped'
@@ -610,7 +614,7 @@ export const getDocumentsByClient = async (clientId: string, params?: DocumentSe
 export const getDocumentsByCase = async (caseId: string, params?: DocumentSearchParams): Promise<ApiResponse<DocumentSearchResponse>> => {
   if (!IS_DOCUMENTS_ENABLED) {
     return {
-      data: { documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
+      data: { data: null, documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
       success: true,
       status: 0,
       message: 'Method skipped'
@@ -691,7 +695,7 @@ export const getDocumentStatuses = async (): Promise<ApiResponse<DocumentStatus[
 export const searchDocuments = async (params: DocumentSearchParams): Promise<ApiResponse<DocumentSearchResponse>> => {
   if (!IS_DOCUMENT_SEARCH_ENABLED) {
     return {
-      data: { documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
+      data: { data: null, documents: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } },
       success: true,
       status: 0,
       message: 'Method skipped'

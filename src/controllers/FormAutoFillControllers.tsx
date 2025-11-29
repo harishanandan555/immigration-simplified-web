@@ -534,9 +534,29 @@ export const prepareFormData = (rawData: any): RenderFormDataRequest => {
   const preparedData: RenderFormDataRequest = {};
   
   Object.entries(rawData).forEach(([key, value]) => {
+    // Skip questionnaire responses object - we'll handle it separately
+    if (key === 'questionnaireResponses') {
+      // Only include questionnaire responses if they have actual data
+      if (value && typeof value === 'object' && Object.keys(value).length > 0) {
+        // Include each questionnaire response with explicit values only
+        Object.entries(value).forEach(([qKey, qValue]) => {
+          // Only include if there's an actual value (not null, undefined, or empty string)
+          if (qValue !== null && qValue !== undefined && qValue !== '') {
+            preparedData[qKey] = qValue;
+          }
+        });
+      }
+      return; // Skip adding the questionnaireResponses object itself
+    }
+    
     // Convert null/undefined to empty string for text fields
+    // But DON'T include checkbox-related fields if they're empty/null/undefined
     if (value === null || value === undefined) {
-      preparedData[key] = '';
+      // Only set to empty string for non-checkbox fields
+      // Skip boolean/checkbox fields that are null/undefined (don't send them at all)
+      if (typeof value !== 'boolean' && !key.toLowerCase().includes('checkbox')) {
+        preparedData[key] = '';
+      }
     } else {
       preparedData[key] = value;
     }
