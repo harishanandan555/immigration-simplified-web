@@ -488,12 +488,23 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
         }
 
         // Extract questionnaire ID from multiple possible locations
-        const questionnaireId = workflowData.questionnaireAssignment.questionnaire_id || 
-                               workflowData.questionnaireAssignment.questionnaireId || '';
+        // Handle case where questionnaireId might be an object instead of a string
+        let questionnaireId: string = '';
+        const rawQuestionnaireId = workflowData.questionnaireAssignment.questionnaire_id || 
+                                   workflowData.questionnaireAssignment.questionnaireId;
+        
+        if (typeof rawQuestionnaireId === 'string') {
+          questionnaireId = rawQuestionnaireId;
+        } else if (rawQuestionnaireId && typeof rawQuestionnaireId === 'object') {
+          // Extract ID from questionnaire object
+          questionnaireId = (rawQuestionnaireId as any)._id || (rawQuestionnaireId as any).id || '';
+        }
         
         const questionnaireName = workflowData.questionnaireAssignment.questionnaire_title || 
                                  workflowData.questionnaireAssignment.questionnaireName || 
-                                 'Workflow Questionnaire';
+                                 (typeof rawQuestionnaireId === 'object' && rawQuestionnaireId 
+                                   ? ((rawQuestionnaireId as any).title || (rawQuestionnaireId as any).name || 'Workflow Questionnaire')
+                                   : 'Workflow Questionnaire');
         
         // Validate that this workflow matches the expected assignment if we have targetAssignment
         if (targetAssignment) {
@@ -7277,7 +7288,11 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     <div className="text-yellow-800">
                       <p className="font-medium">No questionnaire found</p>
                       <p className="text-sm mt-1">
-                        Looking for ID: {questionnaireAssignment.questionnaireId}
+                        Looking for ID: {typeof questionnaireAssignment.questionnaireId === 'string' 
+                          ? questionnaireAssignment.questionnaireId 
+                          : (questionnaireAssignment.questionnaireId && typeof questionnaireAssignment.questionnaireId === 'object'
+                              ? ((questionnaireAssignment.questionnaireId as any)._id || (questionnaireAssignment.questionnaireId as any).id || 'Unknown')
+                              : 'Unknown')}
                       </p>
                       <p className="text-sm">
                         Available IDs: {availableQuestionnaires.map(q => q._id || q.id || q.name).join(', ')}
@@ -8192,7 +8207,13 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
                     </div>
                     <div>
                       <span className="font-medium text-gray-700">Questionnaire ID:</span>
-                      <span className="ml-2 text-gray-600 font-mono text-xs">{questionnaireAssignment.questionnaireId}</span>
+                      <span className="ml-2 text-gray-600 font-mono text-xs">
+                        {typeof questionnaireAssignment.questionnaireId === 'string' 
+                          ? questionnaireAssignment.questionnaireId 
+                          : (questionnaireAssignment.questionnaireId && typeof questionnaireAssignment.questionnaireId === 'object'
+                              ? ((questionnaireAssignment.questionnaireId as any)._id || (questionnaireAssignment.questionnaireId as any).id || 'Unknown')
+                              : 'Unknown')}
+                      </span>
                     </div>
                     <div>
                       <span className="font-medium text-gray-700">Status:</span>
