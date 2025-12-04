@@ -7,12 +7,14 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  ArrowUpDown
+  ArrowUpDown,
+  Trash2,
+
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { getUsers, User } from '../../controllers/ClientControllers';
-import { getTasks, createTask, Task } from '../../controllers/TaskControllers';
+import { getTasks, createTask, Task, deleteTask } from '../../controllers/TaskControllers';
 import { useAuth } from '../../controllers/AuthControllers';
 
 const TasksPage = () => {
@@ -102,14 +104,7 @@ const TasksPage = () => {
         const casesArray: Case[] = [];
         
         workflows.forEach((workflow: any) => {
-          console.log('📋 Processing workflow:', {
-            id: workflow._id,
-            client: workflow.client,
-            case: workflow.case,
-            formCaseIds: workflow.case?.formCaseIds,
-            hasFormCaseIds: !!(workflow.case?.formCaseIds && Object.keys(workflow.case.formCaseIds).length > 0),
-            workflowStructure: JSON.stringify(workflow, null, 2) // Show full structure
-          });
+          
           
           const clientData = workflow.client;
           const caseData = workflow.case;
@@ -546,6 +541,20 @@ const TasksPage = () => {
     return diffDays;
   };
 
+  const deleteTaskById = async (taskId: string) => {
+
+    try { 
+      await deleteTask(taskId);
+      console.log('✅ Task deleted successfully:', taskId);
+      toast.success('Task deleted successfully');
+      // Reload tasks after deletion
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error('Failed to delete task. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -559,248 +568,226 @@ const TasksPage = () => {
 
   return (
     <>
-      {/* Custom styles for animations */}
-      <style>{`
-        @keyframes slideUpBounce {
-          0% {
-            transform: translateY(100px);
-            opacity: 0;
-          }
-          60% {
-            transform: translateY(-10px);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-        
-        .animate-slide-up-bounce {
-          animation: slideUpBounce 0.6s ease-out;
-        }
-        
-        @keyframes confetti {
-          0% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(-100vh) rotate(720deg);
-            opacity: 0;
-          }
-        }
-        
-        .animate-confetti {
-          animation: confetti 3s ease-out infinite;
-        }
-      `}</style>
-      
-      <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Tasks</h1>
-          <p className="text-gray-500 mt-1">Manage and track case-related tasks</p>
-        </div>
-        <div className="flex gap-3">
-          {!(isClient && user?.userType === 'individualUser') && (
-            <Link
-              to="/calendar"
-              className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-md transition-colors"
-            >
-              <Calendar size={18} />
-              <span>Calendar View</span>
-            </Link>
-          )}
-          <button
-            onClick={() => setShowNewTaskModal(true)}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-md transition-colors"
-          >
-            <Plus size={18} />
-            <span>New Task</span>
-          </button>
-        </div>
-      </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Task Management</h1>
+                <p className="text-gray-600">Track and manage your immigration case tasks</p>
+              </div>
+              <div className="flex gap-3">
+                {!(isClient && user?.userType === 'individualUser') && (
+                  <Link
+                    to="/calendar"
+                    className="flex items-center gap-2 bg-white border border-gray-200 hover:border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg transition-all shadow-sm hover:shadow"
+                  >
+                    <Calendar size={18} />
+                    <span className="font-medium">Calendar</span>
+                  </Link>
+                )}
+                <button
+                  onClick={() => setShowNewTaskModal(true)}
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-lg transition-all shadow-md hover:shadow-lg"
+                >
+                  <Plus size={18} />
+                  <span className="font-medium">New Task</span>
+                </button>
+              </div>
+            </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        {/* Search and Filters */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-grow">
-            <input
-              type="text"
-              placeholder="Search tasks..."
-              className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            {/* Search and Filters */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-grow">
+                  <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search tasks by title..."
+                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                
+                <div className="flex gap-3">
+                  <select
+                    className="border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                  >
+                    {statusTypes.map((status) => (
+                      <option key={status} value={status}>
+                        {status === 'all' ? 'All Status' : status}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    value={selectedPriority}
+                    onChange={(e) => setSelectedPriority(e.target.value)}
+                  >
+                    {priorityLevels.map((priority) => (
+                      <option key={priority} value={priority}>
+                        {priority === 'all' ? 'All Priority' : priority}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <div className="flex gap-4">
-            <select
-              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-            >
-              {statusTypes.map((status) => (
-                <option key={status} value={status}>
-                  {status === 'all' ? 'All Status' : status}
-                </option>
-              ))}
-            </select>
 
-            <select
-              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              value={selectedPriority}
-              onChange={(e) => setSelectedPriority(e.target.value)}
-            >
-              {priorityLevels.map((priority) => (
-                <option key={priority} value={priority}>
-                  {priority === 'all' ? 'All Priority' : priority}
-                </option>
-              ))}
-            </select>
-
-            <button className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-md transition-colors">
-              <ArrowUpDown size={16} />
-              <span>Sort</span>  {/* NOT WORKING YET */}
-            </button>
-          </div>
-        </div>
-
-        {/* Tasks Table */}
-        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-          <table className="min-w-full divide-y divide-gray-300">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Task
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client Name
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Case
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Priority
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Due Date
-                </th>
-               
-              </tr>
-            </thead>
-            {filteredTasks.length > 0 && (
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTasks.map((task: Task) => {
-                  // Handle both old format (caseId) and new format (relatedCaseId)
-                  const caseIdentifier = (task as any).caseId || task.relatedCaseId;
-                  const relatedCase = cases.find((c: any) => c.id === caseIdentifier || c.caseNumber === caseIdentifier?.split(' ')[0]);
-                  const daysUntilDue = getDaysUntilDue(task.dueDate);
-                  const isOverdue = daysUntilDue < 0;
-                  const isDueSoon = daysUntilDue >= 0 && daysUntilDue <= 3;
-                  
-                  return (
-                    <tr key={task._id || task.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{task.title}</div>
-                            <div className="text-sm text-gray-500">{task.description}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {getClientNameForCase(caseIdentifier)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Link to={`/cases/${relatedCase?.id}`} className="text-sm text-primary-600 hover:text-primary-700">
-                          {relatedCase?.caseNumber}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status || 'Pending')}`}>
+          {/* Task Cards Grid */}
+          {filteredTasks.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredTasks.map((task: Task) => {
+                const caseIdentifier = (task as any).caseId || task.relatedCaseId;
+                const relatedCase = cases.find((c: any) => c.id === caseIdentifier || c.caseNumber === caseIdentifier?.split(' ')[0]);
+                const daysUntilDue = getDaysUntilDue(task.dueDate);
+                const isOverdue = daysUntilDue < 0;
+                const isDueSoon = daysUntilDue >= 0 && daysUntilDue <= 3;
+                
+                return (
+                  <div
+                    key={task._id || task.id}
+                    className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-200 overflow-hidden group"
+                  >
+                    {/* Card Header */}
+                    <div className="p-5 border-b border-gray-100">
+                      <div className="flex items-start justify-between mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900 line-clamp-1 flex-1">
+                          {task.title}
+                        </h3>
+                        <button
+                          onClick={() => {
+                            const idToDelete = (task as any)._id || (task as any).id;
+                            if (idToDelete) {
+                              deleteTaskById(idToDelete);
+                            } else {
+                              toast.error('Cannot delete task: missing id');
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                          title="Delete task"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <p className="text-sm text-gray-600 line-clamp-2 mb-3">
+                        {task.description || 'No description provided'}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${getStatusColor(task.status || 'Pending')}`}>
                           {task.status || 'Pending'}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${getPriorityColor(task.priority)}`}>
                           {task.priority}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {isOverdue ? (
-                            <AlertCircle className="h-4 w-4 text-error-500 mr-1" />
-                          ) : isDueSoon ? (
-                            <Clock className="h-4 w-4 text-warning-500 mr-1" />
-                          ) : (
-                            <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-                          )}
-                          <span className={`text-sm ${
-                            isOverdue ? 'text-error-600 font-medium' :
-                            isDueSoon ? 'text-warning-600 font-medium' :
-                            'text-gray-500'
+                      </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-5 space-y-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                          <span className="text-blue-600 font-medium text-xs">
+                            {getClientNameForCase(caseIdentifier)?.charAt(0) || 'U'}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Client</p>
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {getClientNameForCase(caseIdentifier) || 'Unknown'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {relatedCase && (
+                        <Link 
+                          to={`/cases/${relatedCase.id}`}
+                          className="flex items-center gap-2 text-sm p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                            <span className="text-purple-600 text-xs">📋</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-500">Case Number</p>
+                            <p className="text-sm font-medium text-blue-600 hover:text-blue-700 truncate">
+                              {relatedCase.caseNumber}
+                            </p>
+                          </div>
+                        </Link>
+                      )}
+
+                      <div className="flex items-center gap-2 text-sm pt-2 border-t border-gray-100">
+                        {isOverdue ? (
+                          <AlertCircle className="h-5 w-5 text-red-500" />
+                        ) : isDueSoon ? (
+                          <Clock className="h-5 w-5 text-orange-500" />
+                        ) : (
+                          <Calendar className="h-5 w-5 text-gray-400" />
+                        )}
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Due Date</p>
+                          <p className={`text-sm font-medium ${
+                            isOverdue ? 'text-red-600' :
+                            isDueSoon ? 'text-orange-600' :
+                            'text-gray-900'
                           }`}>
                             {new Date(task.dueDate).toLocaleDateString()}
                             {isOverdue && ' (Overdue)'}
                             {isDueSoon && !isOverdue && ' (Due Soon)'}
-                          </span>
+                          </p>
                         </div>
-                      </td>
-                    
-                    </tr>
-                  );
-                })}
-              </tbody>
-            )}
-          </table>
-
-          {filteredTasks.length === 0 && (
-            <div className="text-center py-12">
-              <CheckCircle className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No tasks found</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Get started by creating a new task.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+              <CheckCircle className="mx-auto h-16 w-16 text-gray-300 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No tasks found</h3>
+              <p className="text-gray-500 mb-6">
+                Get started by creating your first task
               </p>
-              <div className="mt-6">
-                <button
-                  onClick={() => setShowNewTaskModal(true)}
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-                >
-                  <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-                  New Task
-                </button>
+              <button
+                onClick={() => setShowNewTaskModal(true)}
+                className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md hover:shadow-lg transition-all"
+              >
+                <Plus className="mr-2 h-5 w-5" />
+                Create New Task
+              </button>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {filteredTasks.length > 0 && (
+            <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-4">
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-gray-600">
+                  Showing <span className="font-semibold text-gray-900">{filteredTasks.length}</span> of{" "}
+                  <span className="font-semibold text-gray-900">{tasks.length}</span> tasks
+                </p>
+                <div className="flex gap-2">
+                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Previous
+                  </button>
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
+                    1
+                  </button>
+                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
           )}
         </div>
-
-        {filteredTasks.length > 0 && (
-          <div className="flex justify-between items-center mt-4 py-3">
-            <div className="text-sm text-gray-500">
-              Showing <span className="font-medium">{filteredTasks.length}</span> of{" "}
-              <span className="font-medium">{tasks.length}</span> tasks
-            </div>
-            <div className="flex space-x-2">
-              <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50">
-                Previous
-              </button>
-              <button className="px-3 py-1 border border-gray-300 rounded text-sm bg-gray-50">
-                1
-              </button>
-              <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50">
-                Next
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* New Task Modal */}
@@ -1082,7 +1069,6 @@ const TasksPage = () => {
           </div>
         </div>
       )}
-      </div>
     </>
   );
 };
