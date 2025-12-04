@@ -1553,11 +1553,18 @@ const IndividualImmigrationProcess: React.FC = () => {
   };
 
   // Load available form templates for Select Forms screen, filtered by category
+  // Only load templates after both category and subcategory are selected
   useEffect(() => {
+    // Don't fetch templates until subcategory is selected
+    if (!selectedCategory || !selectedSubcategory) {
+      setFormTemplates([]);
+      return;
+    }
+
     const fetchTemplates = async () => {
       setLoadingFormTemplates(true);
       try {
-        // If a category is selected, filter by category
+        // Filter by category
         const templateCategory = selectedCategory 
           ? mapImmigrationCategoryToTemplateCategory(selectedCategory.id)
           : undefined;
@@ -1644,7 +1651,7 @@ const IndividualImmigrationProcess: React.FC = () => {
       }
     };
     fetchTemplates();
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedSubcategory]);
 
   // Sync client and case data when form data changes
   useEffect(() => {
@@ -3280,8 +3287,10 @@ const IndividualImmigrationProcess: React.FC = () => {
 
         <div className="space-y-4">
           <h4 className="font-medium text-gray-900">
-            {selectedCategory 
-              ? `Select Form for ${selectedCategory.title}${selectedSubcategory ? ` - ${selectedSubcategory.title}` : ''}`
+            {selectedCategory && selectedSubcategory
+              ? `Select Form for ${selectedCategory.title} - ${selectedSubcategory.title}`
+              : selectedCategory
+              ? 'Select Form'
               : 'Select Form'}
           </h4>
 
@@ -3291,7 +3300,17 @@ const IndividualImmigrationProcess: React.FC = () => {
             </div>
           )}
 
-          {selectedCategory && (
+          {selectedCategory && !selectedSubcategory && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+              <Info className="w-6 h-6 text-blue-600 mx-auto mb-2" />
+              <p className="text-gray-700 font-medium mb-1">Please select a case type</p>
+              <p className="text-gray-600 text-sm">
+                After selecting a case type above, available forms will be displayed here.
+              </p>
+            </div>
+          )}
+
+          {selectedCategory && selectedSubcategory && (
             <>
               {loadingFormTemplates ? (
                 <div className="flex items-center justify-center py-8">
@@ -3301,12 +3320,10 @@ const IndividualImmigrationProcess: React.FC = () => {
               ) : formsWithTemplates.length === 0 ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                   <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                  <p className="text-gray-700 font-medium text-center mb-2">No forms found for this category.</p>
+                  <p className="text-gray-700 font-medium text-center mb-2">No forms found for this case type.</p>
                   <div className="text-sm text-gray-600 space-y-2">
                     <p className="text-center">
-                      {selectedSubcategory 
-                        ? `No templates match the category "${selectedCategory?.title}" for case type "${selectedSubcategory.title}".`
-                        : `No templates match the category "${selectedCategory?.title}".`}
+                      No templates match the category "{selectedCategory?.title}" for case type "{selectedSubcategory.title}".
                     </p>
                     <div className="bg-white border border-yellow-200 rounded p-3 mt-3">
                       <p className="font-medium text-gray-800 mb-1">Troubleshooting:</p>
