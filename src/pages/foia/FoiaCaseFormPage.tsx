@@ -24,10 +24,12 @@ const FoiaCaseFormPage = () => {
       birthCountry: '',
       mailingCountry: '',
       mailingState: '',
+      mailingProvince: '',
       mailingAddress1: '',
       mailingAddress2: '',
       mailingCity: '',
       mailingZipCode: '',
+      mailingPostalCode: '',
       daytimePhone: '',
       mobilePhone: '',
       emailAddress: '',
@@ -43,10 +45,12 @@ const FoiaCaseFormPage = () => {
       middleName: '',
       mailingCountry: '',
       mailingState: '',
+      mailingProvince: '',
       mailingAddress1: '',
       mailingAddress2: '',
       mailingCity: '',
       mailingZipCode: '',
+      mailingPostalCode: '',
       daytimePhone: '',
       mobilePhone: '',
       emailAddress: '',
@@ -120,17 +124,43 @@ const FoiaCaseFormPage = () => {
     if (!formData.subject.firstName) errors['subject.firstName'] = 'First name is required';
     if (!formData.subject.lastName) errors['subject.lastName'] = 'Last name is required';
     if (!formData.subject.dateOfBirth) errors['subject.dateOfBirth'] = 'Date of birth is required';
-    if (!formData.subject.birthCountry) errors['subject.birthCountry'] = 'Birth country is required (2-letter code)';
-    if (!formData.subject.mailingCountry) errors['subject.mailingCountry'] = 'Mailing country is required (2-letter code)';
+    if (!formData.subject.birthCountry) errors['subject.birthCountry'] = 'Birth country is required (3-letter code)';
+    if (!formData.subject.mailingCountry) errors['subject.mailingCountry'] = 'Mailing country is required (3-letter code)';
     if (!formData.subject.mailingAddress1) errors['subject.mailingAddress1'] = 'Mailing address is required';
     if (!formData.subject.mailingCity) errors['subject.mailingCity'] = 'Mailing city is required';
     
-    // US-specific validations
-    if (formData.subject.mailingCountry === 'US') {
+    // Country code validation - must be 2 uppercase letters (ISO 3166-1 Alpha-2)
+    if (formData.subject.birthCountry && (!/^[A-Z]{2}$/.test(formData.subject.birthCountry) || formData.subject.birthCountry !== formData.subject.birthCountry.toUpperCase())) {
+      errors['subject.birthCountry'] = 'Birth country must be a 2-character uppercase code (e.g., US, CA, MX)';
+    }
+    if (formData.subject.mailingCountry && (!/^[A-Z]{2}$/.test(formData.subject.mailingCountry) || formData.subject.mailingCountry !== formData.subject.mailingCountry.toUpperCase())) {
+      errors['subject.mailingCountry'] = 'Mailing country must be a 2-character uppercase code (e.g., US, CA, MX)';
+    }
+    
+    // Address validation based on country (US vs non-US)
+    const isSubjectUS = formData.subject.mailingCountry === 'US';
+    if (isSubjectUS) {
+      // US addresses: require state and zipCode, province and postalCode must be empty
       if (!formData.subject.mailingState) errors['subject.mailingState'] = 'State is required for US addresses';
       if (!formData.subject.mailingZipCode) errors['subject.mailingZipCode'] = 'Zip code is required for US addresses';
       if (formData.subject.mailingZipCode && !/^\d{5}(-\d{4})?$/.test(formData.subject.mailingZipCode)) {
         errors['subject.mailingZipCode'] = 'Invalid US zip code format';
+      }
+      if (formData.subject.mailingProvince) {
+        errors['subject.mailingProvince'] = 'Province must be empty for US addresses';
+      }
+      if (formData.subject.mailingPostalCode) {
+        errors['subject.mailingPostalCode'] = 'Postal code must be empty for US addresses';
+      }
+    } else if (formData.subject.mailingCountry) {
+      // Non-US addresses: require province and postalCode, state and zipCode must be empty
+      if (!formData.subject.mailingProvince) errors['subject.mailingProvince'] = 'Province is required for non-US addresses';
+      if (!formData.subject.mailingPostalCode) errors['subject.mailingPostalCode'] = 'Postal code is required for non-US addresses';
+      if (formData.subject.mailingState) {
+        errors['subject.mailingState'] = 'State must be empty for non-US addresses';
+      }
+      if (formData.subject.mailingZipCode) {
+        errors['subject.mailingZipCode'] = 'Zip code must be empty for non-US addresses';
       }
     }
     
@@ -141,12 +171,35 @@ const FoiaCaseFormPage = () => {
     if (!formData.requester.mailingAddress1) errors['requester.mailingAddress1'] = 'Requester mailing address is required';
     if (!formData.requester.mailingCity) errors['requester.mailingCity'] = 'Requester mailing city is required';
     
-    // US-specific validations for requester
-    if (formData.requester.mailingCountry === 'US') {
+    // Country code validation for requester - must be 2 uppercase letters (ISO 3166-1 Alpha-2)
+    if (formData.requester.mailingCountry && (!/^[A-Z]{2}$/.test(formData.requester.mailingCountry) || formData.requester.mailingCountry !== formData.requester.mailingCountry.toUpperCase())) {
+      errors['requester.mailingCountry'] = 'Requester mailing country must be a 2-character uppercase code (e.g., US, CA, MX)';
+    }
+    
+    // Address validation for requester based on country (US vs non-US)
+    const isRequesterUS = formData.requester.mailingCountry === 'US';
+    if (isRequesterUS) {
+      // US addresses: require state and zipCode, province and postalCode must be empty
       if (!formData.requester.mailingState) errors['requester.mailingState'] = 'Requester state is required for US addresses';
       if (!formData.requester.mailingZipCode) errors['requester.mailingZipCode'] = 'Requester zip code is required for US addresses';
       if (formData.requester.mailingZipCode && !/^\d{5}(-\d{4})?$/.test(formData.requester.mailingZipCode)) {
         errors['requester.mailingZipCode'] = 'Invalid US zip code format';
+      }
+      if (formData.requester.mailingProvince) {
+        errors['requester.mailingProvince'] = 'Province must be empty for US addresses';
+      }
+      if (formData.requester.mailingPostalCode) {
+        errors['requester.mailingPostalCode'] = 'Postal code must be empty for US addresses';
+      }
+    } else if (formData.requester.mailingCountry) {
+      // Non-US addresses: require province and postalCode, state and zipCode must be empty
+      if (!formData.requester.mailingProvince) errors['requester.mailingProvince'] = 'Requester province is required for non-US addresses';
+      if (!formData.requester.mailingPostalCode) errors['requester.mailingPostalCode'] = 'Requester postal code is required for non-US addresses';
+      if (formData.requester.mailingState) {
+        errors['requester.mailingState'] = 'State must be empty for non-US addresses';
+      }
+      if (formData.requester.mailingZipCode) {
+        errors['requester.mailingZipCode'] = 'Zip code must be empty for non-US addresses';
       }
     }
 
@@ -259,6 +312,42 @@ const FoiaCaseFormPage = () => {
         delete newErrors[name];
         return newErrors;
       });
+    }
+
+    // Handle country code changes - convert to uppercase and clear conflicting fields
+    if (name === 'subject.mailingCountry' || name === 'requester.mailingCountry' || name === 'subject.birthCountry') {
+      const upperValue = value.toUpperCase().substring(0, 2);
+      const isUS = upperValue === 'US';
+      
+      if (name.includes('.')) {
+        const [parent, child] = name.split('.');
+        setFormData(prev => {
+          const updated = {
+            ...prev,
+            [parent]: {
+              ...(prev[parent as keyof typeof prev] as Record<string, any>),
+              [child]: upperValue
+            }
+          };
+          
+          // Clear conflicting address fields when country changes
+          if (child === 'mailingCountry') {
+            const subjectOrRequester = parent as 'subject' | 'requester';
+            if (isUS) {
+              // Switching to US: clear province and postalCode
+              (updated[subjectOrRequester] as any).mailingProvince = '';
+              (updated[subjectOrRequester] as any).mailingPostalCode = '';
+            } else {
+              // Switching to non-US: clear state and zipCode
+              (updated[subjectOrRequester] as any).mailingState = '';
+              (updated[subjectOrRequester] as any).mailingZipCode = '';
+            }
+          }
+          
+          return updated;
+        });
+        return;
+      }
     }
 
     if (name.includes('.')) {
@@ -413,18 +502,22 @@ const FoiaCaseFormPage = () => {
   const handleDocumentInputChange = (index: number, field: string, value: string | File) => {
     setFormData(prev => {
       const newDocuments = [...prev.documents];
+      const currentDoc = newDocuments[index] || { content: '', fileName: '' };
+      
       if (field === 'file' && value instanceof File) {
+        // Only store fileName and content, never store the File object
         newDocuments[index] = {
-          ...newDocuments[index],
-          fileName: value.name,
-          content: '' // You might want to read the file content here
+          content: currentDoc.content || '',
+          fileName: value.name
         };
-      } else {
+      } else if (field === 'content' || field === 'fileName') {
+        // Only allow content and fileName fields
         newDocuments[index] = {
-          ...newDocuments[index],
-          [field]: value
+          content: field === 'content' ? (value as string) : currentDoc.content || '',
+          fileName: field === 'fileName' ? (value as string) : currentDoc.fileName || ''
         };
       }
+      
       return {
         ...prev,
         documents: newDocuments
@@ -519,6 +612,64 @@ const FoiaCaseFormPage = () => {
         
         return cleanedRecord;
       });
+    }
+    
+    // Clean documents - remove file property, keep only content and fileName
+    if (cleanedData.documents) {
+      cleanedData.documents = cleanedData.documents.map(doc => {
+        const cleanedDoc: { content: string; fileName: string } = {
+          content: doc.content || '',
+          fileName: doc.fileName || ''
+        };
+        return cleanedDoc;
+      });
+    }
+    
+    // Clean address fields based on country (US vs non-US)
+    // Ensure country codes are uppercase (2 characters - ISO 3166-1 Alpha-2)
+    if (cleanedData.subject.birthCountry) {
+      cleanedData.subject.birthCountry = cleanedData.subject.birthCountry.toUpperCase().substring(0, 2);
+    }
+    if (cleanedData.subject.mailingCountry) {
+      cleanedData.subject.mailingCountry = cleanedData.subject.mailingCountry.toUpperCase().substring(0, 2);
+      const isUS = cleanedData.subject.mailingCountry === 'US';
+      
+      if (isUS) {
+        // For US: keep state and zipCode, delete province and postalCode fields (omit them from payload)
+        delete (cleanedData.subject as any).mailingProvince;
+        delete (cleanedData.subject as any).mailingPostalCode;
+        // Ensure state and zipCode are set (keep existing values or set to empty string)
+        if (!cleanedData.subject.mailingState) cleanedData.subject.mailingState = '';
+        if (!cleanedData.subject.mailingZipCode) cleanedData.subject.mailingZipCode = '';
+      } else {
+        // For non-US: keep province and postalCode, delete state and zipCode fields (omit them from payload)
+        delete (cleanedData.subject as any).mailingState;
+        delete (cleanedData.subject as any).mailingZipCode;
+        // Ensure province and postalCode are set (keep existing values or set to empty string)
+        if (!cleanedData.subject.mailingProvince) cleanedData.subject.mailingProvince = '';
+        if (!cleanedData.subject.mailingPostalCode) cleanedData.subject.mailingPostalCode = '';
+      }
+    }
+    
+    if (cleanedData.requester.mailingCountry) {
+      cleanedData.requester.mailingCountry = cleanedData.requester.mailingCountry.toUpperCase().substring(0, 2);
+      const isUS = cleanedData.requester.mailingCountry === 'US';
+      
+      if (isUS) {
+        // For US: keep state and zipCode, delete province and postalCode fields (omit them from payload)
+        delete (cleanedData.requester as any).mailingProvince;
+        delete (cleanedData.requester as any).mailingPostalCode;
+        // Ensure state and zipCode are set (keep existing values or set to empty string)
+        if (!cleanedData.requester.mailingState) cleanedData.requester.mailingState = '';
+        if (!cleanedData.requester.mailingZipCode) cleanedData.requester.mailingZipCode = '';
+      } else {
+        // For non-US: keep province and postalCode, delete state and zipCode fields (omit them from payload)
+        delete (cleanedData.requester as any).mailingState;
+        delete (cleanedData.requester as any).mailingZipCode;
+        // Ensure province and postalCode are set (keep existing values or set to empty string)
+        if (!cleanedData.requester.mailingProvince) cleanedData.requester.mailingProvince = '';
+        if (!cleanedData.requester.mailingPostalCode) cleanedData.requester.mailingPostalCode = '';
+      }
     }
     
     return cleanedData;
@@ -779,7 +930,7 @@ const FoiaCaseFormPage = () => {
                 placeholder="e.g., US, CA, MX"
               />
               {getError('subject.birthCountry')}
-              <p className="mt-1 text-xs text-gray-500">Required: Use 2-letter country code (e.g., US, CA, MX)</p>
+              <p className="mt-1 text-xs text-gray-500">Required: Use 2-letter uppercase country code (e.g., US, CA, MX)</p>
             </div>
           </div>
         </div>
@@ -788,7 +939,7 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Subject Mailing Address</h2>
           <p className="text-sm text-gray-600 mb-4">
-            All fields marked with * are required. For US addresses, State and Zip Code are required.
+            All fields marked with * are required. For US addresses (US), State and Zip Code are required. For non-US addresses, Province and Postal Code are required.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -798,29 +949,53 @@ const FoiaCaseFormPage = () => {
                 name="subject.mailingCountry"
                 value={formData.subject.mailingCountry}
                 onChange={handleInputChange}
+                maxLength={2}
                 className={`mt-1 block w-full border ${
                   formErrors['subject.mailingCountry'] ? 'border-red-300' : 'border-gray-300'
-                } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 uppercase`}
                 placeholder="e.g., US, CA, MX"
+                style={{ textTransform: 'uppercase' }}
               />
               {getError('subject.mailingCountry')}
-              <p className="mt-1 text-xs text-gray-500">Required: Use 2-letter country code (e.g., US, CA, MX)</p>
+              <p className="mt-1 text-xs text-gray-500">Required: Use 2-letter uppercase country code (e.g., US, CA, MX)</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">State</label>
-              <input
-                type="text"
-                name="subject.mailingState"
-                value={formData.subject.mailingState}
-                onChange={handleInputChange}
-                className={`mt-1 block w-full border ${
-                  formErrors['subject.mailingState'] ? 'border-red-300' : 'border-gray-300'
-                } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="e.g., CA, NY, TX"
-              />
-              {getError('subject.mailingState')}
-              <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 2-letter state code</p>
-            </div>
+            {formData.subject.mailingCountry === 'US' ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">State *</label>
+                  <input
+                    type="text"
+                    name="subject.mailingState"
+                    value={formData.subject.mailingState}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full border ${
+                      formErrors['subject.mailingState'] ? 'border-red-300' : 'border-gray-300'
+                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                    placeholder="e.g., CA, NY, TX"
+                  />
+                  {getError('subject.mailingState')}
+                  <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 2-letter state code</p>
+                </div>
+              </>
+            ) : formData.subject.mailingCountry ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Province *</label>
+                  <input
+                    type="text"
+                    name="subject.mailingProvince"
+                    value={formData.subject.mailingProvince}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full border ${
+                      formErrors['subject.mailingProvince'] ? 'border-red-300' : 'border-gray-300'
+                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                    placeholder="e.g., Ontario, British Columbia"
+                  />
+                  {getError('subject.mailingProvince')}
+                  <p className="mt-1 text-xs text-gray-500">Required for non-US addresses</p>
+                </div>
+              </>
+            ) : null}
             <div>
               <label className="block text-sm font-medium text-gray-700">Address Line 1 *</label>
               <input
@@ -857,21 +1032,39 @@ const FoiaCaseFormPage = () => {
               />
               {getError('subject.mailingCity')}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Zip Code</label>
-              <input
-                type="text"
-                name="subject.mailingZipCode"
-                value={formData.subject.mailingZipCode}
-                onChange={handleInputChange}
-                className={`mt-1 block w-full border ${
-                  formErrors['subject.mailingZipCode'] ? 'border-red-300' : 'border-gray-300'
-                } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="e.g., 12345 or 12345-6789"
-              />
-              {getError('subject.mailingZipCode')}
-              <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 5 or 9-digit format</p>
-            </div>
+            {formData.subject.mailingCountry === 'US' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Zip Code *</label>
+                <input
+                  type="text"
+                  name="subject.mailingZipCode"
+                  value={formData.subject.mailingZipCode}
+                  onChange={handleInputChange}
+                  className={`mt-1 block w-full border ${
+                    formErrors['subject.mailingZipCode'] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                  placeholder="e.g., 12345 or 12345-6789"
+                />
+                {getError('subject.mailingZipCode')}
+                <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 5 or 9-digit format</p>
+              </div>
+            ) : formData.subject.mailingCountry ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Postal Code *</label>
+                <input
+                  type="text"
+                  name="subject.mailingPostalCode"
+                  value={formData.subject.mailingPostalCode}
+                  onChange={handleInputChange}
+                  className={`mt-1 block w-full border ${
+                    formErrors['subject.mailingPostalCode'] ? 'border-red-300' : 'border-gray-300'
+                  } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                  placeholder="e.g., K1A 0B1, SW1A 1AA"
+                />
+                {getError('subject.mailingPostalCode')}
+                <p className="mt-1 text-xs text-gray-500">Required for non-US addresses</p>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1086,7 +1279,7 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Requester Information</h2>
           <p className="text-sm text-gray-600 mb-4">
-            All fields marked with * are required. This information will be used for correspondence and delivery. For US addresses, State and Zip Code are required.
+            All fields marked with * are required. This information will be used for correspondence and delivery. For US addresses (US), State and Zip Code are required. For non-US addresses, Province and Postal Code are required.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1201,50 +1394,89 @@ const FoiaCaseFormPage = () => {
               {getError('requester.mailingCity')}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mailing State</label>
-              <input
-                type="text"
-                name="requester.mailingState"
-                value={formData.requester.mailingState}
-                onChange={handleInputChange}
-                className={`mt-1 block w-full border ${
-                  formErrors['requester.mailingState'] ? 'border-red-300' : 'border-gray-300'
-                } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="e.g., CA, NY, TX"
-              />
-              {getError('requester.mailingState')}
-              <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 2-letter state code</p>
-            </div>
-            <div>
               <label className="block text-sm font-medium text-gray-700">Mailing Country *</label>
               <input
                 type="text"
                 name="requester.mailingCountry"
                 value={formData.requester.mailingCountry}
                 onChange={handleInputChange}
+                maxLength={2}
                 className={`mt-1 block w-full border ${
                   formErrors['requester.mailingCountry'] ? 'border-red-300' : 'border-gray-300'
-                } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 uppercase`}
                 placeholder="e.g., US, CA, MX"
+                style={{ textTransform: 'uppercase' }}
               />
               {getError('requester.mailingCountry')}
-              <p className="mt-1 text-xs text-gray-500">Required: Use 2-letter country code (e.g., US, CA, MX)</p>
+              <p className="mt-1 text-xs text-gray-500">Required: Use 2-letter uppercase country code (e.g., US, CA, MX)</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Mailing Zip Code</label>
-              <input
-                type="text"
-                name="requester.mailingZipCode"
-                value={formData.requester.mailingZipCode}
-                onChange={handleInputChange}
-                className={`mt-1 block w-full border ${
-                  formErrors['requester.mailingZipCode'] ? 'border-red-300' : 'border-gray-300'
-                } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="e.g., 12345 or 12345-6789"
-              />
-              {getError('requester.mailingZipCode')}
-              <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 5 or 9-digit format</p>
-            </div>
+            {formData.requester.mailingCountry === 'US' ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mailing State *</label>
+                  <input
+                    type="text"
+                    name="requester.mailingState"
+                    value={formData.requester.mailingState}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full border ${
+                      formErrors['requester.mailingState'] ? 'border-red-300' : 'border-gray-300'
+                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                    placeholder="e.g., CA, NY, TX"
+                  />
+                  {getError('requester.mailingState')}
+                  <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 2-letter state code</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mailing Zip Code *</label>
+                  <input
+                    type="text"
+                    name="requester.mailingZipCode"
+                    value={formData.requester.mailingZipCode}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full border ${
+                      formErrors['requester.mailingZipCode'] ? 'border-red-300' : 'border-gray-300'
+                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                    placeholder="e.g., 12345 or 12345-6789"
+                  />
+                  {getError('requester.mailingZipCode')}
+                  <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 5 or 9-digit format</p>
+                </div>
+              </>
+            ) : formData.requester.mailingCountry ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mailing Province *</label>
+                  <input
+                    type="text"
+                    name="requester.mailingProvince"
+                    value={formData.requester.mailingProvince}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full border ${
+                      formErrors['requester.mailingProvince'] ? 'border-red-300' : 'border-gray-300'
+                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                    placeholder="e.g., Ontario, British Columbia"
+                  />
+                  {getError('requester.mailingProvince')}
+                  <p className="mt-1 text-xs text-gray-500">Required for non-US addresses</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mailing Postal Code *</label>
+                  <input
+                    type="text"
+                    name="requester.mailingPostalCode"
+                    value={formData.requester.mailingPostalCode}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full border ${
+                      formErrors['requester.mailingPostalCode'] ? 'border-red-300' : 'border-gray-300'
+                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                    placeholder="e.g., K1A 0B1, SW1A 1AA"
+                  />
+                  {getError('requester.mailingPostalCode')}
+                  <p className="mt-1 text-xs text-gray-500">Required for non-US addresses</p>
+                </div>
+              </>
+            ) : null}
             <div>
               <label className="block text-sm font-medium text-gray-700">Organization</label>
               <input
