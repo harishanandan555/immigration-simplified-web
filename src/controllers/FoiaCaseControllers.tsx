@@ -50,11 +50,13 @@ export interface FoiaCaseForm {
     dateOfBirth: string;
     birthCountry: string;
     mailingCountry: string;
-    mailingState: string;
+    mailingState?: string; // Required for US, must be empty for non-US
+    mailingProvince?: string; // Required for non-US, must be empty for US
     mailingAddress1: string;
     mailingAddress2?: string;
     mailingCity: string;
-    mailingZipCode: string;
+    mailingZipCode?: string; // Required for US, must be empty for non-US
+    mailingPostalCode?: string; // Required for non-US, must be empty for US
     daytimePhone: string;
     mobilePhone: string;
     emailAddress: string;
@@ -76,11 +78,13 @@ export interface FoiaCaseForm {
     lastName: string;
     middleName?: string;
     mailingCountry: string;
-    mailingState: string;
+    mailingState?: string; // Required for US, must be empty for non-US
+    mailingProvince?: string; // Required for non-US, must be empty for US
     mailingAddress1: string;
     mailingAddress2?: string;
     mailingCity: string;
-    mailingZipCode: string;
+    mailingZipCode?: string; // Required for US, must be empty for non-US
+    mailingPostalCode?: string; // Required for non-US, must be empty for US
     daytimePhone: string;
     mobilePhone: string;
     emailAddress: string;

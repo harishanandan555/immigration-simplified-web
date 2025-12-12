@@ -1552,63 +1552,19 @@ const IndividualImmigrationProcess: React.FC = () => {
     );
   };
 
-  // Load available form templates for Select Forms screen, filtered by category
+  // Load ALL form templates and distribute them evenly across categories
   useEffect(() => {
     const fetchTemplates = async () => {
       setLoadingFormTemplates(true);
       try {
-        // If a category is selected, filter by category
-        const templateCategory = selectedCategory 
-          ? mapImmigrationCategoryToTemplateCategory(selectedCategory.id)
-          : undefined;
-
-        // Fetch templates - try with category filter first
-        let response;
-        let templates: any[] = [];
+        // Fetch ALL templates without filtering
+        const response = await getAnvilTemplatesList();
+        const allTemplates = response.data?.data?.templates || [];
         
-        if (templateCategory) {
-          // Try fetching with category filter
-          response = await getAnvilTemplatesList(
-            { category: templateCategory } as any
-          );
-          templates = response.data?.data?.templates || [];
-          
-          // If no templates found with category filter, try fetching all and filter client-side
-          if (templates.length === 0) {
-            console.log(`No templates found for category "${templateCategory}" via API. Fetching all templates for client-side filtering.`);
-            response = await getAnvilTemplatesList();
-            const allTemplates = response.data?.data?.templates || [];
-            
-            // Filter by category client-side using flexible matching
-            if (selectedCategory) {
-              templates = allTemplates.filter((template: any) => 
-                templateMatchesCategory(template, selectedCategory.id)
-              );
-            }
-            
-            // If still no templates, show all as fallback
-            if (templates.length === 0) {
-              console.warn(`No templates found for category "${templateCategory}" after client-side filtering. Showing all templates as fallback.`);
-              templates = allTemplates;
-            }
-          }
-        } else {
-          // No category selected, fetch all templates
-          response = await getAnvilTemplatesList();
-          templates = response.data?.data?.templates || [];
-        }
-        
-        console.log(`Loaded ${templates.length} templates${templateCategory ? ` for category "${templateCategory}"` : ''}`);
-        
-        // Debug: Log template categories if available
-        if (templates.length > 0 && templateCategory) {
-          const uniqueCategories = [...new Set(templates.map((t: any) => t.category || t.metadata?.category || 'none'))];
-          console.log(`Template categories found:`, uniqueCategories);
-          console.log(`Looking for category: "${templateCategory}"`);
-        }
+        console.log(`Loaded ${allTemplates.length} total templates`);
         
         // Map the Anvil templates response to FormTemplate structure
-        const mappedTemplates: FormTemplate[] = templates.map((template: any) => ({
+        const mappedTemplates: FormTemplate[] = allTemplates.map((template: any) => ({
           _id: template.templateId,
           name: template.formNumber,
           formNumber: template.formNumber,
@@ -1643,8 +1599,10 @@ const IndividualImmigrationProcess: React.FC = () => {
         setLoadingFormTemplates(false);
       }
     };
+    
+    // Load templates once on mount or when needed
     fetchTemplates();
-  }, [selectedCategory]);
+  }, []); // Load once on mount
 
   // Sync client and case data when form data changes
   useEffect(() => {
@@ -3139,20 +3097,38 @@ const IndividualImmigrationProcess: React.FC = () => {
     // Get all forms from category (for reference/display)
     const categoryForms = selectedCategory?.forms || [];
     
-    // Debug logging
-    console.log(`Form selection step - formTemplates count: ${formTemplates.length}, selectedCategory: ${selectedCategory?.id}`);
+    // Get all valid templates
+    const allValidTemplates = formTemplates.filter(template => template.formNumber);
     
-    // Show all templates from the selected category (already filtered by category in useEffect)
-    // Templates are already loaded and filtered by category, so we can use them directly
-    const categoryTemplates = formTemplates.filter(template => {
-      if (!template.formNumber) return false;
-      // All templates in formTemplates are already filtered by category from the API
-      return true;
+    // Distribute all forms evenly across all immigration categories
+    // Create a map to assign forms to categories
+    const formsByCategory = new Map<string, FormTemplate[]>();
+    
+    // Initialize map with empty arrays for each category
+    immigrationCategories.forEach(category => {
+      formsByCategory.set(category.id, []);
     });
     
-    console.log(`Category templates count: ${categoryTemplates.length}`);
+    // Distribute forms evenly across categories
+    allValidTemplates.forEach((template, index) => {
+      const categoryIndex = index % immigrationCategories.length;
+      const categoryId = immigrationCategories[categoryIndex].id;
+      formsByCategory.get(categoryId)?.push(template);
+    });
+    
+    // Get forms for the selected category (or all forms if no category selected)
+    const categoryTemplates = selectedCategory 
+      ? formsByCategory.get(selectedCategory.id) || []
+      : allValidTemplates;
+    
+    // Helper function to get form count for a category
+    const getFormCountForCategory = (categoryId: string) => {
+      return formsByCategory.get(categoryId)?.length || 0;
+    };
+    
+    console.log(`Total templates: ${allValidTemplates.length}, Category templates: ${categoryTemplates.length}`);
 
-    // Create a combined list: show all category templates, mark recommended ones
+    // Create a combined list: show forms assigned to selected category, mark recommended ones
     const formsWithTemplates = categoryTemplates.map(template => {
       const formNumber = template.formNumber;
       const normalizedForm = formNumber.replace(/^Form\s+/i, '').trim();
@@ -3202,9 +3178,9 @@ const IndividualImmigrationProcess: React.FC = () => {
           <p className="text-blue-700">
             {selectedCategory
               ? selectedSubcategory
-                ? `Forms available for ${selectedCategory.title} - ${selectedSubcategory.title}. Select any form that applies to this case.`
-                : `Forms available for ${selectedCategory.title}. Select a case type to see recommended forms, or choose any form from the available options.`
-              : 'Choose an immigration category to view available forms filtered by category.'}
+                ? `Forms distributed for ${selectedCategory.title} - ${selectedSubcategory.title}. Select any form that applies to this case.`
+                : `Forms distributed for ${selectedCategory.title}. Select a case type to see recommended forms, or choose any form from the available options.`
+              : 'Choose an immigration category to view forms distributed evenly across all categories.'}
           </p>
         </div>
 
@@ -3213,6 +3189,8 @@ const IndividualImmigrationProcess: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {immigrationCategories.map(category => {
               const isSelected = selectedCategory?.id === category.id;
+              const assignedFormsCount = getFormCountForCategory(category.id);
+              
               return (
                 <div
                   key={category.id}
@@ -3236,7 +3214,7 @@ const IndividualImmigrationProcess: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-3 mt-4 text-xs text-gray-500">
                     <span>{category.estimatedTime}</span>
-                    <span>• {category.forms.length} category form(s)</span>
+                    <span>• {assignedFormsCount} form(s) assigned</span>
                     <span>• {category.subcategories.length} subcategory option(s)</span>
                   </div>
                 </div>
@@ -3280,8 +3258,10 @@ const IndividualImmigrationProcess: React.FC = () => {
 
         <div className="space-y-4">
           <h4 className="font-medium text-gray-900">
-            {selectedCategory 
-              ? `Select Form for ${selectedCategory.title}${selectedSubcategory ? ` - ${selectedSubcategory.title}` : ''}`
+            {selectedCategory && selectedSubcategory
+              ? `Select Form for ${selectedCategory.title} - ${selectedSubcategory.title}`
+              : selectedCategory
+              ? 'Select Form'
               : 'Select Form'}
           </h4>
 
@@ -3291,7 +3271,17 @@ const IndividualImmigrationProcess: React.FC = () => {
             </div>
           )}
 
-          {selectedCategory && (
+          {selectedCategory && !selectedSubcategory && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+              <Info className="w-6 h-6 text-blue-600 mx-auto mb-2" />
+              <p className="text-gray-700 font-medium mb-1">Please select a case type</p>
+              <p className="text-gray-600 text-sm">
+                After selecting a case type above, available forms will be displayed here.
+              </p>
+            </div>
+          )}
+
+          {selectedCategory && selectedSubcategory && (
             <>
               {loadingFormTemplates ? (
                 <div className="flex items-center justify-center py-8">
@@ -3301,12 +3291,10 @@ const IndividualImmigrationProcess: React.FC = () => {
               ) : formsWithTemplates.length === 0 ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                   <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                  <p className="text-gray-700 font-medium text-center mb-2">No forms found for this category.</p>
+                  <p className="text-gray-700 font-medium text-center mb-2">No forms found for this case type.</p>
                   <div className="text-sm text-gray-600 space-y-2">
                     <p className="text-center">
-                      {selectedSubcategory 
-                        ? `No templates match the category "${selectedCategory?.title}" for case type "${selectedSubcategory.title}".`
-                        : `No templates match the category "${selectedCategory?.title}".`}
+                      No templates match the category "{selectedCategory?.title}" for case type "{selectedSubcategory.title}".
                     </p>
                     <div className="bg-white border border-yellow-200 rounded p-3 mt-3">
                       <p className="font-medium text-gray-800 mb-1">Troubleshooting:</p>
