@@ -1640,7 +1640,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           role: 'client',
           userType: 'companyClient',
           companyId: companyId, // Attorney's company from session
-          attorneyIds: attorneyId as any, // Current attorney's ID (single string, not array)
+          attorneyIds: attorneyId, // Current attorney's ID as string (will be converted to array by backend)
           dateOfBirth: client.dateOfBirth || '',
           placeOfBirth: client.placeOfBirth ? {
             city: client.placeOfBirth.city || '',
@@ -1714,7 +1714,12 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           password: clientPassword // Include the password
         });
 
-
+        console.log('✅ DEBUG: Client created successfully:', {
+          apiClientId: response?._id || response?.id,
+          attorneyIds: response?.attorneyIds,
+          companyId: response?.companyId,
+          email: response?.email
+        });
 
         // ✅ Enhanced response handling - createCompanyClient returns Client directly
         const userData = response;
@@ -1817,21 +1822,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
     }
   };
 
-  // const handleCaseSubmit = async () => {
-  //   // Generate valid MongoDB ObjectId for the case
-  //   const caseId = generateObjectId();
-  //   const updatedCase = {
-  //     ...caseData,
-  //     id: caseId,
-  //     _id: caseId, // Add both id and _id for compatibility
-  //     clientId: client.clientId || client._id, // Use either id or _id
-  //     createdAt: new Date().toISOString()
-  //   };
-  //   setCaseData(updatedCase);
 
-  //   // Just proceed to next step without saving
-  //   handleNext();
-  // };
 
   const handleFormsSubmit = async () => {
     if (selectedForms.length === 0) {
@@ -4559,17 +4550,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
             }
 
             // Console log to check client ID before saving workflow for new client
-            console.log('🔍 DEBUG: About to save NEW CLIENT workflow - Client ID verification:', {
-              clientUserId: clientUserId,
-              clientObjectId: workflowDataWithNewAssignment.client.id,
-              clientClientId: workflowDataWithNewAssignment.client.clientId,
-              assignmentClientId: assignment.clientId,
-              originalClientId: client.id,
-              clientName: client.name,
-              clientEmail: client.email,
-              isNewClient: !client.isExistingClient,
-              accountCreated: !!clientUserId
-            });
+        
 
             await saveWorkflowProgress(workflowDataWithNewAssignment);
             
