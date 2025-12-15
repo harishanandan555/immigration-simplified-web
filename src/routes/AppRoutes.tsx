@@ -33,7 +33,6 @@ const QuestionnaireResponses = lazy(() => import('../pages/QuestionnaireResponse
 const ResponseView = lazy(() => import('../pages/ResponseView'));
 const ReportsPage = lazy(() => import('../pages/reports/ReportsPage'));
 const IndividualClientsPage = lazy(() => import('../pages/admin/IndividualClientsPage'));
-const LegalFirmsPage = lazy(() => import('../pages/admin/LegalFirmsPage'));
 const CompaniesPage = lazy(() => import('../pages/admin/CompaniesPage'));
 
 const AppRoutes = () => {
@@ -251,15 +250,6 @@ const AppRoutes = () => {
             (user?.role === 'superadmin') ? (
               <Suspense fallback={null}>
                 <IndividualClientsPage />
-              </Suspense>
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
-          } />
-          <Route path="/admin/legal-firms" element={
-            (user?.role === 'superadmin') ? (
-              <Suspense fallback={null}>
-                <LegalFirmsPage />
               </Suspense>
             ) : (
               <Navigate to="/dashboard" replace />
