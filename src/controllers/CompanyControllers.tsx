@@ -57,6 +57,7 @@ export const getAllCompaniesList = async (userId: string): Promise<ApiResponse<a
 
   try {
     const response = await api.get(`${COMPANY_END_POINTS.GETCOMPANIESLIST.replace(':userId', userId)}`);
+    console.log('Fetched companies response:', response);
     return {
       data: response.data.companies,
       pagination: response.data.pagination,
@@ -80,8 +81,13 @@ export const getCompanyUsers = async (companyId: string): Promise<ApiResponse<an
 
   try {
     const response = await api.get(`${COMPANY_END_POINTS.GETCOMPANYUSERS.replace(':id', companyId)}`);
+    console.log('🔍 Company users API response:', response.data);
+    
+    // Handle different response structures
+    const users = response.data.users || response.data.data?.users || response.data;
+    
     return {
-      data: response.data.users,
+      data: Array.isArray(users) ? users : [],
       pagination: response.data.pagination,
       status: response.status,
       statusText: response.statusText

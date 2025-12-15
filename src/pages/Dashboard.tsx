@@ -20,9 +20,15 @@ import { fetchWorkflows } from '../controllers/LegalFirmWorkflowController';
 import { getCasesBasedOnUserType } from '../controllers/CaseControllers';
 import { getDocumentsByClient } from '../controllers/DocumentControllers';
 import {getTasks} from '../controllers/TaskControllers';
+import SuperAdminDashboard from './SuperAdminDashboard';
 
 const Dashboard = () => {
   const { user, isClient, isAttorney, isSuperAdmin } = useAuth();
+  
+  // Render SuperAdmin Dashboard if user is superadmin
+  if (isSuperAdmin) {
+    return <SuperAdminDashboard />;
+  }
   const [timeframe, setTimeframe] = useState<'week' | 'month' | 'quarter'>('month');
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loadingQuestionnaires, setLoadingQuestionnaires] = useState(false);
