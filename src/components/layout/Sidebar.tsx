@@ -12,7 +12,8 @@ import {
   BarChart,
   FileSearch,
   UserCheck,
-  ClipboardList
+  ClipboardList,
+  Building2
 } from 'lucide-react';
 import { useAuth } from '../../controllers/AuthControllers';
 import Logo from './Logo';
@@ -39,14 +40,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
     { name: 'Cases', href: '/cases', icon: Briefcase, visible: (isAttorney || (isClient && user?.userType === 'individualUser')) && !isSuperAdmin },
     { name: 'FOIA Cases', href: '/foia-cases', icon: FileSearch, visible: (isAttorney || (isClient && user?.userType === 'individualUser')) && !isSuperAdmin },
     { name: 'Case Status Tracker', href: '/foia-tracker', icon: FileSearch, visible: (isAttorney || (isClient && (user?.userType === 'individualUser' || user?.userType === 'companyClient'))) && !isSuperAdmin },
-    { name: 'User Management', href: '/user-management', icon: Users, visible: isSuperAdmin },
+    // { name: 'User Management', href: '/user-management', icon: Users, visible: isSuperAdmin },
     { name: 'Clients', href: '/clients', icon: Users, visible: !isClient && !isSuperAdmin },
     // { name: 'Forms', href: '/forms', icon: FileText, visible: true },
     { name: 'Documents', href: '/documents', icon: Folder, visible: !isSuperAdmin },
     { name: 'Tasks', href: '/tasks', icon: CheckSquare, visible: !isClient && !isSuperAdmin },
     { name: 'Calendar', href: '/calendar', icon: Calendar, visible: (isAttorney || isParalegal) && !isSuperAdmin },
-    { name: 'Audit Logs', href: '/audit-logs', icon: FileText, visible: isSuperAdmin },
+    // { name: 'Audit Logs', href: '/audit-logs', icon: FileText, visible: isSuperAdmin },
     { name: 'Reports', href: '/reports', icon: BarChart, visible: isAttorney || isParalegal || isSuperAdmin },
+    // Superadmin Management
+    { name: 'Individual Clients', href: '/admin/individual-clients', icon: UserCheck, visible: isSuperAdmin },
+    // { name: 'Legal Firms', href: '/admin/legal-firms', icon: Briefcase, visible: isSuperAdmin },
+    { name: 'Companies', href: '/admin/companies', icon: Building2, visible: isSuperAdmin },
     { name: 'Settings', href: '/settings', icon: Settings, visible: isAttorney || isParalegal || isSuperAdmin || (isClient && user?.userType === 'individualUser') }
   ];
 

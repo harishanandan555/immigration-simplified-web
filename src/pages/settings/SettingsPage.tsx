@@ -1316,7 +1316,7 @@ const SettingsPage = () => {
             }
             break;
           case 'organization':
-            if (user?.userType !== 'individualUser') {
+            if (user?.userType !== 'individualUser' && !isSuperAdmin) {
               data = await getOrganization(user._id);
               if (data?.data) {
                 setOrganizationData(data.data.value);
@@ -1415,14 +1415,6 @@ const SettingsPage = () => {
             data = await getCaseSettings(user._id);
             if (data?.data) {
               setCaseSettingsData(data.data.value);
-            }
-            break;
-          case 'forms':
-            data = await getFormTemplates(user._id);
-            if (data?.data?.templates) {
-              setFormTemplates(data.data.templates);
-            } else {
-              setFormTemplates([]);
             }
             break;
           case 'reports':
@@ -1528,6 +1520,20 @@ const SettingsPage = () => {
       setActiveTab('profile');
     }
   }, [user?.userType, activeTab]);
+
+  // Redirect superadmin away from organization tab
+  useEffect(() => {
+    if (isSuperAdmin && activeTab === 'organization') {
+      setActiveTab('profile');
+    }
+  }, [isSuperAdmin, activeTab]);
+
+  // Redirect away from forms and form-builder tabs
+  useEffect(() => {
+    if (['forms', 'form-builder'].includes(activeTab)) {
+      setActiveTab('profile');
+    }
+  }, [activeTab]);
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -2080,14 +2086,6 @@ const SettingsPage = () => {
                 setCaseSettingsData(data.data.value);
               }
               break;
-            case 'forms':
-              data = await getFormTemplates(user._id);
-              if (data?.data?.templates) {
-                setFormTemplates(data.data.templates);
-              } else {
-                setFormTemplates([]);
-              }
-              break;
             case 'reports':
               data = await getReportSettings(user._id);
               if (data?.data.value) {
@@ -2234,7 +2232,7 @@ const SettingsPage = () => {
           await updateProfile(user._id, profileData);
           break;
         case 'organization':
-          if (user?.userType !== 'individualUser') {
+          if (user?.userType !== 'individualUser' && !isSuperAdmin) {
             await updateOrganization(user._id, organizationData);
           }
           break;
@@ -2262,9 +2260,6 @@ const SettingsPage = () => {
           break;
         case 'cases':
           await updateCaseSettings(user._id, caseSettingsData);
-          break;
-        case 'forms':
-          // await updateFormTemplates(user._id, formTemplatesData);
           break;
         case 'reports':
           await updateReportSettings(user._id, newReport);
@@ -2330,8 +2325,6 @@ const SettingsPage = () => {
     { id: 'billing', name: 'Billing', icon: CreditCard, adminOnly: false },
     { id: 'users', name: 'User Management', icon: Users, adminOnly: false, attorneyAllowed: true },
     // { id: 'cases', name: 'Case Settings', icon: Briefcase, adminOnly: false, attorneyAllowed: true },
-    { id: 'forms', name: 'Form Templates', icon: FileText, adminOnly: false, attorneyAllowed: true },
-    { id: 'form-builder', name: 'Form Builder', icon: Edit, adminOnly: false, attorneyAllowed: true },
     { id: 'reports', name: 'Report Settings', icon: BarChart, adminOnly: false, attorneyAllowed: true },
     { id: 'roles', name: 'Roles & Permissions', icon: Shield, adminOnly: true },
     { id: 'database', name: 'Database Settings', icon: Database, adminOnly: true },
@@ -5153,6 +5146,10 @@ const SettingsPage = () => {
               if (user?.userType === 'individualUser' && ['organization', 'email', 'integrations'].includes(item.id)) {
                 return false;
               }
+              // Hide organization for superadmin
+              if (isSuperAdmin && item.id === 'organization') {
+                return false;
+              }
               if (isSuperAdmin) return true;
               if (isAttorney) return !item.adminOnly || item.attorneyAllowed;
               return !item.adminOnly && !item.attorneyAllowed;
@@ -5286,7 +5283,7 @@ const SettingsPage = () => {
             )}
 
             {/* Organization Settings */}
-            {activeTab === 'organization' && user?.userType !== 'individualUser' && (
+            {activeTab === 'organization' && user?.userType !== 'individualUser' && !isSuperAdmin && (
               <>
                 <div className="p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">Organization Settings</h2>
@@ -7157,338 +7154,6 @@ const SettingsPage = () => {
               </div>
             )}
 
-            {/* Form Templates */}
-            {activeTab === 'forms' && (isSuperAdmin || isAttorney) && (
-              <>
-                <div className="p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">Form Templates</h2>
-                  <div className="space-y-6">
-                    {/* Search and Add Template */}
-                    <div className="flex justify-between items-center">
-                      <div className="flex-1 max-w-sm">
-                        <input
-                          type="text"
-                          placeholder="Search templates..."
-                          className="form-input w-full"
-                        />
-                      </div>
-                      <button
-                        className="btn btn-primary flex items-center"
-                        onClick={() => setShowAddTemplate(true)}
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Add Template
-                      </button>
-                    </div>
-
-                    {/* Template Categories */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-white p-4 rounded-lg shadow">
-                        <h3 className="text-sm font-medium text-gray-900 mb-2">Family-Based</h3>
-                        <p className="text-sm text-gray-500">I-130, I-485, I-751</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg shadow">
-                        <h3 className="text-sm font-medium text-gray-900 mb-2">Employment-Based</h3>
-                        <p className="text-sm text-gray-500">I-140, I-765, I-131</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg shadow">
-                        <h3 className="text-sm font-medium text-gray-900 mb-2">Naturalization</h3>
-                        <p className="text-sm text-gray-500">N-400, N-600</p>
-                      </div>
-                    </div>
-
-                    {/* Templates List */}
-                    <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Template Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {formTemplates.length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="px-6 py-4 text-center text-gray-500">No templates found.</td>
-                            </tr>
-                          ) : (
-                            formTemplates.map((template: any) => (
-                              <tr key={template._id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="flex items-center">
-                                    <FileText className="h-5 w-5 text-gray-400 mr-2" />
-                                    <div>
-                                      <div className="text-sm font-medium text-gray-900">{template.formNumber}</div>
-                                      <div className="text-sm text-gray-500">{template.description}</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">{template.category}</td>
-                                <td className="px-6 py-4 whitespace-nowrap">{template.updatedAt ? new Date(template.updatedAt).toLocaleDateString() : '-'}</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                    {template.status}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                  {/* Actions: Edit only (Delete removed) */}
-                                  <button className="text-indigo-600 hover:text-indigo-900 mr-2" onClick={() => handleEditTemplate(template)}>Edit</button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Add Template Modal */}
-                {showAddTemplate && (
-                  <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Template</h3>
-                      <form onSubmit={(e) => {
-                        e.preventDefault();
-                        // Handle form submission
-                        setShowAddTemplate(false);
-                      }}>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Template Name</label>
-                            <input
-                              type="text"
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              placeholder="e.g., I-130 Petition"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Category</label>
-                            <select
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              required
-                            >
-                              <option value="">Select a category</option>
-                              <option value="family">Family-Based</option>
-                              <option value="employment">Employment-Based</option>
-                              <option value="naturalization">Naturalization</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Description</label>
-                            <textarea
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              rows={3}
-                              placeholder="Enter template description"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Template Content</label>
-                            <div className="mt-1">
-                              <textarea
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                rows={10}
-                                placeholder="Enter template content"
-                                required
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Required Documents</label>
-                            <div className="mt-2 space-y-2">
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  Birth Certificate
-                                </label>
-                              </div>
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  Passport
-                                </label>
-                              </div>
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <label className="ml-2 block text-sm text-gray-700">
-                                  Marriage Certificate
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-6 flex justify-end space-x-3">
-                          <button
-                            type="button"
-                            className="btn btn-outline"
-                            onClick={() => setShowAddTemplate(false)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            className="btn btn-primary"
-                          >
-                            Create Template
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                )}
-
-                {/* Edit Template Modal */}
-                {showEditTemplate && editingTemplate && (
-                  <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Template</h3>
-                      <form
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          setEditTemplateLoading(true);
-                          try {
-                            // Call updateFormTemplate API (replace with real template ID and user ID)
-                            // If PDF file is uploaded, call importFormTemplate as well
-                            // TODO: Replace with real userId and templateId
-                            const userId = user?._id || '';
-                            const templateId = editingTemplate._id || '';
-                            await updateFormTemplate(userId, templateId, editingTemplate);
-                            if (editTemplateFile) {
-                              await importFormTemplate(userId, editTemplateFile);
-                            }
-                            setShowEditTemplate(false);
-                            setEditingTemplate(null);
-                            setEditTemplateFile(null);
-                            setEditTemplateBase64(null);
-                            // Optionally reload templates list
-                            // enqueueSnackbar('Template updated successfully', { variant: 'success' });
-                          } catch (err) {
-                            // enqueueSnackbar('Failed to update template', { variant: 'error' });
-                          } finally {
-                            setEditTemplateLoading(false);
-                          }
-                        }}
-                      >
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Template Name</label>
-                            <input
-                              type="text"
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              value={editingTemplate.name}
-                              onChange={e => setEditingTemplate((prev: any) => ({ ...prev, name: e.target.value }))}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Category</label>
-                            <select
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              value={editingTemplate.category}
-                              onChange={e => setEditingTemplate((prev: any) => ({ ...prev, category: e.target.value }))}
-                              required
-                            >
-                              <option value="">Select a category</option>
-                              <option value="family">Family-Based</option>
-                              <option value="employment">Employment-Based</option>
-                              <option value="naturalization">Naturalization</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Description</label>
-                            <textarea
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              rows={3}
-                              value={editingTemplate.description}
-                              onChange={e => setEditingTemplate((prev: any) => ({ ...prev, description: e.target.value }))}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">Template Content</label>
-                            <textarea
-                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              rows={10}
-                              value={editingTemplate.content}
-                              onChange={e => setEditingTemplate((prev: any) => ({ ...prev, content: e.target.value }))}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Replace PDF (optional)</label>
-                            <FileUpload
-                              id="edit-form-upload"
-                              label="Replace PDF"
-                              onChange={(file, base64) => {
-                                setEditTemplateFile(file);
-                                setEditTemplateBase64(base64);
-                              }}
-                              helperText="Accepted file types: PDF, JPEG, PNG (max 5MB)"
-                              acceptedTypes={[".pdf", ".jpg", ".jpeg", ".png"]}
-                              maxSizeMB={5}
-                              required={false}
-                            />
-                            {editingTemplate.pdfUrl && (
-                              <a href={editingTemplate.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs mt-1 block">View current PDF</a>
-                            )}
-                          </div>
-                        </div>
-                        <div className="mt-6 flex justify-end space-x-3">
-                          <button
-                            type="button"
-                            className="btn btn-outline"
-                            onClick={() => {
-                              setShowEditTemplate(false);
-                              setEditingTemplate(null);
-                              setEditTemplateFile(null);
-                              setEditTemplateBase64(null);
-                            }}
-                            disabled={editTemplateLoading}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            className="btn btn-primary"
-                            disabled={editTemplateLoading}
-                          >
-                            {editTemplateLoading ? 'Saving...' : 'Save Changes'}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                )}
-
-                {/* Save Button */}
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                  <button
-                    type="button"
-                    className="btn btn-primary flex items-center"
-                    onClick={handleSave}
-                    disabled={loading}
-                  >
-                    <Save size={18} className="mr-2" />
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </>
-            )}
-
             {/* Report Settings */}
             {activeTab === 'reports' && (isSuperAdmin || isAttorney) && (
               <>
@@ -9199,17 +8864,6 @@ const SettingsPage = () => {
                   </button>
                 </div>
               </>
-            )}
-
-            {/* Form Builder */}
-            {activeTab === 'form-builder' && (isSuperAdmin || isAttorney) && (
-              <div className="p-6">
-                <QuestionnaireBuilder
-                 
-                  isSuperAdmin={isSuperAdmin}
-                  isAttorney={isAttorney}
-                />
-              </div>
             )}
 
           </div>
