@@ -18,6 +18,7 @@ const FoiaCasesPage = () => {
     const fetchCases = async () => {
       try {
         const response = await getFoiaCases();
+        console.log('Fetched FOIA cases:', response.data);
         setCases(response.data);
       } catch (err) {
         setError('Failed to load FOIA cases');
