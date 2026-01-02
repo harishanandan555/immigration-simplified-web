@@ -1,0 +1,651 @@
+================================================================================
+                    CLIENT DETAILS PAGE DOCUMENTATION
+================================================================================
+
+OVERVIEW
+--------
+The ClientDetailsPage is a React component that displays comprehensive information
+about a client in the immigration management system. It provides a detailed view
+of client personal information, immigration details, cases, workflows, documents,
+and activity history.
+
+File Location: src/pages/clients/ClientDetailsPage.tsx
+
+================================================================================
+COMPONENT STRUCTURE
+================================================================================
+
+Component Name: ClientDetailsPage
+Type: React Functional Component
+Route Parameter: id (client ID from URL)
+
+================================================================================
+DATA STRUCTURES
+================================================================================
+
+1. CLIENT INTERFACE
+-------------------
+The Client interface defines the structure of client data:
+
+Required Fields:
+- _id: string                    - Unique client identifier
+- firstName: string              - Client's first name
+- lastName: string               - Client's last name
+- name: string                  - Auto-generated full name (firstName + lastName)
+- email: string                 - Client email address
+- phone: string                 - Client phone number
+- nationality: string           - Client nationality
+- address: Address              - Client address object
+- role: 'client'               - User role (always 'client')
+- userType: 'companyClient' | 'individualUser' - Client type
+- attorneyIds: string[]        - Array of assigned attorney IDs
+- dateOfBirth: string          - Date of birth (ISO format)
+- status: 'Active' | 'Inactive' | 'Pending' - Client status
+- active: boolean              - Active status flag
+- createdAt: string            - Creation timestamp
+- updatedAt: string             - Last update timestamp
+
+Optional Fields:
+- companyId?: string           - Company ID (required for companyClient)
+- placeOfBirth?: PlaceOfBirth  - Place of birth details
+- gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say'
+- maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'civil_union'
+- immigrationPurpose?: 'family_reunification' | 'employment' | 'education' | 
+                        'asylum' | 'investment' | 'diversity_lottery' | 'other'
+- passportNumber?: string      - Passport number
+- alienRegistrationNumber?: string - Alien registration number (A-number)
+- nationalIdNumber?: string    - National ID number
+- spouse?: Spouse             - Spouse information
+- children?: Child[]          - Array of children
+- employment?: Employment     - Employment details
+- education?: Education       - Education details
+- travelHistory?: TravelHistory[] - Travel history array
+- financialInfo?: FinancialInfo - Financial information
+- criminalHistory?: CriminalHistory - Criminal history
+- medicalHistory?: MedicalHistory - Medical history
+- bio?: string               - Client biography
+- entryDate?: string         - Entry date
+- visaCategory?: string      - Visa category
+- notes?: string             - Additional notes
+- documents?: Document[]     - Associated documents
+- lastLogin?: string         - Last login timestamp
+- id?: string               - Legacy ID field
+- alienNumber?: string       - Legacy alien number field
+
+2. ADDRESS INTERFACE
+--------------------
+interface Address {
+  street: string;      - Street address
+  city: string;        - City name
+  state: string;       - State/province
+  zipCode: string;     - ZIP/postal code
+  country: string;     - Country name
+}
+
+Optional Extended Fields (from workflow data):
+- aptSuiteFlr?: string    - Apartment/suite/floor
+- aptNumber?: string       - Apartment number
+- province?: string        - Province (alternative to state)
+- postalCode?: string      - Postal code (alternative to zipCode)
+- formattedAddress?: string - Pre-formatted address string
+
+3. PLACE OF BIRTH INTERFACE
+----------------------------
+interface PlaceOfBirth {
+  city: string;        - City of birth
+  state?: string;      - State/province of birth (optional)
+  country: string;     - Country of birth
+}
+
+4. SPOUSE INTERFACE
+-------------------
+interface Spouse {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  nationality?: string;
+  alienRegistrationNumber?: string;
+}
+
+5. CHILD INTERFACE
+------------------
+interface Child {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  nationality?: string;
+  alienRegistrationNumber?: string;
+}
+
+6. EMPLOYMENT INTERFACE
+-----------------------
+interface Employment {
+  currentEmployer?: {
+    name?: string;
+    address?: Address;
+  };
+  jobTitle?: string;
+  employmentStartDate?: string;
+  annualIncome?: number;
+}
+
+7. EDUCATION INTERFACE
+----------------------
+interface Education {
+  highestLevel?: 'high_school' | 'associate' | 'bachelor' | 'master' | 'doctorate' | 'other';
+  institutionName?: string;
+  datesAttended?: {
+    startDate?: string;
+    endDate?: string;
+  };
+  fieldOfStudy?: string;
+}
+
+8. TRAVEL HISTORY INTERFACE
+----------------------------
+interface TravelHistory {
+  country: string;
+  visitDate: string;
+  purpose: 'tourism' | 'business' | 'education' | 'family' | 'other';
+  duration: number;  // days
+}
+
+9. FINANCIAL INFO INTERFACE
+---------------------------
+interface FinancialInfo {
+  annualIncome?: number;
+  sourceOfFunds?: 'employment' | 'investment' | 'family' | 'savings' | 'other';
+  bankAccountBalance?: number;
+}
+
+10. CRIMINAL HISTORY INTERFACE
+-------------------------------
+interface CriminalHistory {
+  hasCriminalRecord: boolean;
+  details?: string;
+}
+
+11. MEDICAL HISTORY INTERFACE
+------------------------------
+interface MedicalHistory {
+  hasMedicalConditions: boolean;
+  details?: string;
+}
+
+12. DOCUMENT INTERFACE
+----------------------
+interface Document {
+  _id?: string;
+  type: string;
+  name: string;
+  fileUrl: string;
+  uploadDate: string;
+  notes?: string;
+  category?: string;
+  path?: string;        // Legacy field
+  uploadedAt?: string;  // Legacy field
+  size?: number;        // File size in bytes
+  createdAt?: string;   // Creation timestamp
+  uploadedBy?: string;  // Uploader identifier
+  clientEmail?: string; // Client email (for filtering)
+  clientId?: string;    // Client ID (for filtering)
+}
+
+================================================================================
+STATE MANAGEMENT
+================================================================================
+
+Component State Variables:
+
+1. client: Client | null
+   - Stores the main client data object
+   - Initially null, populated after API fetch
+
+2. loading: boolean
+   - Indicates if client data is being fetched
+   - Used to show loading spinner
+
+3. clientCases: any[]
+   - Array of cases associated with the client
+   - Fetched via getClientCases API
+
+4. error: string | null
+   - Stores error messages if data fetching fails
+   - Displayed in error UI state
+
+5. clientDocuments: Document[]
+   - Array of documents uploaded by/for the client
+   - Filtered from all documents by client email/ID
+
+6. loadingDocuments: boolean
+   - Indicates if documents are being fetched
+   - Used for document loading indicator
+
+7. activities: any[]
+   - Array of activity log entries
+   - Includes workflow activities, document uploads, case creation
+   - Sorted by timestamp (newest first)
+
+8. showAllActivities: boolean
+   - Controls whether to show all activities or just recent 10
+   - Toggle button available in UI
+
+9. clientWorkflows: any[]
+   - Array of workflows associated with the client
+   - Processed and enhanced with case information
+
+================================================================================
+API INTEGRATIONS
+================================================================================
+
+1. getClientById(id: string): Promise<Client>
+   - Fetches client data by ID
+   - Source: ClientControllers.tsx
+   - Endpoint: /api/v1/clients/:id
+
+2. getClientCases(clientId: string): Promise<any[]>
+   - Fetches cases associated with a client
+   - Source: ClientControllers.tsx
+   - Endpoint: /api/v1/clients/:id/cases
+
+3. getWorkflowsByClient(clientId: string, options: object): Promise<WorkflowResponse>
+   - Fetches workflows for a specific client
+   - Source: LegalFirmWorkflowController.tsx
+   - Supports multiple strategies:
+     * Strategy 1: Fetch by client ID
+     * Strategy 2: Fetch by client email (fallback)
+     * Strategy 3: Fetch all workflows and filter locally
+     * Strategy 4: Direct API call test
+
+4. fetchWorkflows(options: object): Promise<Workflow[]>
+   - Fetches all workflows (fallback method)
+   - Source: LegalFirmWorkflowController.tsx
+   - Used when client-specific fetch fails
+
+5. getDocuments(): Promise<DocumentResponse>
+   - Fetches all documents
+   - Source: DocumentControllers.tsx
+   - Documents are filtered by client email/ID client-side
+
+6. downloadDocument(documentId: string, documentName: string): Promise<void>
+   - Downloads a specific document
+   - Source: DocumentControllers.tsx
+   - Shows toast notifications for success/error
+
+================================================================================
+MAIN FUNCTIONS
+================================================================================
+
+1. fetchClientWorkflows(clientId: string, clientData?: any)
+   --------------------------------------------------------
+   Purpose: Fetches and processes workflows for a client using multiple strategies
+   
+   Strategy Flow:
+   1. Try getWorkflowsByClient with client ID
+   2. If fails, try getWorkflowsByClient with client email
+   3. If fails, fetch all workflows and filter locally
+   4. If fails, try direct API call
+   
+   Processing:
+   - Extracts case numbers from multiple sources (formCaseIds, questionnaireAssignment, case object)
+   - Builds workflow titles from case title, workflow title, or form numbers
+   - Enhances selectedForms array
+   - Updates client state with data from workflow response
+   - Generates activity log entries for workflows
+   
+   Returns: void (updates clientWorkflows and activities state)
+
+2. fetchClientDocuments(clientId: string, clientData?: any)
+   ----------------------------------------------------------
+   Purpose: Fetches and filters documents for a specific client
+   
+   Filtering Strategy:
+   - Primary: Match by clientEmail field
+   - Fallback 1: Match by uploadedBy email
+   - Fallback 2: Match by clientId
+   
+   Processing:
+   - Formats file sizes
+   - Adds uploadedAt timestamp
+   - Generates activity log entries for document uploads
+   
+   Returns: void (updates clientDocuments and activities state)
+
+3. handleDownloadDocument(documentId: string, documentName: string)
+   ------------------------------------------------------------------
+   Purpose: Handles document download with user feedback
+   
+   Features:
+   - Shows loading toast during download
+   - Shows success/error toast after completion
+   - Error handling with detailed logging
+   
+   Returns: Promise<void>
+
+4. getTimeAgo(timestamp: string): string
+   --------------------------------------
+   Purpose: Formats timestamp as relative time string
+   
+   Output Examples:
+   - "Just now" (< 1 minute)
+   - "5 minutes ago" (< 1 hour)
+   - "3 hours ago" (< 24 hours)
+   - "5 days ago" (< 30 days)
+   - "12/25/2023" (>= 30 days, formatted date)
+   
+   Returns: string
+
+5. formatFileSize(bytes: number): string
+   --------------------------------------
+   Purpose: Converts bytes to human-readable file size
+   
+   Output Examples:
+   - "0 Bytes"
+   - "1.5 KB"
+   - "2.3 MB"
+   - "1.2 GB"
+   
+   Returns: string
+
+6. processDocumentsForDisplay(documents: any[]): Document[]
+   ---------------------------------------------------------
+   Purpose: Processes raw document data for display
+   
+   Processing:
+   - Adds formatted file size
+   - Ensures uploadedAt timestamp exists
+   - Sets default uploadedBy value
+   
+   Returns: Document[]
+
+================================================================================
+UI SECTIONS
+================================================================================
+
+1. HEADER SECTION
+-----------------
+- Back button (links to /clients)
+- Client name (large heading)
+- Status badge (Active/Inactive/Pending with color coding)
+
+2. PERSONAL INFORMATION CARD
+-----------------------------
+Displays:
+- Email (clickable mailto link)
+- Phone (clickable tel link)
+- Address (formatted with street, city, state, ZIP, country)
+- Date of Birth (formatted date)
+
+3. IMMIGRATION INFORMATION CARD
+--------------------------------
+Displays:
+- Alien Registration Number (A-number)
+- USCIS Online Account Number
+- Social Security Number
+- Nationality
+- Passport Number
+- National ID Number
+- Immigration Purpose (formatted)
+- Place of Birth (city, country)
+- Notes (if available)
+
+4. CASE DETAILS CARD
+--------------------
+Displays workflow-based case information:
+- Case Category (badge)
+- Case Title
+- Case Status (color-coded badge)
+- Assigned Forms (badges)
+- Priority (color-coded badge)
+- Due Date (if available)
+- Description (if available)
+
+Shows "No case details found" if no workflows exist.
+
+5. DOCUMENTS SIDEBAR CARD
+-------------------------
+Displays:
+- List of up to 5 most recent documents
+- Document name
+- File size and upload time
+- Download button for each document
+- "View all documents" link (filters by client)
+
+Shows "No documents found" if empty.
+
+6. RECENT ACTIVITY CARD
+-----------------------
+Displays:
+- Activity timeline with icons
+- Activity descriptions
+- Timestamps (relative time)
+- Activity metadata badges:
+  * Document type
+  * Case number
+  * Status
+  * Questionnaire title
+  * Response count
+  * Category
+- "Show all" / "Show recent" toggle (if > 10 activities)
+
+Activity Types:
+- workflow_created (FolderOpen icon)
+- questionnaire_assigned (FileText icon)
+- questionnaire_submitted (CheckCircle icon)
+- case_created (Briefcase icon)
+- document_upload (FileText icon)
+
+7. ASSIGNED FORMS CARD
+----------------------
+Displays:
+- Assigned Forms section (badges)
+- Form Case Numbers section (monospace display)
+  * Shows case numbers for each form
+  * Extracted from formCaseIds object
+  * Filters out Mongoose internal properties
+
+Shows "No forms assigned" if empty.
+
+================================================================================
+WORKFLOW PROCESSING LOGIC
+================================================================================
+
+Case Number Extraction Priority:
+1. workflow.case?.caseNumber (highest priority)
+2. workflow.questionnaireAssignment?.formCaseIdGenerated
+3. workflow.formCaseIds object (common forms: I-485, I-130, I-765, I-131, N-400, G-884)
+4. First available form case ID from formCaseIds
+5. "No Case Number" (if none found)
+
+Title Extraction Priority:
+1. workflow.case?.title
+2. workflow.title
+3. workflow.formNumber + " Application"
+4. workflow.selectedForms.join(', ') + " Application"
+5. "Workflow " + last 8 chars of ID (fallback)
+
+Selected Forms Enhancement:
+- Combines workflow.selectedForms array
+- Adds workflow.formNumber if not already included
+- Ensures no duplicates
+
+Form Case IDs Cleaning:
+- Removes Mongoose internal properties (keys starting with $ or _)
+- Filters to string values only
+- Handles both workflow.formCaseIds and workflow.case.formCaseIds
+
+================================================================================
+ACTIVITY LOG GENERATION
+================================================================================
+
+Workflow Activities:
+- Workflow creation activity (when workflow is created)
+- Questionnaire assignment activity (when questionnaire is assigned)
+- Questionnaire submission activity (when questionnaire is completed)
+- Case creation activity (when case is created)
+
+Document Activities:
+- Document upload activity (for each uploaded document)
+
+Activity Structure:
+{
+  id: string;                    // Unique activity ID
+  type: string;                  // Activity type
+  description: string;            // Human-readable description
+  timestamp: string;              // ISO timestamp
+  icon: string;                  // Icon name for display
+  data: {                        // Additional metadata
+    // Type-specific fields
+  }
+}
+
+Activity Sorting:
+- Activities are sorted by timestamp (newest first)
+- Duplicates are removed based on ID
+- Merged from multiple sources (workflows + documents)
+
+================================================================================
+ERROR HANDLING
+================================================================================
+
+1. Loading State
+   - Shows spinner with "Loading client details..." message
+   - Prevents interaction during data fetch
+
+2. Error State
+   - Displays error message in red
+   - Provides "Back to Clients" link
+   - Error message from API or generic fallback
+
+3. Not Found State
+   - Shows "Client Not Found" message
+   - Provides "Back to Clients" link
+   - Triggered when client is null after fetch
+
+4. API Error Handling
+   - Workflow fetch errors: Shows toast notification, continues with empty array
+   - Document fetch errors: Logs error, shows empty document list
+   - Case fetch errors: Falls back to direct API call, then empty array
+   - Download errors: Shows error toast with message
+
+5. Data Validation
+   - safeClient object ensures minimum required fields
+   - Default values for missing fields:
+     * name: "Unknown Client"
+     * email: "No email provided"
+     * phone: "No phone provided"
+     * status: "Unknown"
+
+================================================================================
+ROUTING
+================================================================================
+
+Route Path: /clients/:id
+Route Definition: AppRoutes.tsx
+Component: ClientDetailsPage (lazy loaded)
+
+Navigation:
+- From: Clients list page (/clients)
+- To: Cases page (/cases), Documents page (/documents?client=:id)
+
+URL Parameters:
+- id: Client ID (required)
+
+================================================================================
+DEPENDENCIES
+================================================================================
+
+React Hooks:
+- useState: State management
+- useEffect: Side effects (data fetching on mount)
+
+React Router:
+- useParams: Extract client ID from URL
+- Link: Navigation between pages
+
+External Libraries:
+- react-hot-toast: Toast notifications
+- lucide-react: Icons (ArrowLeft, Mail, Phone, MapPin, Calendar, FileText, 
+                    Briefcase, PlusCircle, Download, Clock, FolderOpen, CheckCircle)
+
+Internal Modules:
+- ClientControllers: Client data fetching
+- DocumentControllers: Document operations
+- LegalFirmWorkflowController: Workflow data fetching
+- api: Axios instance for API calls
+
+================================================================================
+PERFORMANCE CONSIDERATIONS
+================================================================================
+
+1. Lazy Loading
+   - Component is lazy loaded via React.lazy()
+   - Reduces initial bundle size
+
+2. Data Fetching
+   - Sequential fetching: Client -> Cases -> Workflows -> Documents
+   - Workflow fetching uses multiple fallback strategies
+   - Document filtering done client-side (could be optimized server-side)
+
+3. Activity Management
+   - Activities merged and sorted efficiently
+   - Duplicate removal based on ID
+   - Limited display (10 recent, expandable to all)
+
+4. Document Display
+   - Shows only 5 most recent documents
+   - Link to full document page for complete list
+
+5. Workflow Processing
+   - Processes workflows once on fetch
+   - Enhanced data structure cached in state
+   - No re-processing on re-render
+
+================================================================================
+USAGE EXAMPLE
+================================================================================
+
+// Route Configuration
+<Route path="/clients/:id" element={<ClientDetailsPage />} />
+
+// Navigation to Client Details
+<Link to={`/clients/${clientId}`}>View Details</Link>
+
+// Direct Navigation
+navigate(`/clients/${clientId}`);
+
+// Accessing Client ID in Component
+const { id } = useParams<{ id: string }>();
+
+================================================================================
+FUTURE ENHANCEMENTS
+================================================================================
+
+Potential Improvements:
+1. Server-side document filtering by client
+2. Pagination for workflows and documents
+3. Real-time updates via WebSocket
+4. Export client data to PDF
+5. Edit client information inline
+6. Add notes/comments functionality
+7. Timeline visualization for activities
+8. Document preview functionality
+9. Case creation from client details page
+10. Bulk document operations
+
+================================================================================
+NOTES
+================================================================================
+
+- Component uses console.log for debugging (should be removed in production)
+- Some commented-out code for client cases table (legacy feature)
+- Workflow fetching has extensive fallback logic for reliability
+- Client data can be updated from workflow responses
+- Address formatting handles multiple address formats
+- Activity log combines multiple data sources
+- Document filtering uses multiple strategies for reliability
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+

@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown, Mail, Phone, Users, UserCheck, CreditCard } from 'lucide-react';
-import { getIndividualClients, Client } from '../../controllers/ClientControllers';
+import { Search, Filter, ArrowUpDown, Mail, Phone, Users, UserCheck, CreditCard, Edit2, MoreVertical } from 'lucide-react';
+import { getIndividualClients, Client, updateClient } from '../../controllers/ClientControllers';
 import { useAuth } from '../../controllers/AuthControllers';
 import { getCurrentSubscription, Subscription } from '../../controllers/BillingControllers';
+
+interface ClientWithSubscription extends Client {
+  subscription?: Subscription;
+}
 
 const IndividualClientsPage = () => {
   const { user, isSuperAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<ClientWithSubscription[]>([]);
   const [loading, setLoading] = useState(false);
+  const [updatingClientId, setUpdatingClientId] = useState<string | null>(null);
+  const [showEditMenu, setShowEditMenu] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [clientToUpdate, setClientToUpdate] = useState<{ id: string; name: string; currentStatus: string } | null>(null);
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -68,6 +76,45 @@ const IndividualClientsPage = () => {
       (client.nationality || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.phone || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleToggleStatusClick = (clientId: string, clientName: string, currentStatus: string) => {
+    setClientToUpdate({ id: clientId, name: clientName, currentStatus });
+    setShowConfirmDialog(true);
+    setShowEditMenu(null);
+  };
+
+  const handleConfirmToggleStatus = async () => {
+    if (!clientToUpdate) return;
+
+    try {
+      setUpdatingClientId(clientToUpdate.id);
+      setShowConfirmDialog(false);
+      
+      const newStatus = clientToUpdate.currentStatus === 'Active' ? 'Inactive' : 'Active';
+      
+      await updateClient(clientToUpdate.id, { status: newStatus as 'Active' | 'Inactive' });
+      
+      // Update the local state
+      setClients(prevClients =>
+        prevClients.map(client =>
+          client._id === clientToUpdate.id
+            ? { ...client, status: newStatus as 'Active' | 'Inactive' }
+            : client
+        )
+      );
+    } catch (error) {
+      console.error('Error updating client status:', error);
+      alert('Failed to update client status. Please try again.');
+    } finally {
+      setUpdatingClientId(null);
+      setClientToUpdate(null);
+    }
+  };
+
+  const handleCancelToggleStatus = () => {
+    setShowConfirmDialog(false);
+    setClientToUpdate(null);
+  };
 
   if (!isSuperAdmin) {
     return (
@@ -196,12 +243,15 @@ const IndividualClientsPage = () => {
                       <ArrowUpDown size={12} />
                     </div>
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white/50 divide-y divide-gray-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center">
+                    <td colSpan={7} className="px-4 py-8 text-center">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <span className="text-gray-500 text-sm font-medium">Loading clients...</span>
@@ -316,11 +366,52 @@ const IndividualClientsPage = () => {
                           </div>
                         </div>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowEditMenu(showEditMenu === client._id ? null : client._id)}
+                            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors duration-200 group"
+                            disabled={updatingClientId === client._id}
+                          >
+                            {updatingClientId === client._id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            ) : (
+                              <MoreVertical className="h-4 w-4 text-gray-500 group-hover:text-blue-600 transition-colors duration-200" />
+                            )}
+                          </button>
+                          
+                          {showEditMenu === client._id && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setShowEditMenu(null)}
+                              > 
+                              </div>
+                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
+                                <button
+                                  onClick={() => {
+                                    const clientName = client.firstName && client.lastName 
+                                      ? `${client.firstName} ${client.lastName}`
+                                      : client.name || 'this client';
+                                    handleToggleStatusClick(client._id, clientName, client.status || 'Pending');
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 flex items-center gap-2"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                  <span>
+                                    {client.status === 'Active' ? 'Set to Inactive' : 'Set to Active'}
+                                  </span>
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center">
+                    <td colSpan={7} className="px-4 py-8 text-center">
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <div className="h-12 w-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center shadow-md">
                           <UserCheck className="h-6 w-6 text-blue-500" />
@@ -360,6 +451,59 @@ const IndividualClientsPage = () => {
           )}
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && clientToUpdate && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Confirm Status Change
+              </h3>
+              <p className="text-gray-500 mb-2">
+                Are you sure you want to change the status of <span className="font-semibold text-gray-900">{clientToUpdate.name}</span> from{' '}
+                <span className={`font-semibold ${
+                  clientToUpdate.currentStatus === 'Active' ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {clientToUpdate.currentStatus}
+                </span> to{' '}
+                <span className={`font-semibold ${
+                  clientToUpdate.currentStatus === 'Active' ? 'text-red-600' : 'text-green-600'
+                }`}>
+                  {clientToUpdate.currentStatus === 'Active' ? 'Inactive' : 'Active'}
+                </span>?
+              </p>
+              <div className="mt-5 flex justify-end space-x-3">
+                <button
+                  onClick={handleCancelToggleStatus}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors duration-200"
+                  disabled={updatingClientId === clientToUpdate.id}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmToggleStatus}
+                  className={`px-4 py-2 text-white rounded-md transition-colors duration-200 ${
+                    clientToUpdate.currentStatus === 'Active'
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                  disabled={updatingClientId === clientToUpdate.id}
+                >
+                  {updatingClientId === clientToUpdate.id ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Updating...
+                    </span>
+                  ) : (
+                    'Confirm'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
