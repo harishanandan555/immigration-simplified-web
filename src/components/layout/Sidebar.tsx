@@ -12,7 +12,6 @@ import {
   BarChart,
   FileSearch,
   UserCheck,
-  ClipboardList,
   Building2
 } from 'lucide-react';
 import { useAuth } from '../../controllers/AuthControllers';
@@ -112,16 +111,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
                 </Link>
               ))}
           </nav>
-
-          {/* Footer */}
-          <div className="flex-shrink-0 border-t border-gray-200 p-4">
-            <div className="flex items-center">
-              <div className="text-xs text-gray-500">
-                <strong className="block font-medium text-gray-700">Immigration-Simplified v0.1.0</strong>
-                <span>© 2025 Efile legal</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

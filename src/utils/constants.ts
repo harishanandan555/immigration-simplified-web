@@ -746,6 +746,28 @@ export const ANVIL_END_POINTS = {
     GET_FILLED_PDFS_BY_CLIENT_AND_CASE: "/api/v1/anvil/filled-pdfs/client/:clientId/case/:caseId"
 } as const;
 
+export const PRIVACY_POLICY_END_POINTS = {
+    // Get Privacy Policy (public, no auth required)
+    GET_POLICY: "/api/v1/privacy-policy",
+    // Accept Privacy Policy (public or private)
+    ACCEPT_POLICY: "/api/v1/privacy-policy/accept",
+    // Check acceptance status (private, requires auth)
+    CHECK_STATUS: "/api/v1/privacy-policy/status",
+    // Get acceptance history for a user (private, requires auth)
+    GET_HISTORY: "/api/v1/privacy-policy/history/:userId"
+} as const;
+
+export const TERMS_OF_SERVICE_END_POINTS = {
+    // Get Terms of Service (public, no auth required)
+    GET_TERMS: "/api/v1/terms-of-service",
+    // Accept Terms of Service (public or private)
+    ACCEPT_TERMS: "/api/v1/terms-of-service/accept",
+    // Check acceptance status (private, requires auth)
+    CHECK_STATUS: "/api/v1/terms-of-service/status",
+    // Get acceptance history for a user (private, requires auth)
+    GET_HISTORY: "/api/v1/terms-of-service/history/:userId"
+} as const;
+
 
 
 
