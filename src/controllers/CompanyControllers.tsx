@@ -111,3 +111,17 @@ export const getCompanyById = async (companyId: string): Promise<ApiResponse<Com
     throw error;
   }
 };
+
+export const updateCompany = async (companyId: string, updateData: Partial<Company>): Promise<ApiResponse<Company>> => {
+  try {
+    const response = await api.put(`${COMPANY_END_POINTS.UPDATECOMPANY.replace(':id', companyId)}`, updateData);
+    return {
+      data: response.data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    console.error('Error updating company:', error);
+    throw error;
+  }
+};

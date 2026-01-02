@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react';
+import { PlusCircle, Search, Filter, ArrowUpDown, Download, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 import api from '../../utils/api';
 import { useAuth } from '../../controllers/AuthControllers';
@@ -376,6 +377,309 @@ const CasesPage: React.FC = () => {
     currentPage * itemsPerPage
   );
 
+  // CSV Export Function
+  const exportToCSV = () => {
+    if (sortedCases.length === 0) {
+      toast.error('No cases to export');
+      return;
+    }
+
+    try {
+      // Define CSV headers
+      const headers = [
+        'Case Number',
+        'Title',
+        'Description',
+        'Category',
+        'Subcategory',
+        'Status',
+        'Priority',
+        'Client Name',
+        'Client Email',
+        'Client Phone',
+        'Client Nationality',
+        'Created By',
+        'Due Date',
+        'Forms Count',
+        'Created Date',
+        'Updated Date'
+      ];
+
+      // Convert cases to CSV rows
+      const csvRows = sortedCases.map((caseItem) => {
+        const allCaseNumbers = getAllCaseNumbers(caseItem);
+        const caseNumbersStr = allCaseNumbers.join('; ');
+        
+        return [
+          caseNumbersStr || caseItem.caseNumber || 'N/A',
+          `"${(caseItem.title || '').replace(/"/g, '""')}"`,
+          `"${(caseItem.description || '').replace(/"/g, '""')}"`,
+          caseItem.category || 'N/A',
+          caseItem.subcategory || 'N/A',
+          caseItem.status || 'N/A',
+          caseItem.priority || 'N/A',
+          `"${(caseItem.client.name || '').replace(/"/g, '""')}"`,
+          caseItem.client.email || 'N/A',
+          caseItem.client.phone || 'N/A',
+          caseItem.client.nationality || 'N/A',
+          `"${((caseItem.createdBy.firstName || '') + ' ' + (caseItem.createdBy.lastName || '')).trim()}"`,
+          caseItem.dueDate ? new Date(caseItem.dueDate).toLocaleDateString() : 'N/A',
+          caseItem.selectedForms?.length || 0,
+          caseItem.createdAt ? new Date(caseItem.createdAt).toLocaleString() : 'N/A',
+          caseItem.updatedAt ? new Date(caseItem.updatedAt).toLocaleString() : 'N/A'
+        ].join(',');
+      });
+
+      // Combine headers and rows
+      const csvContent = [headers.join(','), ...csvRows].join('\n');
+
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `cases-export-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${sortedCases.length} cases to CSV`);
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      toast.error('Failed to export cases to CSV');
+    }
+  };
+
+  // PDF Export Function
+  const exportToPDF = async () => {
+    if (sortedCases.length === 0) {
+      toast.error('No cases to export');
+      return;
+    }
+
+    try {
+      toast.loading('Generating PDF...', { id: 'pdf-export' });
+      
+      // Create a new PDF document
+      const pdfDoc = await PDFDocument.create();
+      let currentPage = pdfDoc.addPage([612, 792]); // US Letter size
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+      let yPosition = 750;
+      const pageWidth = 612;
+      const pageHeight = 792;
+      const margin = 50;
+      const lineHeight = 14;
+      const sectionSpacing = 20;
+
+      // Helper function to check and add new page if needed
+      const checkNewPage = (requiredSpace: number = lineHeight) => {
+        if (yPosition - requiredSpace < margin) {
+          currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
+          yPosition = pageHeight - margin;
+          return true;
+        }
+        return false;
+      };
+
+      // Title
+      currentPage.drawText('Cases Export Report', {
+        x: margin,
+        y: yPosition,
+        size: 20,
+        font: boldFont,
+      });
+      yPosition -= 30;
+
+      // Export date
+      currentPage.drawText(`Generated: ${new Date().toLocaleString()}`, {
+        x: margin,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0.5, 0.5, 0.5),
+      });
+      yPosition -= 20;
+
+      // Total cases
+      currentPage.drawText(`Total Cases: ${sortedCases.length}`, {
+        x: margin,
+        y: yPosition,
+        size: 12,
+        font: boldFont,
+      });
+      yPosition -= sectionSpacing;
+
+      // Add each case
+      for (let i = 0; i < sortedCases.length; i++) {
+        const caseItem = sortedCases[i];
+        
+        // Check if we need a new page (reserve space for case entry)
+        checkNewPage(150);
+
+        // Case number and title
+        const allCaseNumbers = getAllCaseNumbers(caseItem);
+        const caseNumberText = `Case ${i + 1}: ${allCaseNumbers.join(', ') || caseItem.caseNumber || 'N/A'}`;
+        currentPage.drawText(caseNumberText, {
+          x: margin,
+          y: yPosition,
+          size: 12,
+          font: boldFont,
+        });
+        yPosition -= lineHeight;
+
+        // Title (truncate if too long)
+        const title = (caseItem.title || 'N/A').substring(0, 80);
+        currentPage.drawText(`Title: ${title}`, {
+          x: margin + 10,
+          y: yPosition,
+          size: 10,
+          font: font,
+        });
+        yPosition -= lineHeight;
+
+        // Description (truncate if too long)
+        if (caseItem.description) {
+          const desc = caseItem.description.substring(0, 100);
+          currentPage.drawText(`Description: ${desc}`, {
+            x: margin + 10,
+            y: yPosition,
+            size: 9,
+            font: font,
+          });
+          yPosition -= lineHeight;
+        }
+
+        // Details in two columns
+        const leftCol = margin + 10;
+        const rightCol = pageWidth / 2 + 20;
+        let leftY = yPosition;
+        let rightY = yPosition;
+
+        // Left column
+        currentPage.drawText(`Category: ${caseItem.category || 'N/A'}`, {
+          x: leftCol,
+          y: leftY,
+          size: 9,
+          font: font,
+        });
+        leftY -= lineHeight;
+
+        currentPage.drawText(`Subcategory: ${caseItem.subcategory || 'N/A'}`, {
+          x: leftCol,
+          y: leftY,
+          size: 9,
+          font: font,
+        });
+        leftY -= lineHeight;
+
+        currentPage.drawText(`Status: ${caseItem.status || 'N/A'}`, {
+          x: leftCol,
+          y: leftY,
+          size: 9,
+          font: font,
+        });
+        leftY -= lineHeight;
+
+        currentPage.drawText(`Priority: ${caseItem.priority || 'N/A'}`, {
+          x: leftCol,
+          y: leftY,
+          size: 9,
+          font: font,
+        });
+        leftY -= lineHeight;
+
+        // Right column
+        const clientName = (caseItem.client.name || 'N/A').substring(0, 30);
+        currentPage.drawText(`Client: ${clientName}`, {
+          x: rightCol,
+          y: rightY,
+          size: 9,
+          font: font,
+        });
+        rightY -= lineHeight;
+
+        const clientEmail = (caseItem.client.email || 'N/A').substring(0, 30);
+        currentPage.drawText(`Email: ${clientEmail}`, {
+          x: rightCol,
+          y: rightY,
+          size: 9,
+          font: font,
+        });
+        rightY -= lineHeight;
+
+        if (caseItem.client.phone) {
+          currentPage.drawText(`Phone: ${caseItem.client.phone}`, {
+            x: rightCol,
+            y: rightY,
+            size: 9,
+            font: font,
+          });
+          rightY -= lineHeight;
+        }
+
+        currentPage.drawText(`Forms: ${caseItem.selectedForms?.length || 0}`, {
+          x: rightCol,
+          y: rightY,
+          size: 9,
+          font: font,
+        });
+        rightY -= lineHeight;
+
+        // Use the lower Y position
+        yPosition = Math.min(leftY, rightY) - lineHeight;
+
+        // Dates
+        if (caseItem.dueDate) {
+          currentPage.drawText(`Due Date: ${new Date(caseItem.dueDate).toLocaleDateString()}`, {
+            x: leftCol,
+            y: yPosition,
+            size: 9,
+            font: font,
+          });
+          yPosition -= lineHeight;
+        }
+
+        currentPage.drawText(`Created: ${caseItem.createdAt ? new Date(caseItem.createdAt).toLocaleDateString() : 'N/A'}`, {
+          x: leftCol,
+          y: yPosition,
+          size: 9,
+          font: font,
+        });
+        yPosition -= sectionSpacing;
+
+        // Separator line
+        currentPage.drawLine({
+          start: { x: margin, y: yPosition },
+          end: { x: pageWidth - margin, y: yPosition },
+          thickness: 0.5,
+          color: rgb(0.8, 0.8, 0.8),
+        });
+        yPosition -= sectionSpacing;
+      }
+
+      // Save PDF
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `cases-export-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${sortedCases.length} cases to PDF`, { id: 'pdf-export' });
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Failed to export cases to PDF', { id: 'pdf-export' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section with Gradient Background */}
@@ -390,13 +694,35 @@ const CasesPage: React.FC = () => {
                   : `Manage and track ${casesToDisplay.length} ${casesToDisplay.length === 1 ? 'case' : 'cases'}`}
               </p>
             </div>
-            <Link
-              to={getNewCaseLink()}
-              className="flex items-center gap-2 bg-white text-blue-600 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-lg text-sm"
-            >
-              <PlusCircle size={16} />
-              <span>New Case</span>
-            </Link>
+            <div className="flex items-center gap-3">
+              {casesToDisplay.length > 0 && (
+                <>
+                  <button
+                    onClick={exportToCSV}
+                    className="flex items-center gap-2 bg-white text-blue-600 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-lg text-sm"
+                    title="Export filtered cases to CSV"
+                  >
+                    <Download size={16} />
+                    <span>Export CSV</span>
+                  </button>
+                  <button
+                    onClick={exportToPDF}
+                    className="flex items-center gap-2 bg-white text-blue-600 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-lg text-sm"
+                    title="Export filtered cases to PDF"
+                  >
+                    <FileText size={16} />
+                    <span>Export PDF</span>
+                  </button>
+                </>
+              )}
+              <Link
+                to={getNewCaseLink()}
+                className="flex items-center gap-2 bg-white text-blue-600 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-lg text-sm"
+              >
+                <PlusCircle size={16} />
+                <span>New Case</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
