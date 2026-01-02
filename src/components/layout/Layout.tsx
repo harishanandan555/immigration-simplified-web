@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import Footer from './Footer';
 import { useState, useEffect } from 'react';
 import NotificationPanel from './NotificationPanel';
 
@@ -60,6 +61,9 @@ const Layout: React.FC = () => {
             <Outlet />
           </div>
         </main>
+        
+        {/* Footer */}
+        <Footer />
       </div>
     </div>
   );

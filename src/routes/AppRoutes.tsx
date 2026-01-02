@@ -4,6 +4,8 @@ import Layout from '../components/layout/Layout';
 import { useAuth } from '../controllers/AuthControllers';
 import LoginPage from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
+import PrivacyPolicyPage from '../pages/PrivacyPolicyPage';
+import TermsOfServicePage from '../pages/TermsOfServicePage';
 import FoiaCasesPage from '../pages/foia/FoiaCasesPage';
 import FoiaCaseFormPage from '../pages/foia/FoiaCaseFormPage';
 import FoiaCaseDetailsPage from '../pages/foia/FoiaCaseDetailsPage';
@@ -48,6 +50,12 @@ const AppRoutes = () => {
       <Route path="/" element={!user ? <LoginPage /> : <Navigate to={user.role === 'client' ? '/my-questionnaires' : '/dashboard'} replace />} />
       <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={user.role === 'client' ? '/my-questionnaires' : '/dashboard'} replace />} />
       <Route path="/register" element={!user ? <RegisterPage /> : <Navigate to={user.role === 'client' ? '/my-questionnaires' : '/dashboard'} replace />} />
+      
+      {/* Public routes - accessible without authentication */}
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+      <Route path="/terms" element={<TermsOfServicePage />} />
 
       {/* Protected routes */}
       {user ? (
