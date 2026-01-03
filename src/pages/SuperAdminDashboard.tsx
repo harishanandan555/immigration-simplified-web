@@ -522,60 +522,11 @@ const SuperAdminDashboard = () => {
                                     <p className="text-xs text-green-600 font-medium">Clients</p>
                                   </div>
                                   
-                                  {attorney.clientCount > 0 && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleAttorneyClients(attorney._id);
-                                      }}
-                                      className="p-2 hover:bg-indigo-100 rounded-lg transition-colors"
-                                    >
-                                      {expandedAttorneys.has(attorney._id) ? (
-                                        <ChevronUp className="h-5 w-5 text-indigo-600" />
-                                      ) : (
-                                        <ChevronDown className="h-5 w-5 text-indigo-600" />
-                                      )}
-                                    </button>
-                                  )}
+                                
                                 </div>
                               </div>
                               
-                              {/* Collapsible Clients List */}
-                              {attorney.clientCount > 0 && expandedAttorneys.has(attorney._id) && (
-                                <div className="mt-4 pt-4 border-t-2 border-indigo-100">
-                                  <div className="flex items-center justify-between mb-3">
-                                    <p className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                                      <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md text-xs">
-                                        {attorney.clientCount} Clients
-                                      </span>
-                                    </p>
-                                  </div>
-                                  
-                                  {/* Scrollable client list for large numbers */}
-                                  <div className={`${attorney.clientCount > 6 ? 'max-h-96 overflow-y-auto pr-2' : ''}`}>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                      {attorney.clients.map((client: any) => (
-                                        <div key={client._id} className="bg-white rounded-lg p-3 border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
-                                          <p className="font-semibold text-gray-900 mb-1 truncate">
-                                            {client.firstName} {client.lastName}
-                                          </p>
-                                          <p className="text-xs text-gray-600 flex items-center gap-1 truncate">
-                                            <span>✉️</span> 
-                                            <span className="truncate">{client.email}</span>
-                                          </p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Show "View More" message if many clients */}
-                                  {attorney.clientCount > 6 && (
-                                    <p className="text-xs text-gray-500 mt-2 text-center italic">
-                                      Scroll to view all {attorney.clientCount} clients
-                                    </p>
-                                  )}
-                                </div>
-                              )}
+                            
                             </div>
                           ))}
                         </div>

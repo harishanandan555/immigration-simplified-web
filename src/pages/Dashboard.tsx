@@ -29,7 +29,6 @@ const Dashboard = () => {
   if (isSuperAdmin) {
     return <SuperAdminDashboard />;
   }
-  const [timeframe, setTimeframe] = useState<'week' | 'month' | 'quarter'>('month');
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loadingQuestionnaires, setLoadingQuestionnaires] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
@@ -483,28 +482,7 @@ useEffect(() => {
         ).join(' ');
     }
   };
-
-  // Function to get client name for a case (from TasksPage)
-  const getClientNameForCase = (caseId: string) => {
-    if (!caseId) return '';
-    
-    // Handle formatted case numbers like "CR-2025-9382 (G-28)"
-    let selectedCase;
-    if (caseId.includes('CR-')) {
-      // Extract case number from formatted string
-      const caseNumber = caseId.split(' ')[0];
-      selectedCase = cases.find((c: any) => c.caseNumber === caseNumber);
-    } else {
-      // Handle database IDs (for backward compatibility)
-      selectedCase = cases.find((c: any) => c.id === caseId);
-    }
-    
-    if (selectedCase) {
-      const client = clients.find((c: any) => c.id === selectedCase.clientId);
-      return client ? client.name : 'Unknown Client';
-    }
-    return '';
-  };
+  
 
   // Function to get workflow case number for a case (from CasesPage)
   const getWorkflowCaseNumber = (caseItem: any) => {
