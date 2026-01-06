@@ -777,7 +777,7 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Alien Numbers</h2>
           <p className="text-sm text-gray-600 mb-4">
-            Alien numbers are optional but must be exactly 9 digits if provided. Multiple alien numbers can be added if needed.
+            Alien numbers must be exactly 9 digits if provided. Multiple alien numbers can be added if needed.
           </p>
           <div className="space-y-4">
             <div>
@@ -793,7 +793,7 @@ const FoiaCaseFormPage = () => {
                 placeholder="Enter 9-digit alien number"
               />
               {getError('alienNumber')}
-              <p className="mt-1 text-xs text-gray-500">Optional: Must be exactly 9 digits if provided</p>
+              <p className="mt-1 text-xs text-gray-500">Must be exactly 9 digits if provided</p>
             </div>
             
             {/* Additional Alien Numbers */}
@@ -835,11 +835,11 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Subject Information</h2>
           <p className="text-sm text-gray-600 mb-4">
-            All fields marked with * are required. Subject information must be accurate and complete.
+            Subject information must be accurate and complete.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">First Name *</label>
+              <label className="block text-sm font-medium text-gray-700">First Name</label>
               <input
                 type="text"
                 name="subject.firstName"
@@ -852,7 +852,7 @@ const FoiaCaseFormPage = () => {
               {getError('subject.firstName')}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Last Name *</label>
+              <label className="block text-sm font-medium text-gray-700">Last Name</label>
               <input
                 type="text"
                 name="subject.lastName"
@@ -905,7 +905,7 @@ const FoiaCaseFormPage = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Date of Birth *</label>
+              <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
               <input
                 type="date"
                 name="subject.dateOfBirth"
@@ -918,7 +918,7 @@ const FoiaCaseFormPage = () => {
               {getError('subject.dateOfBirth')}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Birth Country *</label>
+              <label className="block text-sm font-medium text-gray-700">Birth Country</label>
               <input
                 type="text"
                 name="subject.birthCountry"
@@ -939,11 +939,11 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Subject Mailing Address</h2>
           <p className="text-sm text-gray-600 mb-4">
-            All fields marked with * are required. For US addresses (US), State and Zip Code are required. For non-US addresses, Province and Postal Code are required.
+            For US addresses (US), State and Zip Code are required. For non-US addresses, Province and Postal Code are required.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Country *</label>
+              <label className="block text-sm font-medium text-gray-700">Country</label>
               <input
                 type="text"
                 name="subject.mailingCountry"
@@ -962,7 +962,7 @@ const FoiaCaseFormPage = () => {
             {formData.subject.mailingCountry === 'US' ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">State *</label>
+                  <label className="block text-sm font-medium text-gray-700">State</label>
                   <input
                     type="text"
                     name="subject.mailingState"
@@ -980,7 +980,7 @@ const FoiaCaseFormPage = () => {
             ) : formData.subject.mailingCountry ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Province *</label>
+                  <label className="block text-sm font-medium text-gray-700">Province</label>
                   <input
                     type="text"
                     name="subject.mailingProvince"
@@ -997,7 +997,7 @@ const FoiaCaseFormPage = () => {
               </>
             ) : null}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Address Line 1 *</label>
+              <label className="block text-sm font-medium text-gray-700">Address Line 1</label>
               <input
                 type="text"
                 name="subject.mailingAddress1"
@@ -1020,7 +1020,7 @@ const FoiaCaseFormPage = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">City *</label>
+              <label className="block text-sm font-medium text-gray-700">City</label>
               <input
                 type="text"
                 name="subject.mailingCity"
@@ -1034,7 +1034,7 @@ const FoiaCaseFormPage = () => {
             </div>
             {formData.subject.mailingCountry === 'US' ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700">Zip Code *</label>
+                <label className="block text-sm font-medium text-gray-700">Zip Code</label>
                 <input
                   type="text"
                   name="subject.mailingZipCode"
@@ -1050,7 +1050,7 @@ const FoiaCaseFormPage = () => {
               </div>
             ) : formData.subject.mailingCountry ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700">Postal Code *</label>
+                <label className="block text-sm font-medium text-gray-700">Postal Code</label>
                 <input
                   type="text"
                   name="subject.mailingPostalCode"
@@ -1072,7 +1072,7 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Subject Contact Information</h2>
           <p className="text-sm text-gray-600 mb-4">
-            Email address is required. Phone numbers are optional but must be in international format if provided.
+            Email address is required. Phone numbers must be in international format if provided.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1085,7 +1085,7 @@ const FoiaCaseFormPage = () => {
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="+1234567890 (international format)"
               />
-              <p className="mt-1 text-xs text-gray-500">Optional: Use international format (+country code + number)</p>
+              <p className="mt-1 text-xs text-gray-500">Use international format (+country code + number)</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Mobile Phone</label>
@@ -1097,10 +1097,10 @@ const FoiaCaseFormPage = () => {
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="+1234567890 (international format)"
               />
-              <p className="mt-1 text-xs text-gray-500">Optional: Use international format (+country code + number)</p>
+              <p className="mt-1 text-xs text-gray-500">Use international format (+country code + number)</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Email Address *</label>
+              <label className="block text-sm font-medium text-gray-700">Email Address</label>
               <input
                 type="email"
                 name="subject.emailAddress"
@@ -1171,11 +1171,11 @@ const FoiaCaseFormPage = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Relation *</label>
+                  <label className="block text-sm font-medium text-gray-700">Relation</label>
                   <select
                     value={member.relation}
                     onChange={(e) => handleFamilyInputChange(index, 'relation', e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${index < 2 ? 'appearance-none' : ''}`}
                     disabled={index < 2}
                   >
                     <option value="">Select Relation</option>
@@ -1197,12 +1197,12 @@ const FoiaCaseFormPage = () => {
                       className={`mt-1 block w-full border ${
                         formErrors[`family.${index}.maidenName`] ? 'border-red-300' : 'border-gray-300'
                       } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                      placeholder="Optional maiden name"
+                      placeholder="Enter maiden name if applicable"
                     />
                     {formErrors[`family.${index}.maidenName`] && (
                       <p className="mt-1 text-sm text-red-600">{formErrors[`family.${index}.maidenName`]}</p>
                     )}
-                    <p className="mt-1 text-xs text-gray-500">Optional: Enter maiden name if applicable</p>
+                    <p className="mt-1 text-xs text-gray-500">Enter maiden name if applicable</p>
                   </div>
                 )}
               </div>
@@ -1221,7 +1221,7 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Aliases</h2>
           <p className="text-sm text-gray-600 mb-4">
-            Aliases are optional. Add any other names the subject has used or been known by.
+            Add any other names the subject has used or been known by.
           </p>
           {formData.aliases.map((alias, index) => (
             <div key={index} className="space-y-4 mb-4 border-b pb-4">
@@ -1279,11 +1279,11 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Requester Information</h2>
           <p className="text-sm text-gray-600 mb-4">
-            All fields marked with * are required. This information will be used for correspondence and delivery. For US addresses (US), State and Zip Code are required. For non-US addresses, Province and Postal Code are required.
+            This information will be used for correspondence and delivery. For US addresses (US), State and Zip Code are required. For non-US addresses, Province and Postal Code are required.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">First Name *</label>
+              <label className="block text-sm font-medium text-gray-700">First Name</label>
               <input
                 type="text"
                 name="requester.firstName"
@@ -1296,7 +1296,7 @@ const FoiaCaseFormPage = () => {
               {getError('requester.firstName')}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Last Name *</label>
+              <label className="block text-sm font-medium text-gray-700">Last Name</label>
               <input
                 type="text"
                 name="requester.lastName"
@@ -1319,7 +1319,7 @@ const FoiaCaseFormPage = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Email Address *</label>
+              <label className="block text-sm font-medium text-gray-700">Email Address</label>
               <input
                 type="email"
                 name="requester.emailAddress"
@@ -1343,7 +1343,7 @@ const FoiaCaseFormPage = () => {
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="+1234567890 (international format)"
               />
-              <p className="mt-1 text-xs text-gray-500">Optional: Use international format (+country code + number)</p>
+              <p className="mt-1 text-xs text-gray-500">Use international format (+country code + number)</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Mobile Phone</label>
@@ -1355,10 +1355,10 @@ const FoiaCaseFormPage = () => {
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="+1234567890 (international format)"
               />
-              <p className="mt-1 text-xs text-gray-500">Optional: Use international format (+country code + number)</p>
+              <p className="mt-1 text-xs text-gray-500">Use international format (+country code + number)</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mailing Address 1 *</label>
+              <label className="block text-sm font-medium text-gray-700">Mailing Address 1</label>
               <input
                 type="text"
                 name="requester.mailingAddress1"
@@ -1381,7 +1381,7 @@ const FoiaCaseFormPage = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mailing City *</label>
+              <label className="block text-sm font-medium text-gray-700">Mailing City</label>
               <input
                 type="text"
                 name="requester.mailingCity"
@@ -1394,7 +1394,7 @@ const FoiaCaseFormPage = () => {
               {getError('requester.mailingCity')}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mailing Country *</label>
+              <label className="block text-sm font-medium text-gray-700">Mailing Country</label>
               <input
                 type="text"
                 name="requester.mailingCountry"
@@ -1413,7 +1413,7 @@ const FoiaCaseFormPage = () => {
             {formData.requester.mailingCountry === 'US' ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Mailing State *</label>
+                  <label className="block text-sm font-medium text-gray-700">Mailing State</label>
                   <input
                     type="text"
                     name="requester.mailingState"
@@ -1428,7 +1428,7 @@ const FoiaCaseFormPage = () => {
                   <p className="mt-1 text-xs text-gray-500">Required for US addresses: Use 2-letter state code</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Mailing Zip Code *</label>
+                  <label className="block text-sm font-medium text-gray-700">Mailing Zip Code</label>
                   <input
                     type="text"
                     name="requester.mailingZipCode"
@@ -1446,7 +1446,7 @@ const FoiaCaseFormPage = () => {
             ) : formData.requester.mailingCountry ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Mailing Province *</label>
+                  <label className="block text-sm font-medium text-gray-700">Mailing Province</label>
                   <input
                     type="text"
                     name="requester.mailingProvince"
@@ -1461,7 +1461,7 @@ const FoiaCaseFormPage = () => {
                   <p className="mt-1 text-xs text-gray-500">Required for non-US addresses</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Mailing Postal Code *</label>
+                  <label className="block text-sm font-medium text-gray-700">Mailing Postal Code</label>
                   <input
                     type="text"
                     name="requester.mailingPostalCode"
@@ -1494,7 +1494,7 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Receipt Numbers</h2>
           <p className="text-sm text-gray-600 mb-4">
-            Receipt numbers are optional but must follow the format: 3 letters + 10 digits (e.g., ABC1234567890).
+            Receipt numbers must follow the format: 3 letters + 10 digits (e.g., ABC1234567890).
           </p>
           <div className="space-y-4">
             {/* Primary Receipt Number */}
@@ -1518,7 +1518,7 @@ const FoiaCaseFormPage = () => {
                 placeholder="e.g., ABC1234567890"
               />
               {getError('receiptNumber')}
-              <p className="mt-1 text-xs text-gray-500">Optional: Format: 3 letters + 10 digits (e.g., ABC1234567890)</p>
+              <p className="mt-1 text-xs text-gray-500">Format: 3 letters + 10 digits (e.g., ABC1234567890)</p>
             </div>
             
             {/* Additional Receipt Numbers */}
@@ -1709,7 +1709,7 @@ const FoiaCaseFormPage = () => {
                 {record.requestedDocumentType === 'OTH' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
-                      Description <span className="text-red-500">*</span>
+                      Description
                     </label>
                     <textarea
                       value={record.otherDescription || ''}
@@ -1772,7 +1772,7 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Expedited Processing Qualifications</h2>
           <p className="text-sm text-gray-600 mb-4">
-            Check any qualifications that apply to your request for expedited processing. These are optional but can help prioritize your case.
+            Check any qualifications that apply to your request for expedited processing. These can help prioritize your case.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1822,7 +1822,7 @@ const FoiaCaseFormPage = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Documents</h2>
           <p className="text-sm text-gray-600 mb-4">
-            Supporting documents are optional but can help expedite your request. Upload files or provide content descriptions.
+            Supporting documents can help expedite your request. Upload files or provide content descriptions.
           </p>
           {formData.documents.map((doc, index) => (
             <div key={index} className="space-y-4 mb-4 border-b pb-4">

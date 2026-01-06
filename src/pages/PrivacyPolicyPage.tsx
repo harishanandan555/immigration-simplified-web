@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Shield, Lock, Eye, FileText, Users, Mail, MapPin, Loader2 } from 'lucide-react';
+import { ArrowLeft, Shield, Lock, Eye, FileText, Users, Mail, MapPin, Loader2, FileCheck } from 'lucide-react';
 import { getPrivacyPolicy, PrivacyPolicy } from '../controllers/PrivacyPolicyController';
 
 const PrivacyPolicyPage: React.FC = () => {
@@ -55,11 +55,18 @@ const PrivacyPolicyPage: React.FC = () => {
               <span className="text-sm font-medium">Back to Home</span>
             </Link>
           </div>
-          <div className="flex items-center gap-3">
-            <Shield className="h-10 w-10" />
-            <div>
-              <h1 className="text-3xl font-bold">Privacy Policy</h1>
-              <p className="text-blue-100 mt-1">Effective Date: {currentDate}</p>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <FileCheck className="h-10 w-10 text-white" strokeWidth={2} />
+              <span className="text-xl font-semibold text-white">Immigration Simplified</span>
+            </div>
+            <div className="h-10 w-px bg-blue-300"></div>
+            <div className="flex items-center gap-3">
+              <Shield className="h-10 w-10" />
+              <div>
+                <h1 className="text-3xl font-bold">Privacy Policy</h1>
+                <p className="text-blue-100 mt-1">Effective Date: {currentDate}</p>
+              </div>
             </div>
           </div>
         </div>
