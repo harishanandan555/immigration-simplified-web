@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { createIndividualClient } from '../../controllers/ClientControllers';
+import { acceptPrivacyPolicy } from '../../controllers/PrivacyPolicyController';
+import { acceptTermsOfService } from '../../controllers/TermsOfServiceController';
 import Logo from '../../components/layout/Logo';
+import Footer from '../../components/layout/Footer';
 import { Shield, Users, Check, ArrowRight, Loader2, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -14,6 +17,13 @@ const RegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [currentSection, setCurrentSection] = useState(0);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
+  const [termsOfServiceAccepted, setTermsOfServiceAccepted] = useState(false);
+  
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   
   const sections = [
     'Basic Information',
@@ -478,6 +488,9 @@ const RegisterPage: React.FC = () => {
         if (formData.medicalHistory?.hasMedicalConditions && !formData.medicalHistory?.details?.trim()) {
           errors['medicalHistory.details'] = 'Medical history details are required when medical conditions are checked';
         }
+        if (!privacyPolicyAccepted) {
+          errors['privacyPolicy'] = 'You must accept the Privacy Policy to continue';
+        }
         break;
     }
 
@@ -674,9 +687,14 @@ const RegisterPage: React.FC = () => {
       errors['criminalHistory.details'] = 'Criminal history details are required when criminal record is checked';
     }
 
-    // Medical History validation
+      // Medical History validation
     if (formData.medicalHistory?.hasMedicalConditions && !formData.medicalHistory?.details?.trim()) {
       errors['medicalHistory.details'] = 'Medical history details are required when medical conditions are checked';
+    }
+
+    // Privacy Policy validation (only on last section)
+    if (currentSection === sections.length - 1 && !privacyPolicyAccepted) {
+      errors['privacyPolicy'] = 'You must accept the Privacy Policy to continue';
     }
 
     setFormErrors(errors);
@@ -707,9 +725,40 @@ const RegisterPage: React.FC = () => {
       return;
     }
     
+    // Validate Privacy Policy acceptance
+    if (!privacyPolicyAccepted) {
+      toast.error('Please accept the Privacy Policy to continue');
+      return;
+    }
+    
+    // Validate Terms of Service acceptance
+    if (!termsOfServiceAccepted) {
+      toast.error('Please accept the Terms of Service to continue');
+      return;
+    }
+    
     setLoading(true);
 
     try {
+      // Accept Privacy Policy first
+      try {
+        await acceptPrivacyPolicy(formData.email);
+      } catch (privacyError) {
+        console.error('Error accepting privacy policy:', privacyError);
+        // Don't block registration if privacy policy acceptance fails
+        // but log it for debugging
+        toast.error('Warning: Could not record Privacy Policy acceptance. Please contact support.');
+      }
+
+      // Accept Terms of Service
+      try {
+        await acceptTermsOfService(formData.email);
+      } catch (termsError) {
+        console.error('Error accepting terms of service:', termsError);
+        // Don't block registration if terms acceptance fails
+        // but log it for debugging
+        toast.error('Warning: Could not record Terms of Service acceptance. Please contact support.');
+      }
 
       // Create individual client
       const clientData = {
@@ -1978,6 +2027,82 @@ const RegisterPage: React.FC = () => {
 
   const renderHistoryAndAdditional = () => (
     <div className="space-y-6">
+      {/* Privacy Policy Consent */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <input
+            type="checkbox"
+            id="privacyPolicy"
+            name="privacyPolicy"
+            checked={privacyPolicyAccepted}
+            onChange={(e) => {
+              setPrivacyPolicyAccepted(e.target.checked);
+              // Clear error when checkbox is checked
+              if (e.target.checked && formErrors['privacyPolicy']) {
+                setFormErrors(prev => {
+                  const newErrors = { ...prev };
+                  delete newErrors['privacyPolicy'];
+                  return newErrors;
+                });
+              }
+            }}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
+          />
+          <label htmlFor="privacyPolicy" className="ml-3 text-sm text-gray-700">
+            I agree to the{' '}
+            <Link
+              to="/privacy-policy"
+              target="_blank"
+              className="text-blue-600 hover:text-blue-700 underline font-medium"
+            >
+              Privacy Policy
+            </Link>
+            {' '}and consent to the collection and use of my personal information as described therein.
+          </label>
+        </div>
+        {formErrors['privacyPolicy'] && (
+          <p className="mt-2 text-sm text-red-600">{formErrors['privacyPolicy']}</p>
+        )}
+      </div>
+
+      {/* Terms of Service Consent */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <input
+            type="checkbox"
+            id="termsOfService"
+            name="termsOfService"
+            checked={termsOfServiceAccepted}
+            onChange={(e) => {
+              setTermsOfServiceAccepted(e.target.checked);
+              // Clear error when checkbox is checked
+              if (e.target.checked && formErrors['termsOfService']) {
+                setFormErrors(prev => {
+                  const newErrors = { ...prev };
+                  delete newErrors['termsOfService'];
+                  return newErrors;
+                });
+              }
+            }}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
+          />
+          <label htmlFor="termsOfService" className="ml-3 text-sm text-gray-700">
+            I agree to the{' '}
+            <Link
+              to="/terms-of-service"
+              target="_blank"
+              className="text-blue-600 hover:text-blue-700 underline font-medium"
+            >
+              Terms of Service
+            </Link>
+            {' '}and agree to be bound by the terms and conditions set forth therein.
+          </label>
+        </div>
+        {formErrors['termsOfService'] && (
+          <p className="mt-2 text-sm text-red-600">{formErrors['termsOfService']}</p>
+        )}
+      </div>
+
       <div className="bg-gray-50 p-4 rounded-lg">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Criminal History</h3>
         <div className="space-y-4">
@@ -2154,81 +2279,86 @@ const RegisterPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-white flex">
-      {/* Left side - Features */}
-      <div className="hidden lg:flex lg:flex-1 p-12 items-start border-r border-gray-100">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-gray-50 rounded-2xl p-8 shadow-lg">
-            <h2 className="text-3xl font-bold mb-8 flex items-center text-gray-900">
-              <Shield className="mr-3 h-8 w-8 text-primary-600" />
-              Why Choose Immigration-Simplified?
-            </h2>
-
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                <h3 className="text-xl font-semibold mb-4 text-gray-900">
-                  Error Prevention
-                </h3>
-                <p className="text-gray-600 leading-relaxed">
-                  Our intelligent system prevents common mistakes and ensures accuracy in your applications.
-                </p>
-              </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                <h3 className="text-xl font-semibold mb-4 text-gray-900">
-                  Time Savings
-                </h3>
-                <p className="text-gray-600 leading-relaxed">
-                  Automate repetitive tasks and focus on what matters most - your immigration journey.
-                </p>
-              </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                <h3 className="text-xl font-semibold mb-4 text-gray-900">
-                  Smart Form Library
-                </h3>
-                <p className="text-gray-600 leading-relaxed">
-                  Access the latest USCIS forms instantly. Our library updates automatically.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Right side - Registration form */}
-      <div className="flex-1 p-8 min-h-screen overflow-y-auto">
-        <div className="w-full max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-            <div className="text-center mb-8">
-              <div className="inline-block p-3 rounded-full bg-primary-50 mb-4">
-                <Logo className="h-12 w-12 text-primary-600" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900">
-                Immigration-Simplified
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="flex flex-1 min-h-0">
+        {/* Left side - Features */}
+        <div className="hidden lg:flex lg:flex-1 p-12 items-start border-r border-gray-100 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="max-w-2xl mx-auto w-full">
+            <div className="bg-gray-50 rounded-2xl p-8 shadow-lg">
+              <h2 className="text-3xl font-bold mb-8 flex items-center text-gray-900">
+                <Shield className="mr-3 h-8 w-8 text-primary-600" />
+                Why Choose Immigration-Simplified?
               </h2>
-              <p className="mt-2 text-sm text-gray-600">
-                by Efile legal
-              </p>
+
+              <div className="space-y-6">
+                <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <h3 className="text-xl font-semibold mb-4 text-gray-900">
+                    Error Prevention
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Our intelligent system prevents common mistakes and ensures accuracy in your applications.
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <h3 className="text-xl font-semibold mb-4 text-gray-900">
+                    Time Savings
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Automate repetitive tasks and focus on what matters most - your immigration journey.
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <h3 className="text-xl font-semibold mb-4 text-gray-900">
+                    Smart Form Library
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Access the latest USCIS forms instantly. Our library updates automatically.
+                  </p>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
 
-            {step === 'plan' && renderPlanSelection()}
-            {step === 'form' && renderRegistrationForm()}
+        {/* Right side - Registration form */}
+        <div className="flex-1 p-8 overflow-y-auto">
+          <div className="w-full max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+              <div className="text-center mb-8">
+                <div className="inline-block p-3 rounded-full bg-primary-50 mb-4">
+                  <Logo className="h-12 w-12 text-primary-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">
+                  Immigration-Simplified
+                </h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  by Efile legal
+                </p>
+              </div>
 
-            <div className="text-center mt-6">
-              <p className="text-sm text-gray-600">
-                Already have an account?{' '}
-                <button
-                  onClick={() => navigate('/login')}
-                  className="font-medium text-primary-600 hover:text-primary-500"
-                >
-                  Sign in
-                </button>
-              </p>
+              {step === 'plan' && renderPlanSelection()}
+              {step === 'form' && renderRegistrationForm()}
+
+              <div className="text-center mt-6">
+                <p className="text-sm text-gray-600">
+                  Already have an account?{' '}
+                  <button
+                    onClick={() => navigate('/login')}
+                    className="font-medium text-primary-600 hover:text-primary-500"
+                  >
+                    Sign in
+                  </button>
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };
