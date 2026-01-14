@@ -224,11 +224,13 @@ const FoiaCaseTrackerPage: React.FC = () => {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
         <div className="mb-6">
-          <h2 className="text-lg font-medium text-gray-900">Track FOIA Case Status</h2>
-          <p className="text-sm text-gray-500 mt-1">Enter your FOIA request number to check the current status</p>
+          {/* <h2 className="text-lg font-medium text-gray-900">Track FOIA Case Status</h2> */}
+          <h2 className="text-lg font-medium text-gray-900">Track Case Status</h2>
+          {/* <p className="text-sm text-gray-500 mt-1">Enter your FOIA request number to check the current status</p> */}
+          <p className="text-sm text-gray-500 mt-1">Enter your Case number to check the current status</p>
         </div>
 
-        <form onSubmit={handleCaseLookup}>
+        {/* <form onSubmit={handleCaseLookup}>
           <div className="flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4">
             <div className="flex-grow">
               <Input
@@ -237,6 +239,33 @@ const FoiaCaseTrackerPage: React.FC = () => {
                 value={requestNumber}
                 onChange={handleRequestNumberChange}
                 placeholder="Enter your FOIA request number"
+                error={error || undefined}
+                required
+              />
+            </div>
+            <div>
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isLoading}
+                disabled={isLoading}
+                className="w-full md:w-auto"
+              >
+                <Search className="w-4 h-4 mr-2" />
+                Check Status
+              </Button>
+            </div>
+          </div>
+        </form> */}
+        <form onSubmit={handleCaseLookup}>
+          <div className="flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4">
+            <div className="flex-grow">
+              <Input
+                id="requestNumber"
+                label="Case Number"
+                value={requestNumber}
+                onChange={handleRequestNumberChange}
+                placeholder="Enter your Case number"
                 error={error || undefined}
                 required
               />
@@ -407,7 +436,8 @@ const FoiaCaseTrackerPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">FOIA Case Status Tracker</h1>
+        {/* <h1 className="text-2xl font-bold text-gray-800">FOIA Case Status Tracker</h1> */}
+        <h1 className="text-2xl font-bold text-gray-800">Case Status Tracker</h1>
         <p className="text-gray-500 mt-1">Track the status of your Freedom of Information Act requests</p>
       </div>
 
