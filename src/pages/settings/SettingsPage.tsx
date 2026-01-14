@@ -2324,6 +2324,7 @@ const SettingsPage = () => {
     { id: 'integrations', name: 'Integrations', icon: Globe, adminOnly: false },
     { id: 'billing', name: 'Billing', icon: CreditCard, adminOnly: false },
     { id: 'users', name: 'User Management', icon: Users, adminOnly: false, attorneyAllowed: true },
+    { id: 'questionnaire', name: 'Questionnaire', icon: HelpCircle, adminOnly: false, attorneyAllowed: true },
     // { id: 'cases', name: 'Case Settings', icon: Briefcase, adminOnly: false, attorneyAllowed: true },
     { id: 'reports', name: 'Report Settings', icon: BarChart, adminOnly: false, attorneyAllowed: true },
     { id: 'roles', name: 'Roles & Permissions', icon: Shield, adminOnly: true },
@@ -2333,7 +2334,6 @@ const SettingsPage = () => {
     { id: 'backup', name: 'Backup & Recovery', icon: HardDrive, adminOnly: true },
     { id: 'api', name: 'API Settings', icon: Key, adminOnly: true },
     { id: 'performance', name: 'Performance', icon: Zap, adminOnly: true },
-    // { id: 'questionnaire', name: 'Questionnaire', icon: HelpCircle, adminOnly: false, attorneyAllowed: true },
   ];
 
   const renderSecuritySection = () => (
@@ -8824,46 +8824,13 @@ const SettingsPage = () => {
             )}
 
             {/* Questionnaire Settings */}
-            {activeTab === 'questionnaire' && (
-              <>
-                <div className="p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">Immigration Questionnaire Settings</h2>
-                  <div className="space-y-6">
-                    {questionnaireQuestions.map((q, idx) => (
-                      <div key={q.id} className="bg-gray-50 p-4 rounded-lg">
-                        <div className="mb-2">
-                          <label className="block text-sm font-medium text-gray-700">Question Title</label>
-                          <input
-                            type="text"
-                            value={q.title}
-                            onChange={e => handleQuestionnaireChange(idx, 'title', e.target.value)}
-                            className="mt-1 form-input w-full"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Description</label>
-                          <textarea
-                            value={q.description}
-                            onChange={e => handleQuestionnaireChange(idx, 'description', e.target.value)}
-                            className="mt-1 form-input w-full"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                  <button
-                    type="button"
-                    className="btn btn-primary flex items-center"
-                    onClick={handleQuestionnaireSave}
-                    disabled={questionnaireLoading}
-                  >
-                    <Save size={18} className="mr-2" />
-                    {questionnaireLoading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </>
+            {activeTab === 'questionnaire' && (isSuperAdmin || isAttorney) && (
+              <div className="p-6">
+                <QuestionnaireBuilder 
+                  isSuperAdmin={isSuperAdmin || false} 
+                  isAttorney={isAttorney || false} 
+                />
+              </div>
             )}
 
           </div>
