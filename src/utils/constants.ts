@@ -26,7 +26,10 @@ export const BILLING_END_POINTS = {
     RENEW_SUBSCRIPTION: "/api/v1/billing/subscription/renew",
     GET_INVOICES: "/api/v1/billing/invoices",
     GET_PLANS: "/api/v1/billing/plans",
-    GET_PLAN_DETAILS: "/api/v1/billing/plans/:id"
+    GET_PLAN_DETAILS: "/api/v1/billing/plans/:id",
+    // Superadmin: get all payments/subscribers
+    // Note: backend router is mounted at /api/billing
+    GET_ALL_PAYMENTS: "/api/v1/billing/payments"
 };
 
 export const CASE_END_POINTS = {

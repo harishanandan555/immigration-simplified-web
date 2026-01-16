@@ -48,9 +48,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isMobile }) => {
     // { name: 'Audit Logs', href: '/audit-logs', icon: FileText, visible: isSuperAdmin },
     { name: 'Reports', href: '/reports', icon: BarChart, visible: isAttorney || isParalegal },
     // Superadmin Management
+     { name: 'Subscribers', href:'/admin/subscribers', icon: Users, visible: isSuperAdmin },
     { name: 'Individual Clients', href: '/admin/individual-clients', icon: UserCheck, visible: isSuperAdmin },
     // { name: 'Legal Firms', href: '/admin/legal-firms', icon: Briefcase, visible: isSuperAdmin },
     { name: 'Companies', href: '/admin/companies', icon: Building2, visible: isSuperAdmin },
+   
     { name: 'Settings', href: '/settings', icon: Settings, visible: isAttorney || isParalegal || isSuperAdmin || (isClient && user?.userType === 'individualUser') }
   ];
 

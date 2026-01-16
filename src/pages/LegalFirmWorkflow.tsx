@@ -2415,22 +2415,7 @@ const LegalFirmWorkflow: React.FC = (): React.ReactElement => {
           formCaseIdGenerated: questionnaireAssignmentData.formCaseIdGenerated
         };
 
-        console.log('✅ DEBUG: ========== QUESTIONNAIRE RESPONSE CREATED ==========');
-        console.log('✅ DEBUG: Created questionnaire response object:', {
-          responseId: questionnaireResponse.id,
-          questionnaireTitle: questionnaireResponse.questionnaireTitle,
-          questionnaireId: questionnaireResponse.questionnaireId,
-          responseCount: Object.keys(questionnaireResponse.responses).length,
-          isComplete: questionnaireResponse.isComplete,
-          submittedAt: questionnaireResponse.submittedAt,
-          assignmentId: questionnaireResponse.assignmentId,
-          responseFields: Object.entries(questionnaireResponse.responses).map(([key, value]) => ({
-            field: key,
-            value: value,
-            type: typeof value
-          }))
-        });
-
+       
         // Add this response to the existing questionnaire responses
         setExistingQuestionnaireResponses(prev => {
           // Check if this response already exists to avoid duplicates
