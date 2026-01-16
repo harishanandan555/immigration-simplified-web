@@ -220,3 +220,19 @@ export const getInvoices = async (companyId: string): Promise<ApiResponse<Paymen
     return handleApiError(error);
   }
 }; 
+
+// Superadmin: get all payments / subscribers
+// Backend returns { success, count, data: Payment[] }
+export const getAllPayments = async (): Promise<ApiResponse<{ success: boolean; count: number; data: any[] }>> => {
+  try {
+    const response = await fetch(`${APPCONSTANTS.API_BASE_URL}${BILLING_END_POINTS.GET_ALL_PAYMENTS}`);
+    const data = await response.json();
+    return {
+      data,
+      status: response.status,
+      statusText: response.statusText
+    };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};

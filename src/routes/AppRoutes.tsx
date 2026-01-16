@@ -36,6 +36,7 @@ const ResponseView = lazy(() => import('../pages/ResponseView'));
 const ReportsPage = lazy(() => import('../pages/reports/ReportsPage'));
 const IndividualClientsPage = lazy(() => import('../pages/admin/IndividualClientsPage'));
 const CompaniesPage = lazy(() => import('../pages/admin/CompaniesPage'));
+const SubscribersListPage = lazy(() => import('../pages/admin/SubscribersList'));
 
 const AppRoutes = () => {
   
@@ -267,6 +268,15 @@ const AppRoutes = () => {
             (user?.role === 'superadmin') ? (
               <Suspense fallback={null}>
                 <CompaniesPage />
+              </Suspense>
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          } />
+          <Route path="/admin/subscribers" element={
+            (user?.role === 'superadmin') ? (
+              <Suspense fallback={null}>
+                <SubscribersListPage />
               </Suspense>
             ) : (
               <Navigate to="/dashboard" replace />

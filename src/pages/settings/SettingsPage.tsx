@@ -3,7 +3,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 // Stripe publishable key (replace with your actual key or use env variable)
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ;
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 console.log('[Stripe] Using publishable key:', STRIPE_PUBLISHABLE_KEY);
 const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 // ...existing code...
@@ -71,9 +71,9 @@ import {
   Save as SaveIcon,
   Cancel as CancelIcon,
 } from '@mui/icons-material';
-  // ...existing code...
-  // No-op for non-attorney payment method update button
-  const handlePaymentMethodUpdate = () => {};
+// ...existing code...
+// No-op for non-attorney payment method update button
+const handlePaymentMethodUpdate = () => { };
 import { useSnackbar } from 'notistack';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -183,13 +183,14 @@ import {
   getCurrentSubscription,
   updateSubscription,
   updatePaymentMethod,
-    // Removed unused controller imports
+  // Removed unused controller imports
   cancelSubscription,
   renewSubscription
 } from '../../controllers/BillingControllers';
 
 import CompanySelect from '../../components/settings/CompanySelect';
 import {
+  APPCONSTANTS,
   ROLE_TYPES,
   PERMISSION_MODULES,
   PERMISSION_ACTIONS,
@@ -679,7 +680,7 @@ interface Permission {
 
 const SettingsPage = () => {
 
-  const { isAttorney, isSuperAdmin, user } = useAuth();
+  const { isAttorney, isSuperAdmin, user, isClient } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -714,6 +715,50 @@ const SettingsPage = () => {
     phone: '',
     bio: '',
   });
+
+  const PRICING = {
+    demo: {
+      monthly: 0,
+      yearly: 0,
+    },
+    basic: {
+      monthly: 59,
+      yearly: 299,
+    },
+    professional: {
+      monthly: 79,
+      yearly: 799,
+    },
+    enterprise: {
+      monthly: 199,
+      yearly: 1990,
+    },
+  };
+  // Map local plans/cycles to Stripe Price IDs (fill these with your real IDs)
+  const PRICE_IDS: Record<string, { monthly?: string | null; yearly?: string | null }> = {
+    demo: {
+      monthly: null,
+      yearly: null,
+    },
+    basic: {
+      monthly: 'STRIPE_PRICE_BASIC_MONTHLY',
+      yearly: 'STRIPE_PRICE_BASIC_YEARLY',
+    },
+    professional: {
+      monthly: 'STRIPE_PRICE_PROFESSIONAL_MONTHLY',
+      yearly: 'STRIPE_PRICE_PROFESSIONAL_YEARLY',
+    },
+    enterprise: {
+      monthly: 'STRIPE_PRICE_ENTERPRISE_MONTHLY',
+      yearly: 'STRIPE_PRICE_ENTERPRISE_YEARLY',
+    },
+  };
+  const PLAN_LABELS = {
+    demo: 'Demo',
+    basic: 'Basic',
+    professional: 'Professional',
+    enterprise: 'Enterprise',
+  };
 
   // Organization form state
   const [organizationData, setOrganizationData] = useState<OrganizationData>({
@@ -1303,6 +1348,11 @@ const SettingsPage = () => {
   const [editTemplateFile, setEditTemplateFile] = useState<File | null>(null);
   const [editTemplateBase64, setEditTemplateBase64] = useState<string | null>(null);
   const [editTemplateLoading, setEditTemplateLoading] = useState(false);
+  const selectedPlan = billingData.subscription.plan;
+  const selectedCycle = billingData.subscription.billingCycle;
+
+  const selectedAmount =
+    PRICING[selectedPlan]?.[selectedCycle] || 0;
 
   // Load initial data
   useEffect(() => {
@@ -1774,17 +1824,15 @@ const SettingsPage = () => {
 
   // stripePromise is now defined at the top-level, outside the component
 
-  // Stripe payment method update handler for attorneys
+  // Stripe payment form for subscription billing (via Stripe Subscription + first invoice PaymentIntent)
   const StripePaymentForm = () => {
     const stripe = useStripe();
     const elements = useElements();
     const [cardError, setCardError] = useState('');
     const [cardLoading, setCardLoading] = useState(false);
-    // Log when Stripe is connected and ready
     useEffect(() => {
       if (stripe && elements) {
         console.log('Stripe is connected and ready!');
-        // Log the publishable key used by Stripe
         console.log('[Stripe] Publishable key in StripePaymentForm:', STRIPE_PUBLISHABLE_KEY);
       }
     }, [stripe, elements]);
@@ -1799,19 +1847,47 @@ const SettingsPage = () => {
         return;
       }
       try {
-        // Call backend to create a SetupIntent and get clientSecret
-        const res = await fetch('/api/billing/create-setup-intent', {
+        // Resolve Stripe Price ID for the selected plan & billing cycle
+        const priceConfig = PRICE_IDS[selectedPlan];
+        const priceId = priceConfig ? priceConfig[selectedCycle as 'monthly' | 'yearly'] : null;
+
+        if (!priceId) {
+          setCardError('No Stripe price configured for this plan and billing cycle.');
+          setCardLoading(false);
+          return;
+        }
+
+        // Call backend to create a Subscription and get the first invoice PaymentIntent clientSecret
+        const res = await fetch(`${APPCONSTANTS.API_BASE_URL}/api/v1/billing/create-payment-intent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user?._id })
+          body: JSON.stringify({
+            priceId,
+            email: user?.email,
+            companyId: user?.companyId,
+            plan: selectedPlan,
+            billingCycle: selectedCycle,
+            metadata: {
+              userId: user?.firstName + ' ' + user?.lastName,
+              email: user?.email,
+              companyId: user?.companyId,
+              plan: selectedPlan,
+              billingCycle: selectedCycle,
+            },
+          })
         });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Backend error ${res.status}: ${text || res.statusText}`);
+        }
         const backendResponse = await res.json();
-        console.log('Backend /create-setup-intent response:', backendResponse);
-        const { clientSecret } = backendResponse;
+        console.log('Backend subscription create-payment-intent response:', backendResponse);
+        const { clientSecret, subscriptionId, customerId, status } = backendResponse;
+        console.log('Subscription created:', { subscriptionId, customerId, status });
         if (!clientSecret) throw new Error('No client secret');
 
-        // Confirm card setup
-        const result = await stripe.confirmCardSetup(clientSecret, {
+        // Confirm card payment
+        const result = await stripe.confirmCardPayment(clientSecret, {
           payment_method: {
             card: elements.getElement(CardElement)!,
             billing_details: {
@@ -1820,22 +1896,11 @@ const SettingsPage = () => {
             }
           }
         });
-        console.log('Stripe confirmCardSetup result:', result);
+        console.log('Stripe confirmCardPayment result:', result);
         if (result.error) {
           setCardError(result.error.message || 'Payment error');
-        } else {
-          // Send payment method id to backend to save
-          const saveRes = await fetch('/api/billing/save-payment-method', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: user?._id,
-              paymentMethodId: result.setupIntent.payment_method
-            })
-          });
-          const saveResponse = await saveRes.json();
-          console.log('Backend /save-payment-method response:', saveResponse);
-          enqueueSnackbar('Payment method updated!', { variant: 'success' });
+        } else if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+          enqueueSnackbar('Payment successful!', { variant: 'success' });
         }
       } catch (err: any) {
         setCardError(err.message || 'Payment error');
@@ -1854,7 +1919,7 @@ const SettingsPage = () => {
           className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
           disabled={cardLoading || !stripe}
         >
-          {cardLoading ? 'Processing...' : 'Update Payment Method'}
+          {cardLoading ? 'Processing...' : 'Pay Now'}
         </button>
       </form>
     );
@@ -3274,11 +3339,34 @@ const SettingsPage = () => {
               <option value="yearly">Yearly</option>
             </select>
           </div>
+
+          <div className="col-span-2 mt-4 bg-indigo-50 border border-indigo-200 rounded-md p-3">
+            <p className="text-sm text-gray-800">
+              <span className="font-medium">Plan:</span>{" "}
+              <span className="text-indigo-700 font-semibold">
+                {PLAN_LABELS[selectedPlan]}
+              </span>
+            </p>
+
+            <p className="text-sm text-gray-800 mt-1">
+              <span className="font-medium">Billing:</span>{" "}
+              <span className="text-indigo-700 font-semibold capitalize">
+                {selectedCycle}
+              </span>
+            </p>
+
+            <p className="text-sm text-gray-800 mt-1">
+              <span className="font-medium">Rate:</span>{" "}
+              <span className="text-indigo-600 font-semibold">
+                ${selectedAmount} / {selectedCycle === 'monthly' ? 'month' : 'year'}
+              </span>
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Payment Method - Stripe for Attorney Only */}
-      {isAttorney ? (
+      {isAttorney || isClient && user?.userType === 'individualUser'? (
         <div className="mb-6">
           <h3 className="text-base font-medium text-gray-900 mb-3">Payment Method (Stripe)</h3>
           <Elements stripe={stripePromise}>
@@ -3287,58 +3375,8 @@ const SettingsPage = () => {
         </div>
       ) : (
         <div className="mb-6">
-          <h3 className="text-base font-medium text-gray-900 mb-3">Payment Method</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Card Type</label>
-              <select
-                name="paymentMethod.type"
-                value={billingData.paymentMethod.type}
-                onChange={handleBillingChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              >
-                <option value="credit_card">Credit Card</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Last 4 Digits</label>
-              <input
-                type="text"
-                name="paymentMethod.last4"
-                value={billingData.paymentMethod.last4}
-                onChange={handleBillingChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Expiry Month</label>
-              <input
-                type="number"
-                name="paymentMethod.expiryMonth"
-                value={billingData.paymentMethod.expiryMonth}
-                onChange={handleBillingChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Expiry Year</label>
-              <input
-                type="number"
-                name="paymentMethod.expiryYear"
-                value={billingData.paymentMethod.expiryYear}
-                onChange={handleBillingChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-          <button
-            onClick={handlePaymentMethodUpdate}
-            className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-          >
-            Update Payment Method
-          </button>
+          <h3 className="text-base font-medium text-gray-900 mb-3">No Payment Available yet</h3>
+          
         </div>
       )}
 
